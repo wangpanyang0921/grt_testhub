@@ -201,6 +201,7 @@
                     </el-select>
                   </div>
                   <el-input
+                    ref="rawBodyInputRef"
                     v-model="rawBody"
                     type="textarea"
                     :rows="10"
@@ -620,6 +621,11 @@ const headersEditorRef = ref(null)
 const editingNodeId = ref(null)
 const editingNodeName = ref('')
 const editInputRef = ref(null)
+<<<<<<< HEAD
+=======
+const rawBodyInputRef = ref(null)
+const currentHeaders = ref({})
+>>>>>>> upstream/main
 
 // 辅助函数：将对象或数组转换为键值对数组（用于KeyValueEditor组件）
 const convertObjectToKeyValueArray = (obj) => {
@@ -795,12 +801,25 @@ const loadRequests = async () => {
       clearCollectionChildren(collection)
     })
 
-    // 将请求添加到对应集合中
+    // 过滤掉之前的未分类接口（type 为 request 且 id 为 null 的项）
+    collections.value = collections.value.filter(item => item.type === 'collection')
+
+    // 将请求添加到对应集合中或直接添加到根级别
     requests.forEach(request => {
-      const collection = findCollectionById(collections.value, request.collection)
-      if (collection) {
-        if (!collection.children) collection.children = []
-        collection.children.push({
+      if (request.collection) {
+        // 有关联集合的请求，添加到对应集合下
+        const collection = findCollectionById(collections.value, request.collection)
+        if (collection) {
+          if (!collection.children) collection.children = []
+          collection.children.push({
+            ...request,
+            type: 'request',
+            name: request.name
+          })
+        }
+      } else {
+        // 未关联集合的请求，直接添加到集合列表的根级别
+        collections.value.push({
           ...request,
           type: 'request',
           name: request.name
@@ -1863,8 +1882,708 @@ const copyResponse = () => {
   }
 }
 
+<<<<<<< HEAD
 onMounted(() => {
   loadProjects()
+=======
+const evaluateJsonPath = () => {
+  if (!response.value || !response.value.response_data || !response.value.response_data.json || !jsonPathExpression.value) {
+    jsonPathResult.value = null
+    return
+  }
+
+  try {
+    // 简单的JSONPath实现
+    const json = response.value.response_data.json
+    let result = json
+
+    // 解析JSONPath表达式
+    const parts = jsonPathExpression.value.split('.').filter(p => p)
+
+    for (const part of parts) {
+      if (part === '$') {
+        result = json
+      } else if (part.includes('[')) {
+        // 处理数组索引
+        const [arrayName, indexStr] = part.split('[')
+        const index = parseInt(indexStr.replace(']', ''))
+        result = result[arrayName][index]
+      } else {
+        result = result[part]
+      }
+    }
+
+    jsonPathResult.value = JSON.stringify(result, null, 2)
+  } catch (e) {
+    jsonPathResult.value = 'JSONPath表达式错误'
+  }
+}
+
+const copyJsonPathResult = () => {
+  if (jsonPathResult.value) {
+    navigator.clipboard.writeText(jsonPathResult.value)
+    ElMessage.success('已复制到剪贴板')
+  }
+}
+
+const formatAssertionValue = (value) => {
+  if (typeof value === 'object' && value !== null) {
+    return JSON.stringify(value, null, 2)
+  }
+  return value
+}
+
+const createCollection = async () => {
+  if (!collectionForm.name.trim()) {
+    ElMessage.warning('请输入集合名称')
+    return
+  }
+
+  try {
+    const response = await api.post('/api-testing/collections/', {
+      ...collectionForm,
+      project: selectedProject.value
+    })
+    ElMessage.success('创建成功')
+    await loadCollections(selectedProject.value)
+    showCreateCollectionDialog.value = false
+    collectionForm.name = ''
+    collectionForm.description = ''
+    collectionForm.parent = null
+  } catch (error) {
+    ElMessage.error('创建失败')
+    console.error('创建失败:', error)
+  }
+}
+
+const updateCollection = async () => {
+  if (!editCollectionForm.name.trim()) {
+    ElMessage.warning('请输入集合名称')
+    return
+  }
+
+  try {
+    await api.put(`/api-testing/collections/${editCollectionForm.id}/`, editCollectionForm)
+    ElMessage.success('更新成功')
+    await loadCollections(selectedProject.value)
+    showEditCollectionDialog.value = false
+  } catch (error) {
+    ElMessage.error('更新失败')
+    console.error('更新失败:', error)
+  }
+}
+
+const importCurl = () => {
+  // 清空上次的 curl 命令
+  curlCommand.value = ''
+  showCurlImportDialog.value = true
+}
+
+const parseAndImportCurl = async () => {
+  if (!curlCommand.value.trim()) {
+    ElMessage.warning('请输入CURL命令')
+    return
+  }
+
+  try {
+    const requestModel = await RequestModelParser.parseCurl(curlCommand.value)
+
+    if (!selectedRequest.value) {
+      createEmptyRequest()
+    }
+
+    // 回填基本字段
+    selectedRequest.value.method = requestModel.method
+    selectedRequest.value.url = requestModel.baseURL + requestModel.path
+    selectedRequest.value.headers = requestModel.headers
+    selectedRequest.value.params = requestModel.query
+
+    // 回填 body 相关字段
+    if (requestModel.body.mode !== 'none') {
+      if (requestModel.body.mode === 'json') {
+        bodyType.value = 'raw'
+        rawType.value = 'json'
+        rawBody.value = requestModel.body.json || ''
+      } else if (requestModel.body.mode === 'raw') {
+        bodyType.value = 'raw'
+        rawType.value = 'text'
+        rawBody.value = requestModel.body.raw || ''
+      } else if (requestModel.body.mode === 'formdata') {
+        bodyType.value = 'form-data'
+        formData.value = requestModel.body.formdata || []
+      } else if (requestModel.body.mode === 'urlencoded') {
+        bodyType.value = 'x-www-form-urlencoded'
+        formUrlEncoded.value = requestModel.body.urlencoded || []
+      }
+    }
+
+    showCurlImportDialog.value = false
+    ElMessage.success('导入成功')
+  } catch (error) {
+    ElMessage.error('解析CURL命令失败')
+    console.error('解析CURL命令失败:', error)
+  }
+}
+
+// 辅助函数：将对象格式转换为数组格式
+const convertToArrayFormat = (data) => {
+  if (!data) return []
+  // 如果已经是数组格式，直接返回
+  if (Array.isArray(data)) return data
+  // 如果是对象格式，转换为数组格式
+  if (typeof data === 'object') {
+    return Object.entries(data).map(([key, value]) => ({
+      key,
+      value: typeof value === 'object' ? JSON.stringify(value) : String(value),
+      enabled: true
+    }))
+  }
+  return []
+}
+
+const exportRequest = () => {
+  if (!selectedRequest.value) return
+
+  try {
+    let baseURL = ''
+    let path = ''
+
+    if (selectedRequest.value.url) {
+      try {
+        const url = new URL(selectedRequest.value.url)
+        baseURL = `${url.protocol}//${url.host}`
+        path = url.pathname
+      } catch (error) {
+        baseURL = selectedRequest.value.url
+        path = ''
+      }
+    }
+
+    const requestModel = {
+      method: selectedRequest.value?.method || 'GET',
+      baseURL: baseURL,
+      path: path,
+      query: convertToArrayFormat(selectedRequest.value?.params),
+      headers: convertToArrayFormat(selectedRequest.value?.headers),
+      body: {
+        mode: 'none',
+        raw: rawBody.value || ''
+      },
+      timeout: 30000
+    }
+
+    const curlCommand = RequestModelParser.toCurl(requestModel)
+    navigator.clipboard.writeText(curlCommand)
+    ElMessage.success('已复制到剪贴板')
+  } catch (error) {
+    ElMessage.error('导出失败')
+    console.error('导出失败:', error)
+  }
+}
+
+const generateCode = async (language) => {
+  if (!selectedRequest.value) return
+
+  if (!selectedRequest.value.url) {
+    ElMessage.warning('请求URL不能为空')
+    return
+  }
+
+  try {
+    // 更新语言选择器的值
+    codeLanguage.value = language
+
+    // 构建完整的 requestModel 对象
+    let bodyMode = 'none'
+
+    if (bodyType.value === 'raw') {
+      bodyMode = rawType.value === 'json' ? 'json' : 'raw'
+    } else if (bodyType.value === 'form-data') {
+      bodyMode = 'formdata'
+    } else if (bodyType.value === 'x-www-form-urlencoded') {
+      bodyMode = 'urlencoded'
+    } else if (bodyType.value === 'binary') {
+      bodyMode = 'binary'
+    }
+
+    // 解析 URL 获取 baseURL 和 path
+    let baseURL = ''
+    let path = ''
+    try {
+      const url = new URL(selectedRequest.value.url)
+      baseURL = `${url.protocol}//${url.host}`
+      path = url.pathname
+    } catch (error) {
+      // 如果 URL 解析失败，使用整个 URL 作为 path
+      path = selectedRequest.value.url
+    }
+
+    // 构建完整的 requestModel 对象
+    const requestModel = {
+      method: selectedRequest.value.method || 'GET',
+      baseURL: baseURL,
+      path: path,
+      query: Array.isArray(selectedRequest.value.params) ? selectedRequest.value.params : [],
+      headers: Array.isArray(selectedRequest.value.headers) ? selectedRequest.value.headers : [],
+      body: {
+        mode: bodyMode,
+        raw: rawBody.value,
+        json: rawBody.value,
+        formdata: formData.value,
+        urlencoded: formUrlEncoded.value
+      },
+      timeout: 30000
+    }
+
+    const code = await CodeGenerator.generateCode(requestModel, language)
+    generatedCode.value = code
+    showCodeGenerateDialog.value = true
+  } catch (error) {
+    ElMessage.error('生成代码失败')
+    console.error('生成代码失败:', error)
+  }
+}
+
+const copyGeneratedCode = () => {
+  if (generatedCode.value) {
+    navigator.clipboard.writeText(generatedCode.value)
+    ElMessage.success('已复制到剪贴板')
+  }
+}
+
+const toggleWebSocketConnection = async () => {
+  if (!selectedRequest.value || !selectedRequest.value.url) {
+    ElMessage.warning('请填写WebSocket URL')
+    return
+  }
+
+  if (websocketConnectionStatus.value === 'connected') {
+    // 关闭连接
+    if (websocketConnection.value) {
+      websocketConnection.value.close()
+      websocketConnection.value = null
+    }
+    websocketConnectionStatus.value = 'disconnected'
+    ElMessage.success('WebSocket连接已关闭')
+  } else {
+    // 建立连接
+    try {
+      websocketConnectionStatus.value = 'connecting'
+      const wsUrl = selectedRequest.value.url.replace('http://', 'ws://').replace('https://', 'wss://')
+
+      websocketConnection.value = new WebSocket(wsUrl)
+
+      websocketConnection.value.onopen = () => {
+        websocketConnectionStatus.value = 'connected'
+        ElMessage.success('WebSocket连接成功')
+        websocketMessages.value.push({
+          type: 'connected',
+          content: 'WebSocket连接成功',
+          timestamp: new Date().toLocaleString()
+        })
+      }
+
+      websocketConnection.value.onmessage = (event) => {
+        websocketMessages.value.push({
+          type: 'received',
+          content: event.data,
+          timestamp: new Date().toLocaleString()
+        })
+      }
+
+      websocketConnection.value.onclose = () => {
+        websocketConnectionStatus.value = 'disconnected'
+        websocketConnection.value = null
+        websocketMessages.value.push({
+          type: 'info',
+          content: 'WebSocket连接已关闭',
+          timestamp: new Date().toLocaleString()
+        })
+      }
+
+      websocketConnection.value.onerror = (error) => {
+        websocketConnectionStatus.value = 'disconnected'
+        websocketConnection.value = null
+        ElMessage.error('WebSocket连接失败')
+        websocketMessages.value.push({
+          type: 'error',
+          content: `WebSocket连接失败: ${error.message}`,
+          timestamp: new Date().toLocaleString()
+        })
+      }
+    } catch (error) {
+      websocketConnectionStatus.value = 'disconnected'
+      ElMessage.error('WebSocket连接失败')
+      console.error('WebSocket连接失败:', error)
+    }
+  }
+}
+
+const sendWebSocketMessage = () => {
+  if (!websocketConnection.value || websocketConnectionStatus.value !== 'connected') {
+    ElMessage.warning('请先建立WebSocket连接')
+    return
+  }
+
+  if (websocketMessageType.value === 'binary' && !websocketBinaryFile.value) {
+    ElMessage.warning('请选择要发送的二进制文件')
+    return
+  }
+
+  try {
+    let message = websocketMessageContent.value
+    if (websocketMessageType.value === 'json') {
+
+      message = JSON.parse(message)
+    }
+
+    websocketConnection.value.send(message)
+    websocketMessages.value.push({
+      type: 'sent',
+      content: websocketMessageContent.value,
+      timestamp: new Date().toLocaleString()
+    })
+
+    if (websocketMessageType.value !== 'binary') {
+      websocketMessageContent.value = ''
+    }
+  } catch (error) {
+    ElMessage.error('发送消息失败')
+    console.error('发送消息失败:', error)
+  }
+}
+
+const clearWebSocketMessage = () => {
+  websocketMessageContent.value = ''
+  websocketBinaryFile.value = null
+}
+
+const clearWebSocketMessages = () => {
+  websocketMessages.value = []
+}
+
+const handleWebSocketFileUpload = (file) => {
+  websocketBinaryFile.value = file.raw
+}
+
+const clearWebSocketBinaryFile = () => {
+  websocketBinaryFile.value = null
+}
+
+const isJsonString = (str) => {
+  try {
+    JSON.parse(str)
+    return true
+  } catch (e) {
+    return false
+  }
+}
+
+const formatJson = (str) => {
+  try {
+    const obj = JSON.parse(str)
+    return JSON.stringify(obj, null, 2)
+  } catch (e) {
+    return str
+  }
+}
+
+const openDataFactorySelectorForBody = (field) => {
+  currentBodyField.value = field
+  currentAssertion.value = null
+  currentAssertionField.value = ''
+  currentAssertionIndex.value = -1
+  currentScriptField.value = ''
+  showDataFactorySelector.value = true
+}
+
+const openDataFactorySelectorForScript = (field) => {
+  currentScriptField.value = field
+  currentAssertion.value = null
+  currentAssertionField.value = ''
+  currentAssertionIndex.value = -1
+  showDataFactorySelector.value = true
+}
+
+const openDataFactorySelector = (assertion, field, index) => {
+  currentAssertion.value = assertion
+  currentAssertionField.value = field
+  currentAssertionIndex.value = index
+  currentScriptField.value = ''
+  showDataFactorySelector.value = true
+}
+
+const openVariableHelper = (field) => {
+  currentEditingField.value = field
+  currentAssertion.value = null
+  currentAssertionField.value = ''
+  currentAssertionIndex.value = -1
+  showVariableHelper.value = true
+}
+
+const openVariableHelperForAssertion = (assertion, field, index) => {
+  currentAssertion.value = assertion
+  currentAssertionField.value = field
+  currentAssertionIndex.value = index
+  currentEditingField.value = ''
+  showVariableHelper.value = true
+}
+
+const insertVariable = (variable) => {
+  // 确保variable是对象（处理行点击事件）
+  if (typeof variable === 'object' && variable !== null) {
+    if (currentEditingField.value && selectedRequest.value) {
+      const example = variable.example
+
+      if (currentEditingField.value === 'rawBody') {
+        // 在光标位置插入变量
+        insertTextAtCursor(rawBodyInputRef, example)
+      } else if (currentEditingField.value === 'pre_request_script') {
+        // 对于脚本字段，暂时保持追加到末尾的行为
+        // （如果需要光标插入，需要为脚本编辑器添加ref并实现类似逻辑）
+        const currentValue = selectedRequest.value.pre_request_script || ''
+        selectedRequest.value.pre_request_script = currentValue + example
+      } else if (currentEditingField.value === 'post_request_script') {
+        const currentValue = selectedRequest.value.post_request_script || ''
+        selectedRequest.value.post_request_script = currentValue + example
+      }
+
+      ElMessage.success(`已插入变量: ${variable.name}`)
+      showVariableHelper.value = false
+    } else if (currentAssertion.value && currentAssertionField.value) {
+      const example = variable.example
+      const field = currentAssertionField.value
+
+      const currentValue = currentAssertion.value[field] || ''
+      if (!currentValue) {
+        currentAssertion.value[field] = example
+      } else {
+        currentAssertion.value[field] = currentValue + example
+      }
+
+      ElMessage.success(`已插入变量: ${variable.name}`)
+      showVariableHelper.value = false
+    }
+  }
+}
+
+const handleDataFactorySelect = (record) => {
+  if (!record || !record.output_data) return
+
+  let valueToSet = ''
+
+  if (typeof record.output_data === 'string') {
+    valueToSet = record.output_data
+  } else if (record.output_data.result) {
+    valueToSet = record.output_data.result
+  } else if (record.output_data.output_data) {
+    valueToSet = record.output_data.output_data
+  } else if (typeof record.output_data === 'object') {
+
+    const possibleResultFields = ['result', 'value', 'data', 'output', 'content']
+    let foundResult = false
+    for (const field of possibleResultFields) {
+      if (record.output_data[field] !== undefined) {
+        valueToSet = record.output_data[field]
+        foundResult = true
+        break
+      }
+    }
+    // 如果没有找到可能的结果字段，将整个对象转为JSON字符串
+    if (!foundResult) {
+      valueToSet = JSON.stringify(record.output_data)
+    }
+  } else {
+    valueToSet = JSON.stringify(record.output_data)
+  }
+
+  // 确保valueToSet是字符串类型
+  if (typeof valueToSet !== 'string') {
+    valueToSet = JSON.stringify(valueToSet)
+  }
+
+  // 如果是断言字段
+  if (currentAssertion.value) {
+    currentAssertion.value[currentAssertionField.value] = valueToSet
+    ElMessage.success(`${t('apiTesting.interface.referencedToAssertion')}: ${record.tool_name}`)
+  }
+  // 如果是Body字段
+  else if (currentBodyField.value) {
+    if (currentBodyField.value === 'rawBody') {
+      // 在光标位置插入文本
+      insertTextAtCursor(rawBodyInputRef, valueToSet)
+    }
+    ElMessage.success(`已引用数据工厂数据到Body: ${record.tool_name}`)
+  }
+  // 如果是脚本字段
+  else if (currentScriptField.value && selectedRequest.value) {
+    // 将值插入到脚本中
+    const insertText = `\n// 来自数据工厂: ${record.tool_name}\nconst ${record.tool_name.replace(/\s+/g, '_')} = ${JSON.stringify(valueToSet)}\n`
+    const currentValue = selectedRequest.value[currentScriptField.value] || ''
+    selectedRequest.value[currentScriptField.value] = currentValue + insertText
+    ElMessage.success(`已引用数据工厂数据到脚本: ${record.tool_name}`)
+  }
+
+  showDataFactorySelector.value = false
+}
+
+// 在光标位置插入文本的辅助函数
+const insertTextAtCursor = (inputRef, textToInsert) => {
+  if (!inputRef.value) {
+    // 如果没有找到ref，直接追加到末尾
+    rawBody.value = rawBody.value + textToInsert
+    return
+  }
+
+  // 获取textarea DOM元素
+  const textarea = inputRef.value.$el?.querySelector('textarea')
+  if (!textarea) {
+    // 如果找不到textarea元素，直接追加到末尾
+    rawBody.value = rawBody.value + textToInsert
+    return
+  }
+
+  const startPos = textarea.selectionStart
+  const endPos = textarea.selectionEnd
+  const currentValue = rawBody.value
+
+  // 在光标位置插入新文本
+  const newValue =
+    currentValue.substring(0, startPos) +
+    textToInsert +
+    currentValue.substring(endPos)
+
+  rawBody.value = newValue
+
+  // 恢复光标位置到插入文本的末尾
+  nextTick(() => {
+    const newCursorPos = startPos + textToInsert.length
+    textarea.setSelectionRange(newCursorPos, newCursorPos)
+    textarea.focus()
+  })
+}
+
+// 加载变量函数
+const loadVariableFunctions = async () => {
+  try {
+    loading.value = true
+    console.log('开始加载变量函数...')
+    const apiResponse = await getVariableFunctions()
+    console.log('变量函数响应:', apiResponse)
+    console.log('变量函数响应.data:', apiResponse.data)
+    
+    // 更灵活地处理响应数据结构
+    let functionsData = null
+    
+    // 检查不同可能的数据结构
+    if (apiResponse && apiResponse.data) {
+      if (Array.isArray(apiResponse.data)) {
+        // 后端返回的是数组，直接使用
+        functionsData = apiResponse.data
+      } else if (apiResponse.data.functions) {
+        // 如果data中有functions字段，使用它
+        functionsData = apiResponse.data.functions
+      } else if (typeof apiResponse.data === 'object') {
+        // 如果data是对象但没有functions字段，假设整个对象就是按分类组织的函数
+        functionsData = apiResponse.data
+      }
+    }
+    
+    if (functionsData) {
+      const groupedFunctions = functionsData
+      console.log('处理后的 groupedFunctions:', groupedFunctions)
+
+      // 后端已经按分类分组了，直接转换为标签页所需的格式
+      if (typeof groupedFunctions === 'object' && !Array.isArray(groupedFunctions)) {
+        variableCategories.value = Object.entries(groupedFunctions).map(([label, variables]) => ({
+          label,
+          variables
+        }))
+      } else if (Array.isArray(groupedFunctions)) {
+        // 如果是数组，按分类分组
+        const grouped = {}
+        
+        // 创建分类名称映射表
+        const categoryMapping = {
+          '随机数': t('apiTesting.component.keyValueEditor.categories.randomNumber'),
+          '测试数据': t('apiTesting.component.keyValueEditor.categories.testData'),
+          '字符串': t('apiTesting.component.keyValueEditor.categories.string'),
+          '编码转换': t('apiTesting.component.keyValueEditor.categories.encodingConversion'),
+          '加密': t('apiTesting.component.keyValueEditor.categories.encryption'),
+          '时间日期': t('apiTesting.component.keyValueEditor.categories.datetime'),
+          'Crontab': t('apiTesting.component.keyValueEditor.categories.crontab'),
+          '未分类': t('apiTesting.component.keyValueEditor.categories.uncategorized')
+        }
+        
+        groupedFunctions.forEach(func => {
+          const rawCategory = func.category || '未分类'
+          // 使用映射表获取正确的分类名称
+          const category = categoryMapping[rawCategory] || rawCategory
+          if (!grouped[category]) {
+            grouped[category] = []
+          }
+          grouped[category].push(func)
+        })
+        
+        // 定义固定的分类顺序 ['随机数', '测试数据', '字符串', '编码转换', '加密', '时间日期', 'Crontab', '未分类']
+        const categoryOrder = [
+          t('apiTesting.component.keyValueEditor.categories.randomNumber'),
+          t('apiTesting.component.keyValueEditor.categories.testData'),
+          t('apiTesting.component.keyValueEditor.categories.string'),
+          t('apiTesting.component.keyValueEditor.categories.encodingConversion'),
+          t('apiTesting.component.keyValueEditor.categories.encryption'),
+          t('apiTesting.component.keyValueEditor.categories.datetime'),
+          t('apiTesting.component.keyValueEditor.categories.crontab'),
+          t('apiTesting.component.keyValueEditor.categories.uncategorized')
+        ]
+        
+        // 按固定顺序构建分类列表
+        const orderedCategories = []
+        categoryOrder.forEach(category => {
+          if (grouped[category]) {
+            orderedCategories.push({
+              label: category,
+              variables: grouped[category]
+            })
+            delete grouped[category]
+          }
+        })
+        
+        // 添加剩余的分类（如果有）
+        Object.entries(grouped).forEach(([label, variables]) => {
+          orderedCategories.push({
+            label,
+            variables
+          })
+        })
+        
+        variableCategories.value = orderedCategories
+      }
+
+      console.log('最终变量分类:', variableCategories.value)
+    } else {
+      console.error('响应数据格式错误，无法找到函数数据')
+      console.error('完整响应:', apiResponse)
+    }
+  } catch (error) {
+    console.error('加载变量函数失败:', error)
+    ElMessage.error('加载变量函数失败，使用本地数据')
+    // 加载失败时使用本地变量分类数据
+    useLocalVariableCategories()
+  } finally {
+    loading.value = false
+  }
+}
+
+// 生命周期钩子
+onMounted(async () => {
+  await loadProjects()
+  await loadVariableFunctions()
+
+  // 添加全局点击事件监听器，用于隐藏右键菜单
+  document.addEventListener('click', handleGlobalClick)
+  document.addEventListener('contextmenu', handleGlobalClick)
+>>>>>>> upstream/main
 })
 
 onBeforeUnmount(() => {

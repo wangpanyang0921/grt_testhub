@@ -10,6 +10,10 @@ from django.contrib.auth.models import User
 from django.db.models import Q
 from django.utils import timezone
 from django.http import HttpResponse
+from django.core.cache import cache
+import logging
+
+logger = logging.getLogger(__name__)
 
 from pathlib import Path
 
@@ -74,16 +78,40 @@ class DataFactoryViewSet(viewsets.ModelViewSet):
     def list(self, request, *args, **kwargs):
         """重写list方法以正确处理分页"""
         try:
-            queryset = self.filter_queryset(self.get_queryset())
+            # 生成缓存键，忽略时间戳参数
+            query_params = request.query_params.copy()
+            query_params.pop('_t', None)  # 移除时间戳参数
+            
+            cache_key = f'data_factory_history_{request.user.id}_{query_params.get("page", 1)}_{query_params.get("page_size", 10)}_{query_params.get("tool_category", "")}_{query_params.get("tool_name__icontains", "")}_{query_params.get("tags__contains", "")}'
+            
+            # 检查缓存，但如果有时间戳参数则不使用缓存
+            if '_t' not in request.query_params:
+                cached_data = cache.get(cache_key)
+                if cached_data:
+                    return Response(cached_data)
+            
+            # 获取并过滤查询集
+            queryset = self.get_queryset()
+            queryset = self.filter_queryset(queryset)
+            
+            # 分页处理
             page = self.paginate_queryset(queryset)
             if page is not None:
                 serializer = self.get_serializer(page, many=True)
-                return self.get_paginated_response(serializer.data)
+                serializer_data = serializer.data
+                
+                # 获取分页响应
+                paginated_response = self.get_paginated_response(serializer_data)
+                
+                # 缓存结果，3分钟过期
+                if '_t' not in request.query_params:
+                    cache.set(cache_key, paginated_response.data, 180)
+                
+                return paginated_response
+            
             serializer = self.get_serializer(queryset, many=True)
             return Response(serializer.data)
         except Exception as e:
-            import logging
-            logger = logging.getLogger(__name__)
             logger.error(f'Error in list method: {str(e)}', exc_info=True)
             return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
@@ -122,6 +150,57 @@ class DataFactoryViewSet(viewsets.ModelViewSet):
 
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
+    def destroy(self, request, *args, **kwargs):
+        """删除数据工厂记录"""
+        try:
+            logger.info(f'开始删除记录: ID={kwargs.get("pk")}, 用户ID={request.user.id}')
+            # 使用self.get_object()获取记录，它会自动处理权限过滤
+            instance = self.get_object()
+            logger.info(f'成功获取记录: ID={instance.id}, 用户ID={instance.user.id}')
+            
+            # 删除记录
+            instance.delete()
+            logger.info(f'成功删除记录: ID={kwargs.get("pk")}')
+            
+            # 清除相关缓存
+            self.clear_user_cache(request.user.id)
+            logger.info(f'成功清除缓存: 用户ID={request.user.id}')
+            
+            return Response({'message': '删除成功'}, status=status.HTTP_200_OK)
+        except DataFactoryRecord.DoesNotExist:
+            logger.error(f'记录不存在: ID={kwargs.get("pk")}, 用户ID={request.user.id}')
+            return Response({'error': '记录不存在'}, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            logger.error(f'删除记录失败: {str(e)}, ID={kwargs.get("pk")}, 用户ID={request.user.id}', exc_info=True)
+            return Response({'error': f'删除失败: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    def clear_user_cache(self, user_id):
+        """清除用户相关的缓存"""
+        # 清除统计信息缓存
+        cache.delete(f'data_factory_statistics_{user_id}')
+        # 清除标签缓存
+        cache.delete(f'data_factory_tags_{user_id}')
+        # 清除历史记录缓存
+        try:
+            # 遍历所有缓存键，删除与当前用户相关的历史记录缓存
+            if hasattr(cache, '_cache'):
+                # 对于LocMemCache
+                keys_to_delete = []
+                for key in cache._cache:
+                    # 匹配包含 data_factory_history 和用户ID的缓存键
+                    if 'data_factory_history' in key and str(user_id) in key:
+                        keys_to_delete.append(key)
+                for key in keys_to_delete:
+                    cache.delete(key)
+            elif hasattr(cache, 'keys'):
+                # 对于支持keys()方法的缓存后端
+                for key in cache.keys():
+                    # 匹配包含 data_factory_history 和用户ID的缓存键
+                    if 'data_factory_history' in key and str(user_id) in key:
+                        cache.delete(key)
+        except Exception as e:
+            logger.error(f'清除历史记录缓存失败: {str(e)}')
+        # 历史记录缓存会在3分钟后自动过期（作为备份）
     def execute_tool(self, tool_name: str, tool_category: str, input_data: dict):
         """执行工具"""
         try:
