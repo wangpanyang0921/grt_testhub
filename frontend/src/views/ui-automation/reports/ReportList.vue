@@ -1,51 +1,51 @@
 <template>
-  <div class="report-view">
-    <div class="header">
-      <h3>{{ $t('uiAutomation.report.title') }}</h3>
-      <div class="actions">
-        <el-select v-model="selectedProject" :placeholder="$t('uiAutomation.common.selectProject')" style="width: 200px; margin-right: 15px" @change="onProjectChange">
+  <div class="page-container">
+    <div class="page-header">
+      <div class="header-left">
+        <h1 class="page-title">{{ $t('uiAutomation.report.title') }}</h1>
+        <el-select v-model="selectedProject" :placeholder="$t('uiAutomation.common.selectProject')" class="project-select" @change="onProjectChange">
           <el-option v-for="project in projects" :key="project.id" :label="project.name" :value="project.id" />
         </el-select>
-        <el-button type="primary" @click="refreshReports">
-          <el-icon><Refresh /></el-icon>
-          {{ $t('uiAutomation.report.refreshReport') }}
-        </el-button>
       </div>
+      <el-button type="primary" class="refresh-btn" @click="refreshReports">
+        <el-icon><Refresh /></el-icon>
+        {{ $t('uiAutomation.report.refreshReport') }}
+      </el-button>
     </div>
 
-    <div class="content">
-      <el-table :data="reports" v-loading="loading" style="width: 100%">
-        <el-table-column prop="id" label="ID" width="80" />
-        <el-table-column prop="test_suite_name" :label="$t('uiAutomation.report.testSuite')" min-width="200" />
-        <el-table-column prop="status" :label="$t('uiAutomation.common.status')" width="120">
+    <div class="card-container">
+      <el-table :data="reports" v-loading="loading" stripe style="width: 100%">
+        <el-table-column prop="id" label="ID" width="80" header-align="center" align="center" />
+        <el-table-column prop="test_suite_name" :label="$t('uiAutomation.report.testSuite')" min-width="200" header-align="center" align="center" />
+        <el-table-column prop="status" :label="$t('uiAutomation.common.status')" width="120" header-align="center" align="center">
           <template #default="{ row }">
             <el-tag :type="getStatusType(row.status)">
               {{ getStatusText(row.status) }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column :label="$t('uiAutomation.report.testEngine')" width="120">
+        <el-table-column :label="$t('uiAutomation.report.testEngine')" width="120" header-align="center" align="center">
           <template #default="{ row }">
             <el-tag size="small">{{ getEngineText(row.engine) }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column :label="$t('uiAutomation.report.browser')" width="100">
+        <el-table-column :label="$t('uiAutomation.report.browser')" width="100" header-align="center" align="center">
           <template #default="{ row }">
             {{ getBrowserText(row.browser) }}
           </template>
         </el-table-column>
-        <el-table-column prop="total_cases" :label="$t('uiAutomation.report.totalCases')" width="100" />
-        <el-table-column prop="passed_cases" :label="$t('uiAutomation.report.passedCases')" width="100">
+        <el-table-column prop="total_cases" :label="$t('uiAutomation.report.totalCases')" width="100" header-align="center" align="center" />
+        <el-table-column prop="passed_cases" :label="$t('uiAutomation.report.passedCases')" width="100" header-align="center" align="center">
           <template #default="{ row }">
             <span style="color: #67c23a; font-weight: bold;">{{ row.passed_cases }}</span>
           </template>
         </el-table-column>
-        <el-table-column prop="failed_cases" :label="$t('uiAutomation.report.failedCases')" width="100">
+        <el-table-column prop="failed_cases" :label="$t('uiAutomation.report.failedCases')" width="100" header-align="center" align="center">
           <template #default="{ row }">
             <span style="color: #f56c6c; font-weight: bold;">{{ row.failed_cases }}</span>
           </template>
         </el-table-column>
-        <el-table-column :label="$t('uiAutomation.report.passRate')" width="100">
+        <el-table-column :label="$t('uiAutomation.report.passRate')" width="100" header-align="center" align="center">
           <template #default="{ row }">
             <el-progress
               :percentage="row.pass_rate"
@@ -54,27 +54,29 @@
             />
           </template>
         </el-table-column>
-        <el-table-column :label="$t('uiAutomation.report.duration')" width="120">
+        <el-table-column :label="$t('uiAutomation.report.duration')" width="120" header-align="center" align="center">
           <template #default="{ row }">
             {{ formatDuration(row.duration) }}
           </template>
         </el-table-column>
-        <el-table-column prop="executed_by_name" :label="$t('uiAutomation.report.executor')" width="120" />
-        <el-table-column prop="created_at" :label="$t('uiAutomation.report.executionTime')" width="180">
+        <el-table-column prop="executed_by_name" :label="$t('uiAutomation.report.executor')" width="120" header-align="center" align="center" />
+        <el-table-column prop="created_at" :label="$t('uiAutomation.report.executionTime')" width="180" header-align="center" align="center">
           <template #default="{ row }">
             {{ formatDate(row.created_at) }}
           </template>
         </el-table-column>
-        <el-table-column :label="$t('uiAutomation.common.operation')" width="200" fixed="right">
+        <el-table-column :label="$t('uiAutomation.common.operation')" width="200" fixed="right" header-align="center" align="center">
           <template #default="{ row }">
-            <el-button link type="primary" size="small" @click="viewReportDetail(row)">
-              <el-icon><Document /></el-icon>
-              {{ $t('uiAutomation.report.viewDetail') }}
-            </el-button>
-            <el-button link type="danger" size="small" @click="deleteReport(row)">
-              <el-icon><Delete /></el-icon>
-              {{ $t('uiAutomation.common.delete') }}
-            </el-button>
+            <div class="action-buttons">
+              <el-button type="primary" class="action-btn view-btn" size="small" @click="viewReportDetail(row)">
+                <el-icon><Document /></el-icon>
+                <span>{{ $t('uiAutomation.report.viewDetail') }}</span>
+              </el-button>
+              <el-button type="danger" class="action-btn delete-btn" size="small" @click="deleteReport(row)">
+                <el-icon><Delete /></el-icon>
+                <span>{{ $t('uiAutomation.common.delete') }}</span>
+              </el-button>
+            </div>
           </template>
         </el-table-column>
       </el-table>
@@ -516,47 +518,444 @@ onMounted(async () => {
 </script>
 
 <style scoped lang="scss">
-.report-view {
-  padding: 20px;
-  height: 100%;
+// 页面容器
+.page-container {
+  padding: 24px;
+  min-height: calc(100vh - 60px);
+  background: linear-gradient(135deg, #f5f3ff 0%, #ede9fe 100%);
   display: flex;
   flex-direction: column;
-  background: #f5f5f5;
+  line-height: 24px;
+  gap: 20px;
 }
 
-.header {
+// 页面头部
+.page-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 20px;
-  background: white;
-  padding: 20px;
-  border-radius: 4px;
+  padding: 24px 28px;
+  background: linear-gradient(135deg, #ffffff 0%, #f8f7ff 100%);
+  border-radius: 12px;
+  box-shadow: 0 4px 16px rgba(147, 112, 219, 0.1);
+  border: 1px solid rgba(147, 112, 219, 0.1);
 
-  h3 {
-    margin: 0;
-    color: #303133;
-    font-size: 24px;
-  }
-
-  .actions {
+  .header-left {
     display: flex;
     align-items: center;
+    gap: 20px;
+  }
+
+  .page-title {
+    font-size: 24px;
+    font-weight: 700;
+    color: #5a32a3;
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: linear-gradient(135deg, #7b42f6 0%, #5a32a3 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .project-select {
+    width: 200px;
+
+    :deep(.el-input__wrapper) {
+      box-shadow: 0 2px 8px rgba(147, 112, 219, 0.08);
+      border-radius: 8px;
+
+      &:hover,
+      &:focus {
+        box-shadow: 0 2px 8px rgba(147, 112, 219, 0.15);
+      }
+    }
+  }
+
+  .refresh-btn {
+    background: linear-gradient(135deg, #7b42f6 0%, #5a32a3 100%) !important;
+    border: none !important;
+    color: white !important;
+    font-weight: 600 !important;
+    padding: 10px 20px !important;
+    border-radius: 8px !important;
+    transition: all 0.3s ease !important;
+    box-shadow: 0 4px 12px rgba(123, 66, 246, 0.3) !important;
+
+    &:hover {
+      background: linear-gradient(135deg, #6d33e6 0%, #4a249c 100%) !important;
+      transform: translateY(-2px) !important;
+      box-shadow: 0 6px 20px rgba(123, 66, 246, 0.4) !important;
+    }
+
+    &:active {
+      transform: translateY(0) !important;
+    }
   }
 }
 
-.content {
-  flex: 1;
-  overflow: auto;
-  background: white;
-  padding: 20px;
-  border-radius: 4px;
+// 表格容器
+.card-container {
+  background: #ffffff;
+  border: 1px solid rgba(147, 112, 219, 0.12);
+  border-radius: 12px;
+  box-shadow: 0 4px 16px rgba(147, 112, 219, 0.08);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding-top: 16px;
+
+  // 表格样式
+  .el-table {
+    border: none;
+    border-radius: 8px 8px 0 0;
+    overflow: hidden;
+    min-height: 200px;
+    box-shadow: none;
+    transition: all 0.3s ease;
+    background-color: transparent !important;
+
+    /* 覆盖 Element Plus 默认主题变量 */
+    --el-color-primary: var(--primary-color);
+    --el-color-primary-light-3: #9370db;
+    --el-color-primary-light-5: #a888e0;
+    --el-color-primary-light-7: #c2a9f3;
+    --el-color-primary-light-9: #f8f7ff;
+    --el-border-color: #e9ecef;
+    --el-border-color-light: #e9ecef;
+    --el-border-color-lighter: #e9ecef;
+    --el-fill-color-light: #ffffff;
+    --el-fill-color-lighter: #ffffff;
+    --el-fill-color-blank: #ffffff;
+    --el-text-color-primary: #333;
+    --el-text-color-regular: #333;
+    --el-text-color-secondary: #666;
+    --el-text-color-placeholder: #999;
+    --el-table-header-bg-color: #ffffff;
+    --el-table-row-hover-bg-color: #f8f7ff;
+    --el-table-stripe-bg-color: #fafaff;
+
+    &::before {
+      display: none;
+    }
+
+    // 表头包装器
+    :deep(.el-table__header-wrapper) {
+      background-color: #ffffff !important;
+
+      // 表头
+      :deep(.el-table__header) {
+        background-color: #ffffff !important;
+
+        // 表头单元格
+        :deep(th) {
+          background-color: #ffffff !important;
+          color: #5a32a3;
+          font-weight: 600;
+          font-size: 14px;
+          border-bottom: 1px solid #e9ecef;
+          padding: 16px;
+          text-align: left;
+          line-height: 24px;
+          transition: all 0.3s ease;
+
+          &:hover {
+            background-color: #ffffff !important;
+          }
+
+          // 表头单元格内部
+          :deep(.cell) {
+            background-color: #ffffff !important;
+            color: #5a32a3 !important;
+            font-weight: 600 !important;
+          }
+        }
+      }
+    }
+
+    // 表格体包装器
+    :deep(.el-table__body-wrapper) {
+      background-color: #ffffff !important;
+
+      // 表格行
+      :deep(.el-table__row) {
+        transition: all 0.3s ease;
+        background-color: #ffffff !important;
+
+        &:hover {
+          background-color: #f8f7ff !important;
+          transform: translateY(-1px);
+          box-shadow: 0 4px 12px rgba(147, 112, 219, 0.1);
+        }
+
+        // 表格单元格
+        :deep(td) {
+          background-color: #ffffff !important;
+          border-bottom: 1px solid #e9ecef;
+          padding: 16px;
+          text-align: left;
+          line-height: 24px;
+          transition: all 0.3s ease;
+        }
+
+        &:hover :deep(td) {
+          background-color: #f8f7ff !important;
+        }
+      }
+    }
+  }
 }
 
-.pagination-container {
-  margin-top: 20px;
+// 操作按钮容器
+.action-buttons {
   display: flex;
-  justify-content: flex-end;
+  justify-content: center;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: nowrap;
+}
+
+// 操作按钮样式
+.action-btn {
+  &.view-btn {
+    background: linear-gradient(135deg, #7b42f6 0%, #5a32a3 100%) !important;
+    border: none !important;
+    color: #ffffff !important;
+    font-weight: 600 !important;
+    padding: 4px 10px !important;
+    border-radius: 6px !important;
+    box-shadow: 0 2px 8px rgba(123, 66, 246, 0.3) !important;
+    transition: all 0.3s ease !important;
+    white-space: nowrap;
+
+    &:hover {
+      background: linear-gradient(135deg, #6d33e6 0%, #4a249c 100%) !important;
+      transform: translateY(-2px) !important;
+      box-shadow: 0 4px 12px rgba(123, 66, 246, 0.4) !important;
+    }
+
+    .el-icon {
+      color: #ffffff !important;
+      margin-right: 3px;
+      font-size: 12px;
+    }
+
+    span {
+      font-size: 12px;
+    }
+  }
+
+  &.delete-btn {
+    background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%) !important;
+    border: none !important;
+    color: #ffffff !important;
+    font-weight: 600 !important;
+    padding: 4px 10px !important;
+    border-radius: 6px !important;
+    box-shadow: 0 2px 8px rgba(239, 68, 68, 0.3) !important;
+    transition: all 0.3s ease !important;
+    white-space: nowrap;
+
+    &:hover {
+      background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%) !important;
+      transform: translateY(-2px) !important;
+      box-shadow: 0 4px 12px rgba(239, 68, 68, 0.4) !important;
+    }
+
+    .el-icon {
+      color: #ffffff !important;
+      margin-right: 3px;
+      font-size: 12px;
+    }
+
+    span {
+      font-size: 12px;
+    }
+  }
+}
+
+// 分页容器
+.pagination-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 8px 24px;
+  background: transparent;
+  border-top: 1px solid rgba(147, 112, 219, 0.1);
+  transition: all 0.3s ease;
+  margin-top: 0;
+
+  /* 覆盖 Element Plus 默认主题变量 */
+  --el-color-primary: var(--primary-color);
+  --el-color-primary-light-3: #9370db;
+  --el-color-primary-light-5: #a888e0;
+  --el-color-primary-light-7: #c2a9f3;
+  --el-color-primary-light-9: #f8f7ff;
+  --el-border-color: rgba(147, 112, 219, 0.2);
+  --el-border-color-light: rgba(147, 112, 219, 0.15);
+  --el-border-color-lighter: rgba(147, 112, 219, 0.1);
+  --el-fill-color-light: #f8f7ff;
+  --el-fill-color-lighter: #f8f7ff;
+  --el-fill-color-blank: #f8f7ff;
+  --el-text-color-primary: var(--text-primary);
+  --el-text-color-regular: var(--text-secondary);
+  --el-text-color-secondary: var(--text-tertiary);
+
+  :deep(.el-pagination) {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-weight: 500;
+
+    // 总条数
+    .el-pagination__total {
+      color: #5a32a3;
+      font-size: 14px;
+      font-weight: 500;
+      margin-right: 12px;
+    }
+
+    // 每页条数选择器
+    .el-pagination__sizes {
+      margin-right: 12px;
+
+      .el-select {
+        .el-input__wrapper {
+          border-radius: 8px;
+          border: 1px solid rgba(147, 112, 219, 0.2);
+          background: #ffffff;
+          box-shadow: none;
+
+          &:hover {
+            border-color: #7b42f6;
+            box-shadow: 0 0 0 3px rgba(123, 66, 246, 0.1);
+          }
+
+          &.is-focus {
+            border-color: #7b42f6;
+            box-shadow: 0 0 0 3px rgba(123, 66, 246, 0.15);
+          }
+        }
+
+        .el-input__inner {
+          color: #5a32a3;
+          font-weight: 500;
+        }
+      }
+    }
+
+    // 上一页/下一页按钮
+    .btn-prev,
+    .btn-next {
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      border: 1px solid rgba(147, 112, 219, 0.2);
+      background: #ffffff;
+      color: #5a32a3;
+      transition: all 0.3s ease;
+
+      &:hover:not(:disabled) {
+        background: linear-gradient(135deg, #7b42f6 0%, #5a32a3 100%);
+        border-color: transparent;
+        color: white;
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(123, 66, 246, 0.3);
+      }
+
+      &:disabled {
+        background: #f5f5f5;
+        border-color: #e0e0e0;
+        color: #c0c0c0;
+      }
+
+      .el-icon {
+        font-size: 14px;
+        font-weight: bold;
+      }
+    }
+
+    // 页码
+    .el-pager {
+      display: flex;
+      gap: 4px;
+
+      li {
+        min-width: 32px;
+        height: 32px;
+        padding: 0 8px;
+        border-radius: 8px;
+        border: 1px solid rgba(147, 112, 219, 0.2);
+        background: #ffffff;
+        color: #5a32a3;
+        font-size: 14px;
+        font-weight: 500;
+        transition: all 0.3s ease;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+
+        &:hover:not(.is-active) {
+          background: rgba(123, 66, 246, 0.1);
+          border-color: #7b42f6;
+          color: #7b42f6;
+          transform: translateY(-1px);
+        }
+
+        &.is-active {
+          background: linear-gradient(135deg, #7b42f6 0%, #5a32a3 100%);
+          border-color: transparent;
+          color: white;
+          box-shadow: 0 4px 12px rgba(123, 66, 246, 0.3);
+          font-weight: 600;
+        }
+
+        &.btn-quicknext,
+        &.btn-quickprev {
+          border: 1px solid rgba(147, 112, 219, 0.2);
+          color: #9370db;
+
+          &:hover {
+            background: rgba(123, 66, 246, 0.1);
+            color: #7b42f6;
+          }
+        }
+      }
+    }
+
+    // 跳转页
+    .el-pagination__jump {
+      margin-left: 12px;
+      color: #5a32a3;
+      font-weight: 500;
+
+      .el-input__wrapper {
+        width: 48px;
+        border-radius: 8px;
+        border: 1px solid rgba(147, 112, 219, 0.2);
+        background: #ffffff;
+        box-shadow: none;
+
+        &:hover {
+          border-color: #7b42f6;
+          box-shadow: 0 0 0 3px rgba(123, 66, 246, 0.1);
+        }
+
+        &.is-focus {
+          border-color: #7b42f6;
+          box-shadow: 0 0 0 3px rgba(123, 66, 246, 0.15);
+        }
+      }
+
+      .el-input__inner {
+        color: #5a32a3;
+        font-weight: 500;
+        text-align: center;
+      }
+    }
+  }
 }
 
 // 报告详情样式

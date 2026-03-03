@@ -1,10 +1,24 @@
 <template>
-  <div class="element-manager">
-    <div class="element-layout">
+  <div class="page-container">
+    <div class="page-header">
+      <h1 class="page-title">{{ $t('uiAutomation.element.title') }}</h1>
+      <div class="header-actions">
+        <el-button type="primary" @click="showCreatePageDialog = true">
+          <el-icon><Folder /></el-icon>
+          {{ $t('uiAutomation.element.createPage') }}
+        </el-button>
+        <el-button class="btn-secondary" @click="createEmptyElement">
+          <el-icon><Plus /></el-icon>
+          {{ $t('uiAutomation.element.addElement') }}
+        </el-button>
+      </div>
+    </div>
+
+    <div class="card-container element-layout">
       <!-- 左侧页面树 -->
       <div class="sidebar">
         <div class="sidebar-header">
-          <el-select v-model="selectedProject" :placeholder="$t('common.selectProject')" @change="onProjectChange">
+          <el-select v-model="selectedProject" :placeholder="$t('common.selectProject')" @change="onProjectChange" class="project-select">
             <el-option
               v-for="project in projects"
               :key="project.id"
@@ -12,14 +26,6 @@
               :value="project.id"
             />
           </el-select>
-          <div class="header-actions">
-            <el-button type="primary" size="small" @click="showCreatePageDialog = true" :title="$t('uiAutomation.element.createPage')">
-              <el-icon><Folder /></el-icon>
-            </el-button>
-            <el-button type="success" size="small" @click="createEmptyElement" :title="$t('uiAutomation.element.addElement')">
-              <el-icon><Plus /></el-icon>
-            </el-button>
-          </div>
         </div>
 
         <div class="page-tree">
@@ -35,13 +41,14 @@
             @node-contextmenu="onNodeRightClick"
             @node-expand="onNodeExpand"
             @node-collapse="onNodeCollapse"
+            class="custom-tree"
           >
             <template #default="{ node, data }">
               <div class="tree-node">
-                <el-icon v-if="data.type === 'page'">
+                <el-icon v-if="data.type === 'page'" class="node-icon folder-icon">
                   <Folder />
                 </el-icon>
-                <el-icon v-else>
+                <el-icon v-else class="node-icon element-icon">
                   <Document />
                 </el-icon>
 
@@ -79,15 +86,21 @@
 
         <div v-else class="element-detail">
           <!-- 元素基本信息 -->
-          <div class="element-header">
+          <div class="detail-header">
+            <h3 class="detail-title">{{ $t('uiAutomation.element.elementDetail') }}</h3>
             <div class="element-info">
-              <el-input
-                v-model="selectedElement.name"
-                :placeholder="$t('uiAutomation.element.elementNamePlaceholder')"
-                size="small"
-                style="width: 300px; margin-right: 10px"
-              />
-              <el-select v-model="selectedElement.element_type" :placeholder="$t('uiAutomation.element.elementType')" size="small" style="width: 120px;">
+              <div class="required-field-wrapper">
+                <span class="required-star">*</span>
+                <el-input
+                  v-model="selectedElement.name"
+                  :placeholder="$t('uiAutomation.element.elementNamePlaceholder')"
+                  size="small"
+                  style="width: 300px; margin-right: 10px"
+                />
+              </div>
+              <div class="required-field-wrapper">
+                <span class="required-star">*</span>
+                <el-select v-model="selectedElement.element_type" :placeholder="$t('uiAutomation.element.elementType')" size="small" style="width: 120px;">
                 <el-option :label="$t('uiAutomation.element.elementTypes.button')" value="BUTTON" />
                 <el-option :label="$t('uiAutomation.element.elementTypes.input')" value="INPUT" />
                 <el-option :label="$t('uiAutomation.element.elementTypes.link')" value="LINK" />
@@ -100,7 +113,8 @@
                 <el-option :label="$t('uiAutomation.element.elementTypes.form')" value="FORM" />
                 <el-option :label="$t('uiAutomation.element.elementTypes.modal')" value="MODAL" />
               </el-select>
-              <el-button size="small" @click="saveElement" :loading="saving" ref="saveButtonRef">
+              </div>
+              <el-button size="small" type="primary" @click="saveElement" :loading="saving" ref="saveButtonRef">
                 {{ $t('uiAutomation.common.save') }}
               </el-button>
             </div>
@@ -111,7 +125,7 @@
             <el-form :key="formKey" :model="selectedElement" label-width="100px" size="small">
               <el-row :gutter="20">
                 <el-col :span="12">
-                  <el-form-item :label="$t('uiAutomation.element.page')">
+                  <el-form-item :label="$t('uiAutomation.element.page')" class="is-required">
                     <el-select v-model="selectedElement.page" :placeholder="$t('uiAutomation.element.selectPage')">
                       <el-option
                         v-for="page in pages"
@@ -131,7 +145,7 @@
 
               <el-row :gutter="20">
                 <el-col :span="12">
-                  <el-form-item :label="$t('uiAutomation.element.locatorStrategy')" prop="locator_strategy_id">
+                  <el-form-item :label="$t('uiAutomation.element.locatorStrategy')" prop="locator_strategy_id" class="is-required">
                     <el-select
                       v-model="selectedElement.locator_strategy_id"
                       :key="`strategy-${formKey}-${selectedElement.locator_strategy_id || 'null'}`"
@@ -173,7 +187,7 @@
                 </el-col>
               </el-row>
 
-              <el-form-item :label="$t('uiAutomation.element.locatorExpression')" prop="locator_value">
+              <el-form-item :label="$t('uiAutomation.element.locatorExpression')" prop="locator_value" class="is-required">
                 <el-input v-model="selectedElement.locator_value" :placeholder="$t('uiAutomation.element.locatorExpressionPlaceholder')" />
                 <div class="form-help-text">
                   {{ $t('uiAutomation.element.locatorTip.title') }}<br>
@@ -552,181 +566,144 @@ const loadPageTree = async () => {
       }))
     }
 
-    treeData.value = buildTree(response.data || [])
+    const tree = buildTree(response.data || [])
+    console.log('页面树结构:', tree)
+    treeData.value = tree
+
+    // 加载每个页面下的元素
+    await loadElementsForTree()
+
+    // 恢复展开状态
+    if (expandedKeys.value.length === 0 && tree.length > 0) {
+      expandedKeys.value = tree.map(node => node.id)
+    }
   } catch (error) {
     console.error('获取页面树失败:', error)
     treeData.value = []
   }
 }
 
-// 加载元素树
-const loadElementTree = async () => {
-  if (!selectedProject.value) {
-    treeData.value = []
-    return
-  }
+// 为树加载元素数据
+const loadElementsForTree = async () => {
+  if (!selectedProject.value) return
 
   try {
-    // 并行加载页面树和元素
-    const [pageTreeResponse, elementsResponse] = await Promise.all([
-      getElementGroupTree({ project: selectedProject.value }),
-      getElementTree({ project: selectedProject.value })
-    ])
+    const response = await getElements({ project: selectedProject.value, page_size: 1000 })
+    const elements = response.data?.results || response.data || []
 
-    // 构建完整的树形结构
-    const buildTree = (groups) => {
-      return groups.map(group => ({
-        ...group,
-        type: 'page',
-        children: group.children ? buildTree(group.children) : []
-      }))
-    }
+    console.log('获取到元素数量:', elements.length)
 
-    const pageNodes = buildTree(pageTreeResponse.data || [])
-
-    // 调试信息 - 检查API返回的完整响应结构
-    console.log('=== 加载元素树调试 ===')
-    console.log('页面树响应:', pageTreeResponse)
-    console.log('元素响应:', elementsResponse)
-
-    // 打印原始数据进行分析
-    console.log('页面树原始数据:', JSON.parse(JSON.stringify(pageTreeResponse.data || []), null, 2))
-
-    const elements = elementsResponse.data?.results || elementsResponse.data || []
-    console.log('提取的元素列表:', elements)
-
-    // 获取所有页面的ID，用于调试
-    const pageIds = pageNodes.map(page => page.id)
-    console.log('页面ID列表:', pageIds)
-
-    // 将元素添加到对应页面下
-    const attachElementsToPages = (pages) => {
-      pages.forEach(page => {
-        // 找到属于当前页面的元素
-        const pageElements = elements.filter(element => element.group_id === page.id)
-        console.log(`页面 ${page.name} (ID: ${page.id}) 找到 ${pageElements.length} 个关联元素`, pageElements)
-
-        const elementNodes = pageElements.map(element => ({
-          ...element,
-          type: 'element'
-        }))
-
-        // 将元素添加到页面的子节点中
-        page.children = page.children ? [...page.children, ...elementNodes] : [...elementNodes]
-        console.log(`页面 ${page.name} 现在有 ${page.children.filter(c => c.type === 'element').length} 个子元素`)
-
-        // 递归处理子页面
-        if (page.children) {
-          attachElementsToPages(page.children.filter(child => child.type === 'page'))
+    // 将元素添加到对应的页面下
+    elements.forEach(element => {
+      const pageNode = findPageNode(treeData.value, element.page)
+      if (pageNode) {
+        if (!pageNode.children) {
+          pageNode.children = []
         }
-      })
-    }
+        // 检查是否已存在
+        const exists = pageNode.children.some(child => child.id === element.id && child.type === 'element')
+        if (!exists) {
+          pageNode.children.push({
+            ...element,
+            type: 'element',
+            name: element.name
+          })
+        }
+      }
+    })
 
-    attachElementsToPages(pageNodes)
-    console.log('最终treeData:', pageNodes)
-    treeData.value = pageNodes
+    // 强制刷新树组件
+    treeKey.value++
 
-    // 将treeData暴露到window，方便在控制台调试
-    if (typeof window !== 'undefined') {
-      window.vue_treeData = treeData.value
-      console.log('treeData已挂载到window.vue_treeData，可在控制台查看')
-      console.log('当前treeData结构:', JSON.parse(JSON.stringify(treeData.value)).map(p => ({
-        name: p.name,
-        id: p.id,
-        children: p.children?.filter(c => c.type === 'element').length || 0
-      })))
+    console.log('元素加载完成，treeData:', treeData.value)
+  } catch (error) {
+    console.error('获取元素失败:', error)
+  }
+}
+
+// 在树中查找页面节点
+const findPageNode = (nodes, pageName) => {
+  for (const node of nodes) {
+    if (node.type === 'page' && node.name === pageName) {
+      return node
     }
+    if (node.children) {
+      const found = findPageNode(node.children, pageName)
+      if (found) return found
+    }
+  }
+  return null
+}
+
+// 加载元素树
+const loadElementTree = async () => {
+  if (!selectedProject.value) return
+
+  try {
+    const response = await getElementTree({ project: selectedProject.value })
+    const tree = response.data || []
+
+    // 将元素树合并到页面树中
+    tree.forEach(item => {
+      if (item.elements && item.elements.length > 0) {
+        const pageNode = findPageNode(treeData.value, item.page_name)
+        if (pageNode) {
+          if (!pageNode.children) {
+            pageNode.children = []
+          }
+          item.elements.forEach(element => {
+            const exists = pageNode.children.some(child => child.id === element.id && child.type === 'element')
+            if (!exists) {
+              pageNode.children.push({
+                ...element,
+                type: 'element',
+                name: element.name
+              })
+            }
+          })
+        }
+      }
+    })
+
+    // 强制刷新树组件
+    treeKey.value++
   } catch (error) {
     console.error('获取元素树失败:', error)
-    treeData.value = []
   }
 }
 
 // 项目切换
 const onProjectChange = async () => {
+  console.log('项目切换:', selectedProject.value)
+  if (!selectedProject.value) {
+    treeData.value = []
+    selectedElement.value = null
+    return
+  }
+
+  // 重置展开状态
+  expandedKeys.value = []
+
+  await loadPages()
+  await loadPageTree()
+
+  // 默认展开所有页面
+  const getAllPageIds = (nodes) => {
+    const ids = []
+    nodes.forEach(node => {
+      if (node.type === 'page') {
+        ids.push(node.id)
+        if (node.children) {
+          ids.push(...getAllPageIds(node.children))
+        }
+      }
+    })
+    return ids
+  }
+  expandedKeys.value = getAllPageIds(treeData.value)
+  console.log('展开节点:', expandedKeys.value)
+
   selectedElement.value = null
-  suggestions.value = []
-
-  console.log('=== 项目切换调试 ===')
-  console.log('当前项目ID:', selectedProject.value)
-
-  await Promise.all([
-    loadPages(),
-    loadElementTree()
-  ])
-
-  console.log('项目切换完成，检查treeData:', treeData.value)
-  console.log('treeData长度:', treeData.value.length)
-  if (treeData.value.length > 0) {
-    console.log('第一页信息:', {
-      id: treeData.value[0].id,
-      name: treeData.value[0].name,
-      type: treeData.value[0].type,
-      children: treeData.value[0].children?.length || 0
-    })
-  }
-
-  // 项目切换时强制刷新树
-  treeKey.value += 1
-}
-
-// 创建空元素
-const createEmptyElement = () => {
-  selectedElement.value = {
-    name: '',
-    element_type: 'BUTTON',
-    page: '',
-    component_name: '',
-    locator_strategy_id: null, // 使用null而不是空字符串
-    locator_value: '',
-    wait_timeout: 5,
-    force_action: false,  // 强制操作选项，默认禁用
-    description: ''
-  }
-}
-
-// 创建页面
-const createPage = async () => {
-  const validate = await pageFormRef.value.validate()
-  if (!validate) return
-
-  try {
-    // 构建创建页面的参数，正确处理父页面参数
-    const pageData = {
-      name: pageForm.name,
-      description: pageForm.description,
-      project: selectedProject.value
-    }
-
-    // 只有当父页面ID存在且不为空时才添加parent_group字段
-    if (pageForm.parent_page) {
-      pageData.parent_group = pageForm.parent_page
-    }
-
-    await createElementGroup(pageData)
-
-    ElMessage.success(t('uiAutomation.element.messages.pageCreateSuccess'))
-    showCreatePageDialog.value = false
-
-    // 重置表单
-    Object.assign(pageForm, {
-      name: '',
-      description: '',
-      parent_page: null
-    })
-
-    // 重新加载页面和树
-    await Promise.all([
-      loadPages(),
-      loadElementTree()
-    ])
-
-    // 强制刷新树组件
-    treeKey.value += 1
-  } catch (error) {
-    console.error('创建页面失败:', error)
-    ElMessage.error(t('uiAutomation.element.messages.pageCreateFailed'))
-  }
 }
 
 // 节点点击
@@ -735,47 +712,12 @@ const onNodeClick = async (data) => {
     try {
       const response = await getElementDetail(data.id)
       selectedElement.value = response.data
-
-      // 强制刷新表单，确保下拉框正确显示
-      formKey.value += 1
-      console.log('点击节点时formKey更新为:', formKey.value)
+      formKey.value++ // 强制刷新表单
     } catch (error) {
       console.error('获取元素详情失败:', error)
+      ElMessage.error('获取元素详情失败')
     }
   }
-}
-
-// 节点右键点击
-const onNodeRightClick = (event, data) => {
-  console.log('Node right click event:', event, 'Data:', data)
-  event.preventDefault()
-
-  // 隐藏现有菜单
-  showContextMenu.value = false
-
-  // 设置右键点击的节点
-  rightClickedNode.value = data
-  console.log('Set right clicked node:', data)
-
-  // 设置菜单位置
-  contextMenuX.value = event.clientX
-  contextMenuY.value = event.clientY
-
-  // 显示菜单
-  showContextMenu.value = true
-  console.log('Show context menu at:', contextMenuX.value, contextMenuY.value)
-
-  // 添加全局点击监听器以隐藏菜单
-  const hideMenu = () => {
-    console.log('Hide context menu')
-    showContextMenu.value = false
-    document.removeEventListener('click', hideMenu)
-  }
-
-  // 延迟添加监听器，避免立即触发
-  setTimeout(() => {
-    document.addEventListener('click', hideMenu)
-  }, 100)
 }
 
 // 节点展开
@@ -785,7 +727,7 @@ const onNodeExpand = (data) => {
   }
 }
 
-// 节点收起
+// 节点折叠
 const onNodeCollapse = (data) => {
   const index = expandedKeys.value.indexOf(data.id)
   if (index > -1) {
@@ -793,408 +735,365 @@ const onNodeCollapse = (data) => {
   }
 }
 
+// 创建空元素
+const createEmptyElement = () => {
+  selectedElement.value = {
+    id: null,
+    name: '',
+    element_type: 'BUTTON',
+    page: pages.value.length > 0 ? pages.value[0].name : '',
+    component_name: '',
+    locator_value: '',
+    locator_strategy_id: null,
+    wait_timeout: 10,
+    force_action: false,
+    description: '',
+    project: selectedProject.value
+  }
+  formKey.value++ // 强制刷新表单
+}
+
 // 保存元素
 const saveElement = async () => {
-  if (!selectedElement.value) return
+  if (!selectedElement.value.name) {
+    ElMessage.warning('请输入元素名称')
+    return
+  }
 
+  if (!selectedElement.value.locator_strategy_id) {
+    ElMessage.warning('请选择定位策略')
+    return
+  }
+
+  if (!selectedElement.value.locator_value) {
+    ElMessage.warning('请输入定位表达式')
+    return
+  }
+
+  saving.value = true
   try {
-    saving.value = true
-    console.log('=== 保存元素调试 ===')
-    console.log('当前选中的元素:', selectedElement.value)
-
-    if (selectedElement.value.id) {
-      // 更新元素 - 构建正确的API数据格式
-      const elementUpdateData = {
-        name: selectedElement.value.name,
-        element_type: selectedElement.value.element_type,
-        page: selectedElement.value.page,
-        component_name: selectedElement.value.component_name,
-        description: selectedElement.value.description,
-        locator_strategy_id: selectedElement.value.locator_strategy_id,
-        locator_value: selectedElement.value.locator_value,
-        wait_timeout: selectedElement.value.wait_timeout,
-        force_action: selectedElement.value.force_action,
-        project_id: selectedProject.value
-      }
-
-      // 如果元素有分组（页面），确保传递正确的 group_id
-      if (selectedElement.value.page) {
-        console.log('更新元素 - 元素关联页面名称:', selectedElement.value.page)
-
-        // 通过遍历树形结构查找对应的页面ID
-        const findPageIdByName = (nodes, pageName) => {
-          for (const node of nodes) {
-            if (node.type === 'page' && node.name === pageName) {
-              return node.id
-            }
-            if (node.children) {
-              const foundId = findPageIdByName(node.children, pageName)
-              if (foundId) return foundId
-            }
-          }
-          return null
-        }
-
-        const pageId = findPageIdByName(treeData.value, selectedElement.value.page)
-        if (pageId) {
-          elementUpdateData.group_id = pageId
-        }
-      }
-
-      console.log('更新元素数据:', elementUpdateData)
-      await updateElement(selectedElement.value.id, elementUpdateData)
-
-      // 重新获取完整的元素详情以确保所有关联字段正确显示
-      const detailResponse = await getElementDetail(selectedElement.value.id)
-      selectedElement.value = detailResponse.data
-      console.log('更新后获取到完整元素详情:', selectedElement.value)
-      console.log('locator_strategy_id值:', selectedElement.value.locator_strategy_id, '类型:', typeof selectedElement.value.locator_strategy_id)
-      console.log('locator_strategy对象:', selectedElement.value.locator_strategy)
-      console.log('当前locatorStrategies:', locatorStrategies.value)
-      console.log('locatorStrategies中是否包含id=' + selectedElement.value.locator_strategy_id + ':',
-        locatorStrategies.value.find(s => s.id === selectedElement.value.locator_strategy_id))
-
-      // 强制刷新表单，确保下拉框正确显示
-      formKey.value += 1
-      console.log('formKey更新为:', formKey.value)
-
-      // 使用nextTick确保DOM更新
-      await nextTick()
-      console.log('DOM已更新，当前下拉框绑定值:', selectedElement.value.locator_strategy_id)
-
-      ElMessage.success(t('uiAutomation.element.messages.saveSuccess'))
-    } else {
-      // 创建元素
-      // 确保传递正确的字段名 project_id 而不是 project
-      const elementData = {
-        ...selectedElement.value,
-        project_id: selectedProject.value
-      }
-
-      // 如果元素有分组（页面），确保传递 group_id
-      if (selectedElement.value.page) {
-        console.log('元素关联页面名称:', selectedElement.value.page)
-        console.log('当前treeData结构:', treeData.value)
-
-        // 通过遍历树形结构查找对应的页面ID
-        const findPageIdByName = (nodes, pageName) => {
-          console.log(`在 ${nodes.length} 个节点中查找页面名称: ${pageName}`)
-          for (const node of nodes) {
-            console.log(`检查节点: ${node.name} (ID: ${node.id}, type: ${node.type})`)
-            if (node.type === 'page' && node.name === pageName) {
-              console.log(`找到页面! ID: ${node.id}`)
-              return node.id
-            }
-            if (node.children) {
-              console.log(`检查子节点:`, node.children.map(c => c.name))
-              const foundId = findPageIdByName(node.children, pageName)
-              if (foundId) return foundId
-            }
-          }
-          console.log('未找到页面')
-          return null
-        }
-
-        const pageId = findPageIdByName(treeData.value, selectedElement.value.page)
-        console.log('找到的页面ID:', pageId)
-
-        if (pageId) {
-          elementData.group_id = pageId
-          console.log('设置group_id为:', pageId)
-        }
-      }
-
-      console.log('创建元素的数据:', elementData)
-      const response = await createElement(elementData)
-      console.log('创建响应:', response)
-
-      // 重新获取完整的元素详情以确保所有关联字段正确显示
-      const detailResponse = await getElementDetail(response.data.id)
-      selectedElement.value = detailResponse.data
-      console.log('获取到完整元素详情:', selectedElement.value)
-      console.log('locator_strategy_id值:', selectedElement.value.locator_strategy_id, '类型:', typeof selectedElement.value.locator_strategy_id)
-      console.log('locator_strategy对象:', selectedElement.value.locator_strategy)
-      console.log('当前locatorStrategies:', locatorStrategies.value)
-      console.log('locatorStrategies中是否包含id=' + selectedElement.value.locator_strategy_id + ':',
-        locatorStrategies.value.find(s => s.id === selectedElement.value.locator_strategy_id))
-      console.log('el-select绑定的值:', selectedElement.value.locator_strategy_id)
-
-      // 强制刷新表单，确保下拉框正确显示
-      formKey.value += 1
-      console.log('formKey更新为:', formKey.value)
-
-      // 使用nextTick确保DOM更新
-      await nextTick()
-      console.log('DOM已更新，当前下拉框绑定值:', selectedElement.value.locator_strategy_id)
-
-      ElMessage.success(t('uiAutomation.element.messages.createSuccess'))
+    // 构建符合后端要求的数据格式
+    const elementData = {
+      name: selectedElement.value.name,
+      element_type: selectedElement.value.element_type,
+      page: selectedElement.value.page,
+      component_name: selectedElement.value.component_name || '',
+      locator_value: selectedElement.value.locator_value,
+      locator_strategy_id: selectedElement.value.locator_strategy_id,
+      wait_timeout: selectedElement.value.wait_timeout || 10,
+      force_action: selectedElement.value.force_action || false,
+      description: selectedElement.value.description || '',
+      project_id: selectedProject.value
     }
 
-    // 重新加载树
-    console.log('开始重新加载元素树...')
-    await loadElementTree()
-    console.log('元素树重新加载完成')
+    if (selectedElement.value.id) {
+      await updateElement(selectedElement.value.id, elementData)
+      ElMessage.success('更新成功')
+    } else {
+      const response = await createElement(elementData)
+      selectedElement.value.id = response.data.id
+      ElMessage.success('创建成功')
+    }
 
-    // 强制重新渲染树组件
-    treeKey.value += 1
-    console.log('树组件key更新为:', treeKey.value)
-
-    // 强制触发Vue更新和树组件刷新
-    nextTick(() => {
-      console.log('nextTick - 检查treeData:', treeData.value)
-      console.log('treeRef:', treeRef.value)
-
-      // 展开新创建元素所在的页面节点
-      if (selectedElement.value && selectedElement.value.group_id) {
-        console.log('展开元素所在页面:', selectedElement.value.group_id)
-        if (!expandedKeys.value.includes(selectedElement.value.group_id)) {
-          expandedKeys.value.push(selectedElement.value.group_id)
-        }
-      }
-
-      console.log('树数据更新完成，当前expandedKeys:', expandedKeys.value)
-    })
+    // 刷新树
+    await loadPageTree()
   } catch (error) {
     console.error('保存元素失败:', error)
-    ElMessage.error(t('uiAutomation.element.messages.saveFailed') + ': ' + (error.response?.data?.message || error.message || t('uiAutomation.messages.error.unknown')))
+    const errorMsg = error.response?.data?.detail || error.response?.data?.message || error.message || '保存失败'
+    ElMessage.error(`保存失败: ${errorMsg}`)
   } finally {
     saving.value = false
   }
 }
 
-// 验证元素
-const validateElement = async () => {
-  if (!selectedElement.value) return
-
-  try {
-    validating.value = true
-    const response = await validateElementLocator(selectedElement.value.id)
-    const result = response.data
-
-    if (result.is_valid) {
-      ElMessage.success(t('uiAutomation.element.messages.validateSuccess'))
-    } else {
-      ElMessage.error(`${t('uiAutomation.element.messages.validateFailed')}: ${result.validation_message}`)
-    }
-  } catch (error) {
-    ElMessage.error(t('uiAutomation.element.messages.validateFailed'))
-    console.error('验证元素失败:', error)
-  } finally {
-    validating.value = false
-  }
+// 节点右键点击
+const onNodeRightClick = (event, data) => {
+  rightClickedNode.value = data
+  contextMenuX.value = event.clientX
+  contextMenuY.value = event.clientY
+  showContextMenu.value = true
 }
 
-// 生成建议
-const generateSuggestions = async () => {
-  if (!selectedElement.value) return
-
-  try {
-    generating.value = true
-    const response = await generateElementSuggestions(selectedElement.value.id)
-    suggestions.value = response.data.suggestions
-  } catch (error) {
-    console.error('生成建议失败:', error)
-  } finally {
-    generating.value = false
-  }
-}
-
-// 保存页面名称
-const savePageName = () => {
-  // TODO: 实现页面名称保存
-  editingNodeId.value = null
-}
-
-// 取消编辑
-const cancelEdit = () => {
-  editingNodeId.value = null
-}
-
-// 右键菜单操作函数
-// 新增元素
+// 添加元素（从右键菜单）
 const addContextElement = () => {
-  console.log('Add context element clicked')
   showContextMenu.value = false
-  createEmptyElement()
-
-  // 如果右键点击的是页面节点，设置元素的页面
-  if (rightClickedNode.value && rightClickedNode.value.type === 'page') {
-    if (selectedElement.value) {
+  if (rightClickedNode.value) {
+    createEmptyElement()
+    if (rightClickedNode.value.type === 'page') {
       selectedElement.value.page = rightClickedNode.value.name
-      // 同时设置group_id，确保元素能正确关联到页面
-      selectedElement.value.group_id = rightClickedNode.value.id
+    } else if (rightClickedNode.value.type === 'element') {
+      // 找到父页面
+      const findParentPage = (nodes, targetId) => {
+        for (const node of nodes) {
+          if (node.children) {
+            for (const child of node.children) {
+              if (child.id === targetId && child.type === 'element') {
+                return node.name
+              }
+            }
+            const result = findParentPage(node.children, targetId)
+            if (result) return result
+          }
+        }
+        return null
+      }
+      const parentPage = findParentPage(treeData.value, rightClickedNode.value.id)
+      if (parentPage) {
+        selectedElement.value.page = parentPage
+      }
     }
   }
 }
 
-// 新增子页面
+// 添加子页面
 const addSubPage = () => {
-  console.log('Add sub page clicked')
   showContextMenu.value = false
-  showCreatePageDialog.value = true
-
-  // 如果右键点击的是页面节点，设置父页面
   if (rightClickedNode.value && rightClickedNode.value.type === 'page') {
     pageForm.parent_page = rightClickedNode.value.id
+    showCreatePageDialog.value = true
   }
 }
 
 // 编辑节点
-const editNode = async () => {
-  console.log('Edit node clicked, rightClickedNode:', rightClickedNode.value)
+const editNode = () => {
   showContextMenu.value = false
-
-  if (!rightClickedNode.value) {
-    console.log('No right clicked node')
-    return
-  }
-
-  console.log('Editing node:', rightClickedNode.value)
-  console.log('Node type:', rightClickedNode.value.type)
-
-  if (rightClickedNode.value.type === 'page') {
-    // 编辑页面
-    console.log('Editing page node')
-    editPageForm.id = rightClickedNode.value.id
-    editPageForm.name = rightClickedNode.value.name
-    editPageForm.description = rightClickedNode.value.description || ''
-    editPageForm.parent_page = rightClickedNode.value.parent_group || null
-    console.log('Set edit page form data:', editPageForm)
-    console.log('Setting showEditPageDialog to true')
-    showEditPageDialog.value = true
-    console.log('showEditPageDialog value:', showEditPageDialog.value)
-  } else if (rightClickedNode.value.type === 'element') {
-    console.log('Editing element node')
-    // 编辑元素 - 通过API获取完整的元素详情，避免使用树节点的复杂数据
-    try {
-      const response = await getElementDetail(rightClickedNode.value.id)
-      selectedElement.value = response.data
-      console.log('Set selected element for editing via API:', selectedElement.value)
-
-      // 强制刷新表单，确保下拉框正确显示
-      formKey.value += 1
-      console.log('编辑时formKey更新为:', formKey.value)
-    } catch (error) {
-      console.error('获取元素详情失败:', error)
-      ElMessage.error(t('uiAutomation.element.messages.getDetailFailed'))
+  if (rightClickedNode.value) {
+    if (rightClickedNode.value.type === 'page') {
+      // 编辑页面
+      editPageForm.id = rightClickedNode.value.id
+      editPageForm.name = rightClickedNode.value.name
+      editPageForm.description = rightClickedNode.value.description || ''
+      editPageForm.parent_page = rightClickedNode.value.parent_page
+      showEditPageDialog.value = true
+    } else {
+      // 编辑元素 - 直接加载
+      onNodeClick(rightClickedNode.value)
     }
-  } else {
-    console.log('Unknown node type:', rightClickedNode.value.type)
   }
 }
 
 // 删除节点
 const deleteNode = async () => {
-  console.log('Delete node clicked, rightClickedNode:', rightClickedNode.value)
   showContextMenu.value = false
-
   if (!rightClickedNode.value) return
 
   try {
     await ElMessageBox.confirm(
-      t('uiAutomation.element.messages.confirmDeleteNode', { name: rightClickedNode.value.name }),
-      t('uiAutomation.common.confirmDelete'),
-      {
-        type: 'warning',
-        confirmButtonText: t('uiAutomation.common.confirm'),
-        cancelButtonText: t('uiAutomation.common.cancel')
-      }
+      `确定要删除${rightClickedNode.value.type === 'page' ? '页面' : '元素'} "${rightClickedNode.value.name}" 吗？`,
+      '确认删除',
+      { type: 'warning' }
     )
 
-    console.log('Deleting node:', rightClickedNode.value)
-
     if (rightClickedNode.value.type === 'page') {
-      // 删除页面（分组）
-      console.log('Calling deleteElementGroup with id:', rightClickedNode.value.id)
       await deleteElementGroup(rightClickedNode.value.id)
-      ElMessage.success(t('uiAutomation.element.messages.pageDeleteSuccess'))
-    } else if (rightClickedNode.value.type === 'element') {
-      // 删除元素
-      console.log('Calling deleteElement with id:', rightClickedNode.value.id)
+    } else {
       await deleteElement(rightClickedNode.value.id)
-      ElMessage.success(t('uiAutomation.element.messages.deleteSuccess'))
-      // 如果当前选中的是被删除的元素，清空选中
-      if (selectedElement.value && selectedElement.value.id === rightClickedNode.value.id) {
-        selectedElement.value = null
-      }
     }
 
-    console.log('Reload data after deletion')
+    ElMessage.success('删除成功')
+    await loadPageTree()
 
-    // 重新加载数据
-    await Promise.all([
-      loadPages(),
-      loadElementTree()
-    ])
-
-    // 强制刷新树组件
-    treeKey.value += 1
+    // 如果删除的是当前选中的元素，清空选中状态
+    if (selectedElement.value && selectedElement.value.id === rightClickedNode.value.id) {
+      selectedElement.value = null
+    }
   } catch (error) {
     if (error !== 'cancel') {
       console.error('删除失败:', error)
-      ElMessage.error(t('uiAutomation.element.messages.deleteFailed'))
+      ElMessage.error('删除失败')
     }
+  }
+}
+
+// 创建页面
+const createPage = async () => {
+  if (!pageForm.name) {
+    ElMessage.warning('请输入页面名称')
+    return
+  }
+
+  try {
+    await createElementGroup({
+      name: pageForm.name,
+      description: pageForm.description,
+      parent_group: pageForm.parent_page,
+      project: selectedProject.value
+    })
+
+    ElMessage.success('创建成功')
+    showCreatePageDialog.value = false
+    pageForm.name = ''
+    pageForm.description = ''
+    pageForm.parent_page = null
+
+    await loadPageTree()
+  } catch (error) {
+    console.error('创建页面失败:', error)
+    ElMessage.error('创建失败')
   }
 }
 
 // 更新页面
 const updatePage = async () => {
-  console.log('Update page function called')
-  console.log('Edit page form ref:', editPageFormRef.value)
-
-  if (!editPageFormRef.value) {
-    console.log('No edit page form ref')
+  if (!editPageForm.name) {
+    ElMessage.warning('请输入页面名称')
     return
   }
-
-  const validate = await editPageFormRef.value.validate()
-  console.log('Validation result:', validate)
-  if (!validate) {
-    console.log('Validation failed')
-    return
-  }
-
-  console.log('Updating page with data:', editPageForm)
 
   try {
-    // 构建更新页面的参数，正确处理父页面参数
-    const pageData = {
+    await updateElementGroup(editPageForm.id, {
       name: editPageForm.name,
       description: editPageForm.description,
+      parent_group: editPageForm.parent_page,
       project: selectedProject.value
-    }
+    })
 
-    // 只有当父页面ID存在且不为空时才添加parent_group字段
-    // 如果父页面ID为null，表示取消父页面关联
-    if (editPageForm.parent_page !== undefined) {
-      pageData.parent_group = editPageForm.parent_page
-    }
-
-    await updateElementGroup(editPageForm.id, pageData)
-
-    ElMessage.success(t('uiAutomation.element.messages.pageUpdateSuccess'))
+    ElMessage.success('更新成功')
     showEditPageDialog.value = false
 
-    // 重新加载页面和树
-    await Promise.all([
-      loadPages(),
-      loadElementTree()
-    ])
-
-    // 强制刷新树组件
-    treeKey.value += 1
+    await loadPageTree()
   } catch (error) {
     console.error('更新页面失败:', error)
-    ElMessage.error(t('uiAutomation.element.messages.pageUpdateFailed'))
+    ElMessage.error('更新失败')
   }
 }
+
+// 保存页面名称（树内编辑）
+const savePageName = async () => {
+  if (!editingNodeName.value.trim()) {
+    cancelEdit()
+    return
+  }
+
+  try {
+    await updateElementGroup(editingNodeId.value, {
+      name: editingNodeName.value,
+      project: selectedProject.value
+    })
+
+    // 更新本地数据
+    const updateNodeName = (nodes) => {
+      for (const node of nodes) {
+        if (node.id === editingNodeId.value) {
+          node.name = editingNodeName.value
+          return true
+        }
+        if (node.children && updateNodeName(node.children)) {
+          return true
+        }
+      }
+      return false
+    }
+    updateNodeName(treeData.value)
+
+    ElMessage.success('更新成功')
+  } catch (error) {
+    console.error('更新页面名称失败:', error)
+    ElMessage.error('更新失败')
+  } finally {
+    editingNodeId.value = null
+    editingNodeName.value = ''
+  }
+}
+
+// 取消编辑
+const cancelEdit = () => {
+  editingNodeId.value = null
+  editingNodeName.value = ''
+}
+
+// 点击其他地方关闭右键菜单
+onMounted(() => {
+  document.addEventListener('click', () => {
+    showContextMenu.value = false
+  })
+})
 </script>
 
-<style scoped>
-.element-manager {
-  height: 100vh;
+<style scoped lang="scss">
+.page-container {
+  padding: 24px;
+  min-height: calc(100vh - 60px);
+  background: linear-gradient(135deg, #f5f3ff 0%, #ede9fe 100%);
   display: flex;
   flex-direction: column;
+  gap: 20px;
+}
+
+.page-header {
+  background: #ffffff;
+  border-radius: 12px;
+  padding: 24px;
+  box-shadow: 0 4px 20px rgba(147, 112, 219, 0.1);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border: 1px solid rgba(147, 112, 219, 0.1);
+
+  .page-title {
+    font-size: 24px;
+    font-weight: 600;
+    color: #5a32a3;
+    margin: 0;
+    background: linear-gradient(135deg, #5a32a3 0%, #7b42f6 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .header-actions {
+    display: flex;
+    gap: 12px;
+
+    .el-button {
+      border-radius: 8px;
+      padding: 10px 20px;
+      font-weight: 500;
+      transition: all 0.3s ease;
+
+      &.el-button--primary {
+        background: linear-gradient(135deg, #7b42f6 0%, #5a32a3 100%);
+        border: none;
+        box-shadow: 0 4px 12px rgba(123, 66, 246, 0.3);
+
+        &:hover {
+          transform: translateY(-2px);
+          box-shadow: 0 6px 16px rgba(123, 66, 246, 0.4);
+        }
+
+        .el-icon {
+          margin-right: 6px;
+        }
+      }
+
+      &.btn-secondary {
+        background: #ffffff;
+        border: 1px solid rgba(147, 112, 219, 0.4);
+        color: #5a32a3;
+
+        &:hover {
+          background: #f8f7ff;
+          border-color: #7b42f6;
+          color: #7b42f6;
+          transform: translateY(-1px);
+        }
+
+        .el-icon {
+          margin-right: 6px;
+        }
+      }
+    }
+  }
+}
+
+.card-container {
+  background: #ffffff;
+  border-radius: 12px;
+  box-shadow: 0 4px 20px rgba(147, 112, 219, 0.1);
+  border: 1px solid rgba(147, 112, 219, 0.1);
+  flex: 1;
+  overflow: hidden;
+  display: flex;
 }
 
 .element-layout {
@@ -1204,59 +1103,112 @@ const updatePage = async () => {
 }
 
 .sidebar {
-  width: 300px;
-  border-right: 1px solid #e4e7ed;
+  width: 320px;
+  border-right: 1px solid rgba(147, 112, 219, 0.15);
   display: flex;
   flex-direction: column;
-  background: #f5f7fa;
+  background: linear-gradient(180deg, #faf8ff 0%, #f5f3ff 100%);
 }
 
 .sidebar-header {
-  padding: 15px;
-  border-bottom: 1px solid #e4e7ed;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
+  padding: 20px;
+  border-bottom: 1px solid rgba(147, 112, 219, 0.15);
+  background: #ffffff;
 
-.header-actions {
-  display: flex;
-  gap: 5px;
-  margin-left: auto;
+  .project-select {
+    width: 100%;
+
+    :deep(.el-input__wrapper) {
+      border-radius: 8px;
+      border: 1px solid rgba(147, 112, 219, 0.2);
+      box-shadow: none;
+
+      &:hover, &.is-focus {
+        border-color: #7b42f6;
+        box-shadow: 0 0 0 3px rgba(123, 66, 246, 0.1);
+      }
+    }
+  }
 }
 
 .page-tree {
   flex: 1;
   overflow-y: auto;
-  padding: 10px;
+  padding: 16px;
+
+  .custom-tree {
+    background: transparent;
+
+    :deep(.el-tree-node__content) {
+      height: 40px;
+      border-radius: 8px;
+      margin-bottom: 4px;
+      transition: all 0.3s ease;
+
+      &:hover {
+        background: rgba(123, 66, 246, 0.08);
+      }
+    }
+
+    :deep(.el-tree-node.is-current > .el-tree-node__content) {
+      background: linear-gradient(135deg, rgba(123, 66, 246, 0.15) 0%, rgba(90, 50, 163, 0.1) 100%);
+      border-left: 3px solid #7b42f6;
+    }
+  }
 }
 
 .tree-node {
   display: flex;
   align-items: center;
-  gap: 5px;
-  padding: 5px 0;
-}
+  gap: 8px;
+  width: 100%;
+  padding: 0 8px;
 
-.node-label {
-  flex: 1;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  .node-icon {
+    font-size: 16px;
+
+    &.folder-icon {
+      color: #7b42f6;
+    }
+
+    &.element-icon {
+      color: #9370db;
+    }
+  }
+
+  .node-label {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: #5a32a3;
+    font-weight: 500;
+  }
 }
 
 .element-type-tag {
-  font-size: 12px;
-  padding: 2px 6px;
-  border-radius: 4px;
-  background-color: #ecf5ff;
-  color: #409eff;
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #ecf5ff 0%, #f0f7ff 100%);
+  color: #7b42f6;
+  border: 1px solid rgba(123, 66, 246, 0.2);
+  font-weight: 500;
+
+  &.button { background: linear-gradient(135deg, #e6f7ff 0%, #f0faff 100%); color: #1890ff; }
+  &.input { background: linear-gradient(135deg, #f6ffed 0%, #f0ffe6 100%); color: #52c41a; }
+  &.link { background: linear-gradient(135deg, #fff7e6 0%, #fffbf0 100%); color: #fa8c16; }
+  &.dropdown { background: linear-gradient(135deg, #f9f0ff 0%, #fcf5ff 100%); color: #722ed1; }
+  &.checkbox { background: linear-gradient(135deg, #fff0f6 0%, #fff5f8 100%); color: #eb2f96; }
+  &.radio { background: linear-gradient(135deg, #f0f5ff 0%, #f5f8ff 100%); color: #2f54eb; }
+  &.text { background: linear-gradient(135deg, #f5f5f5 0%, #fafafa 100%); color: #595959; }
 }
 
 .main-content {
   flex: 1;
   overflow: auto;
-  padding: 20px;
+  padding: 24px;
+  background: #ffffff;
 }
 
 .empty-state {
@@ -1264,53 +1216,211 @@ const updatePage = async () => {
   align-items: center;
   justify-content: center;
   height: 100%;
+  background: linear-gradient(135deg, #faf8ff 0%, #f5f3ff 100%);
+  border-radius: 12px;
+
+  :deep(.el-empty__description) {
+    color: #9370db;
+  }
+
+  .el-button {
+    margin-top: 16px;
+    background: linear-gradient(135deg, #7b42f6 0%, #5a32a3 100%);
+    border: none;
+    border-radius: 8px;
+    padding: 10px 24px;
+
+    &:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 16px rgba(123, 66, 246, 0.4);
+    }
+  }
 }
 
-.element-header {
-  margin-bottom: 20px;
-  padding-bottom: 20px;
-  border-bottom: 1px solid #e4e7ed;
-}
+.element-detail {
+  .detail-header {
+    margin-bottom: 24px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid rgba(147, 112, 219, 0.15);
 
-.element-info {
-  display: flex;
-  align-items: center;
-  gap: 10px;
+    .detail-title {
+      font-size: 18px;
+      font-weight: 600;
+      color: #5a32a3;
+      margin: 0 0 16px 0;
+    }
+
+    .element-info {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+
+      .required-field-wrapper {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+
+        .required-star {
+          color: #f56c6c;
+          font-weight: bold;
+          font-size: 14px;
+        }
+      }
+
+      .el-input, .el-select {
+        :deep(.el-input__wrapper) {
+          border-radius: 8px;
+          border: 1px solid rgba(147, 112, 219, 0.2);
+          box-shadow: none;
+
+          &:hover, &.is-focus {
+            border-color: #7b42f6;
+            box-shadow: 0 0 0 3px rgba(123, 66, 246, 0.1);
+          }
+        }
+      }
+
+      .el-button {
+        border-radius: 8px;
+        background: linear-gradient(135deg, #7b42f6 0%, #5a32a3 100%);
+        border: none;
+        padding: 8px 20px;
+
+        &:hover {
+          transform: translateY(-1px);
+          box-shadow: 0 4px 12px rgba(123, 66, 246, 0.3);
+        }
+      }
+    }
+  }
 }
 
 .element-form {
-  margin-top: 20px;
+  .el-form-item {
+    :deep(.el-form-item__label) {
+      color: #5a32a3;
+      font-weight: 500;
+    }
+
+    .el-input, .el-select, .el-input-number {
+      :deep(.el-input__wrapper) {
+        border-radius: 8px;
+        border: 1px solid rgba(147, 112, 219, 0.2);
+        box-shadow: none;
+
+        &:hover, &.is-focus {
+          border-color: #7b42f6;
+          box-shadow: 0 0 0 3px rgba(123, 66, 246, 0.1);
+        }
+      }
+    }
+
+    .el-textarea {
+      :deep(.el-textarea__inner) {
+        border-radius: 8px;
+        border: 1px solid rgba(147, 112, 219, 0.2);
+
+        &:hover, &:focus {
+          border-color: #7b42f6;
+          box-shadow: 0 0 0 3px rgba(123, 66, 246, 0.1);
+        }
+      }
+    }
+  }
 }
 
 .form-help-text {
   font-size: 12px;
-  color: #909399;
-  margin-top: 5px;
+  color: #9370db;
+  margin-top: 8px;
+  line-height: 1.6;
 }
 
 /* 右键菜单样式 */
 .context-menu {
   position: fixed;
   z-index: 9999;
-  background: white;
-  border: 1px solid #e4e7ed;
-  border-radius: 4px;
-  box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.1);
-  padding: 5px 0;
+  background: #ffffff;
+  border: 1px solid rgba(147, 112, 219, 0.2);
+  border-radius: 8px;
+  box-shadow: 0 4px 20px rgba(147, 112, 219, 0.2);
+  padding: 8px 0;
   margin: 0;
   list-style: none;
-  min-width: 120px;
+  min-width: 140px;
+
+  li {
+    padding: 10px 16px;
+    cursor: pointer;
+    font-size: 14px;
+    color: #5a32a3;
+    transition: all 0.3s ease;
+
+    &:hover {
+      background: linear-gradient(135deg, rgba(123, 66, 246, 0.1) 0%, rgba(90, 50, 163, 0.05) 100%);
+      color: #7b42f6;
+    }
+  }
 }
 
-.context-menu li {
-  padding: 8px 15px;
-  cursor: pointer;
-  font-size: 14px;
-  color: #606266;
-}
+/* 对话框样式 */
+:deep(.el-dialog) {
+  border-radius: 12px;
+  box-shadow: 0 12px 24px rgba(147, 112, 219, 0.2);
 
-.context-menu li:hover {
-  background-color: #f5f7fa;
-  color: #409eff;
+  .el-dialog__header {
+    padding: 24px 24px 0;
+
+    .el-dialog__title {
+      font-size: 18px;
+      font-weight: 600;
+      color: #5a32a3;
+    }
+  }
+
+  .el-dialog__body {
+    padding: 24px;
+
+    .el-form {
+      .el-form-item {
+        .el-form-item__label {
+          color: #5a32a3;
+          font-weight: 500;
+        }
+
+        .el-input__wrapper,
+        .el-select .el-input__wrapper {
+          box-shadow: 0 2px 8px rgba(147, 112, 219, 0.08);
+          border-radius: 8px;
+
+          &:hover, &:focus {
+            box-shadow: 0 2px 8px rgba(147, 112, 219, 0.15);
+          }
+        }
+      }
+    }
+  }
+
+  .el-dialog__footer {
+    padding: 0 24px 24px;
+
+    .el-button {
+      font-weight: 500;
+      padding: 8px 20px;
+      border-radius: 8px;
+
+      &.el-button--primary {
+        background: linear-gradient(135deg, #7b42f6 0%, #5a32a3 100%) !important;
+        border: none !important;
+        color: white !important;
+        font-weight: 600 !important;
+
+        &:hover {
+          background: linear-gradient(135deg, #6d33e6 0%, #4a249c 100%) !important;
+          transform: translateY(-1px);
+        }
+      }
+    }
+  }
 }
 </style>

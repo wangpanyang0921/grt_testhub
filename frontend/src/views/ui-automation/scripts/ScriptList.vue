@@ -1,69 +1,71 @@
 <template>
-  <div class="script-list">
+  <div class="page-container">
     <div class="page-header">
-      <h1 class="page-title">{{ $t('uiAutomation.script.title') }}</h1>
-      <div class="header-actions">
-        <el-select v-model="selectedProject" :placeholder="$t('uiAutomation.common.selectProject')" style="width: 200px; margin-right: 15px" @change="onProjectChange">
+      <div class="header-left">
+        <h1 class="page-title">{{ $t('uiAutomation.script.title') }}</h1>
+        <el-select v-model="selectedProject" :placeholder="$t('uiAutomation.common.selectProject')" class="project-select" @change="onProjectChange">
           <el-option v-for="project in projects" :key="project.id" :label="project.name" :value="project.id" />
         </el-select>
-        <el-button type="primary" @click="goToScriptEditor">
-          <el-icon><Plus /></el-icon>
-          {{ $t('uiAutomation.script.newScript') }}
-        </el-button>
       </div>
+      <el-button type="primary" class="create-btn" @click="goToScriptEditor">
+        <el-icon><Plus /></el-icon>
+        {{ $t('uiAutomation.script.newScript') }}
+      </el-button>
     </div>
 
-    <div class="main-content">
+    <div class="card-container">
       <el-table :data="scripts" stripe style="width: 100%">
-        <el-table-column type="index" :label="$t('uiAutomation.script.index')" width="60" />
-        <el-table-column :label="$t('uiAutomation.script.projectColumn')" width="150">
+        <el-table-column type="index" :label="$t('uiAutomation.script.index')" width="80" header-align="center" align="center" />
+        <el-table-column :label="$t('uiAutomation.script.projectColumn')" width="160" header-align="center" align="center">
           <template #default="{ row }">
             {{ row.project?.name || $t('uiAutomation.script.unknownProject') }}
           </template>
         </el-table-column>
-        <el-table-column prop="name" :label="$t('uiAutomation.script.nameColumn')" min-width="300" show-overflow-tooltip />
-        <el-table-column :label="$t('uiAutomation.script.languageColumn')" width="100">
+        <el-table-column prop="name" :label="$t('uiAutomation.script.nameColumn')" min-width="280" show-overflow-tooltip header-align="center" align="center" />
+        <el-table-column :label="$t('uiAutomation.script.languageColumn')" width="100" header-align="center" align="center">
           <template #default="{ row }">
             <el-tag size="small" :type="row.language === 'python' ? 'success' : 'primary'">
               {{ getLanguageText(row.language) }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column :label="$t('uiAutomation.script.frameworkColumn')" width="120">
+        <el-table-column :label="$t('uiAutomation.script.frameworkColumn')" width="120" header-align="center" align="center">
           <template #default="{ row }">
             <el-tag size="small" :type="row.framework === 'playwright' ? 'warning' : 'info'">
               {{ getFrameworkText(row.framework) }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="created_at" :label="$t('uiAutomation.script.createTimeColumn')" width="180">
+        <el-table-column prop="created_at" :label="$t('uiAutomation.script.createTimeColumn')" width="170" header-align="center" align="center">
           <template #default="{ row }">
             {{ formatTime(row.created_at) }}
           </template>
         </el-table-column>
-        <el-table-column :label="$t('uiAutomation.script.operationColumn')" width="280" fixed="right">
+        <el-table-column :label="$t('uiAutomation.script.operationColumn')" width="260" fixed="right" header-align="center" align="center">
           <template #default="{ row }">
-            <el-button size="small" text @click="viewScript(row)">
-              <el-icon><View /></el-icon>
-              {{ $t('uiAutomation.script.viewDetail') }}
-            </el-button>
-            <el-button size="small" text @click="editScript(row)">
-              <el-icon><Edit /></el-icon>
-              {{ $t('uiAutomation.script.edit') }}
-            </el-button>
-            <el-button size="small" text @click="renameScript(row)">
-              <el-icon><EditPen /></el-icon>
-              {{ $t('uiAutomation.script.rename') }}
-            </el-button>
-            <el-button size="small" text type="danger" @click="deleteScript(row)">
-              <el-icon><Delete /></el-icon>
-              {{ $t('uiAutomation.script.delete') }}
-            </el-button>
+            <div class="action-buttons">
+              <el-button size="small" class="action-btn view-btn" @click="viewScript(row)">
+                <el-icon><View /></el-icon>
+                <span>{{ $t('uiAutomation.script.viewDetail') }}</span>
+              </el-button>
+              <el-button size="small" class="action-btn edit-btn" @click="editScript(row)">
+                <el-icon><Edit /></el-icon>
+                <span>{{ $t('uiAutomation.script.edit') }}</span>
+              </el-button>
+              <el-button size="small" class="action-btn rename-btn" @click="renameScript(row)">
+                <el-icon><EditPen /></el-icon>
+                <span>{{ $t('uiAutomation.script.rename') }}</span>
+              </el-button>
+              <el-button size="small" type="danger" class="action-btn delete-btn" @click="deleteScript(row)">
+                <el-icon><Delete /></el-icon>
+                <span>{{ $t('uiAutomation.script.delete') }}</span>
+              </el-button>
+            </div>
           </template>
         </el-table-column>
       </el-table>
 
-      <div class="pagination">
+      <div class="pagination-container">
         <el-pagination
           v-model:current-page="currentPage"
           v-model:page-size="pageSize"
@@ -381,67 +383,476 @@ onMounted(async () => {
 })
 </script>
 
-<style scoped>
-.script-list {
-  height: 100vh;
-  width: 100%;
+<style scoped lang="scss">
+.page-container {
+  padding: 24px;
+  min-height: calc(100vh - 60px);
+  background: linear-gradient(135deg, #f5f3ff 0%, #ede9fe 100%);
   display: flex;
   flex-direction: column;
-  padding: 0;
-  margin: 0;
-  box-sizing: border-box;
+  line-height: 24px;
+  gap: 20px;
 }
 
 .page-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 20px;
-  border-bottom: 1px solid #e6e6e6;
-  background: white;
+  padding: 24px 28px;
+  background: linear-gradient(135deg, #ffffff 0%, #f8f7ff 100%);
+  border-radius: 12px;
+  box-shadow: 0 4px 16px rgba(147, 112, 219, 0.1);
+  border: 1px solid rgba(147, 112, 219, 0.1);
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 20px;
 }
 
 .page-title {
-  margin: 0;
   font-size: 24px;
-}
-
-.header-actions {
+  font-weight: 700;
+  color: #5a32a3;
+  margin: 0;
   display: flex;
   align-items: center;
+  gap: 12px;
+  background: linear-gradient(135deg, #7b42f6 0%, #5a32a3 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
 }
 
-.main-content {
-  flex: 1;
-  padding: 0;
-  overflow: auto;
-  background: #f5f5f5;
-  width: 100%;
-  box-sizing: border-box;
+.project-select {
+  width: 240px;
+
+  :deep(.el-input__wrapper) {
+    border-radius: 8px;
+    border: 1px solid rgba(147, 112, 219, 0.2);
+    background: #ffffff;
+    box-shadow: none;
+
+    &:hover {
+      border-color: #7b42f6;
+      box-shadow: 0 0 0 3px rgba(123, 66, 246, 0.1);
+    }
+
+    &.is-focus {
+      border-color: #7b42f6;
+      box-shadow: 0 0 0 3px rgba(123, 66, 246, 0.15);
+    }
+  }
+
+  :deep(.el-input__inner) {
+    color: #5a32a3;
+    font-weight: 500;
+  }
 }
 
-:deep(.el-table) {
-  width: 100% !important;
-  max-width: 100% !important;
-  margin: 0 !important;
-  padding: 0 !important;
+.create-btn {
+  background: linear-gradient(135deg, #7b42f6 0%, #5a32a3 100%) !important;
+  border: none !important;
+  color: #ffffff !important;
+  font-weight: 600 !important;
+  padding: 10px 20px !important;
+  border-radius: 8px !important;
+  box-shadow: 0 4px 12px rgba(123, 66, 246, 0.3) !important;
+  transition: all 0.3s ease !important;
+
+  &:hover {
+    background: linear-gradient(135deg, #6d33e6 0%, #4a249c 100%) !important;
+    transform: translateY(-2px) !important;
+    box-shadow: 0 6px 16px rgba(123, 66, 246, 0.4) !important;
+  }
+
+  .el-icon {
+    color: #ffffff !important;
+    margin-right: 6px;
+  }
 }
 
-:deep(.el-table__header-wrapper),
-:deep(.el-table__body-wrapper) {
-  width: 100% !important;
-  max-width: 100% !important;
-}
-
-:deep(.el-table__inner-wrapper) {
-  width: 100% !important;
-  max-width: 100% !important;
-}
-
-.pagination {
-  margin-top: 20px;
+.card-container {
+  background: #ffffff;
+  border: 1px solid rgba(147, 112, 219, 0.12);
+  border-radius: 12px;
+  box-shadow: 0 4px 16px rgba(147, 112, 219, 0.08);
   display: flex;
-  justify-content: flex-end;
+  flex-direction: column;
+  overflow: hidden;
+  padding-top: 16px;
+
+  .el-table {
+    border: none;
+    border-radius: 8px 8px 0 0;
+    overflow: hidden;
+    min-height: 200px;
+    box-shadow: none;
+    transition: all 0.3s ease;
+    background-color: transparent !important;
+
+    /* 覆盖 Element Plus 默认主题变量 */
+    --el-color-primary: var(--primary-color);
+    --el-color-primary-light-3: #9370db;
+    --el-color-primary-light-5: #a888e0;
+    --el-color-primary-light-7: #c2a9f3;
+    --el-color-primary-light-9: #f8f7ff;
+    --el-border-color: rgba(147, 112, 219, 0.2);
+    --el-border-color-light: rgba(147, 112, 219, 0.15);
+    --el-border-color-lighter: rgba(147, 112, 219, 0.1);
+    --el-fill-color-light: #f8f7ff;
+    --el-fill-color-lighter: #f8f7ff;
+    --el-fill-color-blank: #f8f7ff;
+    --el-text-color-primary: var(--text-primary);
+    --el-text-color-regular: var(--text-secondary);
+    --el-text-color-secondary: var(--text-tertiary);
+
+    :deep(.el-table__header) {
+      background: linear-gradient(135deg, #f8f7ff 0%, #ede9fe 100%) !important;
+
+      th {
+        background: transparent !important;
+        color: #5a32a3 !important;
+        font-weight: 600 !important;
+        font-size: 14px !important;
+        padding: 16px 12px !important;
+        border-bottom: 2px solid rgba(147, 112, 219, 0.15) !important;
+
+        .cell {
+          color: #5a32a3 !important;
+          font-weight: 600 !important;
+        }
+      }
+    }
+
+    :deep(.el-table__row) {
+      transition: all 0.3s ease;
+
+      &:hover {
+        background-color: #f8f7ff !important;
+        transform: translateY(-1px);
+        box-shadow: 0 2px 8px rgba(147, 112, 219, 0.1);
+      }
+
+      td {
+        padding: 14px 12px !important;
+        border-bottom: 1px solid rgba(147, 112, 219, 0.08) !important;
+        color: #4a4a4a;
+        font-size: 14px;
+      }
+    }
+
+    :deep(.el-table__empty-block) {
+      min-height: 200px;
+      background: #fafaff;
+
+      .el-table__empty-text {
+        color: #9370db;
+        font-size: 14px;
+      }
+    }
+  }
+}
+
+.action-buttons {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: nowrap;
+}
+
+.action-btn {
+  &.view-btn {
+    background: linear-gradient(135deg, #7b42f6 0%, #5a32a3 100%) !important;
+    border: none !important;
+    color: #ffffff !important;
+    font-weight: 600 !important;
+    padding: 4px 10px !important;
+    border-radius: 6px !important;
+    box-shadow: 0 2px 8px rgba(123, 66, 246, 0.3) !important;
+    transition: all 0.3s ease !important;
+    white-space: nowrap;
+
+    &:hover {
+      background: linear-gradient(135deg, #6d33e6 0%, #4a249c 100%) !important;
+      transform: translateY(-2px) !important;
+      box-shadow: 0 4px 12px rgba(123, 66, 246, 0.4) !important;
+    }
+
+    .el-icon {
+      color: #ffffff !important;
+      margin-right: 3px;
+      font-size: 12px;
+    }
+
+    span {
+      font-size: 12px;
+    }
+  }
+
+  &.edit-btn {
+    background: linear-gradient(135deg, #409eff 0%, #2c7bd0 100%) !important;
+    border: none !important;
+    color: #ffffff !important;
+    font-weight: 600 !important;
+    padding: 4px 10px !important;
+    border-radius: 6px !important;
+    box-shadow: 0 2px 8px rgba(64, 158, 255, 0.3) !important;
+    transition: all 0.3s ease !important;
+    white-space: nowrap;
+
+    &:hover {
+      background: linear-gradient(135deg, #3a8ee6 0%, #266cb5 100%) !important;
+      transform: translateY(-2px) !important;
+      box-shadow: 0 4px 12px rgba(64, 158, 255, 0.4) !important;
+    }
+
+    .el-icon {
+      color: #ffffff !important;
+      margin-right: 3px;
+      font-size: 12px;
+    }
+
+    span {
+      font-size: 12px;
+    }
+  }
+
+  &.rename-btn {
+    background: linear-gradient(135deg, #e6a23c 0%, #c77f1a 100%) !important;
+    border: none !important;
+    color: #ffffff !important;
+    font-weight: 600 !important;
+    padding: 4px 10px !important;
+    border-radius: 6px !important;
+    box-shadow: 0 2px 8px rgba(230, 162, 60, 0.3) !important;
+    transition: all 0.3s ease !important;
+    white-space: nowrap;
+
+    &:hover {
+      background: linear-gradient(135deg, #d4942a 0%, #b36f15 100%) !important;
+      transform: translateY(-2px) !important;
+      box-shadow: 0 4px 12px rgba(230, 162, 60, 0.4) !important;
+    }
+
+    .el-icon {
+      color: #ffffff !important;
+      margin-right: 3px;
+      font-size: 12px;
+    }
+
+    span {
+      font-size: 12px;
+    }
+  }
+
+  &.delete-btn {
+    background: linear-gradient(135deg, #f56c6c 0%, #c45656 100%) !important;
+    border: none !important;
+    color: #ffffff !important;
+    font-weight: 600 !important;
+    padding: 4px 10px !important;
+    border-radius: 6px !important;
+    box-shadow: 0 2px 8px rgba(245, 108, 108, 0.3) !important;
+    transition: all 0.3s ease !important;
+    white-space: nowrap;
+
+    &:hover {
+      background: linear-gradient(135deg, #e64c4c 0%, #b34545 100%) !important;
+      transform: translateY(-2px) !important;
+      box-shadow: 0 4px 12px rgba(245, 108, 108, 0.4) !important;
+    }
+
+    .el-icon {
+      color: #ffffff !important;
+      margin-right: 3px;
+      font-size: 12px;
+    }
+
+    span {
+      font-size: 12px;
+    }
+  }
+}
+
+.pagination-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 8px 24px;
+  background: transparent;
+  border-top: 1px solid rgba(147, 112, 219, 0.1);
+  transition: all 0.3s ease;
+  margin-top: 0;
+
+  /* 覆盖 Element Plus 默认主题变量 */
+  --el-color-primary: var(--primary-color);
+  --el-color-primary-light-3: #9370db;
+  --el-color-primary-light-5: #a888e0;
+  --el-color-primary-light-7: #c2a9f3;
+  --el-color-primary-light-9: #f8f7ff;
+  --el-border-color: rgba(147, 112, 219, 0.2);
+  --el-border-color-light: rgba(147, 112, 219, 0.15);
+  --el-border-color-lighter: rgba(147, 112, 219, 0.1);
+  --el-fill-color-light: #f8f7ff;
+  --el-fill-color-lighter: #f8f7ff;
+  --el-fill-color-blank: #f8f7ff;
+  --el-text-color-primary: var(--text-primary);
+  --el-text-color-regular: var(--text-secondary);
+  --el-text-color-secondary: var(--text-tertiary);
+
+  :deep(.el-pagination) {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-weight: 500;
+
+    // 总条数
+    .el-pagination__total {
+      color: #5a32a3;
+      font-size: 14px;
+      font-weight: 500;
+      margin-right: 12px;
+    }
+
+    // 每页条数选择器
+    .el-pagination__sizes {
+      margin-right: 12px;
+
+      .el-select {
+        .el-input__wrapper {
+          border-radius: 8px;
+          border: 1px solid rgba(147, 112, 219, 0.2);
+          background: #ffffff;
+          box-shadow: none;
+
+          &:hover {
+            border-color: #7b42f6;
+            box-shadow: 0 0 0 3px rgba(123, 66, 246, 0.1);
+          }
+
+          &.is-focus {
+            border-color: #7b42f6;
+            box-shadow: 0 0 0 3px rgba(123, 66, 246, 0.15);
+          }
+        }
+
+        .el-input__inner {
+          color: #5a32a3;
+          font-weight: 500;
+        }
+      }
+    }
+
+    // 上一页/下一页按钮
+    .btn-prev,
+    .btn-next {
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      border: 1px solid rgba(147, 112, 219, 0.2);
+      background: #ffffff;
+      color: #5a32a3;
+      transition: all 0.3s ease;
+
+      &:hover:not(:disabled) {
+        background: linear-gradient(135deg, #7b42f6 0%, #5a32a3 100%);
+        border-color: transparent;
+        color: white;
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(123, 66, 246, 0.3);
+      }
+
+      &:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+    }
+
+    // 页码
+    .el-pager {
+      display: flex;
+      gap: 4px;
+
+      li {
+        min-width: 32px;
+        height: 32px;
+        padding: 0 8px;
+        border-radius: 8px;
+        border: 1px solid rgba(147, 112, 219, 0.2);
+        background: #ffffff;
+        color: #5a32a3;
+        font-size: 14px;
+        font-weight: 500;
+        transition: all 0.3s ease;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+
+        &:hover:not(.is-active) {
+          background: rgba(123, 66, 246, 0.1);
+          border-color: #7b42f6;
+          color: #7b42f6;
+          transform: translateY(-1px);
+        }
+
+        &.is-active {
+          background: linear-gradient(135deg, #7b42f6 0%, #5a32a3 100%);
+          border-color: transparent;
+          color: white;
+          box-shadow: 0 4px 12px rgba(123, 66, 246, 0.3);
+          font-weight: 600;
+        }
+
+        &.btn-quicknext,
+        &.btn-quickprev {
+          color: #9370db;
+
+          &:hover {
+            color: #7b42f6;
+          }
+        }
+      }
+    }
+
+    // 跳转页
+    .el-pagination__jump {
+      margin-left: 12px;
+      color: #5a32a3;
+      font-weight: 500;
+
+      .el-input {
+        width: 48px;
+        margin: 0 8px;
+
+        .el-input__wrapper {
+          border-radius: 8px;
+          border: 1px solid rgba(147, 112, 219, 0.2);
+          background: #ffffff;
+          box-shadow: none;
+          padding: 0 8px;
+
+          &:hover {
+            border-color: #7b42f6;
+            box-shadow: 0 0 0 3px rgba(123, 66, 246, 0.1);
+          }
+
+          &.is-focus {
+            border-color: #7b42f6;
+            box-shadow: 0 0 0 3px rgba(123, 66, 246, 0.15);
+          }
+        }
+
+        .el-input__inner {
+          color: #5a32a3;
+          font-weight: 500;
+          text-align: center;
+        }
+      }
+    }
+  }
 }
 
 .script-detail {

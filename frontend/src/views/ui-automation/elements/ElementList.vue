@@ -1,77 +1,81 @@
 <template>
   <div class="page-container">
-    <div class="page-header" style="display: flex; align-items: center;">
-      <h1 class="page-title" style="margin-right: 20px; margin-bottom: 0;">{{ $t('uiAutomation.element.title') }}</h1>
-      <el-select v-model="projectId" :placeholder="$t('uiAutomation.common.selectProject')" style="width: 200px; margin-right: 15px" @change="onProjectChange">
-        <el-option v-for="project in projects" :key="project.id" :label="project.name" :value="project.id" />
-      </el-select>
+    <div class="page-header">
+      <div class="header-left">
+        <h1 class="page-title">{{ $t('uiAutomation.element.title') }}</h1>
+        <el-select v-model="projectId" :placeholder="$t('uiAutomation.common.selectProject')" class="project-select" @change="onProjectChange">
+          <el-option v-for="project in projects" :key="project.id" :label="project.name" :value="project.id" />
+        </el-select>
+      </div>
       <el-button type="primary" @click="handleShowCreateDialog">
         <el-icon><Plus /></el-icon>
         {{ $t('uiAutomation.element.newElement') }}
       </el-button>
     </div>
     
+    <div class="filter-bar">
+      <el-row :gutter="20">
+        <el-col :span="6">
+          <el-input
+            v-model="searchText"
+            :placeholder="$t('uiAutomation.element.searchPlaceholder')"
+            clearable
+            @input="handleSearch"
+          >
+            <template #prefix>
+              <el-icon><Search /></el-icon>
+            </template>
+          </el-input>
+        </el-col>
+        <el-col :span="4">
+          <el-select v-model="strategyFilter" :placeholder="$t('uiAutomation.element.strategyFilter')" clearable @change="handleFilter">
+            <el-option v-for="strategy in strategies" :key="strategy.id" :label="strategy.name" :value="strategy.id" />
+          </el-select>
+        </el-col>
+        <el-col :span="4">
+          <el-select v-model="pageFilter" :placeholder="$t('uiAutomation.element.pageFilter')" clearable @change="handleFilter">
+            <el-option v-for="page in pages" :key="page" :label="page" :value="page" />
+          </el-select>
+        </el-col>
+      </el-row>
+    </div>
+    
     <div class="card-container">
-      <div class="filter-bar">
-        <el-row :gutter="20">
-          <el-col :span="6">
-            <el-input
-              v-model="searchText"
-              :placeholder="$t('uiAutomation.element.searchPlaceholder')"
-              clearable
-              @input="handleSearch"
-            >
-              <template #prefix>
-                <el-icon><Search /></el-icon>
-              </template>
-            </el-input>
-          </el-col>
-          <el-col :span="4">
-            <el-select v-model="strategyFilter" :placeholder="$t('uiAutomation.element.strategyFilter')" clearable @change="handleFilter">
-              <el-option v-for="strategy in strategies" :key="strategy.id" :label="strategy.name" :value="strategy.id" />
-            </el-select>
-          </el-col>
-          <el-col :span="4">
-            <el-select v-model="pageFilter" :placeholder="$t('uiAutomation.element.pageFilter')" clearable @change="handleFilter">
-              <el-option v-for="page in pages" :key="page" :label="page" :value="page" />
-            </el-select>
-          </el-col>
-        </el-row>
-      </div>
-      
-      <el-table :data="elements" v-loading="loading" style="width: 100%">
-        <el-table-column type="selection" width="55" />
-        <el-table-column prop="name" :label="$t('uiAutomation.element.elementName')" min-width="150">
+      <el-table :data="elements" v-loading="loading" stripe style="width: 100%">
+        <el-table-column type="selection" width="55" header-align="center" align="center" />
+        <el-table-column prop="name" :label="$t('uiAutomation.element.elementName')" min-width="150" header-align="center" align="center">
           <template #default="{ row }">
             <el-link @click="showElementDetail(row.id)" type="primary">
               {{ row.name }}
             </el-link>
           </template>
         </el-table-column>
-        <el-table-column prop="page" :label="$t('uiAutomation.element.page')" width="120" />
-        <el-table-column prop="description" :label="$t('uiAutomation.common.description')" min-width="200" show-overflow-tooltip />
-        <el-table-column :label="$t('uiAutomation.element.locatorStrategy')" width="100">
+        <el-table-column prop="page" :label="$t('uiAutomation.element.page')" width="120" header-align="center" align="center" />
+        <el-table-column prop="description" :label="$t('uiAutomation.common.description')" min-width="200" show-overflow-tooltip header-align="center" align="center" />
+        <el-table-column :label="$t('uiAutomation.element.locatorStrategy')" width="100" header-align="center" align="center">
           <template #default="{ row }">
             {{ row.locator_strategy?.name || $t('uiAutomation.element.unknown') }}
           </template>
         </el-table-column>
-        <el-table-column prop="locator_value" :label="$t('uiAutomation.element.locatorValue')" min-width="200" show-overflow-tooltip />
-        <el-table-column prop="created_at" :label="$t('uiAutomation.common.createTime')" width="180" :formatter="formatDate" />
-        <el-table-column prop="updated_at" :label="$t('uiAutomation.common.updateTime')" width="180" :formatter="formatDate" />
-        <el-table-column :label="$t('uiAutomation.common.operation')" width="180" fixed="right">
+        <el-table-column prop="locator_value" :label="$t('uiAutomation.element.locatorValue')" min-width="200" show-overflow-tooltip header-align="center" align="center" />
+        <el-table-column prop="created_at" :label="$t('uiAutomation.common.createTime')" width="180" :formatter="formatDate" header-align="center" align="center" />
+        <el-table-column prop="updated_at" :label="$t('uiAutomation.common.updateTime')" width="180" :formatter="formatDate" header-align="center" align="center" />
+        <el-table-column :label="$t('uiAutomation.common.operation')" width="240" fixed="right" header-align="center" align="center">
           <template #default="{ row }">
-            <el-button size="small" type="primary" @click="showElementDetail(row.id)">
-              <el-icon><View /></el-icon>
-              {{ $t('uiAutomation.common.view') }}
-            </el-button>
-            <el-button size="small" @click="editElement(row)">
-              <el-icon><Edit /></el-icon>
-              {{ $t('uiAutomation.common.edit') }}
-            </el-button>
-            <el-button size="small" type="danger" @click="handleDeleteElement(row.id)">
-              <el-icon><Delete /></el-icon>
-              {{ $t('uiAutomation.common.delete') }}
-            </el-button>
+            <div class="action-buttons">
+              <el-button size="small" type="primary" class="action-btn view-btn" @click="showElementDetail(row.id)">
+                <el-icon><View /></el-icon>
+                <span>{{ $t('uiAutomation.common.view') }}</span>
+              </el-button>
+              <el-button size="small" class="action-btn edit-btn" @click="editElement(row)">
+                <el-icon><Edit /></el-icon>
+                <span>{{ $t('uiAutomation.common.edit') }}</span>
+              </el-button>
+              <el-button size="small" type="danger" class="action-btn delete-btn" @click="handleDeleteElement(row.id)">
+                <el-icon><Delete /></el-icon>
+                <span>{{ $t('uiAutomation.common.delete') }}</span>
+              </el-button>
+            </div>
           </template>
         </el-table-column>
       </el-table>
@@ -598,37 +602,358 @@ onMounted(async () => {
 })
 </script>
 
-<style scoped>
+<style lang="scss" scoped>
+// 页面容器
 .page-container {
-  padding: 20px;
-  height: 100%;
-  overflow-y: auto;
+  padding: 24px;
+  min-height: calc(100vh - 60px);
+  background: linear-gradient(135deg, #f5f3ff 0%, #ede9fe 100%);
+  display: flex;
+  flex-direction: column;
+  line-height: 24px;
+  gap: 20px;
 }
 
+// 页面头部
 .page-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 20px;
+  padding: 24px 28px;
+  background: linear-gradient(135deg, #ffffff 0%, #f8f7ff 100%);
+  border-radius: 12px;
+  box-shadow: 0 4px 16px rgba(147, 112, 219, 0.1);
+  border: 1px solid rgba(147, 112, 219, 0.1);
+
+  .header-left {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+  }
+
+  .page-title {
+    font-size: 24px;
+    font-weight: 700;
+    color: #5a32a3;
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: linear-gradient(135deg, #7b42f6 0%, #5a32a3 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .project-select {
+    width: 200px;
+
+    :deep(.el-input__wrapper) {
+      box-shadow: 0 2px 8px rgba(147, 112, 219, 0.08);
+      border-radius: 8px;
+
+      &:hover,
+      &:focus {
+        box-shadow: 0 2px 8px rgba(147, 112, 219, 0.15);
+      }
+    }
+  }
+
+  .el-button {
+    background: linear-gradient(135deg, #7b42f6 0%, #5a32a3 100%) !important;
+    border: none !important;
+    color: white !important;
+    font-weight: 600 !important;
+    padding: 10px 20px !important;
+    border-radius: 8px !important;
+    transition: all 0.3s ease !important;
+    box-shadow: 0 4px 12px rgba(123, 66, 246, 0.3) !important;
+
+    &:hover {
+      background: linear-gradient(135deg, #6d33e6 0%, #4a249c 100%) !important;
+      transform: translateY(-2px) !important;
+      box-shadow: 0 6px 20px rgba(123, 66, 246, 0.4) !important;
+    }
+
+    &:active {
+      transform: translateY(0) !important;
+    }
+  }
 }
 
-.page-title {
-  margin: 0;
-  font-size: 24px;
+// 筛选栏
+.filter-bar {
+  padding: 20px 24px;
+  background: linear-gradient(135deg, #ffffff 0%, #f8f7ff 100%);
+  border-radius: 12px;
+  box-shadow: 0 4px 16px rgba(147, 112, 219, 0.08);
+  border: 1px solid rgba(147, 112, 219, 0.1);
+
+  .el-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    align-items: center;
+
+    .el-col {
+      margin-bottom: 0;
+
+      .el-input__wrapper,
+      .el-select .el-input__wrapper {
+        box-shadow: 0 2px 8px rgba(147, 112, 219, 0.08);
+        border-radius: 8px;
+
+        &:hover,
+        &:focus {
+          box-shadow: 0 2px 8px rgba(147, 112, 219, 0.15);
+        }
+      }
+    }
+  }
 }
 
+// 表格容器
 .card-container {
-  background-color: #fff;
-  border-radius: 8px;
-  padding: 20px;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  background: #ffffff;
+  border: 1px solid rgba(147, 112, 219, 0.12);
+  border-radius: 12px;
+  box-shadow: 0 4px 16px rgba(147, 112, 219, 0.08);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding-top: 16px;
+
+  // 表格样式
+  .el-table {
+    border: none;
+    border-radius: 8px 8px 0 0;
+    overflow: hidden;
+    min-height: 200px;
+    box-shadow: none;
+    transition: all 0.3s ease;
+    background-color: transparent !important;
+
+    /* 覆盖 Element Plus 默认主题变量 */
+    --el-color-primary: var(--primary-color);
+    --el-color-primary-light-3: #9370db;
+    --el-color-primary-light-5: #a888e0;
+    --el-color-primary-light-7: #c2a9f3;
+    --el-color-primary-light-9: #f8f7ff;
+    --el-border-color: #e9ecef;
+    --el-border-color-light: #e9ecef;
+    --el-border-color-lighter: #e9ecef;
+    --el-fill-color-light: #ffffff;
+    --el-fill-color-lighter: #ffffff;
+    --el-fill-color-blank: #ffffff;
+    --el-text-color-primary: #333;
+    --el-text-color-regular: #333;
+    --el-text-color-secondary: #666;
+    --el-text-color-placeholder: #999;
+    --el-table-header-bg-color: #ffffff;
+    --el-table-row-hover-bg-color: #f8f7ff;
+    --el-table-stripe-bg-color: #fafaff;
+
+    &::before {
+      display: none;
+    }
+
+    // 表头包装器
+    :deep(.el-table__header-wrapper) {
+      background-color: #ffffff !important;
+
+      // 表头
+      :deep(.el-table__header) {
+        background-color: #ffffff !important;
+
+        // 表头单元格
+        :deep(th) {
+          background-color: #ffffff !important;
+          color: #5a32a3;
+          font-weight: 600;
+          font-size: 14px;
+          border-bottom: 1px solid #e9ecef;
+          padding: 16px;
+          text-align: left;
+          line-height: 24px;
+          transition: all 0.3s ease;
+
+          &:hover {
+            background-color: #ffffff !important;
+          }
+
+          // 表头单元格内部
+          :deep(.cell) {
+            background-color: #ffffff !important;
+            color: #5a32a3 !important;
+            font-weight: 600 !important;
+          }
+        }
+      }
+    }
+
+    // 表格体包装器
+    :deep(.el-table__body-wrapper) {
+      background-color: #ffffff !important;
+
+      // 表格行
+      :deep(.el-table__row) {
+        transition: all 0.3s ease;
+        background-color: #ffffff !important;
+
+        &:hover {
+          background-color: #f8f7ff !important;
+          transform: translateY(-1px);
+          box-shadow: 0 4px 12px rgba(147, 112, 219, 0.1);
+        }
+
+        // 表格单元格
+        :deep(td) {
+          background-color: #ffffff !important;
+          border-bottom: 1px solid #e9ecef;
+          padding: 16px;
+          text-align: left;
+          line-height: 24px;
+          transition: all 0.3s ease;
+        }
+
+        &:hover :deep(td) {
+          background-color: #f8f7ff !important;
+        }
+      }
+    }
+  }
 }
 
-/* 筛选栏样式已在全局样式文件 filter-components.scss 中定义 */
+// 操作按钮容器
+.action-buttons {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: nowrap;
+}
 
+// 操作按钮样式
+.action-btn {
+  &.view-btn {
+    background: linear-gradient(135deg, #7b42f6 0%, #5a32a3 100%) !important;
+    border: none !important;
+    color: #ffffff !important;
+    font-weight: 600 !important;
+    padding: 4px 10px !important;
+    border-radius: 6px !important;
+    box-shadow: 0 2px 8px rgba(123, 66, 246, 0.3) !important;
+    transition: all 0.3s ease !important;
+    white-space: nowrap;
+
+    &:hover {
+      background: linear-gradient(135deg, #6d33e6 0%, #4a249c 100%) !important;
+      transform: translateY(-2px) !important;
+      box-shadow: 0 4px 12px rgba(123, 66, 246, 0.4) !important;
+    }
+
+    .el-icon {
+      color: #ffffff !important;
+      margin-right: 3px;
+      font-size: 12px;
+    }
+
+    span {
+      font-size: 12px;
+    }
+  }
+
+  &.edit-btn {
+    background: linear-gradient(135deg, #10b981 0%, #059669 100%) !important;
+    border: none !important;
+    color: #ffffff !important;
+    font-weight: 600 !important;
+    padding: 4px 10px !important;
+    border-radius: 6px !important;
+    box-shadow: 0 2px 8px rgba(16, 185, 129, 0.3) !important;
+    transition: all 0.3s ease !important;
+    white-space: nowrap;
+
+    &:hover {
+      background: linear-gradient(135deg, #0da271 0%, #047857 100%) !important;
+      transform: translateY(-2px) !important;
+      box-shadow: 0 4px 12px rgba(16, 185, 129, 0.4) !important;
+    }
+
+    .el-icon {
+      color: #ffffff !important;
+      margin-right: 3px;
+      font-size: 12px;
+    }
+
+    span {
+      font-size: 12px;
+    }
+  }
+
+  &.delete-btn {
+    background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%) !important;
+    border: none !important;
+    color: #ffffff !important;
+    font-weight: 600 !important;
+    padding: 4px 10px !important;
+    border-radius: 6px !important;
+    box-shadow: 0 2px 8px rgba(239, 68, 68, 0.3) !important;
+    transition: all 0.3s ease !important;
+    white-space: nowrap;
+
+    &:hover {
+      background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%) !important;
+      transform: translateY(-2px) !important;
+      box-shadow: 0 4px 12px rgba(239, 68, 68, 0.4) !important;
+    }
+
+    .el-icon {
+      color: #ffffff !important;
+      margin-right: 3px;
+      font-size: 12px;
+    }
+
+    span {
+      font-size: 12px;
+    }
+  }
+}
+
+// 分页容器
 .pagination-container {
-  margin-top: 20px;
+  padding: 20px 24px;
   display: flex;
   justify-content: flex-end;
+  background: #ffffff;
+  border-top: 1px solid rgba(147, 112, 219, 0.1);
+
+  :deep(.el-pagination) {
+    --el-pagination-button-bg-color: #ffffff;
+    --el-pagination-hover-color: #7b42f6;
+
+    .el-pager li {
+      border-radius: 6px;
+      transition: all 0.3s ease;
+
+      &.is-active {
+        background: linear-gradient(135deg, #7b42f6 0%, #5a32a3 100%);
+        color: #ffffff;
+      }
+
+      &:hover {
+        color: #7b42f6;
+      }
+    }
+
+    .btn-prev,
+    .btn-next {
+      border-radius: 6px;
+
+      &:hover {
+        color: #7b42f6;
+      }
+    }
+  }
 }
 </style>

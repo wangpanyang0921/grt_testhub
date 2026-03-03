@@ -142,7 +142,7 @@
     <!-- 核心功能介绍 -->
     <div class="features-section">
       <h2 class="section-title">{{ $t('uiAutomation.dashboard.coreFeatures') }}</h2>
-      <el-row :gutter="20">
+      <el-row :gutter="20" class="features-row">
         <el-col :span="6">
           <el-card shadow="hover" class="feature-card">
             <div class="feature-icon">
@@ -593,11 +593,11 @@ onMounted(() => {
 }
 
 .features-section {
-  margin-bottom: 40px;
+  margin-bottom: 48px;
 }
 
 .features-section .features-row {
-  margin-bottom: 20px;
+  margin-bottom: 24px;
 }
 
 .features-section .features-row:last-child {
@@ -607,33 +607,46 @@ onMounted(() => {
 .section-title {
   font-size: 24px;
   font-weight: bold;
-  margin-bottom: 20px;
+  margin-bottom: 24px;
   color: #1a1a1a;
 }
 
 .feature-card {
   height: 100%;
-  padding: 30px;
+  padding: 36px 24px;
   text-align: center;
+  border-radius: 12px;
+  transition: all 0.3s ease;
+}
+
+.feature-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.1);
 }
 
 .feature-icon {
-  width: 80px;
-  height: 80px;
+  width: 90px;
+  height: 90px;
   border-radius: 50%;
   background-color: #f0f0f0;
   display: flex;
   align-items: center;
   justify-content: center;
-  margin: 0 auto 20px;
-  font-size: 36px;
+  margin: 0 auto 24px;
+  font-size: 40px;
   color: #1890ff;
+  transition: all 0.3s ease;
+}
+
+.feature-card:hover .feature-icon {
+  background-color: #e6f7ff;
+  transform: scale(1.05);
 }
 
 .feature-title {
   font-size: 18px;
   font-weight: bold;
-  margin-bottom: 10px;
+  margin-bottom: 16px;
   color: #1a1a1a;
 }
 
@@ -641,6 +654,7 @@ onMounted(() => {
   font-size: 14px;
   color: #666;
   line-height: 1.6;
+  margin-bottom: 8px;
 }
 
 .loading-container,
@@ -650,7 +664,7 @@ onMounted(() => {
 
 @media screen and (max-width: 1920px) {
   .stats-section {
-    margin-bottom: 36px;
+    margin-bottom: 40px;
   }
   
   .stat-content {
@@ -668,11 +682,21 @@ onMounted(() => {
   }
   
   .content-section {
-    margin-bottom: 36px;
+    margin-bottom: 40px;
   }
   
   .features-section {
-    margin-bottom: 36px;
+    margin-bottom: 40px;
+  }
+  
+  .feature-card {
+    padding: 32px 20px;
+  }
+  
+  .feature-icon {
+    width: 80px;
+    height: 80px;
+    font-size: 36px;
   }
 }
 
