@@ -5,6 +5,7 @@
       <div class="header-actions">
         <el-button
           type="danger"
+          class="batch-delete-btn"
           :disabled="selectedRecords.length === 0"
           @click="batchDeleteRecords"
           :loading="isDeleting"
@@ -15,44 +16,80 @@
       </div>
     </div>
 
+    <div class="filter-bar">
+      <el-input
+        v-model="searchText"
+        :placeholder="$t('uiAutomation.ai.executionRecords.searchPlaceholder')"
+        clearable
+        @clear="handleSearch"
+        @keyup.enter="handleSearch"
+        style="width: 300px;"
+      >
+        <template #prefix>
+          <el-icon><Search /></el-icon>
+        </template>
+      </el-input>
+      <el-button class="reset-btn" @click="handleReset">{{ $t('uiAutomation.common.reset') }}</el-button>
+      <el-button type="primary" class="query-btn" @click="handleSearch">
+        <el-icon><Search /></el-icon>
+        {{ $t('uiAutomation.common.search') }}
+      </el-button>
+    </div>
+
     <div class="card-container">
       <el-table
         :data="records"
         v-loading="loading"
-        style="width: 100%"
+        stripe
         @selection-change="handleSelectionChange"
         ref="tableRef"
       >
-        <el-table-column type="selection" width="55" />
-        <el-table-column :label="$t('uiAutomation.ai.executionRecords.serialNumber')" width="80">
+        <el-table-column type="selection" width="55" header-align="center" align="center" />
+        <el-table-column :label="$t('uiAutomation.ai.executionRecords.serialNumber')" width="80" header-align="center" align="center">
           <template #default="{ $index }">
             {{ getSerialNumber($index) }}
           </template>
         </el-table-column>
-        <el-table-column prop="case_name" :label="$t('uiAutomation.ai.executionRecords.caseName')" min-width="200" show-overflow-tooltip />
+        <el-table-column prop="case_name" :label="$t('uiAutomation.ai.executionRecords.caseName')" min-width="200" show-overflow-tooltip header-align="center" align="left">
+          <template #default="{ row }">
+            <div class="case-name-cell">{{ row.case_name }}</div>
+          </template>
+        </el-table-column>
 
-        <el-table-column prop="status" :label="$t('uiAutomation.ai.executionRecords.status')" width="120">
+        <el-table-column prop="status" :label="$t('uiAutomation.ai.executionRecords.status')" width="120" header-align="center" align="center">
           <template #default="{ row }">
             <el-tag :type="getStatusTag(row.status)">
               {{ getStatusText(row.status) }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="duration" :label="$t('uiAutomation.ai.executionRecords.durationSeconds')" width="120">
+        <el-table-column prop="duration" :label="$t('uiAutomation.ai.executionRecords.durationSeconds')" width="120" header-align="center" align="center">
           <template #default="{ row }">
             {{ row.duration ? row.duration.toFixed(2) : '-' }}
           </template>
         </el-table-column>
-        <el-table-column prop="start_time" :label="$t('uiAutomation.ai.executionRecords.startTime')" width="180" :formatter="formatDate" />
-        <el-table-column prop="executed_by.username" :label="$t('uiAutomation.ai.executionRecords.executor')" width="120" />
-        <el-table-column :label="$t('uiAutomation.common.operation')" width="200" fixed="right">
+        <el-table-column :label="$t('uiAutomation.ai.executionRecords.startTime')" width="180" header-align="center" align="center">
           <template #default="{ row }">
-            <el-button size="small" @click="viewDetail(row)">
-              {{ $t('uiAutomation.ai.executionRecords.viewDetail') }}
-            </el-button>
-            <el-button size="small" type="success" @click="viewReport(row)">
-              {{ $t('uiAutomation.ai.executionRecords.viewReport') }}
-            </el-button>
+            {{ formatDate(null, null, row.start_time) }}
+          </template>
+        </el-table-column>
+        <el-table-column prop="executed_by.username" :label="$t('uiAutomation.ai.executionRecords.executor')" width="120" header-align="center" align="center" />
+        <el-table-column :label="$t('uiAutomation.common.operation')" width="320" fixed="right" header-align="center" align="center">
+          <template #default="{ row }">
+            <div class="action-buttons">
+              <el-button size="small" type="primary" class="action-btn view-btn" @click="viewDetail(row)">
+                <el-icon><View /></el-icon>
+                <span>{{ $t('uiAutomation.ai.executionRecords.viewDetail') }}</span>
+              </el-button>
+              <el-button size="small" type="success" class="action-btn report-btn" @click="viewReport(row)">
+                <el-icon><Document /></el-icon>
+                <span>{{ $t('uiAutomation.ai.executionRecords.viewReport') }}</span>
+              </el-button>
+              <el-button size="small" type="primary" class="action-btn element-btn" @click="viewElementLocator(row)">
+                <el-icon><Location /></el-icon>
+                <span>{{ $t('uiAutomation.ai.elementLocator.viewElements') }}</span>
+              </el-button>
+            </div>
           </template>
         </el-table-column>
       </el-table>
@@ -62,10 +99,10 @@
           v-model:current-page="pagination.currentPage"
           v-model:page-size="pagination.pageSize"
           :page-sizes="[10, 20, 50, 100]"
-          layout="total, sizes, prev, pager, next, jumper"
           :total="total"
-          @size-change="handleSizeChange"
+          layout="total, sizes, prev, pager, next, jumper"
           @current-change="handleCurrentChange"
+          @size-change="handleSizeChange"
         />
       </div>
     </div>
@@ -98,7 +135,10 @@
           <span class="label">{{ $t('uiAutomation.ai.executionRecords.taskDescription') }}:</span>
         </div>
         <div v-if="currentRecord.task_description" class="task-description-container">
-          <div class="task-description-content">{{ currentRecord.task_description }}</div>
+          <div class="task-description-content">
+            <div v-for="(line, index) in getFormattedLines(currentRecord.task_description)" :key="index" class="description-line" v-html="formatLineWithLinks(line)">
+            </div>
+          </div>
         </div>
 
         <!-- 执行日志 -->
@@ -123,6 +163,12 @@
       v-model="showReportDialog"
       :record-id="reportRecordId"
     />
+    
+    <!-- 元素定位提取对话框 -->
+    <AIElementLocator
+      v-model="showElementLocatorDialog"
+      :record-id="elementLocatorRecordId"
+    />
   </div>
 </template>
 
@@ -130,17 +176,19 @@
 import { ref, reactive, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Delete } from '@element-plus/icons-vue'
+import { Delete, View, Document, Location, Search } from '@element-plus/icons-vue'
 import { getAIExecutionRecords, batchDeleteAIExecutionRecords } from '@/api/ui_automation'
 import AIExecutionReport from './AIExecutionReport.vue'
+import AIElementLocator from './AIElementLocator.vue'
 
 const { t } = useI18n()
 const records = ref([])
 const loading = ref(false)
+const searchText = ref('')
 const total = ref(0)
 const pagination = reactive({
   currentPage: 1,
-  pageSize: 20
+  pageSize: 10
 })
 
 const showDetailDialog = ref(false)
@@ -155,13 +203,18 @@ const tableRef = ref(null)
 const showReportDialog = ref(false)
 const reportRecordId = ref(null)
 
+// 元素定位相关状态
+const showElementLocatorDialog = ref(false)
+const elementLocatorRecordId = ref(null)
+
 // 加载记录列表
 const loadRecords = async () => {
   loading.value = true
   try {
     const response = await getAIExecutionRecords({
       page: pagination.currentPage,
-      page_size: pagination.pageSize
+      page_size: pagination.pageSize,
+      search: searchText.value
     })
 
     records.value = response.data.results || []
@@ -176,6 +229,17 @@ const loadRecords = async () => {
   } finally {
     loading.value = false
   }
+}
+
+const handleSearch = () => {
+  pagination.currentPage = 1
+  loadRecords()
+}
+
+const handleReset = () => {
+  searchText.value = ''
+  pagination.currentPage = 1
+  loadRecords()
 }
 
 const handleSizeChange = () => {
@@ -198,6 +262,12 @@ const viewReport = (row) => {
   showReportDialog.value = true
 }
 
+// 查看元素定位
+const viewElementLocator = (row) => {
+  elementLocatorRecordId.value = row.id
+  showElementLocatorDialog.value = true
+}
+
 // 从详情页打开报告
 const openReportFromDetail = () => {
   if (currentRecord.value) {
@@ -211,7 +281,8 @@ const getStatusTag = (status) => {
     'pending': 'info',
     'running': 'warning',
     'passed': 'success',
-    'failed': 'danger'
+    'failed': 'danger',
+    'stopped': 'warning'
   }
   return map[status] || 'info'
 }
@@ -221,9 +292,54 @@ const getStatusText = (status) => {
     'pending': t('uiAutomation.status.pending'),
     'running': t('uiAutomation.status.running'),
     'passed': t('uiAutomation.status.success'),
-    'failed': t('uiAutomation.status.failed')
+    'failed': t('uiAutomation.status.failed'),
+    'stopped': t('uiAutomation.status.stopped')
   }
   return map[status] || status
+}
+
+const getFormattedLines = (text) => {
+  if (!text) return []
+
+  const result = []
+  let currentLine = ''
+  // 只匹配行首的数字序号（前面是字符串开始或换行符）
+  const parts = text.split(/(^\d+\.|\n\d+\.)/)
+
+  for (let i = 0; i < parts.length; i++) {
+    const part = parts[i]
+    // 匹配行首的数字序号（如 "1." 或 "\n1."）
+    if (/^\n?\d+\.$/.test(part)) {
+      if (currentLine.trim()) {
+        result.push(currentLine.trim())
+      }
+      // 去掉开头的换行符
+      currentLine = part.replace(/^\n/, '')
+    } else {
+      currentLine += part
+    }
+  }
+
+  if (currentLine.trim()) {
+    result.push(currentLine.trim())
+  }
+
+  return result.length > 0 ? result : [text.trim()]
+}
+
+// 将文本中的URL转换为可点击的链接
+const formatLineWithLinks = (text) => {
+  if (!text) return ''
+
+  // 匹配URL的正则表达式
+  const urlRegex = /(https?:\/\/[^\s]+)/g
+
+  // 将URL替换为带样式的链接
+  return text.replace(urlRegex, (url) => {
+    // 截断过长的URL用于显示
+    const displayUrl = url.length > 50 ? url.substring(0, 50) + '...' : url
+    return `<a href="${url}" target="_blank" rel="noopener noreferrer" class="description-link" title="${url}">${displayUrl}</a>`
+  })
 }
 
 const formatDate = (row, column, cellValue) => {
@@ -319,47 +435,622 @@ onUnmounted(() => {
 </script>
 
 <style lang="scss" scoped>
-.page-container {
-  padding: 20px;
+// 全局变量
+:root {
+  --primary-color: #667eea;
+  --primary-dark: #764ba2;
+  --primary-light: #f8f7ff;
+  --primary-lighter: #fafbff;
+  --border-color: #e8e8e8;
+  --text-primary: #262626;
+  --text-secondary: #595959;
+  --text-tertiary: #8c8c8c;
+  --bg-light: #ffffff;
+  --bg-gray: #fafafa;
+  --success-color: #52c41a;
+  --warning-color: #faad14;
+  --danger-color: #ff4d4f;
+  --info-color: #1890ff;
 }
 
+// 页面容器
+.page-container {
+  padding: 24px;
+  min-height: calc(100vh - 60px);
+  background: linear-gradient(135deg, #f5f3ff 0%, #ede9fe 100%);
+  display: flex;
+  flex-direction: column;
+  line-height: 24px;
+  gap: 20px;
+}
+
+// 页面头部
 .page-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 20px;
+  padding: 24px 28px;
+  background: linear-gradient(135deg, #ffffff 0%, #f8f7ff 100%);
+  border-radius: 12px;
+  box-shadow: 0 4px 16px rgba(147, 112, 219, 0.1);
+  border: 1px solid rgba(147, 112, 219, 0.1);
 
   .page-title {
-    font-size: 20px;
-    font-weight: 600;
+    font-size: 24px;
+    font-weight: 700;
+    color: #5a32a3;
     margin: 0;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: linear-gradient(135deg, #7b42f6 0%, #5a32a3 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
   }
 
   .header-actions {
     display: flex;
     align-items: center;
+
+    .batch-delete-btn {
+      background: linear-gradient(135deg, #ff4d4f 0%, #ff7875 100%) !important;
+      border: none !important;
+      color: white !important;
+      font-weight: 600 !important;
+      padding: 10px 20px !important;
+      border-radius: 8px !important;
+      transition: all 0.3s ease !important;
+      box-shadow: 0 4px 12px rgba(255, 77, 79, 0.3) !important;
+
+      .el-icon {
+        margin-right: 6px;
+      }
+
+      &:hover:not(:disabled) {
+        background: linear-gradient(135deg, #ff7875 0%, #ffa39e 100%) !important;
+        transform: translateY(-2px) !important;
+        box-shadow: 0 6px 20px rgba(255, 77, 79, 0.4) !important;
+      }
+
+      &:active:not(:disabled) {
+        transform: translateY(0) !important;
+      }
+
+      &:disabled {
+        background: linear-gradient(135deg, #d9d9d9 0%, #bfbfbf 100%) !important;
+        box-shadow: none !important;
+        cursor: not-allowed !important;
+      }
+    }
   }
 }
 
-.card-container {
-  background-color: #fff;
-  border-radius: 4px;
-  padding: 20px;
-  box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.1);
-}
-
-.pagination-container {
-  margin-top: 20px;
+// 筛选栏
+.filter-bar {
+  padding: 20px 24px;
+  background: #ffffff;
+  border: 1px solid rgba(147, 112, 219, 0.12);
+  border-radius: 12px;
+  box-shadow: 0 4px 16px rgba(147, 112, 219, 0.08);
   display: flex;
-  justify-content: flex-end;
+  align-items: center;
+  gap: 12px;
+
+  :deep(.el-input__wrapper) {
+    box-shadow: 0 2px 8px rgba(147, 112, 219, 0.08);
+    border-radius: 8px;
+    border: 1px solid rgba(147, 112, 219, 0.2);
+    background: #ffffff;
+
+    &:hover,
+    &:focus {
+      box-shadow: 0 2px 8px rgba(147, 112, 219, 0.15);
+      border-color: #7b42f6;
+    }
+  }
+
+  :deep(.el-input__inner) {
+    color: #5a32a3;
+    font-weight: 500;
+  }
+
+  .reset-btn {
+    background: #f8f7ff !important;
+    border: 1px solid rgba(147, 112, 219, 0.2) !important;
+    color: #5a32a3 !important;
+    font-weight: 500 !important;
+    padding: 9px 20px !important;
+    border-radius: 8px !important;
+    transition: all 0.3s ease !important;
+
+    &:hover {
+      background: #ede9fe !important;
+      border-color: #7b42f6 !important;
+      transform: translateY(-1px);
+    }
+  }
+
+  .query-btn {
+    background: linear-gradient(135deg, #7b42f6 0%, #5a32a3 100%) !important;
+    border: none !important;
+    color: #ffffff !important;
+    font-weight: 600 !important;
+    padding: 10px 24px !important;
+    border-radius: 8px !important;
+    box-shadow: 0 4px 12px rgba(123, 66, 246, 0.3) !important;
+    transition: all 0.3s ease !important;
+
+    .el-icon {
+      margin-right: 6px;
+    }
+
+    &:hover {
+      background: linear-gradient(135deg, #6d33e6 0%, #4a249c 100%) !important;
+      transform: translateY(-2px) !important;
+      box-shadow: 0 6px 16px rgba(123, 66, 246, 0.4) !important;
+    }
+  }
 }
 
+// 表格容器
+.card-container {
+  background: #ffffff;
+  border: 1px solid rgba(147, 112, 219, 0.12);
+  border-radius: 12px;
+  box-shadow: 0 4px 16px rgba(147, 112, 219, 0.08);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding-top: 16px;
+
+  // 表格样式
+  .el-table {
+    border: none;
+    border-radius: 8px 8px 0 0;
+    overflow: hidden;
+    min-height: 200px;
+    box-shadow: none;
+    transition: all 0.3s ease;
+    background-color: transparent !important;
+
+    /* 覆盖 Element Plus 默认主题变量 */
+    --el-color-primary: var(--primary-color);
+    --el-color-primary-light-3: #9370db;
+    --el-color-primary-light-5: #a888e0;
+    --el-color-primary-light-7: #c2a9f3;
+    --el-color-primary-light-9: #f8f7ff;
+    --el-border-color: #e9ecef;
+    --el-border-color-light: #e9ecef;
+    --el-border-color-lighter: #e9ecef;
+    --el-fill-color-light: #ffffff;
+    --el-fill-color-lighter: #ffffff;
+    --el-fill-color-blank: #ffffff;
+    --el-text-color-primary: #333;
+    --el-text-color-regular: #333;
+    --el-text-color-secondary: #666;
+    --el-text-color-placeholder: #999;
+    --el-table-header-bg-color: #ffffff;
+    --el-table-row-hover-bg-color: #f8f7ff;
+    --el-table-stripe-bg-color: #fafaff;
+
+    &::before {
+      display: none;
+    }
+
+    // 表头包装器
+    :deep(.el-table__header-wrapper) {
+      background-color: #ffffff !important;
+
+      // 表头
+      :deep(.el-table__header) {
+        background-color: #ffffff !important;
+
+        // 表头单元格
+        :deep(th) {
+          background-color: #ffffff !important;
+          color: #5a32a3;
+          font-weight: 600;
+          font-size: 14px;
+          border-bottom: 1px solid #e9ecef;
+          padding: 16px;
+          text-align: center;
+          line-height: 24px;
+          transition: all 0.3s ease;
+
+          &:hover {
+            background-color: #ffffff !important;
+          }
+
+          // 表头单元格内部
+          :deep(.cell) {
+            background-color: #ffffff !important;
+            color: #5a32a3 !important;
+            font-weight: 600 !important;
+          }
+        }
+      }
+    }
+
+    // 表格体包装器
+    :deep(.el-table__body-wrapper) {
+      background-color: #ffffff !important;
+
+      // 表格行
+      :deep(.el-table__row) {
+        transition: all 0.3s ease;
+        background-color: #ffffff !important;
+        line-height: 24px;
+
+        &:hover {
+          background-color: #f8f7ff !important;
+        }
+
+        &.el-table__row--striped {
+          background-color: #fafaff !important;
+        }
+
+        // 表格单元格
+        :deep(td) {
+          padding: 14px 16px;
+          border-bottom: 1px solid #e9ecef;
+          color: #333;
+          font-size: 14px;
+          font-weight: 400;
+          line-height: 24px;
+          transition: all 0.3s ease;
+
+          // 标签样式
+          .el-tag {
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 500;
+            padding: 2px 8px;
+            transition: all 0.3s ease;
+          }
+
+          // 按钮样式
+          .el-button {
+            font-size: 13px;
+            padding: 0;
+            margin-right: 12px;
+            transition: all 0.3s ease;
+
+            &:last-child {
+              margin-right: 0;
+            }
+
+            &:hover {
+              transform: translateY(-1px);
+            }
+
+            &.el-button--text {
+              color: var(--primary-color);
+
+              &:hover {
+                color: var(--primary-dark);
+                background: #f8f7ff;
+                border-radius: 4px;
+              }
+            }
+          }
+        }
+      }
+    }
+
+    // 空状态
+    :deep(.el-table__empty-block) {
+      padding: 60px 0;
+      background: #ffffff !important;
+
+      :deep(.el-table__empty-text) {
+        color: #666;
+        font-size: 14px;
+        line-height: 24px;
+      }
+    }
+
+    // 确保整个表格容器都使用正确的背景色
+    &.el-table--enable-row-hover {
+      background-color: #ffffff !important;
+    }
+
+    // 覆盖表格行的默认样式
+    :deep(.el-table__row) {
+      background-color: #ffffff !important;
+    }
+
+    // 覆盖表格行的条纹样式
+    :deep(.el-table__row.el-table__row--striped) {
+      background-color: #fafaff !important;
+    }
+
+    // 覆盖表格行的 hover 样式
+    :deep(.el-table__row:hover) {
+      background-color: #f8f7ff !important;
+    }
+
+    // 直接覆盖表头单元格样式
+    :deep(.el-table__header th) {
+      background-color: #ffffff !important;
+      color: #5a32a3 !important;
+      font-weight: 600 !important;
+    }
+
+    // 覆盖表头单元格内容样式
+    :deep(.el-table__header th .cell) {
+      background-color: #ffffff !important;
+      color: #5a32a3 !important;
+      font-weight: 600 !important;
+    }
+  }
+
+  // 分页容器
+  .pagination-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 8px 24px;
+    background: transparent;
+    border-top: 1px solid rgba(147, 112, 219, 0.1);
+    transition: all 0.3s ease;
+
+    /* 覆盖 Element Plus 默认主题变量 */
+    --el-color-primary: var(--primary-color);
+    --el-color-primary-light-3: #9370db;
+    --el-color-primary-light-5: #a888e0;
+    --el-color-primary-light-7: #c2a9f3;
+    --el-color-primary-light-9: #f8f7ff;
+    --el-border-color: rgba(147, 112, 219, 0.2);
+    --el-border-color-light: rgba(147, 112, 219, 0.15);
+    --el-border-color-lighter: rgba(147, 112, 219, 0.1);
+    --el-fill-color-light: #f8f7ff;
+    --el-fill-color-lighter: #f8f7ff;
+    --el-fill-color-blank: #f8f7ff;
+    --el-text-color-primary: var(--text-primary);
+    --el-text-color-regular: var(--text-secondary);
+    --el-text-color-secondary: var(--text-tertiary);
+
+    .el-pagination {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      font-weight: 500;
+
+      // 总条数
+      .el-pagination__total {
+        color: #5a32a3;
+        font-size: 14px;
+        font-weight: 500;
+        margin-right: 12px;
+      }
+
+      // 每页条数选择器
+      .el-pagination__sizes {
+        margin-right: 12px;
+
+        .el-select {
+          .el-input__wrapper {
+            border-radius: 8px;
+            border: 1px solid rgba(147, 112, 219, 0.2);
+            background: #ffffff;
+            box-shadow: none;
+
+            &:hover {
+              border-color: #7b42f6;
+              box-shadow: 0 0 0 3px rgba(123, 66, 246, 0.1);
+            }
+
+            &.is-focus {
+              border-color: #7b42f6;
+              box-shadow: 0 0 0 3px rgba(123, 66, 246, 0.15);
+            }
+          }
+
+          .el-input__inner {
+            color: #5a32a3;
+            font-weight: 500;
+          }
+        }
+      }
+
+      // 上一页/下一页按钮
+      .btn-prev,
+      .btn-next {
+        width: 32px;
+        height: 32px;
+        border-radius: 8px;
+        border: 1px solid rgba(147, 112, 219, 0.2);
+        background: #ffffff;
+        color: #5a32a3;
+        transition: all 0.3s ease;
+
+        &:hover:not(:disabled) {
+          background: linear-gradient(135deg, #7b42f6 0%, #5a32a3 100%);
+          border-color: transparent;
+          color: white;
+          transform: translateY(-1px);
+          box-shadow: 0 4px 12px rgba(123, 66, 246, 0.3);
+        }
+
+        &:disabled {
+          background: #f5f5f5;
+          border-color: #e0e0e0;
+          color: #c0c0c0;
+        }
+
+        .el-icon {
+          font-size: 14px;
+          font-weight: bold;
+        }
+      }
+
+      // 页码
+      .el-pager {
+        display: flex;
+        gap: 4px;
+
+        li {
+          min-width: 32px;
+          height: 32px;
+          padding: 0 8px;
+          border-radius: 8px;
+          border: 1px solid rgba(147, 112, 219, 0.2);
+          background: #ffffff;
+          color: #5a32a3;
+          font-size: 14px;
+          font-weight: 500;
+          transition: all 0.3s ease;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+
+          &:hover:not(.is-active) {
+            background: rgba(123, 66, 246, 0.1);
+            border-color: #7b42f6;
+            color: #7b42f6;
+            transform: translateY(-1px);
+          }
+
+          &.is-active {
+            background: linear-gradient(135deg, #7b42f6 0%, #5a32a3 100%);
+            border-color: transparent;
+            color: white;
+            box-shadow: 0 4px 12px rgba(123, 66, 246, 0.3);
+          }
+
+          &.is-active:hover {
+            background: linear-gradient(135deg, #6d33e6 0%, #4a249c 100%);
+          }
+        }
+      }
+
+      // 跳转输入框
+      .el-pagination__jump {
+        color: #5a32a3;
+        font-weight: 500;
+        margin-left: 12px;
+
+        .el-input {
+          width: 50px;
+          margin: 0 4px;
+
+          .el-input__wrapper {
+            border-radius: 8px;
+            border: 1px solid rgba(147, 112, 219, 0.2);
+            background: #ffffff;
+            box-shadow: none;
+
+            &:hover {
+              border-color: #7b42f6;
+              box-shadow: 0 0 0 3px rgba(123, 66, 246, 0.1);
+            }
+
+            &.is-focus {
+              border-color: #7b42f6;
+              box-shadow: 0 0 0 3px rgba(123, 66, 246, 0.15);
+            }
+          }
+
+          .el-input__inner {
+            color: #5a32a3;
+            font-weight: 500;
+            text-align: center;
+          }
+        }
+      }
+    }
+  }
+}
+
+// 操作按钮容器
+.action-buttons {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: nowrap;
+}
+
+// 操作按钮样式
+.action-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  padding: 4px 10px !important;
+  border-radius: 6px;
+  transition: all 0.3s ease;
+
+  .el-icon {
+    font-size: 14px;
+  }
+
+  span {
+    font-size: 12px;
+  }
+
+  &.view-btn {
+    background: linear-gradient(135deg, #7b42f6 0%, #5a32a3 100%) !important;
+    border: none !important;
+    color: #ffffff !important;
+    font-weight: 600 !important;
+
+    &:hover {
+      background: linear-gradient(135deg, #6d33e6 0%, #4a249c 100%) !important;
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(123, 66, 246, 0.4);
+    }
+
+    &:active {
+      transform: translateY(0);
+    }
+  }
+
+  &.report-btn {
+    background: linear-gradient(135deg, #52c41a 0%, #389e0d 100%) !important;
+    border: none !important;
+    color: #ffffff !important;
+    font-weight: 600 !important;
+
+    &:hover {
+      background: linear-gradient(135deg, #73d13d 0%, #52c41a 100%) !important;
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(82, 196, 26, 0.4);
+    }
+
+    &:active {
+      transform: translateY(0);
+    }
+  }
+
+  &.element-btn {
+    background: linear-gradient(135deg, #1890ff 0%, #096dd9 100%) !important;
+    border: none !important;
+    color: #ffffff !important;
+    font-weight: 600 !important;
+
+    &:hover {
+      background: linear-gradient(135deg, #40a9ff 0%, #1890ff 100%) !important;
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(24, 144, 255, 0.4);
+    }
+
+    &:active {
+      transform: translateY(0);
+    }
+  }
+}
+
+// 详情对话框样式
 .record-detail {
   .detail-item {
     margin-bottom: 15px;
     .label {
       font-weight: bold;
       margin-right: 10px;
+      color: #5a32a3;
     }
   }
 
@@ -367,7 +1058,7 @@ onUnmounted(() => {
     background-color: #1e1e1e;
     color: #fff;
     padding: 15px;
-    border-radius: 4px;
+    border-radius: 8px;
     max-height: 400px;
     overflow-y: auto;
     font-family: monospace;
@@ -380,22 +1071,48 @@ onUnmounted(() => {
   }
 
   .task-description-container {
-    background-color: #f5f7fa;
-    border: 1px solid #e4e7ed;
-    border-radius: 4px;
+    background-color: #f8f7ff;
+    border: 1px solid rgba(147, 112, 219, 0.2);
+    border-radius: 8px;
     padding: 12px 15px;
     margin-top: 8px;
 
     .task-description-content {
-      color: #606266;
+      color: #5a32a3;
       line-height: 1.6;
-      white-space: pre-wrap;
-      word-wrap: break-word;
+
+      .description-line {
+        margin-bottom: 8px;
+        word-break: break-all;
+        white-space: pre-wrap;
+        overflow-wrap: break-word;
+
+        &:last-child {
+          margin-bottom: 0;
+        }
+
+        // 链接样式
+        :deep(.description-link) {
+          color: #7b42f6;
+          text-decoration: underline;
+          word-break: break-all;
+          cursor: pointer;
+
+          &:hover {
+            color: #5a32a3;
+          }
+        }
+      }
     }
   }
 }
 
 .mt-15 {
   margin-top: 15px;
+}
+
+.case-name-cell {
+  padding: 4px 8px;
+  line-height: 1.6;
 }
 </style>

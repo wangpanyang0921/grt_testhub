@@ -19,7 +19,7 @@ from selenium.webdriver.edge.options import Options as EdgeOptions
 
 from .models import (
     TestSuite, TestExecution, TestCase, TestCaseStep,
-    TestCaseExecution, Element
+    TestCaseExecution, Element, TestScript, ScriptStep
 )
 from .variable_resolver import resolve_variables
 
@@ -36,6 +36,7 @@ class TestExecutor:
         self.executed_by = executed_by
         self.execution = None
         self.test_cases = []
+        self.scripts = []
         self.results = []
 
     def create_execution_record(self):
@@ -89,6 +90,15 @@ class TestExecutor:
             print(f"  {i}. {tc.name} (ID: {tc.id})")
         return self.test_cases
 
+    def get_scripts(self):
+        """获取测试套件中的所有脚本"""
+        suite_scripts = self.test_suite.suite_scripts.select_related('test_script').order_by('order')
+        self.scripts = [ss.test_script for ss in suite_scripts]
+        print(f"从套件 '{self.test_suite.name}' 获取到 {len(self.scripts)} 个脚本")
+        for i, script in enumerate(self.scripts, 1):
+            print(f"  {i}. {script.name} (ID: {script.id}, 类型：{script.script_type}, 语言：{script.language})")
+        return self.scripts
+
     def run(self):
         """执行测试套件"""
         try:
@@ -103,8 +113,9 @@ class TestExecutor:
             # 创建执行记录
             self.create_execution_record()
 
-            # 获取测试用例
+            # 获取测试用例和脚本
             self.get_test_cases()
+            self.get_scripts()
 
             # 根据引擎选择执行方式
             if self.engine == 'playwright':
@@ -168,7 +179,50 @@ class TestExecutor:
             
             return
 
-        # 预先获取所有测试用例的步骤数据，避免在Playwright上下文中访问ORM
+        # 预先获取所有脚本数据，避免在 Playwright 上下文中访问 ORM
+        scripts_data = []
+        for test_script in self.scripts:
+            script_data = {
+                'id': test_script.id,
+                'name': test_script.name,
+                'project_id': self.test_suite.project.id,
+                'script_type': test_script.script_type,
+                'language': test_script.language,
+                'framework': test_script.framework,
+                'content': test_script.content,
+                'steps': []
+            }
+            
+            # 如果是低代码脚本，获取步骤数据
+            if test_script.script_type in ['LOW_CODE', '低代码']:
+                steps = test_script.steps.select_related('target_element', 'target_element__locator_strategy').order_by('step_order')
+                for step in steps:
+                    step_data = {
+                        'id': step.id,
+                        'step_order': step.step_order,
+                        'action_type': step.action_type,
+                        'description': step.description,
+                        'expected_result': step.expected_result,
+                        'action_params': step.action_params,
+                        'wait_before': step.wait_before,
+                        'wait_after': step.wait_after,
+                        'element': None
+                    }
+                    
+                    # 如果有目标元素，预先获取元素数据
+                    if step.target_element:
+                        step_data['element'] = {
+                            'id': step.target_element.id,
+                            'name': step.target_element.name,
+                            'locator_value': step.target_element.locator_value,
+                            'locator_strategy': step.target_element.locator_strategy.name if step.target_element.locator_strategy else 'css'
+                        }
+                    
+                    script_data['steps'].append(step_data)
+            
+            scripts_data.append(script_data)
+        
+        # 预先获取所有测试用例的步骤数据，避免在 Playwright 上下文中访问 ORM
         test_cases_data = []
         for test_case in self.test_cases:
             case_data = {
@@ -224,7 +278,8 @@ class TestExecutor:
             case_executions[case_data['id']] = case_execution
 
         # 执行测试用例，复用浏览器实例和页面
-        print(f"准备执行 {len(test_cases_data)} 个测试用例")
+        total_items = len(scripts_data) + len(test_cases_data)
+        print(f"准备执行 {total_items} 个项目（{len(scripts_data)} 个脚本，{len(test_cases_data)} 个测试用例）")
 
         with sync_playwright() as p:
             browser = None
@@ -352,10 +407,44 @@ class TestExecutor:
                         print(f"✓ 所有用例执行记录已更新")
                         return
                 
-                # 执行所有测试用例，使用同一个页面
+                # 先执行所有脚本
+                for i, script_data in enumerate(scripts_data, 1):
+                    print(f"\n{'='*60}")
+                    print(f"正在执行第 {i}/{total_items} 个项目：脚本 - {script_data['name']}")
+                    print(f"{'='*60}")
+                    
+                    try:
+                        # 执行脚本
+                        script_result = self.execute_script_playwright(script_data, page)
+                        self.results.append(script_result)
+                        print(f"✓ 脚本执行完成，状态：{script_result['status']}")
+                        
+                        if script_result['status'] == 'passed':
+                            passed += 1
+                        elif script_result['status'] == 'failed':
+                            failed += 1
+                        else:
+                            skipped += 1
+                            
+                    except Exception as e:
+                        print(f"✗ 脚本执行出现异常：{str(e)}")
+                        self.results.append({
+                            'type': 'script',
+                            'script_id': script_data['id'],
+                            'script_name': script_data['name'],
+                            'status': 'failed',
+                            'steps': [],
+                            'error': f"脚本执行异常：{str(e)}",
+                            'start_time': datetime.now().isoformat(),
+                            'end_time': datetime.now().isoformat(),
+                            'screenshots': []
+                        })
+                        failed += 1
+                
+                # 然后执行所有测试用例，使用同一个页面
                 for i, case_data in enumerate(test_cases_data, 1):
                     print(f"\n{'='*60}")
-                    print(f"正在执行第 {i}/{len(test_cases_data)} 个用例: {case_data['name']}")
+                    print(f"正在执行第 {len(scripts_data) + i}/{total_items} 个项目：用例 - {case_data['name']}")
                     print(f"{'='*60}")
                     
                     # 记录用例实际开始执行时间
@@ -430,6 +519,266 @@ class TestExecutor:
         duration = time.time() - start_time
         status = 'SUCCESS' if failed == 0 else 'FAILED'
         self.update_execution_result(status, passed, failed, skipped, duration)
+
+    def execute_script_selenium(self, driver, script_data):
+        """使用 Selenium 执行单个脚本
+
+        Args:
+            driver: Selenium WebDriver 对象
+            script_data: 预先准备的脚本数据字典
+        """
+        result = {
+            'type': 'script',
+            'script_id': script_data['id'],
+            'script_name': script_data['name'],
+            'status': 'passed',
+            'steps': [],
+            'error': None,
+            'start_time': datetime.now().isoformat(),
+            'screenshots': []
+        }
+        
+        try:
+            # 根据脚本类型执行
+            if script_data['script_type'] == 'CODE':
+                # 代码脚本：直接执行 Python 代码
+                result = self.execute_code_script_selenium(script_data, driver, result)
+            elif script_data['script_type'] in ['LOW_CODE', '低代码']:
+                # 低代码脚本：执行步骤
+                result = self.execute_lowcode_script_selenium(script_data, driver, result)
+            else:
+                # 其他类型脚本暂不支持
+                result['status'] = 'skipped'
+                result['error'] = f"不支持的脚本类型：{script_data['script_type']}"
+            
+            result['end_time'] = datetime.now().isoformat()
+            
+        except Exception as e:
+            result['status'] = 'failed'
+            result['error'] = f"脚本执行失败：{str(e)}"
+            result['end_time'] = datetime.now().isoformat()
+            
+            # 失败截图
+            if driver:
+                try:
+                    screenshot_bytes = driver.get_screenshot_as_png()
+                    screenshot_base64 = base64.b64encode(screenshot_bytes).decode()
+                    result['screenshots'].append({
+                        'url': f'data:image/png;base64,{screenshot_base64}',
+                        'description': f'脚本失败截图：{script_data["name"]}',
+                        'timestamp': datetime.now().isoformat()
+                    })
+                except:
+                    pass
+        
+        return result
+    
+    def execute_code_script_selenium(self, script_data, driver, result):
+        """执行代码脚本（Selenium）
+        
+        Args:
+            script_data: 脚本数据
+            driver: Selenium WebDriver 对象
+            result: 结果字典
+        """
+        try:
+            # 创建执行上下文
+            exec_context = {
+                'driver': driver,
+                'page': driver,  # 兼容 playwright 的 page 命名
+                'result': result
+            }
+            
+            # 执行 Python 代码
+            code_content = script_data['content']
+            
+            # 添加安全检查和日志
+            print(f"📝 开始执行代码脚本：{script_data['name']}")
+            
+            # 执行代码
+            exec(code_content, exec_context)
+            
+            print(f"✓ 代码脚本执行成功")
+            result['status'] = 'passed'
+            
+        except Exception as e:
+            print(f"✗ 代码脚本执行失败：{str(e)}")
+            result['status'] = 'failed'
+            result['error'] = f"代码执行错误：{str(e)}"
+            
+            import traceback
+            traceback.print_exc()
+        
+        return result
+    
+    def execute_lowcode_script_selenium(self, script_data, driver, result):
+        """执行低代码脚本（Selenium）
+        
+        Args:
+            script_data: 脚本数据
+            driver: Selenium WebDriver 对象
+            result: 结果字典
+        """
+        try:
+            steps = script_data.get('steps', [])
+            
+            if not steps:
+                result['status'] = 'skipped'
+                result['error'] = '脚本没有步骤'
+                return result
+            
+            print(f"📝 开始执行低代码脚本：{script_data['name']}，共{len(steps)}个步骤")
+            
+            # 执行每个步骤
+            for step_data in steps:
+                step_result = self.execute_step_selenium(step_data, driver)
+                result['steps'].append(step_result)
+                
+                if not step_result['success']:
+                    result['status'] = 'failed'
+                    result['error'] = f"步骤 {step_data['step_order']} 执行失败：{step_result.get('error', '')}"
+                    break
+            
+            if result['status'] == 'passed':
+                print(f"✓ 低代码脚本执行成功")
+            else:
+                print(f"✗ 低代码脚本执行失败：{result['error']}")
+            
+        except Exception as e:
+            print(f"✗ 低代码脚本执行失败：{str(e)}")
+            result['status'] = 'failed'
+            result['error'] = f"脚本执行错误：{str(e)}"
+        
+        return result
+
+    def execute_script_playwright(self, script_data, page):
+        """使用 Playwright 执行单个脚本
+
+        Args:
+            script_data: 预先准备的脚本数据字典
+            page: Playwright Page 对象
+        """
+        result = {
+            'type': 'script',
+            'script_id': script_data['id'],
+            'script_name': script_data['name'],
+            'status': 'passed',
+            'steps': [],
+            'error': None,
+            'start_time': datetime.now().isoformat(),
+            'screenshots': []
+        }
+        
+        try:
+            # 根据脚本类型执行
+            if script_data['script_type'] == 'CODE':
+                # 代码脚本：直接执行 Python 代码
+                result = self.execute_code_script(script_data, page, result)
+            elif script_data['script_type'] in ['LOW_CODE', '低代码']:
+                # 低代码脚本：执行步骤
+                result = self.execute_lowcode_script(script_data, page, result)
+            else:
+                # 其他类型脚本暂不支持
+                result['status'] = 'skipped'
+                result['error'] = f"不支持的脚本类型：{script_data['script_type']}"
+            
+            result['end_time'] = datetime.now().isoformat()
+            
+        except Exception as e:
+            result['status'] = 'failed'
+            result['error'] = f"脚本执行失败：{str(e)}"
+            result['end_time'] = datetime.now().isoformat()
+            
+            # 失败截图
+            try:
+                screenshot_bytes = page.screenshot()
+                screenshot_base64 = base64.b64encode(screenshot_bytes).decode()
+                result['screenshots'].append({
+                    'url': f'data:image/png;base64,{screenshot_base64}',
+                    'description': f'脚本失败截图：{script_data["name"]}',
+                    'timestamp': datetime.now().isoformat()
+                })
+            except:
+                pass
+        
+        return result
+    
+    def execute_code_script(self, script_data, page, result):
+        """执行代码脚本
+        
+        Args:
+            script_data: 脚本数据
+            page: Playwright Page 对象
+            result: 结果字典
+        """
+        try:
+            # 创建执行上下文
+            exec_context = {
+                'page': page,
+                'result': result
+            }
+            
+            # 执行 Python 代码
+            code_content = script_data['content']
+            
+            # 添加安全检查和日志
+            print(f"📝 开始执行代码脚本：{script_data['name']}")
+            
+            # 执行代码
+            exec(code_content, exec_context)
+            
+            print(f"✓ 代码脚本执行成功")
+            result['status'] = 'passed'
+            
+        except Exception as e:
+            print(f"✗ 代码脚本执行失败：{str(e)}")
+            result['status'] = 'failed'
+            result['error'] = f"代码执行错误：{str(e)}"
+            
+            import traceback
+            traceback.print_exc()
+        
+        return result
+    
+    def execute_lowcode_script(self, script_data, page, result):
+        """执行低代码脚本
+        
+        Args:
+            script_data: 脚本数据
+            page: Playwright Page 对象
+            result: 结果字典
+        """
+        try:
+            steps = script_data.get('steps', [])
+            
+            if not steps:
+                result['status'] = 'skipped'
+                result['error'] = '脚本没有步骤'
+                return result
+            
+            print(f"📝 开始执行低代码脚本：{script_data['name']}，共{len(steps)}个步骤")
+            
+            # 执行每个步骤
+            for step_data in steps:
+                step_result = self.execute_step_playwright(step_data, page)
+                result['steps'].append(step_result)
+                
+                if not step_result['success']:
+                    result['status'] = 'failed'
+                    result['error'] = f"步骤 {step_data['step_order']} 执行失败：{step_result.get('error', '')}"
+                    break
+            
+            if result['status'] == 'passed':
+                print(f"✓ 低代码脚本执行成功")
+            else:
+                print(f"✗ 低代码脚本执行失败：{result['error']}")
+            
+        except Exception as e:
+            print(f"✗ 低代码脚本执行失败：{str(e)}")
+            result['status'] = 'failed'
+            result['error'] = f"脚本执行错误：{str(e)}"
+        
+        return result
 
     def execute_test_case_playwright_no_db(self, case_data, page):
         """使用 Playwright 执行单个测试用例（不访问数据库）
@@ -1245,7 +1594,50 @@ class TestExecutor:
         failed = 0
         skipped = 0
 
-        # 预先获取所有测试用例的步骤数据，避免在Selenium上下文中访问ORM
+        # 预先获取所有脚本数据，避免在 Selenium 上下文中访问 ORM
+        scripts_data = []
+        for test_script in self.scripts:
+            script_data = {
+                'id': test_script.id,
+                'name': test_script.name,
+                'project_id': self.test_suite.project.id,
+                'script_type': test_script.script_type,
+                'language': test_script.language,
+                'framework': test_script.framework,
+                'content': test_script.content,
+                'steps': []
+            }
+            
+            # 如果是低代码脚本，获取步骤数据
+            if test_script.script_type in ['LOW_CODE', '低代码']:
+                steps = test_script.steps.select_related('target_element', 'target_element__locator_strategy').order_by('step_order')
+                for step in steps:
+                    step_data = {
+                        'id': step.id,
+                        'step_order': step.step_order,
+                        'action_type': step.action_type,
+                        'description': step.description,
+                        'expected_result': step.expected_result,
+                        'action_params': step.action_params,
+                        'wait_before': step.wait_before,
+                        'wait_after': step.wait_after,
+                        'element': None
+                    }
+                    
+                    # 如果有目标元素，预先获取元素数据
+                    if step.target_element:
+                        step_data['element'] = {
+                            'id': step.target_element.id,
+                            'name': step.target_element.name,
+                            'locator_value': step.target_element.locator_value,
+                            'locator_strategy': step.target_element.locator_strategy.name if step.target_element.locator_strategy else 'css'
+                        }
+                    
+                    script_data['steps'].append(step_data)
+            
+            scripts_data.append(script_data)
+        
+        # 预先获取所有测试用例的步骤数据，避免在 Selenium 上下文中访问 ORM
         test_cases_data = []
         for test_case in self.test_cases:
             case_data = {
@@ -1302,7 +1694,8 @@ class TestExecutor:
 
         # 优化：整个测试套件共用一个浏览器实例，避免频繁启动/关闭
         # 注意：Safari 不支持浏览器复用（会话管理问题），需要每个用例独立启动
-        print(f"准备执行 {len(test_cases_data)} 个测试用例")
+        total_items = len(scripts_data) + len(test_cases_data)
+        print(f"准备执行 {total_items} 个项目（{len(scripts_data)} 个脚本，{len(test_cases_data)} 个测试用例）")
         
         # 暂时禁用浏览器复用，解决测试套件闪退问题
         # Safari 需要独立浏览器实例，其他浏览器也暂时禁用复用
@@ -1345,10 +1738,45 @@ class TestExecutor:
             driver = None
             print(f"ℹ️  Safari 浏览器将为每个用例独立启动（Safari 不支持浏览器复用）\n")
 
-        # 执行所有测试用例
+        # 执行所有脚本和测试用例
+        # 先执行所有脚本
+        for i, script_data in enumerate(scripts_data, 1):
+            print(f"\n{'='*60}")
+            print(f"正在执行第 {i}/{total_items} 个项目：脚本 - {script_data['name']}")
+            print(f"{'='*60}")
+            
+            try:
+                # 执行脚本
+                script_result = self.execute_script_selenium(driver if 'driver' in locals() else None, script_data)
+                self.results.append(script_result)
+                print(f"✓ 脚本执行完成，状态：{script_result['status']}")
+                
+                if script_result['status'] == 'passed':
+                    passed += 1
+                elif script_result['status'] == 'failed':
+                    failed += 1
+                else:
+                    skipped += 1
+                    
+            except Exception as e:
+                print(f"✗ 脚本执行出现异常：{str(e)}")
+                self.results.append({
+                    'type': 'script',
+                    'script_id': script_data['id'],
+                    'script_name': script_data['name'],
+                    'status': 'failed',
+                    'steps': [],
+                    'error': f"脚本执行异常：{str(e)}",
+                    'start_time': datetime.now().isoformat(),
+                    'end_time': datetime.now().isoformat(),
+                    'screenshots': []
+                })
+                failed += 1
+        
+        # 然后执行所有测试用例
         for i, case_data in enumerate(test_cases_data, 1):
             print(f"\n{'='*60}")
-            print(f"正在执行第 {i}/{len(test_cases_data)} 个用例: {case_data['name']}")
+            print(f"正在执行第 {len(scripts_data) + i}/{total_items} 个项目：用例 - {case_data['name']}")
             print(f"{'='*60}")
             
             # 记录用例实际开始执行时间

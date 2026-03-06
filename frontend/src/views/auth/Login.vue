@@ -7,15 +7,11 @@
         <div class="brand-header">
           <div class="logo-wrapper">
             <div class="logo-icon">
-              <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M12 2L2 7L12 12L22 7L12 2Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                <path d="M2 17L12 22L22 17" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                <path d="M2 12L12 17L22 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-              </svg>
+              <img src="@/assets/images/grt.png" alt="TestHub Logo" class="logo-image" />
             </div>
             <h1 class="brand-title">国人通 TestHub</h1>
           </div>
-          <p class="brand-subtitle">AI-Powered Testing Platform</p>
+
         </div>
 
         <!-- 特性展示 -->
@@ -240,7 +236,7 @@ const handleLogin = async () => {
 .login-container {
   height: 100vh;
   display: flex;
-  background: #f5f7fa;
+  background: linear-gradient(135deg, #e0c3fc 0%, #8ec5fc 100%);
   overflow: hidden;
 }
 
@@ -252,7 +248,7 @@ const handleLogin = async () => {
 /* 左侧展示区域 */
 .showcase-section {
   flex: 1;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: transparent;
   position: relative;
   display: flex;
   align-items: center;
@@ -287,11 +283,19 @@ const handleLogin = async () => {
         align-items: center;
         justify-content: center;
         backdrop-filter: blur(10px);
+        overflow: hidden;
 
         svg {
           width: 32px;
           height: 32px;
           color: white;
+        }
+
+        .logo-image {
+          width: 100%;
+          height: 100%;
+          object-fit: contain;
+          padding: 4px;
         }
       }
 
@@ -449,9 +453,11 @@ const handleLogin = async () => {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: white;
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(10px);
   padding: 60px;
   position: relative;
+  border-left: 1px solid rgba(255, 255, 255, 0.5);
 
   .login-form-wrapper {
     width: 100%;
@@ -485,11 +491,11 @@ const handleLogin = async () => {
       transition: all 0.3s ease;
 
       &:hover {
-        box-shadow: 0 0 0 1px #c0c4cc inset;
+        box-shadow: 0 0 0 1px #8b5cf6 inset;
       }
 
       &.is-focus {
-        box-shadow: 0 0 0 1px #667eea inset;
+        box-shadow: 0 0 0 1px #8b5cf6 inset;
       }
     }
 
@@ -502,13 +508,13 @@ const handleLogin = async () => {
       height: 48px;
       font-size: 16px;
       font-weight: 600;
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      background: linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%);
       border: none;
       transition: all 0.3s ease;
 
       &:hover {
         transform: translateY(-2px);
-        box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
+        box-shadow: 0 10px 20px rgba(139, 92, 246, 0.3);
       }
 
       &:active {
@@ -522,18 +528,22 @@ const handleLogin = async () => {
     margin-top: 24px;
 
     .register-link {
-      color: #909399;
+      color: #606266;
       text-decoration: none;
       font-size: 14px;
       transition: all 0.3s ease;
 
       span {
-        color: #667eea;
+        color: #8b5cf6;
         font-weight: 600;
       }
 
       &:hover {
-        color: #667eea;
+        color: #8b5cf6;
+
+        span {
+          text-decoration: underline;
+        }
       }
     }
   }
@@ -544,7 +554,7 @@ const handleLogin = async () => {
 
     p {
       font-size: 12px;
-      color: #c0c4cc;
+      color: #909399;
       margin: 0;
     }
   }

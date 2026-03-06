@@ -216,7 +216,253 @@ onMounted(() => {
 </script>
 
 <style lang="scss" scoped>
+// 页面容器
+.page-container {
+  padding: 24px;
+  min-height: calc(100vh - 60px);
+  background: linear-gradient(135deg, #f5f3ff 0%, #ede9fe 100%);
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+// 页面头部
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 24px 28px;
+  background: #ffffff;
+  border-radius: 12px;
+  box-shadow: 0 4px 20px rgba(147, 112, 219, 0.1);
+  border: 1px solid rgba(147, 112, 219, 0.1);
+
+  .page-title {
+    font-size: 24px;
+    font-weight: 600;
+    color: #5a32a3;
+    margin: 0;
+    background: linear-gradient(135deg, #5a32a3 0%, #7b42f6 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  // 按钮样式
+  .el-button {
+    padding: 10px 20px;
+    border-radius: 8px;
+    font-weight: 500;
+    font-size: 14px;
+    transition: all 0.3s ease;
+
+    &:hover {
+      transform: translateY(-1px);
+    }
+
+    // 返回按钮
+    &:not(.el-button--primary) {
+      border: 1px solid rgba(147, 112, 219, 0.3);
+      color: #5a32a3;
+      background: #ffffff;
+
+      &:hover {
+        border-color: #7b42f6;
+        color: #7b42f6;
+        background: rgba(123, 66, 246, 0.05);
+      }
+    }
+
+    // 主要按钮
+    &.el-button--primary {
+      background: linear-gradient(135deg, #7b42f6 0%, #5a32a3 100%);
+      border: none;
+      color: white;
+      box-shadow: 0 4px 12px rgba(123, 66, 246, 0.3);
+
+      &:hover {
+        background: linear-gradient(135deg, #6d33e6 0%, #4a249c 100%);
+        transform: translateY(-2px);
+        box-shadow: 0 6px 20px rgba(123, 66, 246, 0.4);
+      }
+    }
+  }
+}
+
+// 卡片容器
+.card-container {
+  background: #ffffff;
+  border-radius: 12px;
+  box-shadow: 0 4px 20px rgba(147, 112, 219, 0.1);
+  border: 1px solid rgba(147, 112, 219, 0.1);
+  flex: 1;
+  padding: 24px;
+
+  // Tabs 样式
+  :deep(.el-tabs) {
+    .el-tabs__header {
+      margin-bottom: 24px;
+      border-bottom: 1px solid rgba(147, 112, 219, 0.15);
+    }
+
+    .el-tabs__nav-wrap::after {
+      background-color: rgba(147, 112, 219, 0.1);
+    }
+
+    .el-tabs__item {
+      font-size: 15px;
+      font-weight: 500;
+      color: #666;
+      padding: 0 24px;
+      height: 44px;
+      line-height: 44px;
+      transition: all 0.3s ease;
+
+      &:hover {
+        color: #7b42f6;
+      }
+
+      &.is-active {
+        color: #5a32a3;
+        font-weight: 600;
+      }
+    }
+
+    .el-tabs__active-bar {
+      background: linear-gradient(135deg, #7b42f6 0%, #5a32a3 100%);
+      height: 3px;
+      border-radius: 2px;
+    }
+  }
+
+  // Descriptions 样式
+  :deep(.el-descriptions) {
+    .el-descriptions__label {
+      background: linear-gradient(135deg, #f8f7ff 0%, #f5f3ff 100%);
+      color: #5a32a3;
+      font-weight: 500;
+      padding: 16px;
+    }
+
+    .el-descriptions__content {
+      padding: 16px;
+      color: #333;
+    }
+
+    .el-descriptions__cell {
+      border: 1px solid rgba(147, 112, 219, 0.15);
+    }
+  }
+}
+
+// 成员和环境区域
 .members-section, .environments-section {
   padding: 20px 0;
+
+  .el-button {
+    border-radius: 8px;
+    transition: all 0.3s ease;
+
+    &.el-button--primary {
+      background: linear-gradient(135deg, #7b42f6 0%, #5a32a3 100%);
+      border: none;
+      box-shadow: 0 4px 12px rgba(123, 66, 246, 0.3);
+
+      &:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 20px rgba(123, 66, 246, 0.4);
+      }
+    }
+  }
+}
+
+// 表格样式
+:deep(.el-table) {
+  background: transparent;
+  border-radius: 8px;
+  overflow: hidden;
+
+  .el-table__header {
+    th {
+      background: linear-gradient(135deg, #f8f7ff 0%, #f5f3ff 100%);
+      color: #5a32a3;
+      font-weight: 600;
+      border-bottom: 1px solid rgba(147, 112, 219, 0.15);
+      padding: 12px;
+    }
+  }
+
+  .el-table__row {
+    transition: all 0.3s ease;
+
+    &:hover {
+      background: rgba(147, 112, 219, 0.05);
+    }
+
+    td {
+      border-bottom: 1px solid rgba(147, 112, 219, 0.08);
+      padding: 12px;
+    }
+  }
+}
+
+// 标签样式
+:deep(.el-tag) {
+  border-radius: 4px;
+  font-weight: 500;
+
+  &.el-tag--success {
+    background: rgba(103, 194, 58, 0.1);
+    border-color: rgba(103, 194, 58, 0.3);
+    color: #67c23a;
+  }
+}
+
+// 对话框样式
+:deep(.el-dialog) {
+  border-radius: 12px;
+  overflow: hidden;
+
+  .el-dialog__header {
+    background: linear-gradient(135deg, #f8f7ff 0%, #f5f3ff 100%);
+    padding: 20px 24px;
+    margin: 0;
+    border-bottom: 1px solid rgba(147, 112, 219, 0.15);
+
+    .el-dialog__title {
+      color: #5a32a3;
+      font-weight: 600;
+      font-size: 18px;
+    }
+  }
+
+  .el-dialog__body {
+    padding: 24px;
+  }
+
+  .el-dialog__footer {
+    padding: 16px 24px;
+    border-top: 1px solid rgba(147, 112, 219, 0.1);
+  }
+}
+
+// 表单样式
+:deep(.el-form) {
+  .el-form-item__label {
+    color: #5a32a3;
+    font-weight: 500;
+  }
+
+  .el-input__wrapper,
+  .el-select .el-input__wrapper {
+    border-radius: 8px;
+    border: 1px solid rgba(147, 112, 219, 0.3);
+    box-shadow: none;
+
+    &:hover, &.is-focus {
+      border-color: #7b42f6;
+      box-shadow: 0 0 0 3px rgba(123, 66, 246, 0.1);
+    }
+  }
 }
 </style>

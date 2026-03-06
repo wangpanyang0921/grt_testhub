@@ -1,9 +1,9 @@
 <template>
-  <div class="test-case-manager">
+  <div class="page-container">
     <div class="page-header">
       <h1 class="page-title">{{ $t('uiAutomation.testCase.title') }}</h1>
       <div class="header-actions">
-        <el-select v-model="projectId" :placeholder="$t('uiAutomation.common.selectProject')" style="width: 200px; margin-right: 15px" @change="onProjectChange">
+        <el-select v-model="projectId" :placeholder="$t('uiAutomation.common.selectProject')" style="width: 220px; margin-right: 12px" @change="onProjectChange" class="project-select">
           <el-option v-for="project in projects" :key="project.id" :label="project.name" :value="project.id" />
         </el-select>
         <el-button type="primary" @click="showCreateDialog = true">
@@ -13,17 +13,17 @@
       </div>
     </div>
 
-    <div class="main-content">
+    <div class="card-container test-case-layout">
       <!-- 左侧：用例列表 -->
       <div class="left-panel">
         <div class="panel-header">
-          <h3>{{ $t('uiAutomation.testCase.testCaseList') }}</h3>
+          <h3 class="panel-title">{{ $t('uiAutomation.testCase.testCaseList') }}</h3>
           <el-input
             v-model="searchKeyword"
             :placeholder="$t('uiAutomation.testCase.searchPlaceholder')"
             clearable
             size="small"
-            style="width: 200px"
+            style="width: 180px"
           >
             <template #prefix>
               <el-icon><Search /></el-icon>
@@ -45,22 +45,21 @@
                 <p class="case-description">{{ testCase.description || $t('uiAutomation.testCase.noDescription') }}</p>
               </div>
               <div class="case-actions">
-                <el-button size="small" text @click.stop="runTestCase(testCase)">
+                <el-button size="small" class="action-icon-btn run-btn" @click.stop="runTestCase(testCase)">
                   <el-icon><CaretRight /></el-icon>
                 </el-button>
-                <el-button size="small" text @click.stop="editTestCase(testCase)">
+                <el-button size="small" class="action-icon-btn edit-btn" @click.stop="editTestCase(testCase)">
                   <el-icon><Edit /></el-icon>
                 </el-button>
-                <el-button size="small" text @click.stop="copyTestCase(testCase)">
+                <el-button size="small" class="action-icon-btn copy-btn" @click.stop="copyTestCase(testCase)">
                   <el-icon><CopyDocument /></el-icon>
                 </el-button>
-                <el-button size="small" text type="danger" @click.stop="deleteTestCase(testCase)">
+                <el-button size="small" class="action-icon-btn delete-btn" @click.stop="deleteTestCase(testCase)">
                   <el-icon><Delete /></el-icon>
                 </el-button>
               </div>
             </div>
             <div class="case-meta">
-              <!-- 移除状态显示 -->
               <span class="step-count">{{ testCase.steps?.length || 0 }} {{ $t('uiAutomation.testCase.stepsCount') }}</span>
               <span class="update-time">{{ formatTime(testCase.updated_at) }}</span>
             </div>
@@ -72,9 +71,9 @@
       <div class="right-panel">
         <div v-if="selectedTestCase" class="test-case-detail">
           <div class="detail-header">
-            <h3>{{ selectedTestCase.name }}</h3>
+            <h3 class="detail-title">{{ selectedTestCase.name }}</h3>
             <div class="detail-actions">
-              <el-button size="small" @click="addStep">
+              <el-button size="small" class="btn-secondary" @click="addStep">
                 <el-icon><Plus /></el-icon>
                 {{ $t('uiAutomation.testCase.addStep') }}
               </el-button>
@@ -82,25 +81,25 @@
                 <el-icon><Check /></el-icon>
                 {{ $t('uiAutomation.testCase.saveTestCase') }}
               </el-button>
-              <el-select v-model="selectedEngine" :placeholder="$t('uiAutomation.testCase.selectEngine')" size="small" style="width: 130px; margin-right: 10px">
+              <el-select v-model="selectedEngine" :placeholder="$t('uiAutomation.testCase.selectEngine')" size="small" style="width: 130px; margin-right: 10px" class="config-select">
                 <el-option label="Playwright" value="playwright" />
                 <el-option label="Selenium" value="selenium" />
               </el-select>
-              <el-select v-model="selectedBrowser" :placeholder="$t('uiAutomation.testCase.selectBrowser')" size="small" style="width: 120px; margin-right: 10px">
+              <el-select v-model="selectedBrowser" :placeholder="$t('uiAutomation.testCase.selectBrowser')" size="small" style="width: 120px; margin-right: 10px" class="config-select">
                 <el-option label="Chrome" value="chrome" />
                 <el-option label="Firefox" value="firefox" />
                 <el-option label="Safari" value="safari" />
                 <el-option label="Edge" value="edge" />
               </el-select>
-              <el-select v-model="headlessMode" :placeholder="$t('uiAutomation.testCase.runMode')" size="small" style="width: 110px; margin-right: 10px">
+              <el-select v-model="headlessMode" :placeholder="$t('uiAutomation.testCase.runMode')" size="small" style="width: 110px; margin-right: 10px" class="config-select">
                 <el-option :label="$t('uiAutomation.testCase.headedMode')" :value="false" />
                 <el-option :label="$t('uiAutomation.testCase.headlessMode')" :value="true" />
               </el-select>
-              <el-button size="small" type="success" @click="runTestCase(selectedTestCase)" :loading="isRunning">
+              <el-button size="small" type="success" @click="runTestCase(selectedTestCase)" :loading="isRunning" class="run-btn">
                 <el-icon v-if="!isRunning"><CaretRight /></el-icon>
                 {{ isRunning ? $t('uiAutomation.testCase.running') : $t('uiAutomation.testCase.run') }}
               </el-button>
-              <el-button size="small" v-if="executionResult" @click="toggleView">
+              <el-button size="small" class="btn-secondary" v-if="executionResult" @click="toggleView">
                 <el-icon><component :is="showSteps ? 'View' : 'Edit'" /></el-icon>
                 {{ showSteps ? $t('uiAutomation.testCase.viewResult') : $t('uiAutomation.testCase.editSteps') }}
               </el-button>
@@ -110,6 +109,7 @@
                 type="success"
                 @click="runTestCase(selectedTestCase)"
                 :loading="isRunning"
+                class="run-btn"
               >
                 <el-icon v-if="!isRunning"><Refresh /></el-icon>
                 {{ $t('uiAutomation.testCase.rerun') }}
@@ -120,8 +120,8 @@
           <!-- 测试步骤编辑 -->
           <div class="steps-container" v-show="showSteps">
             <div class="steps-header">
-              <h4>{{ $t('uiAutomation.testCase.testSteps') }}</h4>
-              <el-button size="small" text @click="expandAllSteps">
+              <h4 class="steps-title">{{ $t('uiAutomation.testCase.testSteps') }}</h4>
+              <el-button size="small" class="btn-text" @click="expandAllSteps">
                 {{ allStepsExpanded ? $t('uiAutomation.testCase.foldAll') : $t('uiAutomation.testCase.expandAll') }}
               </el-button>
             </div>
@@ -146,6 +146,7 @@
                             size="small"
                             style="width: 120px"
                             @change="onActionTypeChange(element)"
+                            class="action-select"
                           >
                             <el-option :label="$t('uiAutomation.testCase.actionClick')" value="click" />
                             <el-option :label="$t('uiAutomation.testCase.actionFill')" value="fill" />
@@ -166,6 +167,7 @@
                             style="width: 200px"
                             filterable
                             @change="onElementChange(element)"
+                            class="element-select"
                           >
                             <el-option
                               v-for="elem in availableElements"
@@ -178,14 +180,14 @@
                         <div class="step-right">
                           <el-button
                             size="small"
-                            text
+                            class="btn-icon"
                             @click="element.expanded = !element.expanded"
                           >
                             <el-icon>
                               <component :is="element.expanded ? 'ArrowUp' : 'ArrowDown'" />
                             </el-icon>
                           </el-button>
-                          <el-button size="small" text type="danger" @click="removeStep(index)">
+                          <el-button size="small" class="btn-icon delete" @click="removeStep(index)">
                             <el-icon><Delete /></el-icon>
                           </el-button>
                         </div>
@@ -200,6 +202,7 @@
                               v-model="element.input_value"
                               :placeholder="element.action_type === 'switchTab' ? $t('uiAutomation.testCase.switchTabPlaceholder') : $t('uiAutomation.testCase.inputPlaceholder')"
                               size="small"
+                              class="param-input"
                             >
                               <template #append>
                                 <el-button
@@ -228,13 +231,14 @@
                             :max="30000"
                             :step="100"
                             size="small"
+                            class="param-input"
                           />
                         </div>
 
                         <!-- 断言参数 -->
                         <div v-if="element.action_type === 'assert'" class="step-param">
                           <label>{{ $t('uiAutomation.testCase.assertType') }}</label>
-                          <el-select v-model="element.assert_type" size="small" style="width: 150px">
+                          <el-select v-model="element.assert_type" size="small" style="width: 150px" class="param-select">
                             <el-option :label="$t('uiAutomation.testCase.assertTextContains')" value="textContains" />
                             <el-option :label="$t('uiAutomation.testCase.assertTextEquals')" value="textEquals" />
                             <el-option :label="$t('uiAutomation.testCase.assertIsVisible')" value="isVisible" />
@@ -247,6 +251,7 @@
                               :placeholder="$t('uiAutomation.testCase.expectedValue')"
                               size="small"
                               style="flex: 1"
+                              class="param-input"
                             >
                               <template #append>
                                 <el-button
@@ -273,6 +278,7 @@
                             v-model="element.description"
                             :placeholder="$t('uiAutomation.testCase.stepDescPlaceholder')"
                             size="small"
+                            class="param-input"
                           />
                         </div>
                       </div>
@@ -286,13 +292,13 @@
           <!-- 执行结果 -->
           <div v-if="executionResult" class="execution-result" v-show="!showSteps">
             <div class="result-header">
-              <h4>{{ $t('uiAutomation.testCase.executionResult') }}</h4>
-              <el-tag :type="executionResult.success ? 'success' : 'danger'">
+              <h4 class="result-title">{{ $t('uiAutomation.testCase.executionResult') }}</h4>
+              <el-tag :type="executionResult.success ? 'success' : 'danger'" class="result-tag">
                 {{ executionResult.success ? $t('uiAutomation.testCase.executionSuccess') : $t('uiAutomation.testCase.executionFailed') }}
               </el-tag>
             </div>
             <div class="result-content">
-              <el-tabs v-model="resultActiveTab">
+              <el-tabs v-model="resultActiveTab" class="result-tabs">
                 <el-tab-pane :label="$t('uiAutomation.testCase.executionLogs')" name="logs">
                   <div class="logs-container">
                     <div v-if="parsedExecutionLogs.length > 0">
@@ -404,9 +410,10 @@
       v-model="showCreateDialog"
       :title="editingTestCase ? $t('uiAutomation.testCase.editTestCase') : $t('uiAutomation.testCase.createTestCase')"
       width="500px"
+      class="custom-dialog"
     >
       <el-form :model="testCaseForm" label-width="100px">
-        <el-form-item :label="$t('uiAutomation.testCase.caseName')" required>
+        <el-form-item :label="$t('uiAutomation.testCase.caseName')" required class="is-required">
           <el-input v-model="testCaseForm.name" :placeholder="$t('uiAutomation.testCase.caseNamePlaceholder')" />
         </el-form-item>
         <el-form-item :label="$t('uiAutomation.testCase.caseDescription')">
@@ -418,7 +425,7 @@
           />
         </el-form-item>
         <el-form-item :label="$t('uiAutomation.testCase.priority')">
-          <el-select v-model="testCaseForm.priority" style="width: 100%">
+          <el-select v-model="testCaseForm.priority" style="width: 100%" class="priority-select">
             <el-option :label="$t('uiAutomation.testCase.priorityHigh')" value="high" />
             <el-option :label="$t('uiAutomation.testCase.priorityMedium')" value="medium" />
             <el-option :label="$t('uiAutomation.testCase.priorityLow')" value="low" />
@@ -427,8 +434,8 @@
       </el-form>
       <template #footer>
         <span class="dialog-footer">
-          <el-button @click="showCreateDialog = false">{{ $t('uiAutomation.common.cancel') }}</el-button>
-          <el-button type="primary" @click="saveTestCaseForm">{{ $t('uiAutomation.common.confirm') }}</el-button>
+          <el-button @click="showCreateDialog = false" class="btn-cancel">{{ $t('uiAutomation.common.cancel') }}</el-button>
+          <el-button type="primary" @click="saveTestCaseForm" class="btn-confirm">{{ $t('uiAutomation.common.confirm') }}</el-button>
         </span>
       </template>
     </el-dialog>
@@ -439,6 +446,7 @@
       :title="$t('uiAutomation.testCase.screenshotPreview')"
       width="80%"
       :close-on-click-modal="true"
+      class="custom-dialog"
     >
       <div v-if="currentScreenshot" class="screenshot-preview">
         <div class="preview-info">
@@ -458,18 +466,19 @@
       :title="$t('uiAutomation.testCase.variableHelper')"
       :close-on-click-modal="false"
       width="900px"
+      class="custom-dialog"
     >
-      <el-tabs tab-position="left" style="height: 450px">
+      <el-tabs tab-position="left" style="height: 450px" class="variable-tabs">
         <el-tab-pane
           v-for="(category, index) in variableCategoriesComputed"
           :key="index"
           :label="category.label"
         >
           <div style="height: 450px; overflow-y: auto; padding: 10px;">
-            <el-table :data="category.variables" style="width: 100%" @row-click="insertVariable" highlight-current-row>
+            <el-table :data="category.variables" style="width: 100%" @row-click="insertVariable" highlight-current-row class="variable-table">
               <el-table-column prop="name" label="函数名" width="150" show-overflow-tooltip>
                 <template #default="{ row }">
-                  <el-tag size="small">{{ row.name }}</el-tag>
+                  <el-tag size="small" class="function-tag">{{ row.name }}</el-tag>
                 </template>
               </el-table-column>
               <el-table-column prop="desc" label="描述" min-width="150" />
@@ -477,7 +486,7 @@
               <el-table-column prop="example" label="示例" min-width="200" show-overflow-tooltip />
               <el-table-column label="操作" width="80" fixed="right">
                 <template #default="{ row }">
-                  <el-button link type="primary" size="small">{{ $t('uiAutomation.testCase.insert') }}</el-button>
+                  <el-button link type="primary" size="small" class="insert-btn">{{ $t('uiAutomation.testCase.insert') }}</el-button>
                 </template>
               </el-table-column>
             </el-table>
@@ -498,405 +507,105 @@ import { ref, reactive, computed, onMounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
-  Search, Plus, Edit, Delete, Check, CaretRight, ArrowUp, ArrowDown, Rank, Picture, Warning, View, ZoomIn, Refresh, WarningFilled, MagicStick, CopyDocument
+  Plus, Search, CaretRight, Edit, CopyDocument, Delete, Check,
+  Rank, ArrowUp, ArrowDown, WarningFilled, Picture, Warning,
+  ZoomIn, View, Refresh, MagicStick
 } from '@element-plus/icons-vue'
 import draggable from 'vuedraggable'
+import {
+  getTestCases,
+  createTestCase,
+  updateTestCase,
+  deleteTestCase as deleteTestCaseApi,
+  getTestCaseDetail,
+  runTestCase as runTestCaseApi,
+  getElements,
+  getUiProjects
+} from '@/api/ui_automation'
 import DataFactorySelector from '@/components/DataFactorySelector.vue'
 
 const { t } = useI18n()
 
-import {
-  getUiProjects,
-  getElements,
-  createTestCase,
-  updateTestCase,
-  deleteTestCase as deleteTestCaseApi,
-  getTestCases,
-  runTestCase as runTestCaseApi,
-  copyTestCase as copyTestCaseApi,
-  getLocatorStrategies
-} from '@/api/ui_automation'
-
-// 响应式数据
+// 项目选择
+const projectId = ref(null)
 const projects = ref([])
-const projectId = ref('')
+
+// 测试用例列表
 const testCases = ref([])
 const selectedTestCase = ref(null)
-const currentSteps = ref([])
-const availableElements = ref([])
 const searchKeyword = ref('')
-const showCreateDialog = ref(false)
-const editingTestCase = ref(null)
+const loading = ref(false)
+
+// 当前步骤
+const currentSteps = ref([])
+const showSteps = ref(true)
+const allStepsExpanded = ref(false)
+
+// 执行相关
+const isRunning = ref(false)
 const executionResult = ref(null)
 const resultActiveTab = ref('logs')
-const allStepsExpanded = ref(false)
-const showSteps = ref(true)
-const showScreenshotPreview = ref(false)
-const currentScreenshot = ref(null)
-const isRunning = ref(false)
-const selectedEngine = ref('playwright')  // 默认使用Playwright
-const selectedBrowser = ref('chrome')  // 默认使用Chrome
-const headlessMode = ref(false)  // 默认使用有头模式
-const showVariableHelper = ref(false)
-const currentEditingStep = ref(null)
-const currentEditingField = ref('')
-const showDataFactorySelector = ref(false)
-const currentStepForDataFactory = ref(null)
-const currentFieldForDataFactory = ref('')
+const selectedEngine = ref('playwright')
+const selectedBrowser = ref('chrome')
+const headlessMode = ref(false)
 
-// 表单数据
+// 可用元素
+const availableElements = ref([])
+
+// 对话框
+const showCreateDialog = ref(false)
+const editingTestCase = ref(null)
 const testCaseForm = reactive({
   name: '',
   description: '',
   priority: 'medium'
 })
 
-// 计算属性
+// 截图预览
+const showScreenshotPreview = ref(false)
+const currentScreenshot = ref(null)
+
+// 变量助手
+const showVariableHelper = ref(false)
+const currentEditingStep = ref(null)
+const currentEditingField = ref('')
+
+// 数据工厂选择器
+const showDataFactorySelector = ref(false)
+const currentStepForDataFactory = ref(null)
+const currentFieldForDataFactory = ref('')
+
+// 过滤后的测试用例
 const filteredTestCases = computed(() => {
   if (!searchKeyword.value) return testCases.value
+  const keyword = searchKeyword.value.toLowerCase()
   return testCases.value.filter(tc =>
-    tc.name.includes(searchKeyword.value) ||
-    tc.description?.includes(searchKeyword.value)
+    tc.name.toLowerCase().includes(keyword) ||
+    (tc.description && tc.description.toLowerCase().includes(keyword))
   )
 })
 
 // 解析执行日志
 const parsedExecutionLogs = computed(() => {
-  if (!executionResult.value || !executionResult.value.logs) return []
+  if (!executionResult.value?.logs) return []
   try {
-    return typeof executionResult.value.logs === 'string'
+    const logs = typeof executionResult.value.logs === 'string'
       ? JSON.parse(executionResult.value.logs)
       : executionResult.value.logs
+    return Array.isArray(logs) ? logs : []
   } catch (e) {
-    console.error('解析执行日志失败:', e)
     return []
   }
 })
 
-// 方法定义
-const loadProjects = async () => {
-  try {
-    const response = await getUiProjects({ page_size: 100 })
-    projects.value = response.data.results || response.data
-  } catch (error) {
-    ElMessage.error(t('uiAutomation.testCase.messages.loadProjectsFailed'))
-    console.error('获取项目列表失败:', error)
-  }
-}
-
-const loadTestCases = async () => {
-  if (!projectId.value) {
-    testCases.value = []
-    return
-  }
-
-  try {
-    const response = await getTestCases({ project: projectId.value })
-    testCases.value = response.data.results || response.data
-  } catch (error) {
-    console.error('获取测试用例失败:', error)
-  }
-}
-
-const loadElements = async () => {
-  if (!projectId.value) {
-    availableElements.value = []
-    return
-  }
-
-  try {
-    const response = await getElements({ project: projectId.value })
-    availableElements.value = response.data.results || response.data
-  } catch (error) {
-    console.error('获取元素列表失败:', error)
-  }
-}
-
-const onProjectChange = async () => {
-  selectedTestCase.value = null
-  currentSteps.value = []
-  executionResult.value = null
-
-  await Promise.all([
-    loadTestCases(),
-    loadElements()
-  ])
-}
-
-const selectTestCase = (testCase) => {
-  // 如果点击的是同一个用例，不做任何处理
-  if (selectedTestCase.value && selectedTestCase.value.id === testCase.id) {
-    return
-  }
-
-  selectedTestCase.value = testCase
-  // 确保步骤数据格式正确，添加前端需要的字段
-  if (testCase.steps && testCase.steps.length > 0) {
-    currentSteps.value = testCase.steps.map(step => ({
-      ...step,
-      element_id: step.element || '',
-      expanded: false
-    }))
-  } else {
-    currentSteps.value = []
-  }
-  // 只有在切换到不同用例时才清空执行结果
-  executionResult.value = null
-  showSteps.value = true
-}
-
-const addStep = () => {
-  const newStep = {
-    id: Date.now(),
-    action_type: 'click',
-    element_id: '',
-    input_value: '',
-    wait_time: 1000,
-    assert_type: 'textContains',
-    assert_value: '',
-    description: '',
-    expanded: true
-  }
-  currentSteps.value.push(newStep)
-}
-
-const removeStep = (index) => {
-  currentSteps.value.splice(index, 1)
-}
-
-const onStepsReorder = () => {
-  // 步骤重新排序后的处理
-  console.log('步骤已重新排序')
-}
-
-const onActionTypeChange = (step) => {
-  // 根据操作类型重置相关参数
-  if (step.action_type !== 'fill') {
-    step.input_value = ''
-  }
-  if (step.action_type !== 'wait') {
-    step.wait_time = 1000
-  }
-  if (step.action_type !== 'assert') {
-    step.assert_type = 'textContains'
-    step.assert_value = ''
-  }
-}
-
-const onElementChange = (step) => {
-  // 元素变化时的处理
-  const element = availableElements.value.find(e => e.id === step.element_id)
-  if (element && !step.description) {
-    step.description = `${getActionTypeText(step.action_type)}${element.name}`
-  }
-}
-
-const needsInputValue = (actionType) => {
-  return ['fill', 'switchTab'].includes(actionType)
-}
-
-const needsWaitTime = (actionType) => {
-  return ['wait', 'waitFor'].includes(actionType)
-}
-
-const needsElement = (actionType) => {
-  return !['wait', 'switchTab', 'screenshot'].includes(actionType)
-}
-
-const expandAllSteps = () => {
-  allStepsExpanded.value = !allStepsExpanded.value
-  currentSteps.value.forEach(step => {
-    step.expanded = allStepsExpanded.value
-  })
-}
-
-const saveTestCase = async () => {
-  if (!selectedTestCase.value) return
-
-  try {
-    const updateData = {
-      ...selectedTestCase.value,
-      steps: currentSteps.value
-    }
-
-    await updateTestCase(selectedTestCase.value.id, updateData)
-    ElMessage.success(t('uiAutomation.testCase.messages.saveSuccess'))
-
-    // 更新本地数据
-    const index = testCases.value.findIndex(tc => tc.id === selectedTestCase.value.id)
-    if (index !== -1) {
-      testCases.value[index] = { ...updateData }
-      selectedTestCase.value = { ...updateData }
-    }
-  } catch (error) {
-    console.error('保存测试用例失败:', error)
-    ElMessage.error(t('uiAutomation.testCase.messages.saveFailed'))
-  }
-}
-
-const runTestCase = async (testCase) => {
-  isRunning.value = true
-  try {
-    const modeText = headlessMode.value ? t('uiAutomation.testCase.headlessMode') : t('uiAutomation.testCase.headedMode')
-    ElMessage.info(`${t('uiAutomation.testCase.messages.startExecution')} (${t('uiAutomation.testCase.selectEngine')}: ${selectedEngine.value.toUpperCase()}, ${t('uiAutomation.testCase.selectBrowser')}: ${selectedBrowser.value.toUpperCase()}, ${modeText})`)
-
-    const response = await runTestCaseApi(testCase.id, {
-      project_id: projectId.value,
-      engine: selectedEngine.value,
-      browser: selectedBrowser.value,
-      headless: headlessMode.value
-    })
-
-    executionResult.value = response.data
-    resultActiveTab.value = 'logs'
-    showSteps.value = false  // 自动切换到结果视图
-
-    if (response.data.success) {
-      ElMessage.success(t('uiAutomation.testCase.messages.executionSuccess'))
-    } else {
-      ElMessage.error(t('uiAutomation.testCase.messages.executionFailed'))
-      // 如果有截图，自动切换到截图标签页
-      if (response.data.screenshots && response.data.screenshots.length > 0) {
-        resultActiveTab.value = 'screenshots'
-      }
-    }
-  } catch (error) {
-    console.error('执行测试用例失败:', error)
-
-    // 即使出错也要设置执行结果,显示错误信息
-    const errorMessage = error.response?.data?.message || error.message || t('uiAutomation.testCase.messages.executionFailed')
-    const errorLogs = error.response?.data?.logs || `${t('uiAutomation.testCase.messages.executionFailed')}\n\n${t('uiAutomation.testCase.errorInfo')}: ${errorMessage}`
-
-    // 格式化错误信息为统一的对象格式
-    const errors = error.response?.data?.errors || [{
-      message: errorMessage,
-      details: error.stack || '',
-      step_number: null,
-      action_type: '',
-      element: '',
-      description: ''
-    }]
-
-    executionResult.value = {
-      success: false,
-      logs: errorLogs,
-      screenshots: error.response?.data?.screenshots || [],
-      execution_time: 0,
-      errors: errors
-    }
-    resultActiveTab.value = 'logs'
-    showSteps.value = false  // 切换到结果视图显示错误
-
-    ElMessage.error(`${t('uiAutomation.testCase.messages.executionFailed')}: ${errorMessage}`)
-  } finally {
-    isRunning.value = false
-  }
-}
-
-const toggleView = () => {
-  showSteps.value = !showSteps.value
-}
-
-const editTestCase = (testCase) => {
-  editingTestCase.value = testCase
-  testCaseForm.name = testCase.name
-  testCaseForm.description = testCase.description || ''
-  testCaseForm.priority = testCase.priority || 'medium'
-  showCreateDialog.value = true
-}
-
-const deleteTestCase = async (testCase) => {
-  try {
-    await ElMessageBox.confirm(
-      t('uiAutomation.testCase.messages.deleteConfirm', { name: testCase.name }),
-      t('uiAutomation.testCase.messages.confirmDelete'),
-      {
-        confirmButtonText: t('uiAutomation.common.confirm'),
-        cancelButtonText: t('uiAutomation.common.cancel'),
-        type: 'warning'
-      }
-    )
-
-    await deleteTestCaseApi(testCase.id)
-    ElMessage.success(t('uiAutomation.testCase.messages.deleteSuccess'))
-
-    // 从列表中移除
-    const index = testCases.value.findIndex(tc => tc.id === testCase.id)
-    if (index !== -1) {
-      testCases.value.splice(index, 1)
-    }
-
-    // 如果删除的是当前选中的用例，清空选择
-    if (selectedTestCase.value?.id === testCase.id) {
-      selectedTestCase.value = null
-      currentSteps.value = []
-      executionResult.value = null
-    }
-  } catch (error) {
-    if (error !== 'cancel') {
-      console.error('删除测试用例失败:', error)
-      ElMessage.error(t('uiAutomation.testCase.messages.deleteFailed'))
-    }
-  }
-}
-
-const copyTestCase = async (testCase) => {
-  try {
-    await ElMessageBox.confirm(
-      t('uiAutomation.testCase.messages.copyConfirm', { name: testCase.name }),
-      t('uiAutomation.testCase.messages.confirmCopy'),
-      {
-        confirmButtonText: t('uiAutomation.common.confirm'),
-        cancelButtonText: t('uiAutomation.common.cancel'),
-        type: 'info'
-      }
-    )
-
-    const response = await copyTestCaseApi(testCase.id)
-    ElMessage.success(t('uiAutomation.testCase.messages.copySuccess'))
-
-    // 找到原用例的位置
-    const index = testCases.value.findIndex(tc => tc.id === testCase.id)
-    if (index !== -1) {
-      // 在原用例下方插入新用例
-      testCases.value.splice(index + 1, 0, response.data)
-    } else {
-      // 如果找不到，就添加到末尾
-      testCases.value.push(response.data)
-    }
-  } catch (error) {
-    if (error !== 'cancel') {
-      console.error('复制测试用例失败:', error)
-      ElMessage.error(t('uiAutomation.testCase.messages.copyFailed'))
-    }
-  }
-}
-
+// 变量分类
 const variableCategoriesComputed = computed(() => [
   {
-    label: t('uiAutomation.testCase.variableCategories.randomNumber'),
+    label: t('uiAutomation.testCase.variableCategories.string'),
     variables: [
-      { name: 'random_int', syntax: '${random_int(min, max, count)}', desc: '生成随机整数', example: '${random_int(100, 999, 1)}' },
-      { name: 'random_float', syntax: '${random_float(min, max, precision, count)}', desc: '生成随机浮点数', example: '${random_float(0, 1, 2, 1)}' },
-      { name: 'random_boolean', syntax: '${random_boolean(count)}', desc: '生成随机布尔值', example: '${random_boolean(1)}' },
-      { name: 'random_date', syntax: '${random_date(start_date, end_date, count, date_format)}', desc: '生成随机日期', example: '${random_date("2024-01-01", "2024-12-31", 1, "%Y-%m-%d")}' }
-    ]
-  },
-  {
-    label: t('uiAutomation.testCase.variableCategories.randomString'),
-    variables: [
-      { name: 'random_string', syntax: '${random_string(length, char_type, count)}', desc: '生成随机字符串', example: '${random_string(8, "all", 1)}' },
-      { name: 'random_uuid', syntax: '${random_uuid(version, count)}', desc: '生成UUID', example: '${random_uuid(4, 1)}' },
-      { name: 'random_mac_address', syntax: '${random_mac_address(separator, count)}', desc: '生成MAC地址', example: '${random_mac_address(":", 1)}' },
-      { name: 'random_ip_address', syntax: '${random_ip_address(ip_version, count)}', desc: '生成IP地址', example: '${random_ip_address(4, 1)}' },
-      { name: 'random_sequence', syntax: '${random_sequence(sequence, count, unique)}', desc: '从序列中随机选择', example: '${random_sequence(["a","b","c"], 1, false)}' }
-    ]
-  },
-  {
-    label: '字符工具',
-    variables: [
-      { name: 'remove_whitespace', syntax: '${remove_whitespace(text)}', desc: '去除空格换行', example: '${remove_whitespace("hello world")}' },
-      { name: 'replace_string', syntax: '${replace_string(text, old_str, new_str, is_regex)}', desc: '字符串替换', example: '${replace_string("hello world", "world", "test", false)}' },
+      { name: 'random_string', syntax: '${random_string(length)}', desc: '生成随机字符串', example: '${random_string(10)}' },
+      { name: 'random_number', syntax: '${random_number(min, max)}', desc: '生成随机数字', example: '${random_number(1, 100)}' },
+      { name: 'random_uuid', syntax: '${random_uuid()}', desc: '生成UUID', example: '${random_uuid()}' },
       { name: 'word_count', syntax: '${word_count(text)}', desc: '字数统计', example: '${word_count("hello world")}' },
       { name: 'regex_test', syntax: '${regex_test(pattern, text, flags)}', desc: '正则测试', example: '${regex_test("^[a-z]+\\d+$", "hello123", "gi")}' },
       { name: 'case_convert', syntax: '${case_convert(text, convert_type)}', desc: '大小写转换', example: '${case_convert("hello", "upper")}' },
@@ -998,884 +707,1275 @@ const handleDataFactorySelect = (record) => {
 
     if (typeof record.output_data === 'string') {
       valueToSet = record.output_data
-    } else if (record.output_data.result) {
-      valueToSet = record.output_data.result
-    } else if (record.output_data.output_data) {
-      valueToSet = record.output_data.output_data
-    } else {
+    } else if (typeof record.output_data === 'object') {
       valueToSet = JSON.stringify(record.output_data)
     }
 
     step[field] = valueToSet
-    ElMessage.success(`已引用数据工厂数据: ${record.tool_name}`)
+    ElMessage.success(`已引用数据: ${record.name}`)
   }
-
-  showDataFactorySelector.value = false
 }
 
-const insertVariable = (variable) => {
+const insertVariable = (row) => {
   if (currentEditingStep.value && currentEditingField.value) {
-    const example = variable.example
     const currentValue = currentEditingStep.value[currentEditingField.value] || ''
-
-    // 简单起见，这里直接追加到末尾，或者如果为空则替换
-    if (!currentValue) {
-      currentEditingStep.value[currentEditingField.value] = example
-    } else {
-      currentEditingStep.value[currentEditingField.value] = currentValue + example
-    }
-
-    ElMessage.success(`${t('uiAutomation.testCase.messages.variableInserted')}: ${variable.name}`)
+    currentEditingStep.value[currentEditingField.value] = currentValue + row.syntax
     showVariableHelper.value = false
+    ElMessage.success(`已插入变量: ${row.name}`)
   }
 }
 
+// 加载项目列表
+const loadProjects = async () => {
+  try {
+    const response = await getUiProjects()
+    projects.value = response.data.results || response.data
+    if (projects.value.length > 0 && !projectId.value) {
+      projectId.value = projects.value[0].id
+      await onProjectChange(projectId.value)
+    }
+  } catch (error) {
+    console.error('加载项目失败:', error)
+    ElMessage.error('加载项目失败')
+  }
+}
+
+// 项目切换
+const onProjectChange = async (id) => {
+  projectId.value = id
+  selectedTestCase.value = null
+  executionResult.value = null
+  await loadTestCases()
+  await loadElements()
+}
+
+// 加载测试用例
+const loadTestCases = async () => {
+  if (!projectId.value) return
+  loading.value = true
+  try {
+    const response = await getTestCases({ project: projectId.value })
+    testCases.value = response.data.results || response.data
+  } catch (error) {
+    console.error('加载测试用例失败:', error)
+    ElMessage.error('加载测试用例失败')
+  } finally {
+    loading.value = false
+  }
+}
+
+// 加载元素
+const loadElements = async () => {
+  if (!projectId.value) return
+  try {
+    const response = await getElements({ project: projectId.value })
+    availableElements.value = response.data.results || response.data
+  } catch (error) {
+    console.error('加载元素失败:', error)
+  }
+}
+
+// 选择测试用例
+const selectTestCase = async (testCase) => {
+  selectedTestCase.value = testCase
+  executionResult.value = null
+  showSteps.value = true
+  try {
+    const response = await getTestCaseDetail(testCase.id)
+    currentSteps.value = (response.data.steps || []).map(step => ({
+      ...step,
+      expanded: false
+    }))
+  } catch (error) {
+    console.error('加载测试用例详情失败:', error)
+    ElMessage.error('加载测试用例详情失败')
+  }
+}
+
+// 添加步骤
+const addStep = () => {
+  currentSteps.value.push({
+    id: Date.now(),
+    action_type: 'click',
+    element_id: null,
+    input_value: '',
+    wait_time: 1000,
+    description: '',
+    expanded: true
+  })
+}
+
+// 删除步骤
+const removeStep = (index) => {
+  currentSteps.value.splice(index, 1)
+}
+
+// 步骤重排
+const onStepsReorder = () => {
+  // 步骤顺序已在 v-model 中更新
+}
+
+// 展开/折叠所有步骤
+const expandAllSteps = () => {
+  allStepsExpanded.value = !allStepsExpanded.value
+  currentSteps.value.forEach(step => {
+    step.expanded = allStepsExpanded.value
+  })
+}
+
+// 操作类型改变
+const onActionTypeChange = (step) => {
+  // 根据操作类型重置相关字段
+  if (!needsElement(step.action_type)) {
+    step.element_id = null
+  }
+  if (!needsInputValue(step.action_type)) {
+    step.input_value = ''
+  }
+}
+
+// 元素改变
+const onElementChange = (step) => {
+  const element = availableElements.value.find(e => e.id === step.element_id)
+  if (element && !step.description) {
+    step.description = `${element.name}`
+  }
+}
+
+// 判断是否需要元素
+const needsElement = (actionType) => {
+  return ['click', 'fill', 'getText', 'waitFor', 'hover', 'assert'].includes(actionType)
+}
+
+// 判断是否需要输入值
+const needsInputValue = (actionType) => {
+  return ['fill', 'wait', 'switchTab'].includes(actionType)
+}
+
+// 判断是否需要等待时间
+const needsWaitTime = (actionType) => {
+  return actionType === 'wait'
+}
+
+// 保存测试用例
+const saveTestCase = async () => {
+  if (!selectedTestCase.value) return
+  try {
+    const data = {
+      name: selectedTestCase.value.name,
+      description: selectedTestCase.value.description,
+      steps: currentSteps.value.map((step, index) => ({
+        ...step,
+        order: index
+      }))
+    }
+    await updateTestCase(selectedTestCase.value.id, data)
+    ElMessage.success('保存成功')
+    await loadTestCases()
+  } catch (error) {
+    console.error('保存测试用例失败:', error)
+    ElMessage.error('保存失败')
+  }
+}
+
+// 运行测试用例
+const runTestCase = async (testCase) => {
+  isRunning.value = true
+  executionResult.value = null
+  try {
+    const response = await runTestCaseApi(testCase.id, {
+      engine: selectedEngine.value,
+      browser: selectedBrowser.value,
+      headless: headlessMode.value
+    })
+    executionResult.value = response.data
+    showSteps.value = false
+    ElMessage.success('执行完成')
+  } catch (error) {
+    console.error('运行测试用例失败:', error)
+    ElMessage.error('运行失败')
+  } finally {
+    isRunning.value = false
+  }
+}
+
+// 切换视图
+const toggleView = () => {
+  showSteps.value = !showSteps.value
+}
+
+// 编辑测试用例
+const editTestCase = (testCase) => {
+  editingTestCase.value = testCase
+  testCaseForm.name = testCase.name
+  testCaseForm.description = testCase.description
+  testCaseForm.priority = testCase.priority || 'medium'
+  showCreateDialog.value = true
+}
+
+// 复制测试用例
+const copyTestCase = async (testCase) => {
+  try {
+    const response = await getTestCaseDetail(testCase.id)
+    const detail = response.data
+    const data = {
+      name: `${detail.name} - 复制`,
+      description: detail.description,
+      priority: detail.priority,
+      project_id: projectId.value,
+      steps: detail.steps || []
+    }
+    await createTestCase(data)
+    ElMessage.success('复制成功')
+    await loadTestCases()
+  } catch (error) {
+    console.error('复制测试用例失败:', error)
+    ElMessage.error('复制失败')
+  }
+}
+
+// 删除测试用例
+const deleteTestCase = async (testCase) => {
+  try {
+    await ElMessageBox.confirm('确定要删除这个测试用例吗？', '提示', {
+      type: 'warning'
+    })
+    await deleteTestCaseApi(testCase.id)
+    ElMessage.success('删除成功')
+    if (selectedTestCase.value?.id === testCase.id) {
+      selectedTestCase.value = null
+      currentSteps.value = []
+    }
+    await loadTestCases()
+  } catch (error) {
+    if (error !== 'cancel') {
+      console.error('删除测试用例失败:', error)
+      ElMessage.error('删除失败')
+    }
+  }
+}
+
+// 保存测试用例表单
 const saveTestCaseForm = async () => {
-  if (!testCaseForm.name.trim()) {
-    ElMessage.warning(t('uiAutomation.testCase.messages.enterCaseName'))
+  if (!testCaseForm.name) {
+    ElMessage.warning('请输入用例名称')
     return
   }
-
+  if (!projectId.value) {
+    ElMessage.warning('请先选择一个项目')
+    return
+  }
   try {
     const data = {
       name: testCaseForm.name,
       description: testCaseForm.description,
       priority: testCaseForm.priority,
-      project: projectId.value,
+      project_id: projectId.value,
       steps: []
     }
-
     if (editingTestCase.value) {
-      // 编辑现有用例
       await updateTestCase(editingTestCase.value.id, data)
-      ElMessage.success(t('uiAutomation.testCase.messages.updateSuccess'))
-
-      // 更新本地数据
-      const index = testCases.value.findIndex(tc => tc.id === editingTestCase.value.id)
-      if (index !== -1) {
-        testCases.value[index] = { ...testCases.value[index], ...data }
-      }
+      ElMessage.success('更新成功')
     } else {
-      // 创建新用例
-      const response = await createTestCase(data)
-      ElMessage.success(t('uiAutomation.testCase.messages.createSuccess'))
-      testCases.value.push(response.data)
+      await createTestCase(data)
+      ElMessage.success('创建成功')
     }
-
     showCreateDialog.value = false
     editingTestCase.value = null
-    resetForm()
+    testCaseForm.name = ''
+    testCaseForm.description = ''
+    testCaseForm.priority = 'medium'
+    await loadTestCases()
   } catch (error) {
     console.error('保存测试用例失败:', error)
-    ElMessage.error(t('uiAutomation.testCase.messages.createFailed'))
+    ElMessage.error('保存失败')
   }
 }
 
-const resetForm = () => {
-  testCaseForm.name = ''
-  testCaseForm.description = ''
-  testCaseForm.priority = 'medium'
-}
-
-// 辅助方法
-const getStatusTag = (status) => {
-  const tagMap = {
-    'draft': 'info',
-    'ready': 'success',
-    'running': 'warning',
-    'passed': 'success',
-    'failed': 'danger'
-  }
-  return tagMap[status] || 'info'
-}
-
-const getStatusText = (status) => {
-  const textMap = {
-    'draft': '草稿',
-    'ready': '就绪',
-    'running': '执行中',
-    'passed': '通过',
-    'failed': '失败'
-  }
-  return textMap[status] || '未知'
-}
-
-const getActionTypeText = (actionType) => {
-  const textMap = {
-    'click': t('uiAutomation.actionTypes.click'),
-    'fill': t('uiAutomation.actionTypes.fill'),
-    'getText': t('uiAutomation.actionTypes.getText'),
-    'waitFor': t('uiAutomation.actionTypes.waitFor'),
-    'hover': t('uiAutomation.actionTypes.hover'),
-    'scroll': t('uiAutomation.actionTypes.scroll'),
-    'screenshot': t('uiAutomation.actionTypes.screenshot'),
-    'assert': t('uiAutomation.actionTypes.assert'),
-    'wait': t('uiAutomation.actionTypes.wait')
-  }
-  return textMap[actionType] || actionType
-}
-
-const formatTime = (timestamp) => {
-  if (!timestamp) return ''
-  const date = new Date(timestamp)
-  return date.toLocaleString()
-}
-
-// 获取操作类型文本
-const getActionText = (actionType) => {
-  const actionMap = {
-    'click': t('uiAutomation.actionTypes.click'),
-    'fill': t('uiAutomation.actionTypes.fill'),
-    'getText': t('uiAutomation.actionTypes.getText'),
-    'waitFor': t('uiAutomation.actionTypes.waitFor'),
-    'hover': t('uiAutomation.actionTypes.hover'),
-    'scroll': t('uiAutomation.actionTypes.scroll'),
-    'screenshot': t('uiAutomation.actionTypes.screenshot'),
-    'assert': t('uiAutomation.actionTypes.assert'),
-    'wait': t('uiAutomation.actionTypes.wait')
-  }
-  return actionMap[actionType] || actionType
-}
-
-// 图片处理方法
-const handleImageError = (event) => {
-  const img = event.target
-  const screenshotIndex = parseInt(img.dataset.index)
-  if (executionResult.value && executionResult.value.screenshots) {
-    executionResult.value.screenshots[screenshotIndex].error = true
-    executionResult.value.screenshots[screenshotIndex].loaded = true
-  }
-}
-
-const handleImageLoad = (event) => {
-  const img = event.target
-  const screenshotIndex = parseInt(img.dataset.index)
-  if (executionResult.value && executionResult.value.screenshots) {
-    executionResult.value.screenshots[screenshotIndex].loaded = true
-    executionResult.value.screenshots[screenshotIndex].error = false
-  }
-}
-
+// 预览截图
 const previewScreenshot = (screenshot) => {
   currentScreenshot.value = screenshot
   showScreenshotPreview.value = true
 }
 
-// 组件挂载
-onMounted(async () => {
-  await loadProjects()
-
-  if (projects.value.length > 0) {
-    projectId.value = projects.value[0].id
-    await onProjectChange()
+// 处理图片加载错误
+const handleImageError = (event) => {
+  const index = event.target.dataset.index
+  if (executionResult.value?.screenshots?.[index]) {
+    executionResult.value.screenshots[index].error = true
   }
+}
+
+// 处理图片加载成功
+const handleImageLoad = (event) => {
+  const index = event.target.dataset.index
+  if (executionResult.value?.screenshots?.[index]) {
+    executionResult.value.screenshots[index].loaded = true
+  }
+}
+
+// 获取操作文本
+const getActionText = (actionType) => {
+  const actionMap = {
+    click: '点击',
+    fill: '输入',
+    getText: '获取文本',
+    waitFor: '等待元素',
+    hover: '悬停',
+    scroll: '滚动',
+    screenshot: '截图',
+    assert: '断言',
+    wait: '等待',
+    switchTab: '切换标签'
+  }
+  return actionMap[actionType] || actionType
+}
+
+// 格式化时间
+const formatTime = (time) => {
+  if (!time) return ''
+  const date = new Date(time)
+  return date.toLocaleString('zh-CN')
+}
+
+// 监听对话框关闭
+watch(showCreateDialog, (val) => {
+  if (!val) {
+    editingTestCase.value = null
+    testCaseForm.name = ''
+    testCaseForm.description = ''
+    testCaseForm.priority = 'medium'
+  }
+})
+
+onMounted(() => {
+  loadProjects()
 })
 </script>
 
-<style scoped>
-.test-case-manager {
-  height: 100vh;
+<style scoped lang="scss">
+.page-container {
+  padding: 24px;
+  min-height: calc(100vh - 60px);
+  background: linear-gradient(135deg, #f5f3ff 0%, #ede9fe 100%);
   display: flex;
   flex-direction: column;
+  gap: 20px;
 }
 
 .page-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 20px;
-  border-bottom: 1px solid #e6e6e6;
-  background: white;
+  padding: 24px 28px;
+  background: linear-gradient(135deg, #ffffff 0%, #f8f7ff 100%);
+  border-radius: 12px;
+  box-shadow: 0 4px 16px rgba(147, 112, 219, 0.1);
+  border: 1px solid rgba(147, 112, 219, 0.1);
+
+  .page-title {
+    font-size: 24px;
+    font-weight: 700;
+    color: #5a32a3;
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: linear-gradient(135deg, #7b42f6 0%, #5a32a3 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .header-actions {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+
+    .project-select {
+      :deep(.el-input__wrapper) {
+        border-radius: 8px;
+        border: 1px solid rgba(147, 112, 219, 0.3);
+        box-shadow: none;
+
+        &:hover, &.is-focus {
+          border-color: #7b42f6;
+          box-shadow: 0 0 0 3px rgba(123, 66, 246, 0.1);
+        }
+      }
+    }
+
+    .el-button {
+      border-radius: 8px;
+      padding: 10px 20px;
+      font-weight: 600;
+      transition: all 0.3s ease;
+
+      &.el-button--primary {
+        background: linear-gradient(135deg, #7b42f6 0%, #5a32a3 100%);
+        border: none;
+        box-shadow: 0 4px 12px rgba(123, 66, 246, 0.3);
+
+        &:hover {
+          transform: translateY(-2px);
+          box-shadow: 0 6px 20px rgba(123, 66, 246, 0.4);
+        }
+
+        .el-icon {
+          margin-right: 6px;
+        }
+      }
+    }
+  }
 }
 
-.page-title {
-  margin: 0;
-  font-size: 24px;
-}
-
-.header-actions {
+.card-container {
+  background: #ffffff;
+  border: 1px solid rgba(147, 112, 219, 0.12);
+  border-radius: 12px;
+  box-shadow: 0 4px 16px rgba(147, 112, 219, 0.08);
   display: flex;
-  align-items: center;
-}
-
-.main-content {
-  flex: 1;
-  display: flex;
+  flex-direction: column;
   overflow: hidden;
+  padding-top: 16px;
+}
+
+.test-case-layout {
+  display: flex;
 }
 
 .left-panel {
-  width: 350px;
-  border-right: 1px solid #e6e6e6;
-  background: white;
+  width: 380px;
+  border-right: 1px solid rgba(147, 112, 219, 0.15);
   display: flex;
   flex-direction: column;
-}
+  background: linear-gradient(180deg, #faf8ff 0%, #f5f3ff 100%);
 
-.panel-header {
-  padding: 15px;
-  border-bottom: 1px solid #e6e6e6;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
+  .panel-header {
+    padding: 20px;
+    border-bottom: 1px solid rgba(147, 112, 219, 0.15);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: #ffffff;
 
-.panel-header h3 {
-  margin: 0;
-}
+    .panel-title {
+      margin: 0;
+      font-size: 16px;
+      font-weight: 600;
+      color: #5a32a3;
+    }
 
-.test-case-list {
-  flex: 1;
-  overflow-y: auto;
-  padding: 10px;
-}
+    :deep(.el-input__wrapper) {
+      border-radius: 8px;
+      border: 1px solid rgba(147, 112, 219, 0.3);
+      box-shadow: none;
 
-.test-case-item {
-  border: 1px solid #e6e6e6;
-  border-radius: 6px;
-  margin-bottom: 10px;
-  padding: 15px;
-  cursor: pointer;
-  transition: all 0.3s;
-}
+      &:hover, &.is-focus {
+        border-color: #7b42f6;
+        box-shadow: 0 0 0 3px rgba(123, 66, 246, 0.1);
+      }
+    }
+  }
 
-.test-case-item:hover {
-  border-color: #409eff;
-  box-shadow: 0 2px 8px rgba(64, 158, 255, 0.1);
-}
+  .test-case-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px;
 
-.test-case-item.active {
-  border-color: #409eff;
-  background-color: #f0f8ff;
-}
+    .test-case-item {
+      background: #ffffff;
+      border: 1px solid rgba(147, 112, 219, 0.15);
+      border-radius: 10px;
+      margin-bottom: 12px;
+      padding: 16px;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      box-shadow: 0 2px 8px rgba(147, 112, 219, 0.05);
 
-.case-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  margin-bottom: 10px;
-}
+      &:hover {
+        border-color: #7b42f6;
+        box-shadow: 0 4px 16px rgba(123, 66, 246, 0.15);
+        transform: translateY(-2px);
+      }
 
-.case-info {
-  flex: 1;
-}
+      &.active {
+        border-color: #7b42f6;
+        background: linear-gradient(135deg, #f8f7ff 0%, #f0edff 100%);
+        box-shadow: 0 4px 16px rgba(123, 66, 246, 0.2);
+      }
 
-.case-name {
-  margin: 0 0 5px 0;
-  font-size: 16px;
-  font-weight: 600;
-}
+      .case-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        margin-bottom: 12px;
 
-.case-description {
-  margin: 0;
-  color: #666;
-  font-size: 14px;
-  line-height: 1.4;
-}
+        .case-info {
+          flex: 1;
 
-.case-actions {
-  display: flex;
-  gap: 5px;
-}
+          .case-name {
+            margin: 0 0 6px 0;
+            font-size: 15px;
+            font-weight: 600;
+            color: #5a32a3;
+          }
 
-.case-meta {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  font-size: 12px;
-  color: #888;
-}
+          .case-description {
+            margin: 0;
+            color: #666;
+            font-size: 13px;
+            line-height: 1.4;
+          }
+        }
 
-.step-count {
-  color: #409eff;
-  font-weight: 500;
+        .case-actions {
+          display: flex;
+          gap: 4px;
+
+          .action-icon-btn {
+            padding: 6px;
+            border-radius: 6px;
+            transition: all 0.3s ease;
+
+            &.run-btn {
+              background: linear-gradient(135deg, #67c23a 0%, #529b2e 100%);
+              border: none;
+              color: white;
+
+              &:hover {
+                transform: translateY(-1px);
+                box-shadow: 0 2px 8px rgba(103, 194, 58, 0.3);
+              }
+            }
+
+            &.edit-btn {
+              background: rgba(123, 66, 246, 0.1);
+              border: 1px solid rgba(123, 66, 246, 0.3);
+              color: #7b42f6;
+
+              &:hover {
+                background: rgba(123, 66, 246, 0.2);
+              }
+            }
+
+            &.copy-btn {
+              background: rgba(144, 147, 153, 0.1);
+              border: 1px solid rgba(144, 147, 153, 0.3);
+              color: #606266;
+
+              &:hover {
+                background: rgba(144, 147, 153, 0.2);
+              }
+            }
+
+            &.delete-btn {
+              background: rgba(245, 108, 108, 0.1);
+              border: 1px solid rgba(245, 108, 108, 0.3);
+              color: #f56c6c;
+
+              &:hover {
+                background: rgba(245, 108, 108, 0.2);
+              }
+            }
+          }
+        }
+      }
+
+      .case-meta {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        font-size: 12px;
+        color: #888;
+
+        .step-count {
+          color: #7b42f6;
+          font-weight: 600;
+          background: rgba(123, 66, 246, 0.1);
+          padding: 2px 8px;
+          border-radius: 10px;
+        }
+      }
+    }
+  }
 }
 
 .right-panel {
   flex: 1;
-  background: white;
+  background: #ffffff;
   display: flex;
   flex-direction: column;
-}
-
-.test-case-detail {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  padding: 20px;
   overflow: hidden;
-  height: 100%;
-}
 
-.detail-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 20px;
-  padding-bottom: 15px;
-  border-bottom: 1px solid #e6e6e6;
-}
-
-.detail-header h3 {
-  margin: 0;
-}
-
-.detail-actions {
-  display: flex;
-  gap: 10px;
-}
-
-.steps-container {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-  margin-bottom: 20px;
-  border: 1px solid #e6e6e6;
-  border-radius: 6px;
-  background: #fafafa;
-  overflow: hidden;
-}
-
-.steps-container.has-steps {
-  max-height: 50%;
-}
-
-.steps-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 15px;
-}
-
-.steps-header h4 {
-  margin: 0;
-}
-
-.steps-list {
-  padding: 10px;
-  padding-bottom: 20px;
-}
-
-.steps-scroll-container {
-  overflow-y: auto;
-  flex: 1;
-  min-height: 0;
-  padding: 10px;
-  padding-right: 5px;
-}
-
-.steps-scroll-container::-webkit-scrollbar {
-  width: 6px;
-}
-
-.steps-scroll-container::-webkit-scrollbar-track {
-  background: #f5f5f5;
-  border-radius: 3px;
-}
-
-.steps-scroll-container::-webkit-scrollbar-thumb {
-  background: #ccc;
-  border-radius: 3px;
-}
-
-.steps-scroll-container::-webkit-scrollbar-thumb:hover {
-  background: #999;
-}
-
-.step-item {
-  border: 1px solid #e6e6e6;
-  border-radius: 6px;
-  margin-bottom: 10px;
-  background: white;
-  transition: all 0.3s;
-}
-
-.step-item:hover {
-  border-color: #409eff;
-}
-
-.step-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 12px 15px;
-  background: #fafafa;
-  border-radius: 6px 6px 0 0;
-}
-
-.step-left {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.drag-handle {
-  cursor: move;
-  color: #999;
-}
-
-.step-number {
-  background: #409eff;
-  color: white;
-  width: 24px;
-  height: 24px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 12px;
-  font-weight: bold;
-}
-
-.step-right {
-  display: flex;
-  gap: 5px;
-}
-
-.step-content {
-  padding: 15px;
-  border-top: 1px solid #e6e6e6;
-}
-
-.step-param {
-  display: flex;
-  align-items: center;
-  margin-bottom: 10px;
-  gap: 10px;
-}
-
-.step-param label {
-  width: 120px;
-  font-weight: 500;
-  color: #333;
-}
-
-.execution-result {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-  border: 1px solid #e6e6e6;
-  border-radius: 6px;
-  background: white;
-  overflow: hidden;
-}
-
-.execution-result.with-steps {
-  margin-top: 0;
-}
-
-.execution-result .result-header {
-  padding: 15px;
-  border-bottom: 1px solid #e6e6e6;
-  background: #fafafa;
-  border-radius: 6px 6px 0 0;
-}
-
-.execution-result .result-content {
-  flex: 1;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  padding: 15px;
-}
-
-.result-content {
-  flex: 1;
-  overflow: hidden;
-}
-
-/* 为el-tabs和el-tab-pane添加flex布局支持 */
-.result-content :deep(.el-tabs) {
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-}
-
-.result-content :deep(.el-tabs__content) {
-  flex: 1;
-  min-height: 0;
-  overflow: hidden;
-}
-
-.result-content :deep(.el-tab-pane) {
-  height: 100%;
-  overflow: auto;
-}
-
-/* .result-header 已在 .execution-result 中定义 */
-
-.result-header h4 {
-  margin: 0;
-}
-
-.logs-container {
-  max-height: 500px;
-  overflow-y: auto;
-  background: #f5f7fa;
-  padding: 15px;
-  border-radius: 4px;
-}
-
-.log-item {
-  margin-bottom: 15px;
-  padding: 12px;
-  background: white;
-  border-radius: 4px;
-  border-left: 3px solid #409eff;
-}
-
-.log-item:last-child {
-  margin-bottom: 0;
-}
-
-.log-header {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-bottom: 8px;
-}
-
-.log-action {
-  font-weight: 500;
-  color: #606266;
-}
-
-.log-desc {
-  color: #909399;
-  font-size: 14px;
-}
-
-.log-error {
-  display: flex;
-  align-items: flex-start;  /* 改为 flex-start，适配多行文本 */
-  gap: 8px;
-  color: #f56c6c;
-  background: #fef0f0;
-  padding: 8px 12px;
-  border-radius: 4px;
-  margin-top: 8px;
-  font-size: 14px;
-
-  .error-message {
-    margin: 0;
-    padding: 0;
-    font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
-    font-size: 13px;
-    line-height: 1.6;
-    white-space: pre-wrap;  /* 保留换行符和空格 */
-    word-break: break-word;  /* 长单词换行 */
+  .test-case-detail {
     flex: 1;
+    display: flex;
+    flex-direction: column;
+    padding: 24px;
+    overflow: hidden;
+    height: 100%;
+
+    .detail-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+      padding-bottom: 16px;
+      border-bottom: 1px solid rgba(147, 112, 219, 0.15);
+      flex-wrap: wrap;
+      gap: 12px;
+
+      .detail-title {
+        margin: 0;
+        font-size: 18px;
+        font-weight: 600;
+        color: #5a32a3;
+      }
+
+      .detail-actions {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+        align-items: center;
+
+        .btn-secondary {
+          background: #ffffff;
+          border: 1px solid rgba(147, 112, 219, 0.4);
+          color: #5a32a3;
+          border-radius: 6px;
+
+          &:hover {
+            background: #f8f7ff;
+            border-color: #7b42f6;
+            color: #7b42f6;
+          }
+        }
+
+        .run-btn {
+          background: linear-gradient(135deg, #67c23a 0%, #529b2e 100%);
+          border: none;
+          border-radius: 6px;
+
+          &:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(103, 194, 58, 0.3);
+          }
+        }
+
+        .config-select {
+          :deep(.el-input__wrapper) {
+            border-radius: 6px;
+            border: 1px solid rgba(147, 112, 219, 0.3);
+          }
+        }
+      }
+    }
+
+    .steps-container {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+      margin-bottom: 20px;
+      border: 1px solid rgba(147, 112, 219, 0.15);
+      border-radius: 10px;
+      background: linear-gradient(180deg, #faf8ff 0%, #f5f3ff 100%);
+      overflow: hidden;
+
+      .steps-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 16px 20px;
+        border-bottom: 1px solid rgba(147, 112, 219, 0.15);
+        background: #ffffff;
+
+        .steps-title {
+          margin: 0;
+          font-size: 16px;
+          font-weight: 600;
+          color: #5a32a3;
+        }
+
+        .btn-text {
+          color: #7b42f6;
+
+          &:hover {
+            color: #5a32a3;
+          }
+        }
+      }
+
+      .steps-scroll-container {
+        overflow-y: auto;
+        flex: 1;
+        min-height: 0;
+        padding: 16px;
+
+        &::-webkit-scrollbar {
+          width: 6px;
+        }
+
+        &::-webkit-scrollbar-track {
+          background: #f5f5f5;
+          border-radius: 3px;
+        }
+
+        &::-webkit-scrollbar-thumb {
+          background: #ccc;
+          border-radius: 3px;
+
+          &:hover {
+            background: #999;
+          }
+        }
+      }
+
+      .steps-list {
+        .step-item {
+          background: #ffffff;
+          border: 1px solid rgba(147, 112, 219, 0.15);
+          border-radius: 10px;
+          margin-bottom: 12px;
+          box-shadow: 0 2px 8px rgba(147, 112, 219, 0.05);
+          transition: all 0.3s ease;
+
+          &:hover {
+            border-color: #7b42f6;
+            box-shadow: 0 4px 12px rgba(123, 66, 246, 0.1);
+          }
+
+          .step-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 16px;
+            background: linear-gradient(135deg, #faf8ff 0%, #f5f3ff 100%);
+            border-radius: 10px 10px 0 0;
+
+            .step-left {
+              display: flex;
+              align-items: center;
+              gap: 10px;
+
+              .drag-handle {
+                cursor: move;
+                color: #9370db;
+              }
+
+              .step-number {
+                background: linear-gradient(135deg, #7b42f6 0%, #5a32a3 100%);
+                color: white;
+                width: 26px;
+                height: 26px;
+                border-radius: 50%;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                font-size: 12px;
+                font-weight: bold;
+              }
+
+              .action-select,
+              .element-select {
+                :deep(.el-input__wrapper) {
+                  border-radius: 6px;
+                  border: 1px solid rgba(147, 112, 219, 0.3);
+                }
+              }
+            }
+
+            .step-right {
+              display: flex;
+              gap: 6px;
+
+              .btn-icon {
+                padding: 6px;
+                border-radius: 6px;
+                background: rgba(147, 112, 219, 0.1);
+                border: 1px solid rgba(147, 112, 219, 0.2);
+                color: #7b42f6;
+
+                &:hover {
+                  background: rgba(147, 112, 219, 0.2);
+                }
+
+                &.delete {
+                  background: rgba(245, 108, 108, 0.1);
+                  border-color: rgba(245, 108, 108, 0.2);
+                  color: #f56c6c;
+
+                  &:hover {
+                    background: rgba(245, 108, 108, 0.2);
+                  }
+                }
+              }
+            }
+          }
+
+          .step-content {
+            padding: 16px;
+            border-top: 1px solid rgba(147, 112, 219, 0.1);
+
+            .step-param {
+              display: flex;
+              align-items: center;
+              margin-bottom: 12px;
+              gap: 10px;
+
+              &:last-child {
+                margin-bottom: 0;
+              }
+
+              label {
+                width: 100px;
+                font-weight: 500;
+                color: #5a32a3;
+                font-size: 13px;
+              }
+
+              .param-input,
+              .param-select {
+                :deep(.el-input__wrapper) {
+                  border-radius: 6px;
+                  border: 1px solid rgba(147, 112, 219, 0.3);
+
+                  &:hover, &.is-focus {
+                    border-color: #7b42f6;
+                    box-shadow: 0 0 0 3px rgba(123, 66, 246, 0.1);
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+
+    .execution-result {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+      border: 1px solid rgba(147, 112, 219, 0.15);
+      border-radius: 10px;
+      background: #ffffff;
+      overflow: hidden;
+
+      .result-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 16px 20px;
+        border-bottom: 1px solid rgba(147, 112, 219, 0.15);
+        background: linear-gradient(135deg, #faf8ff 0%, #f5f3ff 100%);
+
+        .result-title {
+          margin: 0;
+          font-size: 16px;
+          font-weight: 600;
+          color: #5a32a3;
+        }
+
+        .result-tag {
+          font-weight: 600;
+        }
+      }
+
+      .result-content {
+        flex: 1;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+        padding: 20px;
+
+        .result-tabs {
+          :deep(.el-tabs__header) {
+            margin-bottom: 16px;
+          }
+
+          :deep(.el-tabs__item) {
+            color: #666;
+
+            &.is-active {
+              color: #7b42f6;
+            }
+
+            &:hover {
+              color: #5a32a3;
+            }
+          }
+        }
+      }
+    }
   }
-
-  .el-icon {
-    margin-top: 2px;  /* 图标与文本顶部对齐 */
-    flex-shrink: 0;  /* 图标不缩小 */
-  }
-}
-
-.screenshots-container {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-  gap: 20px;
-  padding: 10px;
-}
-
-.screenshot-item {
-  display: flex;
-  flex-direction: column;
-  cursor: pointer;
-  transition: transform 0.2s ease;
-}
-
-.screenshot-item:hover {
-  transform: translateY(-4px);
-}
-
-.screenshot-wrapper {
-  position: relative;
-  width: 100%;
-  min-height: 200px;
-  background: #f5f5f5;
-  border-radius: 8px;
-  border: 2px solid #e6e6e6;
-  overflow: hidden;
-  transition: border-color 0.3s ease;
-}
-
-.screenshot-item:hover .screenshot-wrapper {
-  border-color: #409eff;
-}
-
-.screenshot-wrapper img {
-  width: 100%;
-  height: auto;
-  display: block;
-  transition: opacity 0.3s ease;
-}
-
-.screenshot-overlay {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  opacity: 0;
-  transition: opacity 0.3s ease;
-}
-
-.screenshot-item:hover .screenshot-overlay {
-  opacity: 1;
-}
-
-.zoom-icon {
-  font-size: 48px;
-  color: white;
-}
-
-.screenshot-placeholder,
-.screenshot-error {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  color: #999;
-  font-size: 14px;
-}
-
-.screenshot-placeholder .el-icon,
-.screenshot-error .el-icon {
-  font-size: 32px;
-  margin-bottom: 8px;
-}
-
-.screenshot-error {
-  color: #f56c6c;
-}
-
-.screenshot-info {
-  margin-top: 10px;
-}
-
-.screenshot-description {
-  margin: 0 0 5px 0;
-  font-size: 14px;
-  font-weight: 500;
-  color: #333;
-  text-align: left;
-}
-
-.screenshot-meta {
-  margin: 0 0 3px 0;
-  font-size: 12px;
-  color: #666;
-  text-align: left;
-}
-
-.screenshot-time {
-  margin: 0;
-  font-size: 11px;
-  color: #999;
-  text-align: left;
-}
-
-/* 截图预览对话框样式 */
-.screenshot-preview {
-  display: flex;
-  flex-direction: column;
-}
-
-.preview-info {
-  margin-bottom: 20px;
-  padding: 15px;
-  background: #f5f7fa;
-  border-radius: 6px;
-}
-
-.preview-info h4 {
-  margin: 0 0 10px 0;
-  font-size: 16px;
-  color: #333;
-}
-
-.preview-info p {
-  margin: 5px 0;
-  font-size: 14px;
-  color: #666;
-}
-
-.preview-image {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  background: #f5f5f5;
-  border-radius: 8px;
-  padding: 20px;
-  max-height: 70vh;
-  overflow: auto;
-}
-
-.preview-image img {
-  max-width: 100%;
-  height: auto;
-  border-radius: 4px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-}
-
-.errors-container {
-  padding: 10px;
-  height: 100%;
-  overflow-y: auto;
-}
-
-.error-item {
-  background: #fff;
-  border: 2px solid #f56c6c;
-  border-radius: 8px;
-  padding: 20px;
-  margin-bottom: 15px;
-}
-
-.error-item:last-child {
-  margin-bottom: 0;
-}
-
-.error-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 15px;
-  padding-bottom: 15px;
-  border-bottom: 1px solid #f5f5f5;
-}
-
-.error-header .el-tag {
-  font-size: 16px;
-  padding: 10px 15px;
-  font-weight: 600;
-}
-
-.error-header .el-icon {
-  margin-right: 5px;
-}
-
-.error-step {
-  background: #fef0f0;
-  color: #f56c6c;
-  padding: 5px 12px;
-  border-radius: 4px;
-  font-weight: 600;
-  font-size: 14px;
-}
-
-.error-meta {
-  background: #f9f9f9;
-  padding: 15px;
-  border-radius: 6px;
-  margin-bottom: 15px;
-}
-
-.meta-item {
-  display: flex;
-  align-items: flex-start;
-  margin-bottom: 8px;
-}
-
-.meta-item:last-child {
-  margin-bottom: 0;
-}
-
-.meta-label {
-  font-weight: 600;
-  color: #606266;
-  min-width: 80px;
-  margin-right: 10px;
-}
-
-.meta-value {
-  color: #303133;
-  flex: 1;
-}
-
-.error-details {
-  background: #2d2d2d;
-  border-radius: 6px;
-  overflow: hidden;
-}
-
-.details-header {
-  background: #1e1e1e;
-  color: #fff;
-  padding: 10px 15px;
-  font-weight: 600;
-  font-size: 14px;
-  border-bottom: 1px solid #3d3d3d;
-}
-
-.details-content {
-  color: #ff6b6b;
-  padding: 15px;
-  margin: 0;
-  font-family: 'Courier New', Courier, monospace;
-  font-size: 13px;
-  line-height: 1.6;
-  white-space: pre-wrap;
-  word-wrap: break-word;
-  max-height: 400px;
-  overflow-y: auto;
-}
-
-.details-content::-webkit-scrollbar {
-  width: 6px;
-}
-
-.details-content::-webkit-scrollbar-track {
-  background: #1e1e1e;
-}
-
-.details-content::-webkit-scrollbar-thumb {
-  background: #555;
-  border-radius: 3px;
-}
-
-.details-content::-webkit-scrollbar-thumb:hover {
-  background: #777;
 }
 
 .no-selection {
+  flex: 1;
   display: flex;
   align-items: center;
   justify-content: center;
-  height: 100%;
 }
 
-.data-factory-btn {
-  background-color: #409eff !important;
-  border-color: #409eff !important;
-  color: white !important;
+// 对话框样式
+.custom-dialog {
+  :deep(.el-dialog__header) {
+    background: linear-gradient(135deg, #faf8ff 0%, #f5f3ff 100%);
+    border-bottom: 1px solid rgba(147, 112, 219, 0.15);
+    padding: 20px 24px;
+    margin-right: 0;
+
+    .el-dialog__title {
+      font-weight: 600;
+      color: #5a32a3;
+    }
+  }
+
+  :deep(.el-dialog__body) {
+    padding: 24px;
+  }
+
+  :deep(.el-dialog__footer) {
+    border-top: 1px solid rgba(147, 112, 219, 0.15);
+    padding: 16px 24px;
+  }
+
+  .dialog-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+
+    .btn-cancel {
+      border-radius: 6px;
+      border: 1px solid rgba(147, 112, 219, 0.4);
+      color: #5a32a3;
+
+      &:hover {
+        background: #f8f7ff;
+        border-color: #7b42f6;
+      }
+    }
+
+    .btn-confirm {
+      border-radius: 6px;
+      background: linear-gradient(135deg, #7b42f6 0%, #5a32a3 100%);
+      border: none;
+
+      &:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(123, 66, 246, 0.3);
+      }
+    }
+  }
 }
 
-.data-factory-btn:hover {
-  background-color: #66b1ff !important;
-  border-color: #66b1ff !important;
+// 截图预览样式
+.screenshot-preview {
+  .preview-info {
+    margin-bottom: 20px;
+    padding: 16px;
+    background: linear-gradient(135deg, #faf8ff 0%, #f5f3ff 100%);
+    border-radius: 8px;
+    border: 1px solid rgba(147, 112, 219, 0.15);
+
+    h4 {
+      margin: 0 0 8px 0;
+      color: #5a32a3;
+      font-weight: 600;
+    }
+
+    p {
+      margin: 4px 0;
+      color: #666;
+      font-size: 14px;
+    }
+  }
+
+  .preview-image {
+    text-align: center;
+
+    img {
+      max-width: 100%;
+      max-height: 70vh;
+      border-radius: 8px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+    }
+  }
 }
 
+// 日志容器样式
+.logs-container {
+  .log-item {
+    margin-bottom: 12px;
+    padding: 12px;
+    background: #f8f7ff;
+    border-radius: 8px;
+    border-left: 3px solid #7b42f6;
+
+    .log-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 8px;
+
+      .log-action {
+        font-weight: 500;
+        color: #5a32a3;
+      }
+
+      .log-desc {
+        color: #666;
+        font-size: 13px;
+      }
+    }
+
+    .log-error {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      padding: 8px;
+      background: rgba(245, 108, 108, 0.1);
+      border-radius: 6px;
+      color: #f56c6c;
+
+      .el-icon {
+        margin-top: 2px;
+      }
+
+      .error-message {
+        margin: 0;
+        font-size: 12px;
+        white-space: pre-wrap;
+        word-break: break-all;
+      }
+    }
+  }
+}
+
+// 截图容器样式
+.screenshots-container {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 16px;
+
+  .screenshot-item {
+    cursor: pointer;
+    transition: all 0.3s ease;
+
+    &:hover {
+      transform: translateY(-4px);
+
+      .screenshot-wrapper {
+        box-shadow: 0 8px 24px rgba(123, 66, 246, 0.2);
+      }
+    }
+
+    .screenshot-wrapper {
+      position: relative;
+      border-radius: 8px;
+      overflow: hidden;
+      border: 1px solid rgba(147, 112, 219, 0.2);
+      aspect-ratio: 16/10;
+
+      img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+      }
+
+      .screenshot-placeholder,
+      .screenshot-error {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        background: #f5f5f5;
+        color: #999;
+        gap: 8px;
+      }
+
+      .screenshot-overlay {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.4);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        opacity: 0;
+        transition: opacity 0.3s ease;
+
+        .zoom-icon {
+          font-size: 32px;
+          color: white;
+        }
+      }
+
+      &:hover .screenshot-overlay {
+        opacity: 1;
+      }
+    }
+
+    .screenshot-info {
+      padding: 8px 0;
+
+      .screenshot-description {
+        margin: 0 0 4px 0;
+        font-size: 13px;
+        font-weight: 500;
+        color: #5a32a3;
+      }
+
+      .screenshot-meta,
+      .screenshot-time {
+        margin: 0;
+        font-size: 11px;
+        color: #999;
+      }
+    }
+  }
+}
+
+// 错误容器样式
+.errors-container {
+  .error-item {
+    margin-bottom: 16px;
+    padding: 16px;
+    background: linear-gradient(135deg, #fff5f5 0%, #fff0f0 100%);
+    border-radius: 8px;
+    border: 1px solid rgba(245, 108, 108, 0.2);
+
+    .error-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 12px;
+
+      .error-step {
+        font-size: 13px;
+        color: #f56c6c;
+        font-weight: 500;
+      }
+    }
+
+    .error-meta {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 8px;
+      margin-bottom: 12px;
+      padding: 12px;
+      background: rgba(255, 255, 255, 0.5);
+      border-radius: 6px;
+
+      .meta-item {
+        display: flex;
+        gap: 8px;
+        font-size: 13px;
+
+        .meta-label {
+          color: #999;
+        }
+
+        .meta-value {
+          color: #5a32a3;
+          font-weight: 500;
+        }
+      }
+    }
+
+    .error-details {
+      .details-header {
+        font-size: 13px;
+        font-weight: 600;
+        color: #f56c6c;
+        margin-bottom: 8px;
+      }
+
+      .details-content {
+        margin: 0;
+        padding: 12px;
+        background: rgba(245, 108, 108, 0.05);
+        border-radius: 6px;
+        font-size: 12px;
+        color: #666;
+        white-space: pre-wrap;
+        word-break: break-all;
+        max-height: 200px;
+        overflow-y: auto;
+      }
+    }
+  }
+}
+
+// 变量表格样式
+.variable-table {
+  :deep(.el-table__header) {
+    th {
+      background: linear-gradient(135deg, #faf8ff 0%, #f5f3ff 100%);
+      color: #5a32a3;
+      font-weight: 600;
+    }
+  }
+
+  :deep(.el-table__row) {
+    cursor: pointer;
+
+    &:hover {
+      background: #f8f7ff;
+    }
+
+    &.current-row {
+      background: linear-gradient(135deg, #f0edff 0%, #e8e4ff 100%);
+    }
+  }
+
+  .function-tag {
+    background: linear-gradient(135deg, #7b42f6 0%, #5a32a3 100%);
+    color: white;
+    border: none;
+  }
+
+  .insert-btn {
+    color: #7b42f6;
+
+    &:hover {
+      color: #5a32a3;
+    }
+  }
+}
+
+// 优先级选择器样式
+.priority-select {
+  :deep(.el-input__wrapper) {
+    border-radius: 6px;
+    border: 1px solid rgba(147, 112, 219, 0.3);
+
+    &:hover, &.is-focus {
+      border-color: #7b42f6;
+      box-shadow: 0 0 0 3px rgba(123, 66, 246, 0.1);
+    }
+  }
+}
+
+// 数据工厂按钮样式
+.data-factory-btn,
 .variable-helper-btn {
-  background-color: #67c23a;
-  border-color: #67c23a;
+  background: linear-gradient(135deg, #7b42f6 0%, #5a32a3 100%);
+  border: none;
   color: white;
-}
 
-.variable-helper-btn:hover {
-  background-color: #5daf34;
-  border-color: #5daf34;
+  &:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(123, 66, 246, 0.3);
+  }
 }
 </style>

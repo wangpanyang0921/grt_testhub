@@ -6,10 +6,10 @@ export default {
     language: '语言切换'
   },
   modules: {
-    aiGeneration: 'AI用例生成',
+    aiGeneration: 'AI用例',
     apiTesting: '接口测试',
     uiAutomation: 'UI自动化测试',
-    aiIntelligentMode: 'AI 智能模式',
+    aiIntelligentMode: 'AI智能',
     configuration: '配置中心'
   },
   menu: {
@@ -44,19 +44,20 @@ export default {
     suiteManagement: '套件管理',
     executionRecords: '执行记录',
 
-    // AI智能模式
-    aiIntelligentTesting: 'AI 智能测试',
-    aiCaseManagement: 'AI 用例管理',
+    // AI智能
+    aiIntelligentTesting: 'AI智能测试',
+    aiCaseManagement: 'AI用例管理',
+    aiSuiteManagement: 'AI套件管理',
     aiExecutionRecords: 'AI测试报告',
 
     // 配置中心
-    aiCaseGenerationConfig: 'AI用例生成配置',
+    aiCaseGenerationConfig: 'AI用例配置',
     aiModelConfig: '用例模型配置',
     promptConfig: '提示词配置',
     generationConfig: '生成行为配置',
     uiEnvConfig: 'UI环境配置',
-    aiModeConfig: 'AI智能模式配置',
+    aiModeConfig: 'AI智能配置',
     scheduledTaskConfig: '定时任务配置',
-    difyConfig: 'AI评测师配置'
+    difyConfig: 'AI知识库配置'
   }
 }

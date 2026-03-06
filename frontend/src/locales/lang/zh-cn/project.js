@@ -80,22 +80,22 @@ export default {
     },
 
     // Title
-    title: 'TestHub 测试平台',
+    title: '国人通 TestHub 测试平台',
     subtitle: '一站式智能化测试解决方案',
 
     // Cards
-    aiCaseGeneration: 'AI用例生成',
-    aiCaseGenerationDesc: '智能分析需求，自动生成测试用例',
+    aiCase: 'AI用例',
+    aiCaseDesc: '智能分析需求，自动生成测试用例',
     apiTesting: '接口测试',
     apiTestingDesc: '高效的接口自动化测试与管理',
     uiAutomation: 'UI自动化测试',
     uiAutomationDesc: '可视化的Web/App UI自动化测试',
     dataFactory: '数据工厂',
     dataFactoryDesc: '灵活的测试数据构造与管理',
-    aiIntelligentMode: 'AI 智能模式',
-    aiIntelligentModeDesc: '基于自然语言的智能化测试执行',
-    aiEvaluator: 'AI评测师',
-    aiEvaluatorDesc: '基于评测师知识库，提供专业软件测试问答',
+    aiIntelligent: 'AI智能',
+    aiIntelligentDesc: '基于自然语言的智能化测试执行',
+    aiKnowledgeBase: 'AI知识库',
+    aiKnowledgeBaseDesc: '基于Dify平台知识库，提供测试问答',
     configCenter: '配置中心',
     configCenterDesc: '系统环境、AI模型及通知配置',
 

@@ -31,7 +31,7 @@
       <div class="user-profile">
         <el-dropdown trigger="click" @command="handleCommand">
           <div class="user-info">
-            <el-avatar :size="32" :icon="UserFilled" />
+            <el-avatar :size="32" :src="userStore.user?.avatar || ''" :icon="UserFilled" />
             <span class="username">{{ userStore.user?.username || $t('assistant.user') }}</span>
             <el-icon class="el-icon--right"><ArrowDown /></el-icon>
           </div>
@@ -533,29 +533,24 @@ onMounted(async () => {
   }
   
   .user-profile {
-    padding: 16px;
-    border-top: 1px solid rgba(90, 50, 163, 0.2);
+    padding: 12px 16px;
     
     .user-info {
       display: flex;
       align-items: center;
       cursor: pointer;
-      padding: 8px;
+      padding: 6px 8px;
       border-radius: 8px;
       transition: all 0.3s ease;
-      background: rgba(243, 240, 250, 0.8);
-      box-shadow: 0 2px 8px rgba(90, 50, 163, 0.05);
-      backdrop-filter: blur(10px);
       
       &:hover {
-        background: rgba(225, 215, 240, 0.9);
-        box-shadow: 0 4px 12px rgba(90, 50, 163, 0.1);
+        background: rgba(243, 240, 250, 0.5);
       }
       
       .username {
         margin: 0 8px;
         font-size: 14px;
-        color: #5a32a3;
+        color: #374151;
         font-weight: 500;
         flex: 1;
         overflow: hidden;
@@ -564,7 +559,7 @@ onMounted(async () => {
       }
       
       .el-icon {
-        color: rgba(90, 50, 163, 0.6);
+        color: #9ca3af;
       }
     }
   }

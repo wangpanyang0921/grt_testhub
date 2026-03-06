@@ -216,6 +216,14 @@ export function getTestSuiteTestCases(id) {
   })
 }
 
+// 获取测试套件中的脚本
+export function getTestSuiteScripts(id) {
+  return request({
+    url: `/ui-automation/test-suites/${id}/scripts/`,
+    method: 'get'
+  })
+}
+
 // 向测试套件添加测试用例
 export function addTestCaseToTestSuite(id, data) {
   return request({
@@ -1056,5 +1064,103 @@ export function exportAIExecutionReportPDF(id, params = {}) {
     method: 'get',
     params,
     responseType: 'blob'
+  })
+}
+
+// 从AI执行记录中提取元素定位信息
+export function extractElementsFromAIExecution(id) {
+  return request({
+    url: `/ui-automation/ai-execution-records/${id}/extract_elements/`,
+    method: 'get'
+  })
+}
+
+// ============ AI 测试套件相关 API ============
+
+// 获取 AI 测试套件列表
+export function getAITestSuites(params) {
+  return request({
+    url: '/ui-automation/ai-test-suites/',
+    method: 'get',
+    params
+  })
+}
+
+// 创建 AI 测试套件
+export function createAITestSuite(data) {
+  return request({
+    url: '/ui-automation/ai-test-suites/',
+    method: 'post',
+    data
+  })
+}
+
+// 获取 AI 测试套件详情
+export function getAITestSuiteDetail(id) {
+  return request({
+    url: `/ui-automation/ai-test-suites/${id}/`,
+    method: 'get'
+  })
+}
+
+// 更新 AI 测试套件
+export function updateAITestSuite(id, data) {
+  return request({
+    url: `/ui-automation/ai-test-suites/${id}/`,
+    method: 'patch',
+    data
+  })
+}
+
+// 删除 AI 测试套件
+export function deleteAITestSuite(id) {
+  return request({
+    url: `/ui-automation/ai-test-suites/${id}/`,
+    method: 'delete'
+  })
+}
+
+// 获取 AI 测试套件中的测试用例
+export function getAITestSuiteAICases(id) {
+  return request({
+    url: `/ui-automation/ai-test-suites/${id}/ai_cases/`,
+    method: 'get'
+  })
+}
+
+// 向 AI 测试套件添加测试用例
+export function addAICaseToAITestSuite(id, data) {
+  return request({
+    url: `/ui-automation/ai-test-suites/${id}/add_ai_case/`,
+    method: 'post',
+    data
+  })
+}
+
+// 从 AI 测试套件移除测试用例
+export function removeAICaseFromAITestSuite(suiteId, aiCaseId) {
+  return request({
+    url: `/ui-automation/ai-test-suites/${suiteId}/remove_ai_case/`,
+    method: 'delete',
+    data: { ai_case_id: aiCaseId }
+  })
+}
+
+// 更新 AI 测试套件中测试用例的顺序
+export function updateAICaseOrder(suiteId, aiCaseOrders) {
+  return request({
+    url: `/ui-automation/ai-test-suites/${suiteId}/update_ai_case_order/`,
+    method: 'post',
+    data: { ai_case_orders: aiCaseOrders }
+  })
+}
+
+// 运行 AI 测试套件
+export function runAITestSuite(suiteId, data) {
+  return request({
+    url: `/ui-automation/ai-test-suites/${suiteId}/run_suite/`,
+    method: 'post',
+    data,
+    timeout: 600000  // 10分钟超时，因为套件可能包含多个测试用例
   })
 }

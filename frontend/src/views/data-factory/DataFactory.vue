@@ -44,11 +44,13 @@
         <el-card class="category-card">
           <template #header>
             <div class="category-header">
-              <el-icon :class="`category-icon ${category.icon}`">
+              <el-icon :class="`category-icon ${category.icon}`" :style="{ color: getCategoryColor(category.category).primary }">
                 <component :is="getIcon(category.icon)" />
               </el-icon>
               <span class="category-title">{{ getCategoryName(category.category) }}</span>
-              <el-tag size="small">{{ $t('dataFactory.toolCount', { count: category.tools.length }) }}</el-tag>
+              <el-tag size="small" :style="{ background: getCategoryColor(category.category).light, borderColor: getCategoryColor(category.category).primary, color: getCategoryColor(category.category).primary }">
+                {{ $t('dataFactory.toolCount', { count: category.tools.length }) }}
+              </el-tag>
               <el-button
                 v-if="currentScenario"
                 size="small"
@@ -64,9 +66,10 @@
               v-for="tool in category.tools"
               :key="tool.name"
               class="tool-item"
+              :style="{ '--hover-color': getCategoryColor(category.category).primary, '--primary-color': getCategoryColor(category.category).primary, '--light-color': getCategoryColor(category.category).light, '--dark-color': getCategoryColor(category.category).dark }"
               @click="openTool(tool, category.category)"
             >
-              <div class="tool-icon">
+              <div class="tool-icon" :style="{ background: getCategoryColor(category.category).light, color: getCategoryColor(category.category).primary }">
                 <el-icon><component :is="getIcon(tool.icon || 'operation')" /></el-icon>
               </div>
               <div class="tool-info">
@@ -84,15 +87,17 @@
     <div v-else class="scenario-view">
       <el-row :gutter="20">
         <el-col :span="8" v-for="scenario in scenarios" :key="scenario.scenario">
-          <el-card class="scenario-card" @click="filterByScenario(scenario)">
+          <el-card class="scenario-card" :style="{ '--primary-color': getCategoryColor(scenario.scenario).primary, '--light-color': getCategoryColor(scenario.scenario).light, '--dark-color': getCategoryColor(scenario.scenario).dark }" @click="filterByScenario(scenario)">
             <div class="scenario-content">
-              <el-icon class="scenario-icon">
+              <el-icon class="scenario-icon" :style="{ color: getCategoryColor(scenario.scenario).primary }">
                 <component :is="getScenarioIcon(scenario.scenario)" />
               </el-icon>
               <h3 class="scenario-title">{{ getScenarioName(scenario.scenario) }}</h3>
               <p class="scenario-desc">{{ getScenarioDesc(scenario.scenario) }}</p>
               <div class="scenario-stats">
-                <el-tag size="small">{{ $t('dataFactory.toolCount', { count: scenario.tool_count }) }}</el-tag>
+                <el-tag size="small" :style="{ background: getCategoryColor(scenario.scenario).light, borderColor: getCategoryColor(scenario.scenario).primary, color: getCategoryColor(scenario.scenario).primary }">
+                  {{ $t('dataFactory.toolCount', { count: scenario.tool_count }) }}
+                </el-tag>
               </div>
             </div>
           </el-card>
@@ -1009,6 +1014,19 @@ import axios from 'axios'
 const router = useRouter()
 const { t } = useI18n()
 
+// 防抖函数
+const debounce = (func, wait) => {
+  let timeout
+  return function executedFunction(...args) {
+    const later = () => {
+      clearTimeout(timeout)
+      func(...args)
+    }
+    clearTimeout(timeout)
+    timeout = setTimeout(later, wait)
+  }
+}
+
 const viewMode = ref('category')
 const categories = ref([])
 const scenarios = ref([])
@@ -1019,7 +1037,7 @@ const currentCategory = ref('')
 const toolForm = ref({
   count: 1,
   text: '',
-  isSaved: false,
+  isSaved: true,
   tags: '',
   gender: 'random',
   region: 'all',
@@ -1110,6 +1128,8 @@ const historyRecords = ref([])
 const historyTotal = ref(0)
 const historyCurrentPage = ref(1)
 const historyPageSize = ref(10)
+const historyLoading = ref(false)
+const statsLoading = ref(false)
 const statistics = ref({})
 const jsonTreeData = ref(null)
 const jsonExpandedKeys = ref([])
@@ -1142,6 +1162,22 @@ const iconMap = {
   'sort': Sort,
   'share': Share,
   'view': View
+}
+
+const colorMap = {
+  'test_data': { primary: '#10b981', light: 'rgba(16, 185, 129, 0.1)', dark: '#059669' },
+  'json': { primary: '#3b82f6', light: 'rgba(59, 130, 246, 0.1)', dark: '#2563eb' },
+  'string': { primary: '#f59e0b', light: 'rgba(245, 158, 11, 0.1)', dark: '#d97706' },
+  'encoding': { primary: '#8b5cf6', light: 'rgba(139, 92, 246, 0.1)', dark: '#7c3aed' },
+  'random': { primary: '#ec4899', light: 'rgba(236, 72, 153, 0.1)', dark: '#db2777' },
+  'encryption': { primary: '#06b6d4', light: 'rgba(6, 182, 212, 0.1)', dark: '#0891b2' },
+  'crontab': { primary: '#ef4444', light: 'rgba(239, 68, 68, 0.1)', dark: '#dc2626' },
+  'mock': { primary: '#14b8a6', light: 'rgba(20, 184, 166, 0.1)', dark: '#0d9488' },
+  'other': { primary: '#64748b', light: 'rgba(100, 116, 139, 0.1)', dark: '#475569' }
+}
+
+const getCategoryColor = (category) => {
+  return colorMap[category] || colorMap['other']
 }
 
 const getIcon = (iconName) => {
@@ -1407,7 +1443,7 @@ const resetToolForm = () => {
   toolForm.value = {
     count: 1,
     text: '',
-    isSaved: false,
+    isSaved: true,
     tags: '',
     gender: 'random',
     region: 'all',
@@ -1812,6 +1848,10 @@ const clearScenario = () => {
   currentScenario.value = null
 }
 
+const openHistoryDialog = () => {
+  showHistory.value = true
+}
+
 const filteredCategories = () => {
   if (!currentScenario.value) return categories.value
   return categories.value.map(category => ({
@@ -1820,15 +1860,12 @@ const filteredCategories = () => {
   })).filter(category => category.tools.length > 0)
 }
 
-<<<<<<< HEAD
-const fetchHistory = async () => {
-=======
 // 防抖处理的fetchHistory函数
 const debouncedFetchHistory = debounce(async () => {
   if (historyLoading.value) return
   
   historyLoading.value = true
->>>>>>> upstream/main
+  
   try {
     const response = await axios.get('/api/data-factory/', {
       params: {
@@ -1837,18 +1874,15 @@ const debouncedFetchHistory = debounce(async () => {
         _t: Date.now()
       }
     })
-<<<<<<< HEAD
-=======
     
->>>>>>> upstream/main
     historyRecords.value = response.data.results
     historyTotal.value = response.data.count
   } catch (error) {
     ElMessage.error(t('dataFactory.messages.fetchHistoryFailed'))
   }
-}
+})
 
-const fetchHistoryImmediate = async () => {
+const fetchHistory = async () => {
   if (historyLoading.value) return
   
   historyLoading.value = true
@@ -1870,6 +1904,8 @@ const fetchHistoryImmediate = async () => {
   }
 }
 
+const fetchHistoryImmediate = fetchHistory
+
 const handleHistoryPageChange = (page) => {
   historyCurrentPage.value = page
   fetchHistory()
@@ -1882,10 +1918,6 @@ const handleHistorySizeChange = (size) => {
 }
 
 const fetchStatistics = async () => {
-<<<<<<< HEAD
-  try {
-    const response = await axios.get('/api/data-factory/statistics/')
-=======
   if (statsLoading.value) return
   
   statsLoading.value = true
@@ -1896,10 +1928,11 @@ const fetchStatistics = async () => {
       }
     })
     
->>>>>>> upstream/main
     statistics.value = response.data
   } catch (error) {
     ElMessage.error(t('dataFactory.messages.fetchStatsFailed'))
+  } finally {
+    statsLoading.value = false
   }
 }
 
@@ -1912,10 +1945,6 @@ const deleteRecord = async (record) => {
     }
     const response = await axios.delete(`/api/data-factory/${record.id}/`)
     ElMessage.success(t('dataFactory.history.deleteSuccess'))
-<<<<<<< HEAD
-    fetchHistory()
-    fetchStatistics()
-=======
     
     // 清除统计信息缓存
     cache.remove('statistics')
@@ -1923,7 +1952,6 @@ const deleteRecord = async (record) => {
     // 立即刷新数据，确保总数一致
     await fetchHistoryImmediate()
     await fetchStatistics()
->>>>>>> upstream/main
   } catch (error) {
     console.error('Delete error:', error)
     if (error.response && error.response.status === 404) {
@@ -2155,20 +2183,16 @@ onMounted(() => {
 
         .category-icon {
           font-size: 28px;
-          color: #7b42f6;
         }
 
         .category-title {
           flex: 1;
           font-size: 20px;
           font-weight: 700;
-          color: #5a32a3;
+          color: #374151;
         }
 
         :deep(.el-tag) {
-          background: linear-gradient(135deg, rgba(123, 66, 246, 0.1) 0%, rgba(90, 50, 163, 0.1) 100%);
-          border: 1px solid rgba(123, 66, 246, 0.2);
-          color: #7b42f6;
           border-radius: 12px;
           padding: 4px 12px;
           font-weight: 600;
@@ -2184,8 +2208,8 @@ onMounted(() => {
       }
 
       .tool-item {
-        background: linear-gradient(135deg, #ffffff 0%, #faf8ff 100%);
-        border: 1px solid rgba(147, 112, 219, 0.12);
+        background: linear-gradient(135deg, #ffffff 0%, #f9fafb 100%);
+        border: 1px solid rgba(107, 114, 128, 0.12);
         border-radius: 12px;
         padding: 18px;
         cursor: pointer;
@@ -2196,26 +2220,24 @@ onMounted(() => {
 
         &:hover {
           background: #ffffff;
-          border-color: #7b42f6;
-          box-shadow: 0 4px 16px rgba(123, 66, 246, 0.15);
+          border-color: var(--primary-color, #6b7280);
+          box-shadow: 0 4px 16px rgba(107, 114, 128, 0.15);
           transform: translateY(-3px);
         }
 
         .tool-icon {
           width: 48px;
           height: 48px;
-          background: linear-gradient(135deg, rgba(123, 66, 246, 0.1) 0%, rgba(90, 50, 163, 0.1) 100%);
           border-radius: 12px;
           display: flex;
           align-items: center;
           justify-content: center;
-          color: #7b42f6;
           font-size: 24px;
           transition: all 0.3s ease;
         }
 
         &:hover .tool-icon {
-          background: linear-gradient(135deg, #7b42f6 0%, #5a32a3 100%);
+          background: linear-gradient(135deg, var(--primary-color) 0%, var(--dark-color) 100%);
           color: #ffffff;
           transform: scale(1.05);
         }
@@ -2227,25 +2249,25 @@ onMounted(() => {
             font-size: 15px;
             font-weight: 600;
             margin: 0 0 6px 0;
-            color: #5a32a3;
+            color: #1f2937;
           }
 
           .tool-desc {
             font-size: 13px;
-            color: #6d5d8f;
+            color: #6b7280;
             margin: 0;
             line-height: 1.5;
           }
         }
 
         .tool-arrow {
-          color: #c0c4cc;
+          color: #9ca3af;
           transition: all 0.3s ease;
         }
 
         &:hover .tool-arrow {
           transform: translateX(5px);
-          color: #7b42f6;
+          color: var(--primary-color);
         }
       }
     }
@@ -2256,16 +2278,16 @@ onMounted(() => {
   .scenario-card {
     margin-bottom: 24px;
     cursor: pointer;
-    background: linear-gradient(135deg, #ffffff 0%, #faf8ff 100%);
-    border: 1px solid rgba(147, 112, 219, 0.12);
+    background: linear-gradient(135deg, #ffffff 0%, #f9fafb 100%);
+    border: 1px solid rgba(107, 114, 128, 0.12);
     border-radius: 16px;
-    box-shadow: 0 4px 16px rgba(147, 112, 219, 0.08);
+    box-shadow: 0 4px 16px rgba(107, 114, 128, 0.08);
     transition: all 0.3s ease;
 
     &:hover {
-      box-shadow: 0 8px 28px rgba(147, 112, 219, 0.18);
+      box-shadow: 0 8px 28px rgba(107, 114, 128, 0.18);
       transform: translateY(-5px);
-      border-color: rgba(123, 66, 246, 0.25);
+      border-color: var(--primary-color);
     }
 
     .scenario-content {
@@ -2274,7 +2296,6 @@ onMounted(() => {
 
       .scenario-icon {
         font-size: 56px;
-        color: #7b42f6;
         margin-bottom: 20px;
         transition: all 0.3s ease;
       }
@@ -2287,12 +2308,12 @@ onMounted(() => {
         font-size: 20px;
         font-weight: 700;
         margin: 0 0 12px 0;
-        color: #5a32a3;
+        color: #1f2937;
       }
 
       .scenario-desc {
         font-size: 14px;
-        color: #6d5d8f;
+        color: #6b7280;
         margin: 0 0 20px 0;
         line-height: 1.6;
       }
@@ -2302,9 +2323,6 @@ onMounted(() => {
         justify-content: center;
 
         :deep(.el-tag) {
-          background: linear-gradient(135deg, rgba(123, 66, 246, 0.1) 0%, rgba(90, 50, 163, 0.1) 100%);
-          border: 1px solid rgba(123, 66, 246, 0.2);
-          color: #7b42f6;
           border-radius: 12px;
           padding: 6px 16px;
           font-weight: 600;

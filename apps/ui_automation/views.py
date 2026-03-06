@@ -20,9 +20,8 @@ from .models import (
     TestSuiteScript, TestExecution, Screenshot,
     ElementGroup, PageObject, PageObjectElement, ScriptStep, ScriptElementUsage,
     TestCase, TestCaseStep, TestCaseExecution, OperationRecord,
-    TestCase, TestCaseStep, TestCaseExecution, OperationRecord,
     UiScheduledTask, UiNotificationLog, UiTaskNotificationSetting,
-    AICase, AIExecutionRecord
+    AICase, AIExecutionRecord, ScriptExecution, AITestSuite, AITestSuiteAICase
 )
 from .serializers import (
     UiProjectSerializer, UiProjectCreateSerializer, UiProjectUpdateSerializer,
@@ -40,7 +39,8 @@ from .serializers import (
     TestCaseSerializer, TestCaseStepSerializer, TestCaseExecutionSerializer, TestCaseRunSerializer,
     OperationRecordSerializer,
     UiScheduledTaskSerializer, UiNotificationLogSerializer, UiTaskNotificationSettingSerializer,
-    AICaseSerializer, AIExecutionRecordSerializer
+    AICaseSerializer, AIExecutionRecordSerializer,
+    AITestSuiteSerializer, AITestSuiteCreateSerializer, AITestSuiteUpdateSerializer, AITestSuiteAICaseSerializer
 )
 from .operation_logger import log_operation
 
@@ -138,11 +138,8 @@ class UiProjectViewSet(viewsets.ModelViewSet):
         return UiProjectSerializer
 
     def get_queryset(self):
-        # 只显示用户有权限访问的项目
-        user = self.request.user
-        return UiProject.objects.filter(
-            models.Q(owner=user) | models.Q(members__user=user)
-        ).distinct()
+        # 显示所有项目给所有登录用户
+        return UiProject.objects.all()
 
     def perform_create(self, serializer):
         # 创建项目时，当前用户自动成为负责人
@@ -235,12 +232,8 @@ class ElementViewSet(viewsets.ModelViewSet):
         return ElementSerializer
 
     def get_queryset(self):
-        # 只显示用户有权限访问的项目的元素
-        user = self.request.user
-        accessible_projects = UiProject.objects.filter(
-            models.Q(owner=user) | models.Q(members__user=user)
-        ).distinct()
-        return Element.objects.filter(project__in=accessible_projects).select_related(
+        # 显示所有项目的元素
+        return Element.objects.all().select_related(
             'project', 'group', 'locator_strategy', 'created_by', 'parent_element'
         ).prefetch_related('script_usages__script').order_by('page', 'name')
 
@@ -417,13 +410,9 @@ class ElementGroupViewSet(viewsets.ModelViewSet):
         return ElementGroupSerializer
 
     def get_queryset(self):
-        # 只显示用户有权限访问的项目的元素分组
-        user = self.request.user
-        accessible_projects = UiProject.objects.filter(
-            models.Q(owner=user) | models.Q(members__user=user)
-        ).distinct()
-        return ElementGroup.objects.filter(project__in=accessible_projects).select_related('project',
-                                                                                           'parent_group').order_by(
+        # 显示所有项目的元素分组
+        return ElementGroup.objects.all().select_related('project',
+                                                           'parent_group').order_by(
             'order', 'name')
 
     @action(detail=False, methods=['get'])
@@ -451,12 +440,8 @@ class PageObjectViewSet(viewsets.ModelViewSet):
         return PageObjectSerializer
 
     def get_queryset(self):
-        # 只显示用户有权限访问的项目的页面对象
-        user = self.request.user
-        accessible_projects = UiProject.objects.filter(
-            models.Q(owner=user) | models.Q(members__user=user)
-        ).distinct()
-        return PageObject.objects.filter(project__in=accessible_projects).select_related(
+        # 显示所有项目的页面对象
+        return PageObject.objects.all().select_related(
             'project', 'created_by'
         ).prefetch_related('page_object_elements__element').order_by('-created_at')
 
@@ -517,14 +502,8 @@ class PageObjectElementViewSet(viewsets.ModelViewSet):
     serializer_class = PageObjectElementSerializer
 
     def get_queryset(self):
-        # 只显示用户有权限访问的页面对象元素
-        user = self.request.user
-        accessible_projects = UiProject.objects.filter(
-            models.Q(owner=user) | models.Q(members__user=user)
-        ).distinct()
-        return PageObjectElement.objects.filter(
-            page_object__project__in=accessible_projects
-        ).select_related('page_object', 'element').order_by('id')
+        # 显示所有页面对象元素
+        return PageObjectElement.objects.all().select_related('page_object', 'element').order_by('id')
 
 
 class ScriptStepViewSet(viewsets.ModelViewSet):
@@ -535,14 +514,8 @@ class ScriptStepViewSet(viewsets.ModelViewSet):
     filterset_fields = ['script', 'action_type', 'target_element', 'page_object']
 
     def get_queryset(self):
-        # 只显示用户有权限访问的脚本步骤
-        user = self.request.user
-        accessible_projects = UiProject.objects.filter(
-            models.Q(owner=user) | models.Q(members__user=user)
-        ).distinct()
-        return ScriptStep.objects.filter(
-            script__project__in=accessible_projects
-        ).select_related('script', 'target_element', 'page_object').order_by('step_order')
+        # 显示所有脚本步骤
+        return ScriptStep.objects.all().select_related('script', 'target_element', 'page_object').order_by('step_order')
 
     @action(detail=False, methods=['post'])
     def batch_create(self, request):
@@ -572,14 +545,8 @@ class ScriptElementUsageViewSet(viewsets.ModelViewSet):
     filterset_fields = ['script', 'element', 'usage_type']
 
     def get_queryset(self):
-        # 只显示用户有权限访问的脚本元素使用记录
-        user = self.request.user
-        accessible_projects = UiProject.objects.filter(
-            models.Q(owner=user) | models.Q(members__user=user)
-        ).distinct()
-        return ScriptElementUsage.objects.filter(
-            script__project__in=accessible_projects
-        ).select_related('script', 'element').order_by('script', 'line_number')
+        # 显示所有脚本元素使用记录
+        return ScriptElementUsage.objects.all().select_related('script', 'element').order_by('script', 'line_number')
 
     @action(detail=False, methods=['post'])
     def analyze_script(self, request):
@@ -675,12 +642,8 @@ class TestScriptViewSet(viewsets.ModelViewSet):
         return TestScriptSerializer
 
     def get_queryset(self):
-        # 只显示用户有权限访问的项目的测试脚本
-        user = self.request.user
-        accessible_projects = UiProject.objects.filter(
-            models.Q(owner=user) | models.Q(members__user=user)
-        ).distinct()
-        return TestScript.objects.filter(project__in=accessible_projects)
+        # 显示所有测试脚本
+        return TestScript.objects.all()
 
 
 class TestSuiteViewSet(viewsets.ModelViewSet):
@@ -701,12 +664,8 @@ class TestSuiteViewSet(viewsets.ModelViewSet):
         return TestSuiteSerializer
 
     def get_queryset(self):
-        # 只显示用户有权限访问的项目的测试套件
-        user = self.request.user
-        accessible_projects = UiProject.objects.filter(
-            models.Q(owner=user) | models.Q(members__user=user)
-        ).distinct()
-        return TestSuite.objects.filter(project__in=accessible_projects)
+        # 显示所有测试套件
+        return TestSuite.objects.all()
 
     def perform_create(self, serializer):
         instance = serializer.save()
@@ -822,11 +781,14 @@ class TestSuiteViewSet(viewsets.ModelViewSet):
         test_suite = self.get_object()
 
         # 传统模式执行（Playwright/Selenium）
-        # 检查是否包含测试用例
+        # 检查是否包含测试用例或脚本
         test_case_count = test_suite.suite_test_cases.count()
-        if test_case_count == 0:
+        script_count = test_suite.suite_scripts.count()
+        total_count = test_case_count + script_count
+        
+        if total_count == 0:
             return Response({
-                'error': '该测试套件未包含任何测试用例，无法执行'
+                'error': '该测试套件未包含任何测试用例或脚本，无法执行'
             }, status=status.HTTP_400_BAD_REQUEST)
 
         engine = request.data.get('engine', 'playwright')
@@ -864,6 +826,8 @@ class TestSuiteViewSet(viewsets.ModelViewSet):
                 'message': '测试套件开始执行',
                 'suite_id': test_suite.id,
                 'test_case_count': test_case_count,
+                'script_count': script_count,
+                'total_count': total_count,
                 'engine': engine,
                 'browser': browser,
                 'headless': headless
@@ -886,14 +850,8 @@ class TestExecutionViewSet(viewsets.ModelViewSet):
     pagination_class = StandardPagination
 
     def get_queryset(self):
-        # 只显示用户有权限访问的项目的测试执行记录
-        user = self.request.user
-        accessible_projects = UiProject.objects.filter(
-            models.Q(owner=user) | models.Q(members__user=user)
-        ).distinct()
-        return TestExecution.objects.filter(
-            project__in=accessible_projects
-        ).select_related('project', 'test_suite', 'test_script', 'executed_by')
+        # 显示所有测试执行记录
+        return TestExecution.objects.all().select_related('project', 'test_suite', 'test_script', 'executed_by')
 
     def get_serializer_class(self):
         if self.action == 'create':
@@ -915,13 +873,8 @@ class ScreenshotViewSet(viewsets.ModelViewSet):
     filterset_fields = ['execution']
 
     def get_queryset(self):
-        # 只显示用户有权限访问的项目的截图
-        user = self.request.user
-        accessible_projects = UiProject.objects.filter(
-            models.Q(owner=user) | models.Q(members__user=user)
-        ).distinct()
-        executions = TestExecution.objects.filter(project__in=accessible_projects)
-        return Screenshot.objects.filter(execution__in=executions)
+        # 显示所有截图
+        return Screenshot.objects.all()
 
 
 class TestCaseViewSet(viewsets.ModelViewSet):
@@ -936,19 +889,8 @@ class TestCaseViewSet(viewsets.ModelViewSet):
     filterset_fields = ['project', 'status', 'priority', 'created_by']
 
     def get_queryset(self):
-        # 只显示用户有权限访问的项目的测试用例
-        user = self.request.user
-        accessible_projects = UiProject.objects.filter(
-            models.Q(owner=user) | models.Q(members=user)
-        ).distinct()
-
-    def get_queryset(self):
-        # 只显示用户有权限访问的项目的测试用例
-        user = self.request.user
-        accessible_projects = UiProject.objects.filter(
-            models.Q(owner=user) | models.Q(members=user)
-        ).distinct()
-        return TestCase.objects.filter(project__in=accessible_projects).select_related('project', 'created_by')
+        # 显示所有测试用例
+        return TestCase.objects.all().select_related('project', 'created_by')
 
     def perform_create(self, serializer):
         # 创建测试用例
@@ -1927,13 +1869,8 @@ class TestCaseStepViewSet(viewsets.ModelViewSet):
     filterset_fields = ['test_case', 'action_type']
 
     def get_queryset(self):
-        # 只显示用户有权限访问的测试用例的步骤
-        user = self.request.user
-        accessible_projects = UiProject.objects.filter(
-            models.Q(owner=user) | models.Q(members__user=user)
-        ).distinct()
-        accessible_test_cases = TestCase.objects.filter(project__in=accessible_projects)
-        return TestCaseStep.objects.filter(test_case__in=accessible_test_cases)
+        # 显示所有测试用例的步骤
+        return TestCaseStep.objects.all()
 
 
 class TestCaseExecutionViewSet(viewsets.ModelViewSet):
@@ -1951,14 +1888,8 @@ class TestCaseExecutionViewSet(viewsets.ModelViewSet):
     pagination_class = StandardPagination
 
     def get_queryset(self):
-        # 只显示用户有权限访问的项目的执行记录
-        user = self.request.user
-        accessible_projects = UiProject.objects.filter(
-            models.Q(owner=user) | models.Q(members__user=user)
-        ).distinct()
-        return TestCaseExecution.objects.filter(
-            project__in=accessible_projects
-        ).select_related(
+        # 显示所有测试用例执行记录
+        return TestCaseExecution.objects.all().select_related(
             'test_case', 'project', 'test_suite', 'created_by'
         )
 
@@ -2043,12 +1974,8 @@ class UiScheduledTaskViewSet(viewsets.ModelViewSet):
     ordering = ['-created_at']
 
     def get_queryset(self):
-        """只显示用户有权限访问的项目的定时任务"""
-        user = self.request.user
-        accessible_projects = UiProject.objects.filter(
-            models.Q(owner=user) | models.Q(members__user=user)
-        ).distinct()
-        return UiScheduledTask.objects.filter(project__in=accessible_projects)
+        """显示所有定时任务"""
+        return UiScheduledTask.objects.all()
 
     def perform_create(self, serializer):
         """创建定时任务"""
@@ -2903,18 +2830,13 @@ class AICaseViewSet(viewsets.ModelViewSet):
     serializer_class = AICaseSerializer
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['project']
-    search_fields = ['name', 'description', 'task_description']
+    search_fields = ['name']
     ordering = ['-created_at']
 
     def get_queryset(self):
-        user = self.request.user
-        accessible_projects = UiProject.objects.filter(
-            models.Q(owner=user) | models.Q(members__user=user)
-        ).distinct()
-        # 返回用户有权限的项目下的AI用例，以及没有关联项目的AI用例
-        return AICase.objects.filter(
-            models.Q(project__in=accessible_projects) | models.Q(project__isnull=True)
-        ).distinct()
+        # 显示所有AI用例，应用搜索过滤
+        queryset = AICase.objects.all()
+        return self.filter_queryset(queryset)
 
     def perform_create(self, serializer):
         instance = serializer.save(created_by=self.request.user)
@@ -3180,19 +3102,16 @@ class AIExecutionRecordViewSet(viewsets.ModelViewSet):
     queryset = AIExecutionRecord.objects.all()
     serializer_class = AIExecutionRecordSerializer
     permission_classes = [IsAuthenticated]
-    filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['project', 'ai_case', 'status']
+    search_fields = ['case_name']
     ordering = ['-start_time']
+    pagination_class = StandardPagination
 
     def get_queryset(self):
-        user = self.request.user
-        accessible_projects = UiProject.objects.filter(
-            models.Q(owner=user) | models.Q(members__user=user)
-        ).distinct()
-        # 返回用户有权限的项目下的执行记录，以及没有关联项目的执行记录
-        return AIExecutionRecord.objects.filter(
-            models.Q(project__in=accessible_projects) | models.Q(project__isnull=True)
-        ).distinct()
+        # 显示所有AI执行记录，应用搜索过滤
+        queryset = AIExecutionRecord.objects.all()
+        return self.filter_queryset(queryset)
 
     def perform_destroy(self, instance):
         instance.delete()
@@ -3229,6 +3148,396 @@ class AIExecutionRecordViewSet(viewsets.ModelViewSet):
         except Exception as e:
             logger.error(f"批量删除AI执行记录失败: {str(e)}", exc_info=True)
             return Response({'error': f'批量删除失败: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    @action(detail=True, methods=['get'])
+    def extract_elements(self, request, pk=None):
+        """从AI执行记录中提取元素定位信息"""
+        execution_record = self.get_object()
+        
+        elements = []
+        
+        try:
+            steps = execution_record.steps_completed or []
+            planned_tasks = execution_record.planned_tasks or []
+            logs = execution_record.logs or ''
+            
+            all_steps = []
+            if steps:
+                all_steps.extend([(step, 'steps_completed') for step in steps])
+            if planned_tasks:
+                all_steps.extend([(task, 'planned_tasks') for task in planned_tasks])
+            
+            log_elements = self._extract_elements_from_logs(logs)
+            
+            for i, (step, source) in enumerate(all_steps):
+                element_info = self._extract_element_from_step(step, i + 1, source)
+                if element_info:
+                    element_info = self._enhance_element_info(element_info, log_elements)
+                    element_info = self._generate_code_samples(element_info)
+                    elements.append(element_info)
+            
+            return Response({
+                'execution_id': execution_record.id,
+                'case_name': execution_record.case_name,
+                'elements': elements,
+                'total_elements': len(elements)
+            })
+        except Exception as e:
+            logger.error(f"提取元素定位信息失败: {str(e)}", exc_info=True)
+            return Response({'error': f'提取失败: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+    def _extract_element_from_step(self, step, step_number, source=None):
+        """从单个步骤中提取元素定位信息"""
+        element_info = {
+            'step_number': step_number,
+            'locator_strategy': None,
+            'locator_value': None,
+            'element_name': None,
+            'action_type': None,
+            'description': None,
+            'source': source
+        }
+        
+        try:
+            if source == 'planned_tasks':
+                description = step.get('description', '')
+                element_info['description'] = description
+                
+                if description.startswith('访问') or description.startswith('打开') or 'http' in description:
+                    return None
+                
+                element_name = self._extract_element_name(description, '')
+                if element_name:
+                    element_info['element_name'] = element_name
+                
+                locator = self._extract_locator_from_text(description)
+                if locator:
+                    element_info['locator_strategy'] = locator.get('strategy')
+                    element_info['locator_value'] = locator.get('value')
+                
+                element_info['action_type'] = step.get('status')
+                
+            else:
+                action = step.get('action')
+                
+                if isinstance(action, dict):
+                    description = action.get('description', '')
+                    goal = action.get('goal', '')
+                    element_info['description'] = description or goal
+                    
+                    element_name = self._extract_element_name(description, goal)
+                    if element_name:
+                        element_info['element_name'] = element_name
+                    
+                    locator = self._extract_locator_from_action(action)
+                    if locator:
+                        element_info['locator_strategy'] = locator.get('strategy')
+                        element_info['locator_value'] = locator.get('value')
+                    
+                    element_info['action_type'] = action.get('type')
+                    
+                elif isinstance(action, str):
+                    element_info['description'] = action
+                    element_name = self._extract_element_name(action, '')
+                    if element_name:
+                        element_info['element_name'] = element_name
+                    locator = self._extract_locator_from_text(action)
+                    if locator:
+                        element_info['locator_strategy'] = locator.get('strategy')
+                        element_info['locator_value'] = locator.get('value')
+            
+            if element_info['element_name'] or element_info['locator_value']:
+                return element_info
+            
+            return None
+            
+        except Exception as e:
+            logger.warning(f"从步骤 {step_number} 提取元素信息时出错: {str(e)}")
+            return None
+    
+    def _extract_element_name(self, description, goal):
+        """从描述中提取元素名称"""
+        import re
+        
+        full_text = f"{description} {goal}".strip()
+        
+        patterns = [
+            r'点击\s*(.+?)\s*(?:按钮|元素|链接|输入框|下拉框|选项|标签|菜单)',
+            r'填写\s*(.+?)\s*(?:输入框|表单|文本框)',
+            r'输入\s*(.+?)\s*(?:输入框|文本框)',
+            r'选择\s*(.+?)\s*(?:下拉框|选项)',
+            r'查找\s*(.+?)\s*(?:元素)',
+            r'等待\s*(.+?)\s*(?:元素|加载)',
+            r'(?:按钮|链接|输入框|元素)\s*\"(.+?)\"',
+            r'(?:按钮|链接|输入框|元素)\s*\'(.+?)\'',
+            r'按钮\s*「(.+?)」',
+            r'链接\s*「(.+?)」',
+            r'点击(.+?)(?:$|\s)',
+            r'输入(.+?)(?:$|\s)',
+            r'填写(.+?)(?:$|\s)',
+            r'选择(.+?)(?:$|\s)',
+        ]
+        
+        for pattern in patterns:
+            match = re.search(pattern, full_text)
+            if match:
+                element_name = match.group(1).strip()
+                if element_name and len(element_name) > 0:
+                    element_name = re.sub(r'[：:]\s*\[已隐藏\]$', '', element_name)
+                    element_name = element_name.strip()
+                    return element_name
+        
+        return None
+    
+    def _extract_elements_from_logs(self, logs):
+        """从执行日志中提取元素信息"""
+        import re
+        
+        elements = []
+        
+        patterns = [
+            r'点击\[(\d+)\]',
+            r'输入\[(\d+)\]',
+        ]
+        
+        for pattern in patterns:
+            matches = re.findall(pattern, logs)
+            for match in matches:
+                elements.append({
+                    'index': match,
+                    'type': 'click' if '点击' in pattern else 'input'
+                })
+        
+        return elements
+    
+    def _enhance_element_info(self, element_info, log_elements):
+        """增强元素信息"""
+        element_info['log_elements'] = log_elements
+        return element_info
+    
+    def _generate_code_samples(self, element_info):
+        """生成代码示例"""
+        code_samples = {
+            'playwright': None,
+            'selenium': None,
+            'puppeteer': None
+        }
+        
+        locator_strategy = element_info.get('locator_strategy')
+        locator_value = element_info.get('locator_value')
+        element_name = element_info.get('element_name', 'element')
+        description = element_info.get('description', '')
+        
+        action_type = 'click'
+        if '输入' in description or '填写' in description:
+            action_type = 'fill'
+        elif '选择' in description:
+            action_type = 'select'
+        
+        if locator_strategy and locator_value:
+            code_samples['playwright'] = self._generate_playwright_code(
+                locator_strategy, locator_value, element_name, action_type
+            )
+            code_samples['selenium'] = self._generate_selenium_code(
+                locator_strategy, locator_value, element_name, action_type
+            )
+            code_samples['puppeteer'] = self._generate_puppeteer_code(
+                locator_strategy, locator_value, element_name, action_type
+            )
+        else:
+            code_samples['playwright'] = self._generate_playwright_text_code(element_name, description, action_type)
+            code_samples['selenium'] = self._generate_selenium_text_code(element_name, description, action_type)
+            code_samples['puppeteer'] = self._generate_puppeteer_text_code(element_name, description, action_type)
+        
+        element_info['code_samples'] = code_samples
+        return element_info
+    
+    def _generate_playwright_code(self, strategy, value, element_name, action_type):
+        """生成Playwright代码"""
+        code = f'# {element_name}\n'
+        
+        if strategy == 'xpath':
+            code += f'element = page.locator("xpath={value}")\n'
+        elif strategy == 'css':
+            code += f'element = page.locator("{value}")\n'
+        elif strategy == 'id':
+            code += f'element = page.locator("#{value}")\n'
+        elif strategy == 'name':
+            code += f'element = page.locator("[name=\\"{value}\\"]")\n'
+        elif strategy == 'text':
+            code += f'element = page.get_by_text("{value}")\n'
+        else:
+            code += f'element = page.locator("{value}")\n'
+        
+        if action_type == 'click':
+            code += 'await element.click()\n'
+        elif action_type == 'fill':
+            code += 'await element.fill("your_value")\n'
+        elif action_type == 'select':
+            code += 'await element.select_option("option_value")\n'
+        
+        return code
+    
+    def _generate_selenium_code(self, strategy, value, element_name, action_type):
+        """生成Selenium代码"""
+        code = f'# {element_name}\n'
+        
+        if strategy == 'xpath':
+            code += f'element = driver.find_element(By.XPATH, "{value}")\n'
+        elif strategy == 'css':
+            code += f'element = driver.find_element(By.CSS_SELECTOR, "{value}")\n'
+        elif strategy == 'id':
+            code += f'element = driver.find_element(By.ID, "{value}")\n'
+        elif strategy == 'name':
+            code += f'element = driver.find_element(By.NAME, "{value}")\n'
+        else:
+            code += f'element = driver.find_element(By.XPATH, "{value}")\n'
+        
+        if action_type == 'click':
+            code += 'element.click()\n'
+        elif action_type == 'fill':
+            code += 'element.send_keys("your_value")\n'
+        elif action_type == 'select':
+            code += 'Select(element).select_by_value("option_value")\n'
+        
+        return code
+    
+    def _generate_puppeteer_code(self, strategy, value, element_name, action_type):
+        """生成Puppeteer代码"""
+        code = f'// {element_name}\n'
+        
+        if strategy == 'xpath':
+            code += f'const element = await page.$x("{value}");\n'
+            code += 'if (element.length > 0) {\n'
+        elif strategy == 'css':
+            code += f'const element = await page.$("{value}");\n'
+            code += 'if (element) {\n'
+        elif strategy == 'id':
+            code += f'const element = await page.$("#{value}");\n'
+            code += 'if (element) {\n'
+        else:
+            code += f'const element = await page.$("{value}");\n'
+            code += 'if (element) {\n'
+        
+        if action_type == 'click':
+            if strategy == 'xpath':
+                code += '  await element[0].click();\n'
+            else:
+                code += '  await element.click();\n'
+        elif action_type == 'fill':
+            if strategy == 'xpath':
+                code += '  await element[0].type("your_value");\n'
+            else:
+                code += '  await element.type("your_value");\n'
+        
+        code += '}\n'
+        return code
+    
+    def _generate_playwright_text_code(self, element_name, description, action_type):
+        """基于文本描述生成Playwright代码"""
+        code = f'# {element_name}\n'
+        code += f'# 描述: {description}\n\n'
+        
+        if action_type == 'click':
+            code += f'# 方式1: 通过文本查找\n'
+            code += f'await page.get_by_text("{element_name}").click()\n\n'
+            code += f'# 方式2: 通过角色查找\n'
+            code += f'await page.get_by_role("button", name="{element_name}").click()\n'
+        elif action_type == 'fill':
+            code += f'# 方式1: 通过标签查找\n'
+            code += f'await page.get_by_label("{element_name}").fill("your_value")\n\n'
+            code += f'# 方式2: 通过占位符查找\n'
+            code += f'await page.get_by_placeholder("{element_name}").fill("your_value")\n'
+        
+        return code
+    
+    def _generate_selenium_text_code(self, element_name, description, action_type):
+        """基于文本描述生成Selenium代码"""
+        code = f'# {element_name}\n'
+        code += f'# 描述: {description}\n\n'
+        
+        if action_type == 'click':
+            code += f'# 方式1: 通过链接文本\n'
+            code += f'driver.find_element(By.LINK_TEXT, "{element_name}").click()\n\n'
+            code += f'# 方式2: 通过部分链接文本\n'
+            code += f'driver.find_element(By.PARTIAL_LINK_TEXT, "{element_name}").click()\n\n'
+            code += f'# 方式3: 通过XPath包含文本\n'
+            code += f'driver.find_element(By.XPATH, f"//*[contains(text(), \'{element_name}\')]").click()\n'
+        elif action_type == 'fill':
+            code += f'# 通过XPath查找输入框\n'
+            code += f'input_element = driver.find_element(By.XPATH, f"//input[contains(@placeholder, \'{element_name}\') or contains(@name, \'{element_name}\')]")\n'
+            code += 'input_element.send_keys("your_value")\n'
+        
+        return code
+    
+    def _generate_puppeteer_text_code(self, element_name, description, action_type):
+        """基于文本描述生成Puppeteer代码"""
+        code = f'// {element_name}\n'
+        code += f'// 描述: {description}\n\n'
+        
+        if action_type == 'click':
+            code += f'// 方式1: 通过文本选择器\n'
+            code += f'await page.click(`::-p-text("{element_name}")`);\n\n'
+            code += f'// 方式2: 通过XPath\n'
+            code += f'const elements = await page.$x(`//*[contains(text(), "{element_name}")]`);\n'
+            code += 'if (elements.length > 0) {\n'
+            code += '  await elements[0].click();\n'
+            code += '}\n'
+        elif action_type == 'fill':
+            code += f'// 通过XPath查找输入框\n'
+            code += f'const inputs = await page.$x(`//input[contains(@placeholder, "{element_name}")]`);\n'
+            code += 'if (inputs.length > 0) {\n'
+            code += '  await inputs[0].type("your_value");\n'
+            code += '}\n'
+        
+        return code
+    
+    def _extract_locator_from_action(self, action):
+        """从action对象中提取定位器"""
+        import re
+        
+        result = None
+        
+        coordinate = action.get('coordinate')
+        if coordinate:
+            return {'strategy': 'coordinate', 'value': str(coordinate)}
+        
+        for key in ['description', 'goal', 'text', 'output', 'result']:
+            value = action.get(key)
+            if isinstance(value, str):
+                locator = self._extract_locator_from_text(value)
+                if locator:
+                    return locator
+        
+        return None
+    
+    def _extract_locator_from_text(self, text):
+        """从文本中提取定位器"""
+        import re
+        
+        if not isinstance(text, str):
+            return None
+        
+        locator_patterns = [
+            (r'xpath\s*[:=]\s*["\'](.+?)["\']', 'xpath'),
+            (r'css\s*[:=]\s*["\'](.+?)["\']', 'css'),
+            (r'id\s*[:=]\s*["\'](.+?)["\']', 'id'),
+            (r'name\s*[:=]\s*["\'](.+?)["\']', 'name'),
+            (r'class\s*[:=]\s*["\'](.+?)["\']', 'class'),
+            (r'text\s*[:=]\s*["\'](.+?)["\']', 'text'),
+            (r'//[^\s"\']+', 'xpath'),
+            (r'\.[a-zA-Z][a-zA-Z0-9_-]*', 'css'),
+            (r'#[a-zA-Z][a-zA-Z0-9_-]*', 'id'),
+        ]
+        
+        for pattern, strategy in locator_patterns:
+            match = re.search(pattern, text)
+            if match:
+                value = match.group(1) if len(match.groups()) > 0 else match.group(0)
+                if len(value.strip()) > 0:
+                    return {'strategy': strategy, 'value': value.strip()}
+        
+        return None
 
     @action(detail=False, methods=['post'], url_path='run_adhoc')
     def run_adhoc(self, request):
@@ -3682,5 +3991,316 @@ class UiDashboardViewSet(viewsets.ViewSet):
             'suite_count': suite_test_case_count,
             'execution_count': total_execution_count
         })
+
+
+class AITestSuiteViewSet(viewsets.ModelViewSet):
+    """AI测试套件视图集"""
+    queryset = AITestSuite.objects.all()
+    permission_classes = [IsAuthenticated]
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_fields = ['project']
+    search_fields = ['name', 'description']
+    ordering = ['-created_at']
+
+    def get_serializer_class(self):
+        if self.action == 'create':
+            return AITestSuiteCreateSerializer
+        elif self.action in ['update', 'partial_update']:
+            return AITestSuiteUpdateSerializer
+        return AITestSuiteSerializer
+
+    def perform_create(self, serializer):
+        serializer.save(created_by=self.request.user)
+
+    @action(detail=True, methods=['get'])
+    def ai_cases(self, request, pk=None):
+        """获取AI测试套件中的AI测试用例"""
+        ai_test_suite = self.get_object()
+        suite_ai_cases = AITestSuiteAICase.objects.filter(ai_test_suite=ai_test_suite)
+        serializer = AITestSuiteAICaseSerializer(suite_ai_cases, many=True)
+        return Response(serializer.data)
+
+    @action(detail=True, methods=['post'])
+    def add_ai_case(self, request, pk=None):
+        """向AI测试套件添加AI测试用例"""
+        ai_test_suite = self.get_object()
+        ai_case_id = request.data.get('ai_case_id')
+        order = request.data.get('order', 0)
+
+        try:
+            ai_case = AICase.objects.get(id=ai_case_id)
+            suite_ai_case, created = AITestSuiteAICase.objects.get_or_create(
+                ai_test_suite=ai_test_suite,
+                ai_case=ai_case,
+                defaults={'order': order}
+            )
+            if not created:
+                suite_ai_case.order = order
+                suite_ai_case.save()
+            serializer = AITestSuiteAICaseSerializer(suite_ai_case)
+            return Response(serializer.data)
+        except AICase.DoesNotExist:
+            return Response({'error': 'AI测试用例不存在'}, status=status.HTTP_404_NOT_FOUND)
+
+    @action(detail=True, methods=['delete'])
+    def remove_ai_case(self, request, pk=None):
+        """从AI测试套件移除AI测试用例"""
+        ai_test_suite = self.get_object()
+        ai_case_id = request.data.get('ai_case_id')
+        
+        try:
+            suite_ai_case = AITestSuiteAICase.objects.get(
+                ai_test_suite=ai_test_suite,
+                ai_case_id=ai_case_id
+            )
+            suite_ai_case.delete()
+            return Response({'message': 'AI测试用例已移除'})
+        except AITestSuiteAICase.DoesNotExist:
+            return Response({'error': '关联关系不存在'}, status=status.HTTP_404_NOT_FOUND)
+
+    @action(detail=True, methods=['post'])
+    def update_ai_case_order(self, request, pk=None):
+        """更新AI测试套件中AI测试用例的顺序"""
+        ai_test_suite = self.get_object()
+        ai_case_orders = request.data.get('ai_case_orders', [])
+        
+        for ai_case_order in ai_case_orders:
+            ai_case_id = ai_case_order.get('ai_case_id')
+            order = ai_case_order.get('order')
+            
+            try:
+                suite_ai_case = AITestSuiteAICase.objects.get(
+                    ai_test_suite=ai_test_suite,
+                    ai_case_id=ai_case_id
+                )
+                suite_ai_case.order = order
+                suite_ai_case.save()
+            except AITestSuiteAICase.DoesNotExist:
+                pass
+        
+        suite_ai_cases = AITestSuiteAICase.objects.filter(ai_test_suite=ai_test_suite)
+        serializer = AITestSuiteAICaseSerializer(suite_ai_cases, many=True)
+        return Response(serializer.data)
+
+    def _process_gif_recording(self, execution_record, history):
+        """
+        处理GIF录制文件
+        在执行完成后查找生成的GIF文件并保存路径到数据库
+        """
+        try:
+            import os
+            import shutil
+            from django.conf import settings
+            from datetime import datetime
+
+            # browser-use 默认生成的GIF文件名（固定为agent_history.gif）
+            default_gif_path = os.path.join(os.getcwd(), 'agent_history.gif')
+
+            # 如果找到GIF文件，移动到media/ai_recording目录并重命名
+            if os.path.exists(default_gif_path):
+                # 创建录制文件目录
+                gif_dir = os.path.join(settings.MEDIA_ROOT, 'ai_recording')
+                os.makedirs(gif_dir, exist_ok=True)
+
+                # 生成新的文件名：用例名称+年月日时分秒
+                timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
+                # 清理用例名称中的非法字符
+                safe_case_name = "".join(
+                    [c if c.isalnum() or c in (' ', '_', '-') else '_' for c in execution_record.case_name])
+                new_gif_filename = f"{safe_case_name}_{timestamp}.gif"
+                new_gif_path = os.path.join(gif_dir, new_gif_filename)
+
+                # 移动并重命名文件
+                shutil.move(default_gif_path, new_gif_path)
+
+                # 保存相对路径到数据库（使用正斜杠，确保跨平台兼容）
+                relative_path = f'media/ai_recording/{new_gif_filename}'
+                execution_record.gif_path = relative_path
+
+                logger.info(f"✅ GIF recording saved to: {relative_path}")
+            else:
+                logger.warning(f"⚠️ GIF file not found at: {default_gif_path}")
+        except Exception as e:
+            logger.warning(f"⚠️ Failed to process GIF recording: {e}")
+
+    @action(detail=True, methods=['post'])
+    def run_suite(self, request, pk=None):
+        """运行AI测试套件（支持浏览器会话复用）"""
+        import threading
+        import os
+        import asyncio
+        from asgiref.sync import sync_to_async
+        from django.db import connection, DatabaseError
+        from .ai_base import PersistentBrowserSession
+
+        ai_test_suite = self.get_object()
+        
+        # 在主线程中立即获取所有数据，避免在子线程中惰性查询
+        suite_ai_cases_list = list(AITestSuiteAICase.objects.filter(ai_test_suite=ai_test_suite).order_by('order').select_related('ai_case'))
+
+        if not suite_ai_cases_list:
+            return Response({'error': 'AI测试套件中没有AI测试用例'}, status=status.HTTP_400_BAD_REQUEST)
+
+        ai_test_suite.execution_status = 'running'
+        ai_test_suite.save()
+
+        def run_suite_task():
+            STOP_SIGNALS = {}
+
+            try:
+                connection.close()
+            except:
+                pass
+
+            os.environ['DJANGO_ALLOW_ASYNC_UNSAFE'] = 'true'
+
+            def safe_save(record, update_fields=None, max_retries=3):
+                for attempt in range(max_retries):
+                    try:
+                        record.save(update_fields=update_fields)
+                        return True
+                    except (DatabaseError, Exception) as e:
+                        error_str = str(e)
+                        if '2006' in error_str or 'MySQL server has gone away' in error_str or '0' == error_str:
+                            if attempt < max_retries - 1:
+                                try:
+                                    connection.close()
+                                except:
+                                    pass
+                                import time
+                                time.sleep(0.5)
+                                continue
+                            else:
+                                logger.error(f"数据库保存失败，已达最大重试次数: {e}")
+                                raise
+                        else:
+                            logger.error(f"数据库保存失败: {e}")
+                            raise
+                return False
+
+            passed_count = 0
+            failed_count = 0
+            browser_session = None
+
+            try:
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                
+                browser_session = PersistentBrowserSession(execution_mode='text', enable_gif=True)
+                browser_session.initialize()
+
+                try:
+                    for suite_ai_case in suite_ai_cases_list:
+                        ai_case = suite_ai_case.ai_case
+
+                        execution_record = AIExecutionRecord.objects.create(
+                            project=ai_test_suite.project,
+                            ai_case=ai_case,
+                            case_name=ai_case.name,
+                            task_description=ai_case.task_description,
+                            status='running',
+                            executed_by=request.user,
+                            logs="正在分析任务...\n"
+                        )
+                        STOP_SIGNALS[execution_record.id] = False
+
+                        try:
+                            async def should_stop():
+                                return STOP_SIGNALS.get(execution_record.id, False)
+
+                            async def on_analysis_complete(planned_tasks):
+                                execution_record.planned_tasks = planned_tasks
+                                execution_record.logs += "任务分析完成，开始执行...\n"
+                                await sync_to_async(safe_save)(execution_record, update_fields=['planned_tasks', 'logs'])
+
+                            async def on_step_update(step_info):
+                                try:
+                                    if step_info.get('type') == 'log':
+                                        content = step_info.get('content')
+                                        if content:
+                                            execution_record.logs += content
+                                            await sync_to_async(safe_save)(execution_record, update_fields=['logs'])
+                                        return
+
+                                    task_id = step_info.get('task_id')
+                                    status = step_info.get('status')
+                                    if task_id and status:
+                                        updated = False
+                                        if execution_record.planned_tasks:
+                                            for task in execution_record.planned_tasks:
+                                                if task['id'] == task_id:
+                                                    task['status'] = status
+                                                    updated = True
+                                                    break
+                                        if updated:
+                                            await sync_to_async(safe_save)(execution_record, update_fields=['planned_tasks'])
+                                except Exception as e:
+                                    logger.error(f"更新步骤状态失败: {e}")
+
+                            history = loop.run_until_complete(
+                                browser_session.run_single_case(
+                                    ai_case.task_description,
+                                    analysis_callback=on_analysis_complete,
+                                    step_callback=on_step_update,
+                                    should_stop=should_stop,
+                                    case_name=ai_case.name
+                                )
+                            )
+
+                            if STOP_SIGNALS.get(execution_record.id, False):
+                                execution_record.status = 'stopped'
+                                execution_record.logs += "\n[System] 任务已由用户停止。"
+                            else:
+                                execution_record.status = 'passed'
+                                execution_record.logs += "\n执行完成。"
+
+                            execution_record.end_time = timezone.now()
+                            execution_record.duration = (execution_record.end_time - execution_record.start_time).total_seconds()
+
+                            # 处理GIF录制文件
+                            self._process_gif_recording(execution_record, history)
+
+                            safe_save(execution_record)
+                        except Exception as e:
+                            execution_record.status = 'failed'
+                            execution_record.end_time = timezone.now()
+                            execution_record.duration = (execution_record.end_time - execution_record.start_time).total_seconds()
+                            execution_record.logs += f"\n执行出错: {str(e)}"
+                            try:
+                                safe_save(execution_record)
+                            except:
+                                logger.error(f"保存失败状态时出错: {e}")
+                        finally:
+                            if execution_record.id in STOP_SIGNALS:
+                                del STOP_SIGNALS[execution_record.id]
+
+                        if execution_record.status == 'passed':
+                            passed_count += 1
+                        else:
+                            failed_count += 1
+
+                    ai_test_suite.execution_status = 'passed' if failed_count == 0 else 'failed'
+                finally:
+                    if browser_session:
+                        browser_session.close()
+                    loop.close()
+            except Exception as e:
+                ai_test_suite.execution_status = 'failed'
+                logger.error(f"运行AI测试套件失败: {e}")
+                if browser_session:
+                    try:
+                        browser_session.close()
+                    except:
+                        pass
+            finally:
+                ai_test_suite.passed_count = passed_count
+                ai_test_suite.failed_count = failed_count
+                safe_save(ai_test_suite)
+
+        thread = threading.Thread(target=run_suite_task)
+        thread.daemon = True
+        thread.start()
+
+        return Response({'message': 'AI测试套件开始执行'})
 
 

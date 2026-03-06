@@ -642,7 +642,7 @@ class RawResponseLogger(BaseCallbackHandler):
 # PART 3: Base Browser Agent
 # ============================================================================
 
-from browser_use import Agent, Controller
+from browser_use import Agent, Controller, BrowserSession
 from browser_use.browser.profile import BrowserProfile
 
 
@@ -1151,3 +1151,449 @@ class BaseBrowserAgent:
                 analysis_callback(planned_tasks)
 
         return await self.run_task(task_description, planned_tasks, step_callback, should_stop)
+
+
+class PersistentBrowserSession:
+    """持久化浏览器会话，用于执行多个测试用例时复用浏览器"""
+    
+    def __init__(self, execution_mode='text', enable_gif=True):
+        self.execution_mode = 'text'
+        self.enable_gif = enable_gif
+        self.controller = None
+        self.browser_profile = None
+        self.browser_session = None
+        self.agent = None
+        self._task_was_done = False
+        
+        from apps.requirement_analysis.models import AIModelConfig
+        
+        role_name = 'browser_use_text'
+        config_obj = AIModelConfig.objects.filter(role=role_name, is_active=True).first()
+        
+        model_config = {}
+        if config_obj:
+            model_config = {
+                'api_key': config_obj.api_key,
+                'base_url': config_obj.base_url,
+                'model_name': config_obj.model_name,
+                'provider': config_obj.model_type,
+                'temperature': config_obj.temperature
+            }
+        
+        self.api_key = model_config.get('api_key') or os.getenv('AUTH_TOKEN')
+        self.base_url = model_config.get('base_url') or os.getenv('BASE_URL')
+        self.model_name = model_config.get('model_name') or os.getenv('MODEL_NAME')
+        self.provider = model_config.get('provider', 'openai')
+        
+        if not self.api_key:
+            raise ValueError(f"No API Key found for mode: {execution_mode}")
+        
+        final_temperature = 0.0
+        special_model_temperature_map = {
+            'kimi-2.5': 1.0,
+            'kimi-k2.5': 1.0,
+            'kimi': 1.0,
+        }
+        
+        model_name_lower = self.model_name.lower()
+        for model_keyword, temp in special_model_temperature_map.items():
+            if model_keyword in model_name_lower:
+                final_temperature = temp
+                logger.info(f"✅ 检测到特殊模型 '{self.model_name}'，使用强制 temperature={temp}")
+                break
+        else:
+            if 'temperature' in model_config:
+                final_temperature = model_config['temperature']
+            else:
+                final_temperature = 0.0
+        
+        self.llm = ChatOpenAI(
+            model=self.model_name,
+            api_key=self.api_key,
+            base_url=self.base_url,
+            temperature=final_temperature,
+            callbacks=[RawResponseLogger()]
+        )
+        
+        try:
+            object.__setattr__(self.llm, 'provider', self.provider)
+            object.__setattr__(self.llm, 'model', self.model_name)
+        except:
+            if not hasattr(self.llm, '__pydantic_extra__') or self.llm.__pydantic_extra__ is None:
+                self.llm.__pydantic_extra__ = {}
+            self.llm.__pydantic_extra__['provider'] = self.provider
+            self.llm.__pydantic_extra__['model'] = self.model_name
+    
+    def _create_browser_profile(self):
+        chrome_path = None
+        import platform
+        
+        system = platform.system()
+        if system == 'Windows':
+            paths = [
+                r"C:\Program Files\Google\Chrome\Application\chrome.exe",
+                r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe",
+                os.path.expanduser(r"~\AppData\Local\Google\Chrome\Application\chrome.exe")
+            ]
+            for p in paths:
+                if os.path.exists(p):
+                    chrome_path = p
+                    break
+        elif system == 'Linux':
+            paths = [
+                '/usr/bin/google-chrome',
+                '/usr/bin/google-chrome-stable',
+                '/usr/bin/chromium-browser',
+                '/usr/bin/chromium',
+                '/opt/google/chrome/chrome',
+                '/snap/bin/chromium',
+            ]
+            for p in paths:
+                if os.path.exists(p):
+                    chrome_path = p
+                    break
+        
+        extra_args = [
+            '--disable-blink-features=AutomationControlled',
+            '--disable-infobars', '--disable-notifications',
+            '--disable-background-networking',
+            '--disable-background-timer-throttling',
+            '--disable-renderer-backgrounding',
+            '--disable-backgrounding-occluded-windows',
+            '--disable-extensions',
+            '--disable-web-security',
+        ]
+        
+        if system == 'Linux':
+            extra_args.extend([
+                '--no-sandbox',
+                '--disable-setuid-sandbox',
+                '--disable-dev-shm-usage',
+                '--disable-gpu',
+                '--headless=new',
+                '--disable-software-rasterizer',
+                '--remote-debugging-port=0',
+            ])
+        else:
+            extra_args.extend([
+                '--no-sandbox',
+                '--disable-gpu',
+                '--remote-debugging-port=9222',
+            ])
+        
+        return BrowserProfile(
+            headless=(system == 'Linux'),
+            disable_security=True,
+            executable_path=chrome_path,
+            args=extra_args,
+            wait_for_network_idle_page_load_time=0.2,
+            minimum_wait_page_load_time=0.05,
+            wait_between_actions=0.1,
+            enable_default_extensions=False,
+            keep_alive=True  # 关键：保持浏览器会话存活，以便多个用例复用
+        )
+    
+    def initialize(self):
+        """初始化浏览器会话"""
+        self.controller = Controller()
+        self.browser_profile = self._create_browser_profile()
+        
+        # 创建 BrowserSession，这是实际管理浏览器实例的对象
+        self.browser_session = BrowserSession(
+            browser_profile=self.browser_profile
+        )
+        
+        @self.controller.action('Done')
+        async def done(success: bool = True, text: str = ""):
+            self._task_was_done = True
+            return f"Finished: {text}"
+        
+        @self.controller.action('mark_task_complete')
+        async def mark_task_complete(task_id: int):
+            logger.info(f"✅ Explicitly marking task {task_id} as completed")
+            return f"Task {task_id} marked completed"
+        
+        # 预创建一个 Agent 实例（可选，主要用于占位）
+        self.agent = Agent(
+            task="",
+            llm=self.llm,
+            controller=self.controller,
+            browser_session=self.browser_session,
+            use_vision=False,
+            max_actions_per_step=10,
+            max_retries=1,
+            max_failures=2,
+            llm_timeout=60,
+            step_timeout=90,
+            generate_gif=self.enable_gif,
+        )
+        self.agent._task_was_done = False
+    
+    async def run_single_case(self, task_description: str, analysis_callback=None, step_callback=None, should_stop=None, case_name=None):
+        """在持久浏览器会话中运行单个测试用例"""
+        if not self.browser_session:
+            logger.info(f"🔄 初始化浏览器会话 for case: {case_name}")
+            self.initialize()
+        else:
+            logger.info(f"🔄 复用已有浏览器会话 for case: {case_name}")
+        
+        self._task_was_done = False
+        
+        # 每次运行用例时重新创建 Agent，但复用同一个 BrowserSession（浏览器会话）
+        from apps.requirement_analysis.models import AIModelConfig
+        role_name = 'browser_use_text'
+        config_obj = AIModelConfig.objects.filter(role=role_name, is_active=True).first()
+        model_config = {}
+        if config_obj:
+            model_config = {
+                'api_key': config_obj.api_key,
+                'base_url': config_obj.base_url,
+                'model_name': config_obj.model_name,
+                'provider': config_obj.model_type,
+                'temperature': config_obj.temperature
+            }
+        
+        planned_tasks = []
+        try:
+            prompt = f"Break down this task into steps: {task_description}. Return JSON list of strings."
+            response = await self.llm.ainvoke(prompt)
+            content = response.content.strip() if hasattr(response, 'content') else str(response)
+            
+            try:
+                import json
+                match = re.search(r'(\[.*\])', content, re.DOTALL)
+                if match: 
+                    planned_tasks = json.loads(match.group(1))
+            except:
+                pass
+            
+            if not planned_tasks:
+                planned_tasks = [s.strip() for s in task_description.split('\n') if s.strip()]
+            
+            cleaned_steps = []
+            for s in planned_tasks:
+                desc = s
+                while True:
+                    match = re.match(r'^\s*\d+[\.\s、:]+(.*)', desc)
+                    if not match: break
+                    desc = match.group(1).strip()
+                if desc:
+                    cleaned_steps.append(desc)
+            
+            planned_tasks = [{'id': i + 1, 'description': s, 'status': 'pending'} for i, s in enumerate(cleaned_steps)]
+        except:
+            planned_tasks = [{'id': 1, 'description': task_description, 'status': 'pending'}]
+        
+        if analysis_callback:
+            if asyncio.iscoroutinefunction(analysis_callback):
+                await analysis_callback(planned_tasks)
+            else:
+                analysis_callback(planned_tasks)
+        
+        final_task = task_description
+        if planned_tasks:
+            final_task += "\n\nIMPORTANT INSTRUCTION:\n"
+            final_task += "You have a list of sub-tasks. Execute strictly in order.\n"
+            final_task += "CRITICAL: MUST call 'mark_task_complete(task_id=...)' IMMEDIATELY after verifying each sub-task completion. NEVER skip this step.\n"
+            final_task += "IMPORTANT: If a sub-task is already fulfilled, YOU MUST mark it complete in your VERY FIRST STEP.\n"
+            final_task += "Sub-tasks (Execute in order):\n"
+            cleaned_tasks = []
+            for t in planned_tasks:
+                desc = t['description']
+                while True:
+                    match = re.match(r'^\s*\d+[\.\s、:]+(.*)', desc)
+                    if not match: break
+                    desc = match.group(1).strip()
+                cleaned_tasks.append(f"{t['id']}. {desc}")
+            final_task += "\n".join(cleaned_tasks)
+        
+        from datetime import datetime
+        final_task += f"\n\nCURRENT TIME: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
+        
+        try:
+            final_task = re.sub(r'(https?://[^\s\u4e00-\u9fa5]+?)(?=[，；。、！])', r'\1 ', final_task)
+        except:
+            pass
+        
+        # 创建新的 Agent，但复用同一个 BrowserSession（浏览器会话）
+        # 这样多个用例可以在同一个浏览器实例中运行，保持登录状态
+        logger.info(f"🤖 创建 Agent for case: {case_name}, browser_session: {self.browser_session}")
+        agent = Agent(
+            task=final_task,
+            llm=self.llm,
+            controller=self.controller,
+            browser_session=self.browser_session,  # 复用同一个浏览器会话
+            use_vision=False,
+            max_actions_per_step=10,
+            max_retries=1,
+            max_failures=2,
+            llm_timeout=60,
+            step_timeout=90,
+            generate_gif=self.enable_gif,
+        )
+        agent._task_was_done = False
+        logger.info(f"✅ Agent 创建完成 for case: {case_name}")
+        
+        last_processed_step = 0
+        last_marked_task_id = 0
+        
+        async def on_step_end(agent_instance):
+            nonlocal last_processed_step, last_marked_task_id
+            
+            if should_stop:
+                do_stop = await should_stop() if asyncio.iscoroutinefunction(should_stop) else should_stop()
+                if do_stop: raise KeyboardInterrupt("User requested stop")
+            
+            if self._task_was_done:
+                raise KeyboardInterrupt("Done")
+            
+            history = getattr(agent_instance, 'history', [])
+            if hasattr(history, 'history'): history = history.history
+            
+            if len(history) > last_processed_step:
+                for i in range(last_processed_step, len(history)):
+                    step = history[i]
+                    try:
+                        actions = []
+                        if hasattr(step, 'model_output') and hasattr(step.model_output, 'action'):
+                            raw = step.model_output.action
+                            actions = raw if isinstance(raw, list) else [raw]
+                        
+                        step_has_task_complete = False
+                        step_marked_task_id = None
+                        for action in actions:
+                            action_dict = action.model_dump() if hasattr(action, 'model_dump') else getattr(action, '_action_dict', {})
+                            if 'mark_task_complete' in action_dict:
+                                step_has_task_complete = True
+                                step_marked_task_id = action_dict['mark_task_complete'].get('task_id')
+                                last_marked_task_id = step_marked_task_id
+                                break
+                        
+                        has_real_action = False
+                        for action in actions:
+                            action_dict = action.model_dump() if hasattr(action, 'model_dump') else getattr(action, '_action_dict', {})
+                            for key in action_dict.keys():
+                                if key not in ['mark_task_complete', 'done']:
+                                    has_real_action = True
+                                    break
+                            if has_real_action:
+                                break
+                        
+                        action_str = " | ".join([self._format_action_persistent(a) for a in actions])
+                        log_content = f"\n[Step {i + 1}]\n执行: {action_str}\n"
+                        
+                        if step_callback:
+                            if asyncio.iscoroutinefunction(step_callback):
+                                await step_callback({'type': 'log', 'content': log_content})
+                            else:
+                                step_callback({'type': 'log', 'content': log_content})
+                        
+                        if has_real_action and not step_has_task_complete and planned_tasks:
+                            next_expected_task_id = last_marked_task_id + 1
+                            if next_expected_task_id <= len(planned_tasks):
+                                task_already_marked = False
+                                for task in planned_tasks:
+                                    if task['id'] == next_expected_task_id and task.get('status') == 'completed':
+                                        task_already_marked = True
+                                        break
+                                
+                                if not task_already_marked:
+                                    logger.warning(
+                                        f"⚠️ Auto-fixing: Step {i + 1} had actions but no mark_task_complete. Auto-marking task {next_expected_task_id} as completed.")
+                                    data = {'task_id': int(next_expected_task_id), 'status': 'completed'}
+                                    if step_callback:
+                                        if asyncio.iscoroutinefunction(step_callback):
+                                            await step_callback(data)
+                                        else:
+                                            step_callback(data)
+                                    last_marked_task_id = next_expected_task_id
+                    except Exception as e:
+                        logger.warning(f"⚠️ Error in on_step_end processing: {e}")
+                last_processed_step = len(history)
+        
+        try:
+            import inspect
+            logger.info(f"🚀 开始执行 Agent.run() for case: {case_name}")
+            sig = inspect.signature(agent.run)
+            if 'on_step_end' in sig.parameters:
+                history = await agent.run(max_steps=100, on_step_end=on_step_end)
+            else:
+                history = await agent.run(max_steps=100)
+            logger.info(f"✅ Agent.run() 执行完成 for case: {case_name}, history steps: {len(history) if history else 0}")
+        except KeyboardInterrupt:
+            logger.info(f"⏹️ Agent.run() 被中断 for case: {case_name}")
+            history = getattr(agent, 'history', [])
+        except Exception as e:
+            logger.error(f"❌ Agent execution error for case {case_name}: {e}")
+            raise
+        
+        return history
+    
+    def _format_action_persistent(self, action):
+        try:
+            action_dict = {}
+            if hasattr(action, 'model_dump'):
+                action_dict = action.model_dump()
+            elif hasattr(action, '_action_dict'):
+                action_dict = action._action_dict
+            elif hasattr(action, '_dict'):
+                action_dict = action._dict
+            elif isinstance(action, dict):
+                action_dict = action
+            else:
+                return str(action)
+            
+            if not action_dict: return "待机"
+            
+            descriptions = []
+            for name, params in action_dict.items():
+                if not params and name not in ['scroll_down', 'scroll_up', 'done']: continue
+                
+                if name in ['go_to_url', 'navigate']:
+                    url = params.get('url') if isinstance(params, dict) else params
+                    descriptions.append(f"访问: {url}")
+                elif name in ['click_element', 'click']:
+                    index = params.get('index') if isinstance(params, dict) else params
+                    descriptions.append(f"点击[{index}]")
+                elif name in ['input_text', 'input']:
+                    text = params.get('text') if isinstance(params, dict) else None
+                    descriptions.append(f"输入: '{text}'")
+                elif name == 'switch_tab':
+                    index = params.get('index', params)
+                    descriptions.append(f"切换标签 {index}")
+                elif name == 'open_new_tab':
+                    url = params.get('url', params)
+                    descriptions.append(f"新标签打开: {url}")
+                elif name == 'done':
+                    descriptions.append("任务完成")
+                else:
+                    descriptions.append(f"{name}")
+            return " | ".join(descriptions)
+        except:
+            return "执行操作"
+    
+    def close(self):
+        """关闭浏览器会话"""
+        # 优先关闭 browser_session，因为它管理实际的浏览器实例
+        if self.browser_session:
+            try:
+                import asyncio
+                loop = asyncio.get_event_loop()
+                if loop.is_running():
+                    asyncio.create_task(self.browser_session.close())
+                else:
+                    loop.run_until_complete(self.browser_session.close())
+            except Exception as e:
+                logger.warning(f"关闭 browser_session 时出错: {e}")
+        
+        # 然后关闭 controller
+        if hasattr(self.controller, 'close'):
+            try:
+                import asyncio
+                loop = asyncio.get_event_loop()
+                if loop.is_running():
+                    asyncio.create_task(self.controller.close())
+                else:
+                    loop.run_until_complete(self.controller.close())
+            except:
+                pass

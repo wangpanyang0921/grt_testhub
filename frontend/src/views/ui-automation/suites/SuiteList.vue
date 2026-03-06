@@ -33,17 +33,17 @@
     <div class="card-container">
       <el-table :data="suites" v-loading="loading" stripe style="width: 100%">
         <el-table-column type="selection" width="60" header-align="center" align="center" />
-        <el-table-column prop="name" :label="$t('uiAutomation.suite.suiteName')" min-width="180" header-align="center" align="center">
+        <el-table-column prop="name" :label="$t('uiAutomation.suite.suiteName')" min-width="200" header-align="center" align="center">
           <template #default="{ row }">
             <el-link @click="editSuite(row.id)" type="primary">
               {{ row.name }}
             </el-link>
           </template>
         </el-table-column>
-        <el-table-column prop="description" :label="$t('uiAutomation.common.description')" min-width="180" show-overflow-tooltip header-align="center" align="center" />
-        <el-table-column :label="$t('uiAutomation.suite.testCaseCount')" width="120" header-align="center" align="center">
+        <el-table-column prop="description" :label="$t('uiAutomation.common.description')" min-width="200" show-overflow-tooltip header-align="center" align="center" />
+        <el-table-column label="包含用例/脚本" width="150" header-align="center" align="center" show-overflow-tooltip>
           <template #default="{ row }">
-            {{ row.test_case_count || 0 }}
+            {{ (row.test_case_count || 0) + (row.script_count || 0) }}
           </template>
         </el-table-column>
         <el-table-column :label="$t('uiAutomation.suite.executionStatus')" width="110" header-align="center" align="center">
@@ -63,9 +63,9 @@
             <span style="color: #f56c6c; font-weight: bold;">{{ row.failed_count || 0 }}</span>
           </template>
         </el-table-column>
-        <el-table-column prop="created_at" :label="$t('uiAutomation.common.createTime')" width="170" :formatter="formatDate" header-align="center" align="center" />
-        <el-table-column prop="updated_at" :label="$t('uiAutomation.common.updateTime')" width="170" :formatter="formatDate" header-align="center" align="center" />
-        <el-table-column :label="$t('uiAutomation.common.operation')" width="260" fixed="right" header-align="center" align="center">
+        <el-table-column prop="created_at" :label="$t('uiAutomation.common.createTime')" width="180" :formatter="formatDate" header-align="center" align="center" />
+        <el-table-column prop="updated_at" :label="$t('uiAutomation.common.updateTime')" width="180" :formatter="formatDate" header-align="center" align="center" />
+        <el-table-column :label="$t('uiAutomation.common.operation')" width="280" fixed="right" header-align="center" align="center">
           <template #default="{ row }">
             <div class="action-buttons">
               <el-button size="small" type="primary" class="action-btn edit-btn" @click="editSuite(row.id)">
@@ -112,6 +112,109 @@
         <el-form-item :label="$t('uiAutomation.common.description')" prop="description">
           <el-input v-model="createForm.description" type="textarea" :placeholder="$t('uiAutomation.common.description')" />
         </el-form-item>
+        <!-- 脚本选择 -->
+        <el-form-item label="测试脚本">
+          <div class="test-case-selector">
+            <div class="selector-panel">
+              <div class="panel-header">
+                <h4>可用脚本</h4>
+                <el-input
+                  v-model="scriptSearchText"
+                  placeholder="搜索脚本"
+                  size="small"
+                  clearable
+                  style="width: 200px;"
+                >
+                  <template #prefix>
+                    <el-icon><Search /></el-icon>
+                  </template>
+                </el-input>
+              </div>
+              <div class="panel-content">
+                <el-table
+                  :data="filteredAvailableScripts"
+                  height="200"
+                  @row-click="handleScriptRowClick"
+                  :row-class-name="getScriptRowClassName"
+                >
+                  <el-table-column prop="name" label="脚本名称" min-width="150" show-overflow-tooltip />
+                  <el-table-column prop="language" label="语言" width="80">
+                    <template #default="{ row }">
+                      <el-tag size="small" :type="row.language === 'python' ? 'success' : 'primary'">
+                        {{ row.language }}
+                      </el-tag>
+                    </template>
+                  </el-table-column>
+                  <el-table-column prop="framework" label="框架" width="90">
+                    <template #default="{ row }">
+                      <el-tag size="small" type="info">
+                        {{ row.framework }}
+                      </el-tag>
+                    </template>
+                  </el-table-column>
+                  <el-table-column label="操作" width="80">
+                    <template #default="{ row }">
+                      <el-button size="small" text @click.stop="addScript(row)">
+                        <el-icon><ArrowRight /></el-icon>
+                      </el-button>
+                    </template>
+                  </el-table-column>
+                </el-table>
+              </div>
+            </div>
+
+            <div class="selector-panel">
+              <div class="panel-header">
+                <h4>已选脚本 ({{ selectedScripts.length }})</h4>
+              </div>
+              <div class="panel-content">
+                <el-table
+                  :data="selectedScripts"
+                  height="200"
+                >
+                  <el-table-column prop="name" label="脚本名称" min-width="150" show-overflow-tooltip />
+                  <el-table-column prop="language" label="语言" width="80">
+                    <template #default="{ row }">
+                      <el-tag size="small" :type="row.language === 'python' ? 'success' : 'primary'">
+                        {{ row.language }}
+                      </el-tag>
+                    </template>
+                  </el-table-column>
+                  <el-table-column label="操作" width="120">
+                    <template #default="{ row, $index }">
+                      <el-button
+                        size="small"
+                        text
+                        @click="moveScriptUp($index)"
+                        :disabled="$index === 0"
+                      >
+                        <el-icon><Top /></el-icon>
+                      </el-button>
+                      <el-button
+                        size="small"
+                        text
+                        @click="moveScriptDown($index)"
+                        :disabled="$index === selectedScripts.length - 1"
+                      >
+                        <el-icon><Bottom /></el-icon>
+                      </el-button>
+                      <el-button
+                        size="small"
+                        text
+                        type="danger"
+                        @click="removeScript($index)"
+                      >
+                        <el-icon><Delete /></el-icon>
+                      </el-button>
+                    </template>
+                  </el-table-column>
+                </el-table>
+              </div>
+            </div>
+          </div>
+        </el-form-item>
+
+        <!-- 测试用例选择 -->
         <el-form-item :label="$t('uiAutomation.suite.testCases')">
           <div class="test-case-selector">
             <div class="selector-panel">
@@ -132,7 +235,7 @@
               <div class="panel-content">
                 <el-table
                   :data="filteredAvailableTestCases"
-                  height="300"
+                  height="200"
                   @row-click="handleTestCaseRowClick"
                   :row-class-name="getTestCaseRowClassName"
                 >
@@ -169,7 +272,7 @@
               <div class="panel-content">
                 <el-table
                   :data="selectedTestCases"
-                  height="300"
+                  height="200"
                 >
                   <el-table-column prop="name" :label="$t('uiAutomation.suite.caseName')" min-width="150" show-overflow-tooltip />
                   <el-table-column prop="priority" :label="$t('uiAutomation.suite.priority')" width="80">
@@ -279,7 +382,9 @@ import {
   addTestCaseToTestSuite,
   removeTestCaseFromTestSuite,
   updateTestCaseOrder,
-  runTestSuite
+  runTestSuite,
+  getTestScripts,
+  getTestSuiteScripts
 } from '@/api/ui_automation'
 import { useI18n } from 'vue-i18n'
 
@@ -321,6 +426,11 @@ const availableTestCases = ref([])
 const selectedTestCases = ref([])
 const testCaseSearchText = ref('')
 
+// 脚本相关
+const availableScripts = ref([])
+const selectedScripts = ref([])
+const scriptSearchText = ref('')
+
 // 运行配置
 const runConfig = reactive({
   engine: 'playwright',
@@ -337,6 +447,16 @@ const filteredAvailableTestCases = computed(() => {
   return availableTestCases.value.filter(tc =>
     tc.name.toLowerCase().includes(testCaseSearchText.value.toLowerCase()) ||
     (tc.description && tc.description.toLowerCase().includes(testCaseSearchText.value.toLowerCase()))
+  )
+})
+
+// 计算属性 - 过滤后的可用脚本
+const filteredAvailableScripts = computed(() => {
+  if (!scriptSearchText.value) {
+    return availableScripts.value
+  }
+  return availableScripts.value.filter(script =>
+    script.name.toLowerCase().includes(scriptSearchText.value.toLowerCase())
   )
 })
 
@@ -399,6 +519,22 @@ const loadAvailableTestCases = async () => {
   }
 }
 
+// 加载可用脚本
+const loadAvailableScripts = async () => {
+  if (!projectId.value) return
+
+  try {
+    const response = await getTestScripts({
+      project: projectId.value,
+      page_size: 1000  // 加载所有脚本
+    })
+    availableScripts.value = response.data.results || response.data
+  } catch (error) {
+    console.error('获取脚本列表失败:', error)
+    ElMessage.error('获取脚本列表失败')
+  }
+}
+
 // 项目切换
 const onProjectChange = async () => {
   pagination.currentPage = 1
@@ -435,42 +571,34 @@ const handleCreate = async () => {
 
   saving.value = true
   try {
+    // 准备脚本数据
+    const scriptsData = selectedScripts.value.map((script, index) => ({
+      id: script.id,
+      order: index
+    }))
+
+    // 准备测试用例数据
+    const testCasesData = selectedTestCases.value.map((testCase, index) => ({
+      id: testCase.id,
+      order: index
+    }))
+
     const suiteData = {
       project: projectId.value,
       name: createForm.name,
-      description: createForm.description
+      description: createForm.description,
+      scripts: scriptsData,
+      test_cases: testCasesData
     }
 
-    let suiteId
     if (isEditing.value) {
       // 更新套件
       await updateTestSuite(currentSuiteId.value, suiteData)
-      suiteId = currentSuiteId.value
       ElMessage.success(t('uiAutomation.suite.messages.updateSuccess'))
     } else {
       // 创建套件
-      const response = await createTestSuite(suiteData)
-      suiteId = response.data.id
+      await createTestSuite(suiteData)
       ElMessage.success(t('uiAutomation.suite.messages.createSuccess'))
-    }
-
-    // 保存测试用例关联
-    if (selectedTestCases.value.length > 0) {
-      // 清除旧的关联（如果是编辑模式）
-      if (isEditing.value) {
-        const existingTestCases = await getTestSuiteTestCases(suiteId)
-        for (const tc of existingTestCases.data) {
-          await removeTestCaseFromTestSuite(suiteId, tc.test_case.id)
-        }
-      }
-
-      // 添加新的关联
-      for (let i = 0; i < selectedTestCases.value.length; i++) {
-        await addTestCaseToTestSuite(suiteId, {
-          test_case_id: selectedTestCases.value[i].id,
-          order: i
-        })
-      }
     }
 
     showCreateDialog.value = false
@@ -496,12 +624,19 @@ const editSuite = async (id) => {
     createForm.name = suites_data.name
     createForm.description = suites_data.description
 
-    // 加载已选测试用例
-    const response = await getTestSuiteTestCases(id)
-    selectedTestCases.value = response.data.map(item => item.test_case).sort((a, b) => a.order - b.order)
+    // 并行加载可用脚本和用例
+    await Promise.all([
+      loadAvailableTestCases(),
+      loadAvailableScripts()
+    ])
 
-    // 加载可用测试用例
-    await loadAvailableTestCases()
+    // 加载已选测试用例
+    const testCasesResponse = await getTestSuiteTestCases(id)
+    selectedTestCases.value = testCasesResponse.data.map(item => item.test_case).sort((a, b) => a.order - b.order)
+
+    // 加载已选脚本
+    const scriptsResponse = await getTestSuiteScripts(id)
+    selectedScripts.value = scriptsResponse.data.map(item => item.test_script).sort((a, b) => a.order - b.order)
 
     showCreateDialog.value = true
   } catch (error) {
@@ -532,9 +667,10 @@ const deleteSuite = async (id) => {
 
 // 运行套件
 const runSuite = (suite) => {
-  // 检查是否包含测试用例
-  if (!suite.test_case_count || suite.test_case_count === 0) {
-    ElMessage.warning(t('uiAutomation.suite.messages.noCases'))
+  // 检查是否包含测试用例或脚本
+  const totalCount = (suite.test_case_count || 0) + (suite.script_count || 0)
+  if (totalCount === 0) {
+    ElMessage.warning('该测试套件未包含任何测试用例或脚本，无法执行')
     return
   }
 
@@ -653,12 +789,54 @@ const moveDown = (index) => {
   }
 }
 
+// 脚本管理方法
+const handleScriptRowClick = (row) => {
+  // 双击添加脚本
+  addScript(row)
+}
+
+const getScriptRowClassName = ({ row }) => {
+  // 如果已选中，添加特殊样式
+  return selectedScripts.value.some(s => s.id === row.id) ? 'selected-row' : ''
+}
+
+const addScript = (script) => {
+  // 检查是否已存在
+  if (selectedScripts.value.some(s => s.id === script.id)) {
+    ElMessage.warning('脚本已添加')
+    return
+  }
+  selectedScripts.value.push({ ...script })
+}
+
+const removeScript = (index) => {
+  selectedScripts.value.splice(index, 1)
+}
+
+const moveScriptUp = (index) => {
+  if (index > 0) {
+    const temp = selectedScripts.value[index]
+    selectedScripts.value[index] = selectedScripts.value[index - 1]
+    selectedScripts.value[index - 1] = temp
+  }
+}
+
+const moveScriptDown = (index) => {
+  if (index < selectedScripts.value.length - 1) {
+    const temp = selectedScripts.value[index]
+    selectedScripts.value[index] = selectedScripts.value[index + 1]
+    selectedScripts.value[index + 1] = temp
+  }
+}
+
 // 重置表单
 const resetForm = () => {
   createForm.name = ''
   createForm.description = ''
   selectedTestCases.value = []
+  selectedScripts.value = []
   testCaseSearchText.value = ''
+  scriptSearchText.value = ''
   isEditing.value = false
   currentSuiteId.value = null
 }
@@ -672,7 +850,10 @@ const cancelCreate = () => {
 // 新增套件按钮点击
 const handleCreateButtonClick = async () => {
   resetForm()
-  await loadAvailableTestCases()
+  await Promise.all([
+    loadAvailableTestCases(),
+    loadAvailableScripts()
+  ])
   showCreateDialog.value = true
 }
 
@@ -762,7 +943,10 @@ const openCreateDialog = async () => {
 // 修改新增套件按钮点击事件
 const handleNewSuite = async () => {
   resetForm()
-  await loadAvailableTestCases()
+  await Promise.all([
+    loadAvailableTestCases(),
+    loadAvailableScripts()
+  ])
   showCreateDialog.value = true
 }
 </script>
@@ -912,58 +1096,86 @@ const handleNewSuite = async () => {
     --el-color-primary-light-5: #a888e0;
     --el-color-primary-light-7: #c2a9f3;
     --el-color-primary-light-9: #f8f7ff;
-    --el-border-color: rgba(147, 112, 219, 0.2);
-    --el-border-color-light: rgba(147, 112, 219, 0.15);
-    --el-border-color-lighter: rgba(147, 112, 219, 0.1);
-    --el-fill-color-light: #f8f7ff;
-    --el-fill-color-lighter: #f8f7ff;
-    --el-fill-color-blank: #f8f7ff;
-    --el-text-color-primary: var(--text-primary);
-    --el-text-color-regular: var(--text-secondary);
-    --el-text-color-secondary: var(--text-tertiary);
+    --el-border-color: #e9ecef;
+    --el-border-color-light: #e9ecef;
+    --el-border-color-lighter: #e9ecef;
+    --el-fill-color-light: #ffffff;
+    --el-fill-color-lighter: #ffffff;
+    --el-fill-color-blank: #ffffff;
+    --el-text-color-primary: #333;
+    --el-text-color-regular: #333;
+    --el-text-color-secondary: #666;
+    --el-text-color-placeholder: #999;
+    --el-table-header-bg-color: #ffffff;
+    --el-table-row-hover-bg-color: #f8f7ff;
+    --el-table-stripe-bg-color: #fafaff;
 
-    :deep(.el-table__header) {
-      background: linear-gradient(135deg, #f8f7ff 0%, #ede9fe 100%) !important;
+    &::before {
+      display: none;
+    }
 
-      th {
-        background: transparent !important;
-        color: #5a32a3 !important;
-        font-weight: 600 !important;
-        font-size: 14px !important;
-        padding: 16px 12px !important;
-        border-bottom: 2px solid rgba(147, 112, 219, 0.15) !important;
+    // 表头包装器
+    :deep(.el-table__header-wrapper) {
+      background-color: #ffffff !important;
 
-        .cell {
-          color: #5a32a3 !important;
-          font-weight: 600 !important;
+      // 表头
+      :deep(.el-table__header) {
+        background-color: #ffffff !important;
+
+        // 表头单元格
+        :deep(th) {
+          background-color: #ffffff !important;
+          color: #5a32a3;
+          font-weight: 600;
+          font-size: 14px;
+          border-bottom: 1px solid #e9ecef;
+          padding: 16px;
+          text-align: left;
+          line-height: 24px;
+          transition: all 0.3s ease;
+
+          &:hover {
+            background-color: #ffffff !important;
+          }
+
+          // 表头单元格内部
+          :deep(.cell) {
+            background-color: #ffffff !important;
+            color: #5a32a3 !important;
+            font-weight: 600 !important;
+          }
         }
       }
     }
 
-    :deep(.el-table__row) {
-      transition: all 0.3s ease;
+    // 表格体包装器
+    :deep(.el-table__body-wrapper) {
+      background-color: #ffffff !important;
 
-      &:hover {
-        background-color: #f8f7ff !important;
-        transform: translateY(-1px);
-        box-shadow: 0 2px 8px rgba(147, 112, 219, 0.1);
-      }
+      // 表格行
+      :deep(.el-table__row) {
+        transition: all 0.3s ease;
+        background-color: #ffffff !important;
 
-      td {
-        padding: 14px 12px !important;
-        border-bottom: 1px solid rgba(147, 112, 219, 0.08) !important;
-        color: #4a4a4a;
-        font-size: 14px;
-      }
-    }
+        &:hover {
+          background-color: #f8f7ff !important;
+          transform: translateY(-1px);
+          box-shadow: 0 4px 12px rgba(147, 112, 219, 0.1);
+        }
 
-    :deep(.el-table__empty-block) {
-      min-height: 200px;
-      background: #fafaff;
+        // 表格单元格
+        :deep(td) {
+          background-color: #ffffff !important;
+          border-bottom: 1px solid #e9ecef;
+          padding: 16px;
+          text-align: left;
+          line-height: 24px;
+          transition: all 0.3s ease;
+        }
 
-      .el-table__empty-text {
-        color: #9370db;
-        font-size: 14px;
+        &:hover :deep(td) {
+          background-color: #f8f7ff !important;
+        }
       }
     }
   }
@@ -979,26 +1191,24 @@ const handleNewSuite = async () => {
 
 .action-btn {
   &.edit-btn {
-    background: #ffffff !important;
-    border: 1px solid rgba(147, 112, 219, 0.4) !important;
-    color: #5a32a3 !important;
-    font-weight: 500 !important;
+    background: linear-gradient(135deg, #7b42f6 0%, #5a32a3 100%) !important;
+    border: none !important;
+    color: #ffffff !important;
+    font-weight: 600 !important;
     padding: 4px 10px !important;
     border-radius: 6px !important;
-    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08) !important;
+    box-shadow: 0 2px 8px rgba(123, 66, 246, 0.3) !important;
     transition: all 0.3s ease !important;
     white-space: nowrap;
 
     &:hover {
-      background: #f8f7ff !important;
-      border-color: #7b42f6 !important;
-      color: #7b42f6 !important;
-      transform: translateY(-1px) !important;
-      box-shadow: 0 2px 8px rgba(147, 112, 219, 0.2) !important;
+      background: linear-gradient(135deg, #6d33e6 0%, #4a249c 100%) !important;
+      transform: translateY(-2px) !important;
+      box-shadow: 0 4px 12px rgba(123, 66, 246, 0.4) !important;
     }
 
     .el-icon {
-      color: #5a32a3 !important;
+      color: #ffffff !important;
       margin-right: 3px;
       font-size: 12px;
     }
@@ -1037,20 +1247,20 @@ const handleNewSuite = async () => {
   }
 
   &.delete-btn {
-    background: linear-gradient(135deg, #ff4d4f 0%, #cf1322 100%) !important;
+    background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%) !important;
     border: none !important;
     color: #ffffff !important;
     font-weight: 600 !important;
     padding: 4px 10px !important;
     border-radius: 6px !important;
-    box-shadow: 0 2px 8px rgba(255, 77, 79, 0.3) !important;
+    box-shadow: 0 2px 8px rgba(239, 68, 68, 0.3) !important;
     transition: all 0.3s ease !important;
     white-space: nowrap;
 
     &:hover {
-      background: linear-gradient(135deg, #ff7875 0%, #a8071a 100%) !important;
+      background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%) !important;
       transform: translateY(-2px) !important;
-      box-shadow: 0 4px 12px rgba(255, 77, 79, 0.4) !important;
+      box-shadow: 0 4px 12px rgba(239, 68, 68, 0.4) !important;
     }
 
     .el-icon {

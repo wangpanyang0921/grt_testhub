@@ -897,38 +897,6 @@ export default {
           return
         }
 
-<<<<<<< HEAD
-        // readyState=0表示连接中断，尝试自动重连
-        if (this.eventSource.readyState === 0) {
-          console.error('❌ SSE连接中断，准备重连')
-          this.eventSource.close()
-          this.eventSource = null
-
-          // 自动重连逻辑
-          const maxRetries = 3
-          const currentRetry = retryCount || 0
-
-          if (currentRetry < maxRetries) {
-            const retryDelay = Math.min(1000 * Math.pow(2, currentRetry), 5000)
-            console.log(`🔄 ${currentRetry + 1}/${maxRetries} 秒后重连...`)
-
-            // 显示重连提示（仅第一次）
-            if (currentRetry === 0) {
-              ElMessage.info(this.$t('requirementAnalysis.streamReconnecting'))
-            }
-
-            setTimeout(() => {
-              if (this.isGenerating && !this.showResults) {
-                this.startStreamingProgress(currentRetry + 1)
-              }
-            }, retryDelay)
-          } else {
-            // 超过最大重试次数，降级到轮询模式
-            console.error('❌ SSE重连失败，降级到轮询模式')
-            ElMessage.warning(this.$t('requirementAnalysis.streamConnectionInterrupted'))
-            this.startPolling()
-          }
-=======
         // readyState=2表示连接已关闭，readyState=0表示连接中断
         // EventSource会自动重连（readyState=0），除非是致命错误（readyState=2）
         if (this.eventSource.readyState === 2) {
@@ -950,7 +918,6 @@ export default {
               this.startPolling()
             }
           }, 5000)
->>>>>>> upstream/main
         }
       }
     },

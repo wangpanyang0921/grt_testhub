@@ -2,8 +2,8 @@
   <div class="notification-logs-container">
     <!-- 页面操作栏 -->
     <div class="page-actions">
-      <el-row :gutter="20" class="filter-row">
-        <el-col :span="6">
+      <el-row :gutter="16" class="filter-row" align="middle">
+        <el-col :span="5">
           <el-input
               v-model="searchForm.taskName"
               :placeholder="$t('uiAutomation.notification.logs.searchTaskName')"
@@ -18,7 +18,7 @@
             </template>
           </el-input>
         </el-col>
-        <el-col :span="6">
+        <el-col :span="7">
           <el-date-picker
               v-model="searchForm.dateRange"
               type="daterange"
@@ -27,9 +27,10 @@
               :end-placeholder="$t('uiAutomation.notification.logs.endDate')"
               value-format="YYYY-MM-DD"
               @change="handleSearch"
+              style="width: 100%"
           />
         </el-col>
-        <el-col :span="6">
+        <el-col :span="5">
           <el-select
               v-model="searchForm.status"
               :placeholder="$t('uiAutomation.notification.logs.notificationStatus')"
@@ -42,15 +43,13 @@
             <el-option :label="$t('uiAutomation.notification.logs.statusRetrying')" value="RETRYING"/>
           </el-select>
         </el-col>
-        <el-col :span="6">
-          <el-button type="primary" @click="handleSearch">
+        <el-col :span="7" class="button-col">
+          <el-button class="reset-btn" @click="handleReset">{{ $t('uiAutomation.common.reset') }}</el-button>
+          <el-button type="primary" class="query-btn" @click="handleSearch">
             <el-icon>
               <Search/>
             </el-icon>
             {{ $t('uiAutomation.common.search') }}
-          </el-button>
-          <el-button @click="handleReset">
-            {{ $t('uiAutomation.common.reset') }}
           </el-button>
         </el-col>
       </el-row>
@@ -551,35 +550,394 @@ export default {
 }
 </script>
 
-<style scoped>
+<style scoped lang="scss">
 .notification-logs-container {
-  padding: 20px;
-  background: #fff;
-  border-radius: 8px;
-  box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.1);
+  padding: 24px;
+  min-height: calc(100vh - 60px);
+  background: linear-gradient(135deg, #f5f3ff 0%, #ede9fe 100%);
+  display: flex;
+  flex-direction: column;
+  line-height: 24px;
+  gap: 20px;
 }
 
 .page-actions {
-  margin-bottom: 20px;
-  padding: 20px;
-  background: #f8f9fa;
-  border-radius: 6px;
+  padding: 20px 24px;
+  background: #ffffff;
+  border: 1px solid rgba(147, 112, 219, 0.12);
+  border-radius: 12px;
+  box-shadow: 0 4px 16px rgba(147, 112, 219, 0.08);
+
+  :deep(.el-input__wrapper) {
+    border-radius: 8px;
+    border: 1px solid rgba(147, 112, 219, 0.2);
+    background: #ffffff;
+    box-shadow: none;
+
+    &:hover {
+      border-color: #7b42f6;
+      box-shadow: 0 0 0 3px rgba(123, 66, 246, 0.1);
+    }
+
+    &.is-focus {
+      border-color: #7b42f6;
+      box-shadow: 0 0 0 3px rgba(123, 66, 246, 0.15);
+    }
+  }
+
+  :deep(.el-input__inner) {
+    color: #5a32a3;
+    font-weight: 500;
+  }
+
+  :deep(.el-select) {
+    width: 100%;
+  }
+
+  :deep(.el-select .el-input__wrapper) {
+    border-radius: 8px;
+    border: 1px solid rgba(147, 112, 219, 0.2);
+    background: #ffffff;
+    box-shadow: none;
+
+    &:hover {
+      border-color: #7b42f6;
+      box-shadow: 0 0 0 3px rgba(123, 66, 246, 0.1);
+    }
+  }
+}
+
+.reset-btn {
+  background: #f8f7ff !important;
+  border: 1px solid rgba(147, 112, 219, 0.2) !important;
+  color: #5a32a3 !important;
+  font-weight: 500 !important;
+  padding: 9px 20px !important;
+  border-radius: 8px !important;
+  transition: all 0.3s ease !important;
+
+  &:hover {
+    background: #ede9fe !important;
+    border-color: #7b42f6 !important;
+    transform: translateY(-1px);
+  }
+}
+
+.query-btn {
+  background: linear-gradient(135deg, #7b42f6 0%, #5a32a3 100%) !important;
+  border: none !important;
+  color: #ffffff !important;
+  font-weight: 600 !important;
+  padding: 10px 24px !important;
+  border-radius: 8px !important;
+  box-shadow: 0 4px 12px rgba(123, 66, 246, 0.3) !important;
+  transition: all 0.3s ease !important;
+
+  &:hover {
+    background: linear-gradient(135deg, #6d33e6 0%, #4a249c 100%) !important;
+    transform: translateY(-2px) !important;
+    box-shadow: 0 6px 16px rgba(123, 66, 246, 0.4) !important;
+  }
 }
 
 .filter-row {
   display: flex;
   align-items: center;
-  gap: 15px;
+
+  .button-col {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    white-space: nowrap;
+  }
 }
 
 .logs-table-container {
-  margin-top: 20px;
+  background: #ffffff;
+  border: 1px solid rgba(147, 112, 219, 0.12);
+  border-radius: 12px;
+  box-shadow: 0 4px 16px rgba(147, 112, 219, 0.08);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding-top: 16px;
+
+  .el-table {
+    border: none;
+    border-radius: 8px 8px 0 0;
+    overflow: hidden;
+    min-height: 200px;
+    box-shadow: none;
+    transition: all 0.3s ease;
+    background-color: transparent !important;
+
+    /* 覆盖 Element Plus 默认主题变量 */
+    --el-color-primary: var(--primary-color);
+    --el-color-primary-light-3: #9370db;
+    --el-color-primary-light-5: #a888e0;
+    --el-color-primary-light-7: #c2a9f3;
+    --el-color-primary-light-9: #f8f7ff;
+    --el-border-color: #e9ecef;
+    --el-border-color-light: #e9ecef;
+    --el-border-color-lighter: #e9ecef;
+    --el-fill-color-light: #ffffff;
+    --el-fill-color-lighter: #ffffff;
+    --el-fill-color-blank: #ffffff;
+    --el-text-color-primary: #333;
+    --el-text-color-regular: #333;
+    --el-text-color-secondary: #666;
+    --el-text-color-placeholder: #999;
+    --el-table-header-bg-color: #ffffff;
+    --el-table-row-hover-bg-color: #f8f7ff;
+    --el-table-stripe-bg-color: #fafaff;
+
+    &::before {
+      display: none;
+    }
+
+    // 表头包装器
+    :deep(.el-table__header-wrapper) {
+      background-color: #ffffff !important;
+
+      // 表头
+      :deep(.el-table__header) {
+        background-color: #ffffff !important;
+
+        // 表头单元格
+        :deep(th) {
+          background-color: #ffffff !important;
+          color: #5a32a3;
+          font-weight: 600;
+          font-size: 14px;
+          border-bottom: 1px solid #e9ecef;
+          padding: 16px;
+          text-align: left;
+          line-height: 24px;
+          transition: all 0.3s ease;
+
+          &:hover {
+            background-color: #ffffff !important;
+          }
+
+          // 表头单元格内部
+          :deep(.cell) {
+            background-color: #ffffff !important;
+            color: #5a32a3 !important;
+            font-weight: 600 !important;
+          }
+        }
+      }
+    }
+
+    // 表格体包装器
+    :deep(.el-table__body-wrapper) {
+      background-color: #ffffff !important;
+
+      // 表格行
+      :deep(.el-table__row) {
+        transition: all 0.3s ease;
+        background-color: #ffffff !important;
+
+        &:hover {
+          background-color: #f8f7ff !important;
+          transform: translateY(-1px);
+          box-shadow: 0 4px 12px rgba(147, 112, 219, 0.1);
+        }
+
+        // 表格单元格
+        :deep(td) {
+          background-color: #ffffff !important;
+          border-bottom: 1px solid #e9ecef;
+          padding: 16px;
+          text-align: left;
+          line-height: 24px;
+          transition: all 0.3s ease;
+        }
+
+        &:hover :deep(td) {
+          background-color: #f8f7ff !important;
+        }
+      }
+    }
+  }
 }
 
 .pagination-container {
-  margin-top: 20px;
   display: flex;
-  justify-content: flex-end;
+  justify-content: center;
+  align-items: center;
+  padding: 8px 24px;
+  background: transparent;
+  border-top: 1px solid rgba(147, 112, 219, 0.1);
+  transition: all 0.3s ease;
+  margin-top: 0;
+
+  /* 覆盖 Element Plus 默认主题变量 */
+  --el-color-primary: var(--primary-color);
+  --el-color-primary-light-3: #9370db;
+  --el-color-primary-light-5: #a888e0;
+  --el-color-primary-light-7: #c2a9f3;
+  --el-color-primary-light-9: #f8f7ff;
+  --el-border-color: rgba(147, 112, 219, 0.2);
+  --el-border-color-light: rgba(147, 112, 219, 0.15);
+  --el-border-color-lighter: rgba(147, 112, 219, 0.1);
+  --el-fill-color-light: #f8f7ff;
+  --el-fill-color-lighter: #f8f7ff;
+  --el-fill-color-blank: #f8f7ff;
+  --el-text-color-primary: var(--text-primary);
+  --el-text-color-regular: var(--text-secondary);
+  --el-text-color-secondary: var(--text-tertiary);
+
+  :deep(.el-pagination) {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-weight: 500;
+
+    // 总条数
+    .el-pagination__total {
+      color: #5a32a3;
+      font-size: 14px;
+      font-weight: 500;
+      margin-right: 12px;
+    }
+
+    // 每页条数选择器
+    .el-pagination__sizes {
+      margin-right: 12px;
+
+      .el-select {
+        .el-input__wrapper {
+          border-radius: 8px;
+          border: 1px solid rgba(147, 112, 219, 0.2);
+          background: #ffffff;
+          box-shadow: none;
+
+          &:hover {
+            border-color: #7b42f6;
+            box-shadow: 0 0 0 3px rgba(123, 66, 246, 0.1);
+          }
+
+          &.is-focus {
+            border-color: #7b42f6;
+            box-shadow: 0 0 0 3px rgba(123, 66, 246, 0.15);
+          }
+        }
+
+        .el-input__inner {
+          color: #5a32a3;
+          font-weight: 500;
+        }
+      }
+    }
+
+    // 上一页/下一页按钮
+    .btn-prev,
+    .btn-next {
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      border: 1px solid rgba(147, 112, 219, 0.2);
+      background: #ffffff;
+      color: #5a32a3;
+      transition: all 0.3s ease;
+
+      &:hover:not(:disabled) {
+        background: linear-gradient(135deg, #7b42f6 0%, #5a32a3 100%);
+        border-color: transparent;
+        color: white;
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(123, 66, 246, 0.3);
+      }
+
+      &:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+    }
+
+    // 页码
+    .el-pager {
+      display: flex;
+      gap: 4px;
+
+      li {
+        min-width: 32px;
+        height: 32px;
+        padding: 0 8px;
+        border-radius: 8px;
+        border: 1px solid rgba(147, 112, 219, 0.2);
+        background: #ffffff;
+        color: #5a32a3;
+        font-size: 14px;
+        font-weight: 500;
+        transition: all 0.3s ease;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+
+        &:hover:not(.is-active) {
+          background: rgba(123, 66, 246, 0.1);
+          border-color: #7b42f6;
+          color: #7b42f6;
+          transform: translateY(-1px);
+        }
+
+        &.is-active {
+          background: linear-gradient(135deg, #7b42f6 0%, #5a32a3 100%);
+          border-color: transparent;
+          color: white;
+          box-shadow: 0 4px 12px rgba(123, 66, 246, 0.3);
+          font-weight: 600;
+        }
+
+        &.btn-quicknext,
+        &.btn-quickprev {
+          color: #9370db;
+
+          &:hover {
+            color: #7b42f6;
+          }
+        }
+      }
+    }
+
+    // 跳转页
+    .el-pagination__jump {
+      margin-left: 12px;
+      color: #5a32a3;
+      font-weight: 500;
+
+      .el-input {
+        width: 48px;
+        margin: 0 8px;
+
+        .el-input__wrapper {
+          border-radius: 8px;
+          border: 1px solid rgba(147, 112, 219, 0.2);
+          background: #ffffff;
+          box-shadow: none;
+          padding: 0 8px;
+
+          &:hover {
+            border-color: #7b42f6;
+            box-shadow: 0 0 0 3px rgba(123, 66, 246, 0.1);
+          }
+
+          &.is-focus {
+            border-color: #7b42f6;
+            box-shadow: 0 0 0 3px rgba(123, 66, 246, 0.15);
+          }
+        }
+
+        .el-input__inner {
+          color: #5a32a3;
+          font-weight: 500;
+          text-align: center;
+        }
+      }
+    }
+  }
 }
 
 .notification-detail-form :deep(.el-form-item) {

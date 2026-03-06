@@ -6,7 +6,7 @@ from .models import (
     ElementGroup, PageObject, PageObjectElement, ScriptStep, ScriptElementUsage,
     TestCase, TestCaseStep, TestCaseExecution, OperationRecord,
     UiScheduledTask, UiNotificationLog, UiTaskNotificationSetting,
-    AICase, AIExecutionRecord
+    AICase, AIExecutionRecord, AITestSuite, AITestSuiteAICase
 )
 from django.contrib.auth import get_user_model
 
@@ -192,6 +192,7 @@ class TestSuiteSerializer(serializers.ModelSerializer):
     suite_scripts = TestSuiteScriptSerializer(many=True, read_only=True)
     suite_test_cases = TestSuiteTestCaseSerializer(many=True, read_only=True)
     test_case_count = serializers.SerializerMethodField()
+    script_count = serializers.SerializerMethodField()
 
     class Meta:
         model = TestSuite
@@ -206,18 +207,86 @@ class TestSuiteSerializer(serializers.ModelSerializer):
         """获取测试用例数量"""
         return obj.suite_test_cases.count()
 
+    def get_script_count(self, obj):
+        """获取脚本数量"""
+        return obj.suite_scripts.count()
+
 
 class TestSuiteCreateSerializer(serializers.ModelSerializer):
+    scripts = serializers.ListField(child=serializers.DictField(), write_only=True, required=False, default=list)
+    test_cases = serializers.ListField(child=serializers.DictField(), write_only=True, required=False, default=list)
+
     class Meta:
         model = TestSuite
-        fields = ('id', 'project', 'name', 'description')
+        fields = ('id', 'project', 'name', 'description', 'scripts', 'test_cases')
         read_only_fields = ('id',)
+
+    def create(self, validated_data):
+        scripts_data = validated_data.pop('scripts', [])
+        test_cases_data = validated_data.pop('test_cases', [])
+        test_suite = TestSuite.objects.create(**validated_data)
+
+        # 创建脚本关联
+        for index, script_data in enumerate(scripts_data):
+            TestSuiteScript.objects.create(
+                test_suite=test_suite,
+                test_script_id=script_data.get('id'),
+                order=script_data.get('order', index)
+            )
+
+        # 创建测试用例关联
+        for index, test_case_data in enumerate(test_cases_data):
+            TestSuiteTestCase.objects.create(
+                test_suite=test_suite,
+                test_case_id=test_case_data.get('id'),
+                order=test_case_data.get('order', index)
+            )
+
+        return test_suite
 
 
 class TestSuiteUpdateSerializer(serializers.ModelSerializer):
+    scripts = serializers.ListField(child=serializers.DictField(), write_only=True, required=False)
+    test_cases = serializers.ListField(child=serializers.DictField(), write_only=True, required=False)
+
     class Meta:
         model = TestSuite
-        fields = ('name', 'description')
+        fields = ('name', 'description', 'scripts', 'test_cases')
+
+    def update(self, instance, validated_data):
+        scripts_data = validated_data.pop('scripts', None)
+        test_cases_data = validated_data.pop('test_cases', None)
+
+        # 更新基本信息
+        instance.name = validated_data.get('name', instance.name)
+        instance.description = validated_data.get('description', instance.description)
+        instance.save()
+
+        # 更新脚本关联
+        if scripts_data is not None:
+            # 删除旧的关联
+            TestSuiteScript.objects.filter(test_suite=instance).delete()
+            # 创建新的关联
+            for index, script_data in enumerate(scripts_data):
+                TestSuiteScript.objects.create(
+                    test_suite=instance,
+                    test_script_id=script_data.get('id'),
+                    order=script_data.get('order', index)
+                )
+
+        # 更新测试用例关联
+        if test_cases_data is not None:
+            # 删除旧的关联
+            TestSuiteTestCase.objects.filter(test_suite=instance).delete()
+            # 创建新的关联
+            for index, test_case_data in enumerate(test_cases_data):
+                TestSuiteTestCase.objects.create(
+                    test_suite=instance,
+                    test_case_id=test_case_data.get('id'),
+                    order=test_case_data.get('order', index)
+                )
+
+        return instance
 
 
 class TestSuiteWithScriptsSerializer(serializers.ModelSerializer):
@@ -537,11 +606,12 @@ class TestCaseStepSerializer(serializers.ModelSerializer):
     """测试用例步骤序列化器"""
     element_name = serializers.CharField(source='element.name', read_only=True)
     element_locator = serializers.CharField(source='element.locator_value', read_only=True)
+    element_id = serializers.IntegerField(source='element.id', read_only=True, allow_null=True)
 
     class Meta:
         model = TestCaseStep
         fields = [
-            'id', 'step_number', 'action_type', 'element', 'element_name', 'element_locator',
+            'id', 'step_number', 'action_type', 'element', 'element_id', 'element_name', 'element_locator',
             'input_value', 'wait_time', 'assert_type', 'assert_value', 'description', 'created_at'
         ]
 
@@ -551,18 +621,36 @@ class TestCaseSerializer(serializers.ModelSerializer):
     steps = TestCaseStepSerializer(many=True, read_only=True)
     created_by_name = serializers.CharField(source='created_by.username', read_only=True)
     project_name = serializers.CharField(source='project.name', read_only=True)
+    project = UiProjectSerializer(read_only=True)
+    project_id = serializers.IntegerField(write_only=True)
 
     class Meta:
         model = TestCase
         fields = [
-            'id', 'name', 'description', 'project', 'project_name', 'status', 'priority',
+            'id', 'name', 'description', 'project', 'project_id', 'project_name', 'status', 'priority',
             'created_by', 'created_by_name', 'created_at', 'updated_at', 'steps'
         ]
         read_only_fields = ['created_by']
 
+    def validate_project_id(self, value):
+        """验证项目ID是否有效"""
+        try:
+            UiProject.objects.get(id=value)
+        except UiProject.DoesNotExist:
+            raise serializers.ValidationError("请选择有效的项目")
+        return value
+
     def create(self, validated_data):
+        project_id = validated_data.pop('project_id')
+        validated_data['project'] = UiProject.objects.get(id=project_id)
         validated_data['created_by'] = self.context['request'].user
         return super().create(validated_data)
+
+    def update(self, instance, validated_data):
+        project_id = validated_data.pop('project_id', None)
+        if project_id:
+            validated_data['project'] = UiProject.objects.get(id=project_id)
+        return super().update(instance, validated_data)
 
 
 class TestCaseExecutionSerializer(serializers.ModelSerializer):
@@ -942,4 +1030,79 @@ class UiTaskNotificationSettingSerializer(serializers.ModelSerializer):
         if 'webhook' in types:
             type_names.append('Webhook机器人')
         return ', '.join(type_names) if type_names else "无"
+
+
+class AITestSuiteAICaseSerializer(serializers.ModelSerializer):
+    ai_case = AICaseSerializer(read_only=True)
+    ai_case_id = serializers.IntegerField(write_only=True)
+
+    class Meta:
+        model = AITestSuiteAICase
+        fields = ('id', 'ai_case', 'ai_case_id', 'order')
+
+
+class AITestSuiteSerializer(serializers.ModelSerializer):
+    project = UiProjectSerializer(read_only=True)
+    created_by = UserSerializer(read_only=True)
+    ai_cases = AICaseSerializer(many=True, read_only=True)
+    suite_ai_cases = AITestSuiteAICaseSerializer(many=True, read_only=True)
+    ai_case_count = serializers.SerializerMethodField()
+    project_id = serializers.IntegerField(write_only=True, required=False, allow_null=True)
+
+    class Meta:
+        model = AITestSuite
+        fields = '__all__'
+        read_only_fields = ('created_at', 'updated_at', 'created_by', 'execution_status', 'passed_count', 'failed_count')
+
+    def get_ai_case_count(self, obj):
+        """获取AI测试用例数量"""
+        return obj.suite_ai_cases.count()
+
+
+class AITestSuiteCreateSerializer(serializers.ModelSerializer):
+    ai_cases = serializers.ListField(child=serializers.DictField(), write_only=True, required=False, default=list)
+
+    class Meta:
+        model = AITestSuite
+        fields = ('id', 'project', 'name', 'description', 'ai_cases')
+        read_only_fields = ('id',)
+
+    def create(self, validated_data):
+        ai_cases_data = validated_data.pop('ai_cases', [])
+        ai_test_suite = AITestSuite.objects.create(**validated_data)
+
+        for index, ai_case_data in enumerate(ai_cases_data):
+            AITestSuiteAICase.objects.create(
+                ai_test_suite=ai_test_suite,
+                ai_case_id=ai_case_data.get('id'),
+                order=ai_case_data.get('order', index)
+            )
+
+        return ai_test_suite
+
+
+class AITestSuiteUpdateSerializer(serializers.ModelSerializer):
+    ai_cases = serializers.ListField(child=serializers.DictField(), write_only=True, required=False)
+
+    class Meta:
+        model = AITestSuite
+        fields = ('name', 'description', 'ai_cases')
+
+    def update(self, instance, validated_data):
+        ai_cases_data = validated_data.pop('ai_cases', None)
+
+        instance.name = validated_data.get('name', instance.name)
+        instance.description = validated_data.get('description', instance.description)
+        instance.save()
+
+        if ai_cases_data is not None:
+            AITestSuiteAICase.objects.filter(ai_test_suite=instance).delete()
+            for index, ai_case_data in enumerate(ai_cases_data):
+                AITestSuiteAICase.objects.create(
+                    ai_test_suite=instance,
+                    ai_case_id=ai_case_data.get('id'),
+                    order=ai_case_data.get('order', index)
+                )
+
+        return instance
 

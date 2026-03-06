@@ -385,24 +385,23 @@ onUnmounted(() => {
 
 <style lang="scss" scoped>
 .test-report {
-  padding: 20px;
-  min-height: 100vh;
-  height: 100vh;
-  background: linear-gradient(135deg, #f9f7ff 0%, #f3f0fa 100%);
+  padding: 24px;
+  min-height: calc(100vh - 60px);
+  background: linear-gradient(135deg, #f5f3ff 0%, #ede9fe 100%);
   display: flex;
   flex-direction: column;
+  gap: 20px;
 }
 
-// 筛选栏样式 - 参考 ProjectList.vue
+// 筛选栏样式 - 参考 Dashboard.vue
 .filter-bar {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 24px;
-  padding: 20px 24px;
-  background: linear-gradient(135deg, #ffffff 0%, #f8f7ff 100%);
+  padding: 24px;
+  background: #ffffff;
   border-radius: 12px;
-  box-shadow: 0 4px 16px rgba(147, 112, 219, 0.08);
+  box-shadow: 0 4px 20px rgba(147, 112, 219, 0.1);
   border: 1px solid rgba(147, 112, 219, 0.1);
 }
 
@@ -526,80 +525,49 @@ onUnmounted(() => {
 .dashboard-cards {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: 24px;
-  margin-bottom: 24px;
+  gap: 20px;
 }
 
 .card {
-  background: linear-gradient(135deg, #ffffff 0%, #f3f0fa 100%);
-  border-radius: 20px;
-  padding: 24px;
+  background: linear-gradient(135deg, #ffffff 0%, #f8f7ff 100%);
+  border-radius: 12px;
+  padding: 20px;
   display: flex;
   align-items: center;
-  box-shadow: 0 4px 16px rgba(90, 50, 163, 0.12);
-  backdrop-filter: blur(10px);
-  border: 1px solid rgba(90, 50, 163, 0.15);
-  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-  position: relative;
-  overflow: hidden;
-}
+  box-shadow: 0 4px 16px rgba(147, 112, 219, 0.1);
+  border: 1px solid rgba(147, 112, 219, 0.1);
+  transition: all 0.3s ease;
 
-.card::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 4px;
-  background: linear-gradient(90deg, #7b42f6, #5a32a3);
-  transform: scaleX(0);
-  transform-origin: left;
-  transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.card:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 8px 24px rgba(90, 50, 163, 0.18);
-  border-color: rgba(90, 50, 163, 0.3);
-}
-
-.card:hover::before {
-  transform: scaleX(1);
+  &:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 8px 24px rgba(147, 112, 219, 0.15);
+  }
 }
 
 .card-icon {
-  width: 64px;
-  height: 64px;
+  width: 60px;
+  height: 60px;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  margin-right: 20px;
-  font-size: 32px;
-  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-  box-shadow: 0 4px 12px rgba(90, 50, 163, 0.15);
-}
-
-.card:hover .card-icon {
-  transform: scale(1.1);
-  box-shadow: 0 6px 16px rgba(90, 50, 163, 0.2);
+  margin-right: 16px;
+  font-size: 28px;
+  color: white;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
 
 .total-plans .card-icon { 
-  background: linear-gradient(135deg, #7b42f6 0%, #5a32a3 100%); 
-  color: #ffffff; 
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
 }
 .total-cases .card-icon { 
-  background: linear-gradient(135deg, #9370db 0%, #6a4b8e 100%); 
-  color: #ffffff; 
+  background: linear-gradient(135deg, #52c41a 0%, #389e0d 100%); 
 }
 .pass-rate .card-icon { 
-  background: linear-gradient(135deg, #a888e0 0%, #7b5fb8 100%); 
-  color: #ffffff; 
+  background: linear-gradient(135deg, #722ed1 0%, #531dab 100%); 
 }
 .defects .card-icon { 
-  background: linear-gradient(135deg, #c2a9f3 0%, #9370db 100%); 
-  color: #ffffff; 
+  background: linear-gradient(135deg, #f5222d 0%, #cf1322 100%); 
 }
 
 .card-content {
@@ -645,96 +613,65 @@ onUnmounted(() => {
 .charts-container {
   display: flex;
   flex-direction: column;
-  gap: 24px;
+  gap: 20px;
   flex-grow: 1;
 }
 
 .chart-row {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 24px;
+  gap: 20px;
 }
 
 .chart-card {
-  background: linear-gradient(135deg, #ffffff 0%, #f3f0fa 100%);
-  border-radius: 20px;
-  padding: 24px;
-  box-shadow: 0 4px 16px rgba(90, 50, 163, 0.12);
-  backdrop-filter: blur(10px);
-  border: 1px solid rgba(90, 50, 163, 0.15);
+  background: linear-gradient(135deg, #ffffff 0%, #f8f7ff 100%);
+  border-radius: 12px;
+  padding: 20px;
+  box-shadow: 0 4px 16px rgba(147, 112, 219, 0.1);
+  border: 1px solid rgba(147, 112, 219, 0.1);
   display: flex;
   flex-direction: column;
-  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-  position: relative;
-  overflow: hidden;
-}
+  transition: all 0.3s ease;
 
-.chart-card::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 4px;
-  background: linear-gradient(90deg, #7b42f6, #5a32a3);
-  transform: scaleX(0);
-  transform-origin: left;
+  &:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 8px 24px rgba(147, 112, 219, 0.15);
+  }
   transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-.chart-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 8px 24px rgba(90, 50, 163, 0.18);
-  border-color: rgba(90, 50, 163, 0.3);
-}
-
-.chart-card:hover::before {
-  transform: scaleX(1);
-}
-
 .chart-header {
-  margin-bottom: 24px;
-  border-bottom: 1px solid rgba(90, 50, 163, 0.15);
+  margin-bottom: 20px;
+  border-bottom: 1px solid rgba(147, 112, 219, 0.15);
   padding-bottom: 12px;
-}
 
-.chart-header h3 {
-  margin: 0;
-  font-size: 18px;
-  color: #4a249c;
-  font-weight: 700;
-  letter-spacing: 0.5px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
+  h3 {
+    margin: 0;
+    font-size: 16px;
+    color: #5a32a3;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 8px;
 
-.chart-header h3::before {
-  content: '';
-  width: 4px;
-  height: 16px;
-  background: linear-gradient(135deg, #7b42f6, #5a32a3);
-  border-radius: 2px;
+    &::before {
+      content: '';
+      width: 4px;
+      height: 16px;
+      background: linear-gradient(135deg, #7b42f6, #5a32a3);
+      border-radius: 2px;
+    }
+  }
 }
 
 .chart-body {
   height: 320px;
   width: 100%;
-  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.chart-card:hover .chart-body {
-  transform: scale(1.02);
 }
 
 .chart-body-small {
   height: 180px;
   width: 100%;
-  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.chart-card:hover .chart-body-small {
-  transform: scale(1.02);
 }
 
 .table-body {

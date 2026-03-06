@@ -341,23 +341,42 @@ onMounted(() => {
 })
 </script>
 
-<style scoped>
+<style lang="scss" scoped>
+// 页面容器
 .dashboard-container {
-  width: 100%;
+  padding: 24px;
+  min-height: calc(100vh - 60px);
+  background: linear-gradient(135deg, #f5f3ff 0%, #ede9fe 100%);
+  display: flex;
+  flex-direction: column;
+  line-height: 24px;
+  gap: 20px;
 }
 
+// 统计区域
 .stats-section {
-  margin-bottom: 40px;
+  margin-bottom: 20px;
 }
 
 .stat-card {
   height: 100%;
+  background: linear-gradient(135deg, #ffffff 0%, #f8f7ff 100%);
+  border-radius: 12px;
+  box-shadow: 0 4px 16px rgba(147, 112, 219, 0.1);
+  border: 1px solid rgba(147, 112, 219, 0.1);
+  transition: all 0.3s ease;
+
+  &:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 8px 24px rgba(147, 112, 219, 0.15);
+  }
 }
 
 .stat-content {
   display: flex;
   align-items: center;
   height: 100px;
+  padding: 20px;
 }
 
 .stat-icon {
@@ -370,34 +389,35 @@ onMounted(() => {
   margin-right: 20px;
   color: white;
   font-size: 24px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
 
 .stat-icon.bg-blue {
-  background-color: #1890ff;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
 }
 
 .stat-icon.bg-green {
-  background-color: #52c41a;
+  background: linear-gradient(135deg, #52c41a 0%, #389e0d 100%);
 }
 
 .stat-icon.bg-purple {
-  background-color: #722ed1;
+  background: linear-gradient(135deg, #722ed1 0%, #531dab 100%);
 }
 
 .stat-icon.bg-orange {
-  background-color: #fa8c16;
+  background: linear-gradient(135deg, #fa8c16 0%, #d46b08 100%);
 }
 
 .stat-icon.bg-red {
-  background-color: #f5222d;
+  background: linear-gradient(135deg, #f5222d 0%, #cf1322 100%);
 }
 
 .stat-icon.bg-cyan {
-  background-color: #13c2c2;
+  background: linear-gradient(135deg, #13c2c2 0%, #08979c 100%);
 }
 
 .stat-icon.bg-indigo {
-  background-color: #597ef7;
+  background: linear-gradient(135deg, #597ef7 0%, #2f54eb 100%);
 }
 
 .stat-info {
@@ -407,7 +427,7 @@ onMounted(() => {
 .stat-value {
   font-size: 28px;
   font-weight: bold;
-  color: #1a1a1a;
+  color: #5a32a3;
   margin-bottom: 5px;
 }
 
@@ -416,12 +436,17 @@ onMounted(() => {
   color: #666;
 }
 
+// 内容区域
 .content-section {
-  margin-bottom: 40px;
+  margin-bottom: 20px;
 }
 
 .recent-activities {
   height: 100%;
+  background: linear-gradient(135deg, #ffffff 0%, #f8f7ff 100%);
+  border-radius: 12px;
+  box-shadow: 0 4px 16px rgba(147, 112, 219, 0.1);
+  border: 1px solid rgba(147, 112, 219, 0.1);
 }
 
 .activities-list {
@@ -432,7 +457,7 @@ onMounted(() => {
 .activity-item {
   display: flex;
   padding: 15px 0;
-  border-bottom: 1px solid #f0f0f0;
+  border-bottom: 1px solid rgba(147, 112, 219, 0.08);
 }
 
 .activity-item:last-child {
@@ -443,46 +468,46 @@ onMounted(() => {
   width: 40px;
   height: 40px;
   border-radius: 50%;
-  background-color: #f0f0f0;
+  background-color: rgba(147, 112, 219, 0.1);
   display: flex;
   align-items: center;
   justify-content: center;
   margin-right: 15px;
-  color: #666;
+  color: #7b42f6;
 }
 
 .activity-icon.icon-create {
-  background-color: #e6f7ff;
+  background: linear-gradient(135deg, #e6f7ff 0%, #bae7ff 100%);
   color: #1890ff;
 }
 
 .activity-icon.icon-edit {
-  background-color: #fff7e6;
+  background: linear-gradient(135deg, #fff7e6 0%, #ffe7ba 100%);
   color: #fa8c16;
 }
 
 .activity-icon.icon-delete {
-  background-color: #fff1f0;
+  background: linear-gradient(135deg, #fff1f0 0%, #ffccc7 100%);
   color: #f5222d;
 }
 
 .activity-icon.icon-run {
-  background-color: #f6ffed;
+  background: linear-gradient(135deg, #f6ffed 0%, #d9f7be 100%);
   color: #52c41a;
 }
 
 .activity-icon.icon-rerun {
-  background-color: #f9f0ff;
+  background: linear-gradient(135deg, #f9f0ff 0%, #efdbff 100%);
   color: #722ed1;
 }
 
 .activity-icon.icon-save {
-  background-color: #e6fffb;
+  background: linear-gradient(135deg, #e6fffb 0%, #b5f5ec 100%);
   color: #13c2c2;
 }
 
 .activity-icon.icon-rename {
-  background-color: #fff7e6;
+  background: linear-gradient(135deg, #fff7e6 0%, #ffe7ba 100%);
   color: #fa8c16;
 }
 
@@ -498,7 +523,7 @@ onMounted(() => {
 
 .activity-text .operation-user {
   font-weight: 600;
-  color: #1890ff;
+  color: #7b42f6;
 }
 
 .activity-text .operation-action {
@@ -523,6 +548,10 @@ onMounted(() => {
 
 .quick-actions {
   height: 100%;
+  background: linear-gradient(135deg, #ffffff 0%, #f8f7ff 100%);
+  border-radius: 12px;
+  box-shadow: 0 4px 16px rgba(147, 112, 219, 0.1);
+  border: 1px solid rgba(147, 112, 219, 0.1);
 }
 
 .actions-grid {
@@ -534,16 +563,18 @@ onMounted(() => {
 .action-item {
   text-align: center;
   padding: 15px 10px;
-  border-radius: 8px;
-  background-color: #f9f9f9;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #fafafa 0%, #f0f0f0 100%);
   cursor: pointer;
   transition: all 0.3s ease;
+  border: 1px solid rgba(147, 112, 219, 0.05);
 }
 
 .action-item:hover {
-  background-color: #f0f0f0;
-  transform: translateY(-2px);
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  background: linear-gradient(135deg, #f5f3ff 0%, #ede9fe 100%);
+  transform: translateY(-4px);
+  box-shadow: 0 8px 16px rgba(147, 112, 219, 0.15);
+  border-color: rgba(147, 112, 219, 0.2);
 }
 
 .action-item .action-icon {
@@ -556,48 +587,50 @@ onMounted(() => {
   justify-content: center;
   color: white;
   font-size: 24px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
 
 .action-icon.bg-blue {
-  background-color: #1890ff;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
 }
 
 .action-icon.bg-green {
-  background-color: #52c41a;
+  background: linear-gradient(135deg, #52c41a 0%, #389e0d 100%);
 }
 
 .action-icon.bg-cyan {
-  background-color: #13c2c2;
+  background: linear-gradient(135deg, #13c2c2 0%, #08979c 100%);
 }
 
 .action-icon.bg-purple {
-  background-color: #722ed1;
+  background: linear-gradient(135deg, #722ed1 0%, #531dab 100%);
 }
 
 .action-icon.bg-orange {
-  background-color: #fa8c16;
+  background: linear-gradient(135deg, #fa8c16 0%, #d46b08 100%);
 }
 
 .action-icon.bg-red {
-  background-color: #f5222d;
+  background: linear-gradient(135deg, #f5222d 0%, #cf1322 100%);
 }
 
 .action-icon.bg-indigo {
-  background-color: #597ef7;
+  background: linear-gradient(135deg, #597ef7 0%, #2f54eb 100%);
 }
 
 .action-label {
   font-size: 16px;
-  color: #333;
+  color: #5a32a3;
   font-weight: 500;
 }
 
+// 功能区域
 .features-section {
-  margin-bottom: 48px;
+  margin-bottom: 20px;
 }
 
 .features-section .features-row {
-  margin-bottom: 24px;
+  margin-bottom: 20px;
 }
 
 .features-section .features-row:last-child {
@@ -608,7 +641,11 @@ onMounted(() => {
   font-size: 24px;
   font-weight: bold;
   margin-bottom: 24px;
-  color: #1a1a1a;
+  color: #5a32a3;
+  background: linear-gradient(135deg, #7b42f6 0%, #5a32a3 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
 }
 
 .feature-card {
@@ -617,29 +654,34 @@ onMounted(() => {
   text-align: center;
   border-radius: 12px;
   transition: all 0.3s ease;
+  background: linear-gradient(135deg, #ffffff 0%, #f8f7ff 100%);
+  box-shadow: 0 4px 16px rgba(147, 112, 219, 0.1);
+  border: 1px solid rgba(147, 112, 219, 0.1);
 }
 
 .feature-card:hover {
   transform: translateY(-4px);
-  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 8px 24px rgba(147, 112, 219, 0.15);
+  border-color: rgba(147, 112, 219, 0.2);
 }
 
 .feature-icon {
   width: 90px;
   height: 90px;
   border-radius: 50%;
-  background-color: #f0f0f0;
+  background: linear-gradient(135deg, #f5f3ff 0%, #ede9fe 100%);
   display: flex;
   align-items: center;
   justify-content: center;
   margin: 0 auto 24px;
   font-size: 40px;
-  color: #1890ff;
+  color: #7b42f6;
   transition: all 0.3s ease;
+  box-shadow: 0 4px 12px rgba(147, 112, 219, 0.15);
 }
 
 .feature-card:hover .feature-icon {
-  background-color: #e6f7ff;
+  background: linear-gradient(135deg, #e6f7ff 0%, #bae7ff 100%);
   transform: scale(1.05);
 }
 
@@ -647,7 +689,7 @@ onMounted(() => {
   font-size: 18px;
   font-weight: bold;
   margin-bottom: 16px;
-  color: #1a1a1a;
+  color: #5a32a3;
 }
 
 .feature-description {
@@ -657,42 +699,45 @@ onMounted(() => {
   margin-bottom: 8px;
 }
 
+// 加载和空状态
 .loading-container,
 .empty-container {
   padding: 40px 0;
+  background: transparent;
 }
 
+// 响应式适配
 @media screen and (max-width: 1920px) {
   .stats-section {
-    margin-bottom: 40px;
+    margin-bottom: 20px;
   }
-  
+
   .stat-content {
     height: 90px;
   }
-  
+
   .stat-icon {
     width: 55px;
     height: 55px;
     font-size: 22px;
   }
-  
+
   .stat-value {
     font-size: 26px;
   }
-  
+
   .content-section {
-    margin-bottom: 40px;
+    margin-bottom: 20px;
   }
-  
+
   .features-section {
-    margin-bottom: 40px;
+    margin-bottom: 20px;
   }
-  
+
   .feature-card {
     padding: 32px 20px;
   }
-  
+
   .feature-icon {
     width: 80px;
     height: 80px;
@@ -702,31 +747,31 @@ onMounted(() => {
 
 @media screen and (max-width: 1600px) {
   .stats-section {
-    margin-bottom: 32px;
+    margin-bottom: 20px;
   }
-  
+
   .stat-content {
     height: 85px;
   }
-  
+
   .stat-icon {
     width: 50px;
     height: 50px;
     font-size: 20px;
   }
-  
+
   .stat-value {
     font-size: 24px;
   }
-  
+
   .content-section {
-    margin-bottom: 32px;
+    margin-bottom: 20px;
   }
-  
+
   .features-section {
-    margin-bottom: 32px;
+    margin-bottom: 20px;
   }
-  
+
   .section-title {
     font-size: 22px;
   }
@@ -734,25 +779,25 @@ onMounted(() => {
 
 @media screen and (max-width: 1440px) {
   .stats-section {
-    margin-bottom: 28px;
+    margin-bottom: 20px;
   }
-  
+
   .stat-content {
     height: 80px;
   }
-  
+
   .stat-icon {
     width: 48px;
     height: 48px;
     font-size: 18px;
   }
-  
+
   .stat-value {
     font-size: 22px;
   }
-  
+
   .content-section {
-    margin-bottom: 28px;
+    margin-bottom: 20px;
   }
   
   .features-section {

@@ -194,16 +194,32 @@ const handleRegister = async () => {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, #e0c3fc 0%, #8ec5fc 100%);
 }
 
 .register-form {
   width: 500px;
   padding: 40px;
-  background: white;
-  border-radius: 10px;
-  box-shadow: 0 15px 35px rgba(0, 0, 0, 0.1);
-  
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(10px);
+  border-radius: 16px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.5);
+
+  :deep(.el-input__wrapper) {
+    padding: 8px 16px;
+    box-shadow: 0 0 0 1px #dcdfe6 inset;
+    transition: all 0.3s ease;
+
+    &:hover {
+      box-shadow: 0 0 0 1px #8b5cf6 inset;
+    }
+
+    &.is-focus {
+      box-shadow: 0 0 0 1px #8b5cf6 inset;
+    }
+  }
+
   .form-header {
     text-align: center;
     margin-bottom: 30px;
@@ -227,13 +243,13 @@ const handleRegister = async () => {
     font-size: 16px;
     font-weight: 600;
     color: white;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%);
     border: none;
     transition: all 0.3s ease;
     
     &:hover {
       transform: translateY(-2px);
-      box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
+      box-shadow: 0 10px 20px rgba(139, 92, 246, 0.3);
     }
     
     &:active {
@@ -244,20 +260,15 @@ const handleRegister = async () => {
   .form-footer {
     text-align: center;
     margin-top: 20px;
-    
-    .login-link {
-      color: #909399;
+
+    a {
+      color: #606266;
       text-decoration: none;
       font-size: 14px;
       transition: all 0.3s ease;
-      
-      span {
-        color: #667eea;
-        font-weight: 600;
-      }
-      
+
       &:hover {
-        color: #667eea;
+        color: #8b5cf6;
       }
     }
   }

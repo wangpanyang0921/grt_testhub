@@ -721,6 +721,58 @@ class TestCaseExecution(models.Model):
         return f"{self.test_case.name} - {self.created_at.strftime('%Y-%m-%d %H:%M:%S')}"
 
 
+class ScriptExecution(models.Model):
+    """脚本执行记录模型"""
+    STATUS_CHOICES = [
+        ('pending', '待执行'),
+        ('running', '执行中'),
+        ('passed', '通过'),
+        ('failed', '失败'),
+        ('error', '错误'),
+        ('skipped', '跳过'),
+    ]
+
+    ENGINE_CHOICES = [
+        ('playwright', 'Playwright'),
+        ('selenium', 'Selenium'),
+    ]
+
+    SOURCE_CHOICES = [
+        ('manual', '单脚本执行'),
+        ('suite', '套件执行'),
+        ('scheduled', '定时任务执行'),
+    ]
+
+    project = models.ForeignKey(UiProject, on_delete=models.CASCADE, related_name='script_executions', verbose_name='项目')
+    test_script = models.ForeignKey(TestScript, on_delete=models.CASCADE, related_name='script_executions', verbose_name='测试脚本')
+    test_suite = models.ForeignKey(TestSuite, on_delete=models.SET_NULL, null=True, blank=True, related_name='script_executions', verbose_name='所属测试套件')
+    created_by = models.ForeignKey(User, on_delete=models.CASCADE, related_name='script_executions', verbose_name='执行人')
+
+    execution_source = models.CharField(max_length=20, choices=SOURCE_CHOICES, default='manual', verbose_name='执行来源')
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending', verbose_name='执行状态')
+    engine = models.CharField(max_length=20, choices=ENGINE_CHOICES, default='playwright', verbose_name='测试引擎')
+    browser = models.CharField(max_length=50, default='chrome', verbose_name='浏览器')
+    headless = models.BooleanField(default=False, verbose_name='无头模式')
+
+    execution_logs = models.JSONField(default=list, blank=True, verbose_name='执行步骤日志')
+    error_message = models.TextField(blank=True, null=True, verbose_name='错误信息')
+    screenshots = models.JSONField(default=list, blank=True, verbose_name='截图列表')
+    execution_time = models.FloatField(blank=True, null=True, verbose_name='执行时长 (秒)')
+
+    started_at = models.DateTimeField(blank=True, null=True, verbose_name='开始时间')
+    finished_at = models.DateTimeField(blank=True, null=True, verbose_name='完成时间')
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='创建时间')
+
+    class Meta:
+        db_table = 'ui_script_executions'
+        verbose_name = 'UI 脚本执行记录'
+        verbose_name_plural = 'UI 脚本执行记录'
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"{self.test_script.name} - {self.created_at.strftime('%Y-%m-%d %H:%M:%S')}"
+
+
 class OperationRecord(models.Model):
     """操作记录模型"""
     OPERATION_TYPE_CHOICES = [
@@ -802,7 +854,7 @@ class UiScheduledTask(models.Model):
 
     # 任务配置
     project = models.ForeignKey('UiProject', on_delete=models.CASCADE, verbose_name='关联项目')
-    test_suite = models.ForeignKey('TestSuite', on_delete=models.CASCADE, null=True, blank=True,
+    test_suite = models.ForeignKey('TestSuite', on_delete=models.SET_NULL, null=True, blank=True,
                                    verbose_name='测试套件')
     test_cases = models.JSONField(default=list, blank=True, verbose_name='测试用例列表',
                                  help_text='测试用例ID列表，用于TEST_CASE类型任务')
@@ -1078,4 +1130,53 @@ class AIExecutionRecord(models.Model):
 
     def __str__(self):
         return f"{self.case_name} - {self.get_status_display()}"
+
+
+class AITestSuite(models.Model):
+    """AI测试套件模型"""
+    EXECUTION_STATUS_CHOICES = [
+        ('not_run', '未执行'),
+        ('passed', '通过'),
+        ('failed', '失败'),
+        ('running', '执行中'),
+    ]
+
+    project = models.ForeignKey(UiProject, on_delete=models.CASCADE, related_name='ai_test_suites', verbose_name='所属项目', null=True, blank=True)
+    name = models.CharField(max_length=200, verbose_name='套件名称')
+    description = models.TextField(blank=True, verbose_name='套件描述')
+    ai_cases = models.ManyToManyField(AICase, through='AITestSuiteAICase', verbose_name='AI测试用例')
+
+    execution_status = models.CharField(max_length=20, choices=EXECUTION_STATUS_CHOICES, default='not_run', verbose_name='执行状态')
+    passed_count = models.IntegerField(default=0, verbose_name='通过数')
+    failed_count = models.IntegerField(default=0, verbose_name='失败数')
+
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, verbose_name='创建者')
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='创建时间')
+    updated_at = models.DateTimeField(auto_now=True, verbose_name='更新时间')
+
+    class Meta:
+        db_table = 'ui_ai_test_suites'
+        verbose_name = 'AI测试套件'
+        verbose_name_plural = 'AI测试套件'
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return self.name
+
+
+class AITestSuiteAICase(models.Model):
+    """AI测试套件与AI测试用例的关联模型"""
+    ai_test_suite = models.ForeignKey(AITestSuite, on_delete=models.CASCADE, related_name='suite_ai_cases', verbose_name='AI测试套件')
+    ai_case = models.ForeignKey(AICase, on_delete=models.CASCADE, verbose_name='AI测试用例')
+    order = models.IntegerField(default=0, verbose_name='执行顺序')
+
+    class Meta:
+        db_table = 'ui_ai_test_suite_ai_cases'
+        verbose_name = 'AI测试套件用例关联'
+        verbose_name_plural = 'AI测试套件用例关联'
+        ordering = ['order']
+        unique_together = ['ai_test_suite', 'ai_case']
+
+    def __str__(self):
+        return f'{self.ai_test_suite.name} - {self.ai_case.name}'
 

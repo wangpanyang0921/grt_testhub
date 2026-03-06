@@ -4,7 +4,10 @@
       <!-- 侧边栏 -->
       <el-aside width="240px">
         <div class="logo" @click="router.push('/home')" style="cursor: pointer;">
-          <img src="@/assets/images/logo_home.svg" alt="TestHub" />
+          <div class="logo-img-wrapper">
+            <img src="/favicon.png" alt="TestHub" class="logo-img" />
+          </div>
+          <span class="logo-text">TestHub</span>
         </div>
         <el-menu
           :default-active="$route.path"
@@ -217,6 +220,10 @@
               <el-icon><Document /></el-icon>
               <span>{{ $t('menu.aiCaseManagement') }}</span>
             </el-menu-item>
+            <el-menu-item index="/ai-intelligent-mode/suites">
+              <el-icon><Box /></el-icon>
+              <span>{{ $t('menu.aiSuiteManagement') }}</span>
+            </el-menu-item>
             <el-menu-item index="/ai-intelligent-mode/execution-records">
               <el-icon><Timer /></el-icon>
               <span>{{ $t('menu.aiExecutionRecords') }}</span>
@@ -322,7 +329,7 @@ import { useI18n } from 'vue-i18n'
 import {
   Monitor, Folder, Document, Flag, Check, Collection, VideoPlay,
   DataAnalysis, ChatDotRound, DocumentCopy, Link, MagicStick,
-  Odometer, Timer, Setting, AlarmClock, Bell, Aim, Edit, Cpu, ArrowDown, Cellphone, Connection, FolderOpened
+  Odometer, Timer, Setting, AlarmClock, Bell, Aim, Edit, Cpu, ArrowDown, Cellphone, Connection, FolderOpened, Box
 } from '@element-plus/icons-vue'
 
 const router = useRouter()
@@ -429,6 +436,7 @@ const breadcrumbTitle = computed(() => {
     // AI 智能模式
     '/ai-intelligent-mode/testing': t('menu.aiIntelligentTesting'),
     '/ai-intelligent-mode/cases': t('menu.aiCaseManagement'),
+    '/ai-intelligent-mode/suites': '套件管理',
     '/ai-intelligent-mode/execution-records': t('menu.aiExecutionRecords'),
 
 
@@ -470,25 +478,41 @@ const handleCommand = (command) => {
 }
 
 .logo {
-  height: 60px;
+  height: 70px;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #f3f0fa;
+  gap: 12px;
+  background: linear-gradient(135deg, #f8f7ff 0%, #ede9fe 100%);
   color: #5a32a3;
-  border-bottom: 1px solid rgba(90, 50, 163, 0.2);
   flex-shrink: 0;
   position: relative;
   overflow: hidden;
 
-  img {
-    height: 80%;
-    width: auto;
+  .logo-img-wrapper {
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+  }
+
+  .logo-img {
+    height: 40px;
+    width: 40px;
     object-fit: contain;
     transition: all 0.3s ease;
   }
 
-  &:hover img {
+  .logo-text {
+    font-size: 20px;
+    font-weight: 700;
+    color: #5a32a3;
+    letter-spacing: 1px;
+  }
+
+  &:hover .logo-img {
     transform: scale(1.05);
   }
 
@@ -1035,31 +1059,31 @@ const handleCommand = (command) => {
   .header-left {
     flex: 1;
     overflow: hidden;
-    
+
     :deep(.el-breadcrumb) {
       font-size: 14px;
       font-weight: 500;
-      
+
       .el-breadcrumb__item {
         .el-breadcrumb__inner {
           color: #5a32a3;
           font-weight: 500;
-          
+
           &:hover {
             color: #7b42f6;
           }
-          
+
           &.is-link {
-            color: #9370db;
+            color: #5a32a3;
             font-weight: 500;
-            
+
             &:hover {
               color: #7b42f6;
               text-decoration: underline;
             }
           }
         }
-        
+
         .el-breadcrumb__separator {
           color: #9370db;
           margin: 0 8px;
@@ -1074,15 +1098,14 @@ const handleCommand = (command) => {
     cursor: pointer;
     white-space: nowrap;
     outline: none;
-    padding: 6px 12px;
-    border-radius: 20px;
+    padding: 6px 0;
     transition: all 0.3s ease;
-    background: rgba(255, 255, 255, 0.8);
-    box-shadow: 0 2px 8px rgba(90, 50, 163, 0.1);
+    background: transparent;
+    box-shadow: none;
     
     &:hover {
-      background: rgba(255, 255, 255, 1);
-      box-shadow: 0 4px 12px rgba(90, 50, 163, 0.15);
+      background: transparent;
+      box-shadow: none;
       transform: translateY(-1px);
     }
 
@@ -1094,15 +1117,14 @@ const handleCommand = (command) => {
     }
     
     .el-avatar {
-      border: 2px solid rgba(90, 50, 163, 0.2);
+      border: none;
       transition: all 0.3s ease;
       background: linear-gradient(135deg, #5a32a3 0%, #7b42f6 100%) !important;
-      
+
       &:hover {
-        border-color: #9370db;
-        box-shadow: 0 0 0 2px rgba(147, 112, 219, 0.2);
+        box-shadow: 0 0 0 2px rgba(147, 112, 219, 0.3);
       }
-      
+
       :deep(img) {
         object-fit: cover;
       }

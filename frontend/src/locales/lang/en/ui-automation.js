@@ -626,6 +626,25 @@ export default {
         exportSuccess: 'PDF report exported successfully!',
         exportFailed: 'Failed to export report, please try again later'
       }
+    },
+    // Element Locator Extraction
+    elementLocator: {
+      title: 'Element Locator Info',
+      viewElements: 'Element Locator',
+      executionId: 'Execution ID',
+      caseName: 'Case Name',
+      totalElements: 'Elements Extracted',
+      step: 'Step',
+      description: 'Description',
+      elementName: 'Element Name',
+      locatorStrategy: 'Locator Strategy',
+      locatorValue: 'Locator Value',
+      actionType: 'Action Type',
+      noData: 'No data',
+      noElements: 'No element locator info extracted',
+      loadError: 'Failed to load element locator info',
+      copySuccess: 'Copied successfully',
+      copyFailed: 'Copy failed'
     }
   },
 

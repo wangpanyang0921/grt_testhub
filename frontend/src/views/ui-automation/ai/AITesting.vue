@@ -1,114 +1,115 @@
 <template>
   <div class="page-container">
-    <div class="page-header">
-      <h1 class="page-title">{{ $t('uiAutomation.ai.title') }}</h1>
+    <!-- 任务输入区域 -->
+    <div class="card-container">
+      <div class="section-title">{{ $t('uiAutomation.ai.taskInput') }}</div>
+      <el-form :model="taskForm" label-position="top">
+        <el-form-item class="task-desc-item">
+          <el-input
+            v-model="taskForm.description"
+            type="textarea"
+            :rows="6"
+            placeholder="请用自然语言按操作步骤描述，例如：
+
+1. 访问 https://passport.grtcloud.net
+
+2. 点击'密码登录'"
+            maxlength="2000"
+            show-word-limit
+          />
+        </el-form-item>
+
+        <div class="form-actions">
+          <div class="form-options">
+            <el-form-item :label="$t('uiAutomation.ai.gifRecording')" class="gif-option">
+              <div class="gif-switch-wrapper">
+                <el-switch
+                  v-model="taskForm.enableGif"
+                  :active-text="$t('uiAutomation.ai.on')"
+                  :inactive-text="$t('uiAutomation.ai.off')"
+                />
+                <span class="gif-tip">
+                  {{ $t('uiAutomation.ai.gifTip') }}
+                </span>
+              </div>
+            </el-form-item>
+          </div>
+          <div class="form-buttons">
+            <el-button
+              type="primary"
+              @click="handleRun"
+              :loading="running"
+              :disabled="!taskForm.description"
+            >
+              <el-icon><VideoPlay /></el-icon>
+              {{ $t('uiAutomation.ai.startExecution') }}
+            </el-button>
+            <el-button
+              type="danger"
+              @click="handleStop"
+              :disabled="!running"
+              v-if="running"
+            >
+              <el-icon><SwitchButton /></el-icon>
+              {{ $t('uiAutomation.ai.stopExecution') }}
+            </el-button>
+            <el-button
+              type="success"
+              @click="handleSaveAsCase"
+              :disabled="!taskForm.description"
+            >
+              <el-icon><DocumentAdd /></el-icon>
+              {{ $t('uiAutomation.ai.saveAsCase') }}
+            </el-button>
+          </div>
+        </div>
+      </el-form>
     </div>
 
-    <div class="card-container">
+    <!-- 任务明细和执行日志区域 -->
+    <div class="bottom-section">
       <el-row :gutter="20">
         <el-col :span="12">
-          <div class="section-title">{{ $t('uiAutomation.ai.taskInput') }}</div>
-          <el-form :model="taskForm" label-position="top">
-            <el-form-item :label="$t('uiAutomation.ai.taskDescription')" required>
-              <el-input
-                v-model="taskForm.description"
-                type="textarea"
-                :rows="10"
-                :placeholder="$t('uiAutomation.ai.taskPlaceholder')"
-                maxlength="2000"
-                show-word-limit
-              />
-            </el-form-item>
-
-            <el-form-item :label="$t('uiAutomation.ai.gifRecording')">
-              <el-switch
-                v-model="taskForm.enableGif"
-                :active-text="$t('uiAutomation.ai.on')"
-                :inactive-text="$t('uiAutomation.ai.off')"
-              />
-              <span style="margin-left: 10px; color: #909399; font-size: 12px;">
-                {{ $t('uiAutomation.ai.gifTip') }}
-              </span>
-            </el-form-item>
-
-            <el-form-item>
-              <el-button
-                type="primary"
-                @click="handleRun"
-                :loading="running"
-                :disabled="!taskForm.description"
-              >
-                <el-icon><VideoPlay /></el-icon>
-                {{ $t('uiAutomation.ai.startExecution') }}
-              </el-button>
-              <el-button
-                type="danger"
-                @click="handleStop"
-                :disabled="!running || analyzing"
-                v-if="running"
-              >
-                <el-icon><SwitchButton /></el-icon>
-                {{ $t('uiAutomation.ai.stopExecution') }}
-              </el-button>
-              <el-button
-                type="success"
-                @click="handleSaveAsCase"
-                :disabled="!taskForm.description"
-              >
-                <el-icon><DocumentAdd /></el-icon>
-                {{ $t('uiAutomation.ai.saveAsCase') }}
-              </el-button>
-            </el-form-item>
-          </el-form>
-
-          <el-alert
-            :title="$t('uiAutomation.ai.tip')"
-            type="info"
-            :closable="false"
-            style="margin-top: 20px;"
-          >
-            <template #default>
-              <div>{{ $t('uiAutomation.ai.tipContent1') }}</div>
-              <div>{{ $t('uiAutomation.ai.tipContent2') }}</div>
-            </template>
-          </el-alert>
-
-          <div class="section-title" style="margin-top: 20px;">{{ $t('uiAutomation.ai.executionLogs') }}</div>
-          <div class="log-container" ref="logContainer">
-            <div v-if="!logs && !running" class="empty-logs">
-              {{ $t('uiAutomation.ai.noLogs') }}
+          <div class="card-container task-detail-card">
+            <div class="section-title">{{ $t('uiAutomation.ai.taskDetails') }}</div>
+            <div class="task-list-container">
+              <div v-if="analyzing" class="analyzing-state">
+                <el-icon class="is-loading"><Loading /></el-icon>
+                <span>{{ $t('uiAutomation.ai.analyzing') }}</span>
+              </div>
+              <div v-else-if="plannedTasks.length > 0">
+                <div
+                  v-for="task in plannedTasks"
+                  :key="task.id"
+                  class="task-item"
+                  :class="task.status"
+                >
+                  <div class="task-status-icon">
+                    <el-icon v-if="task.status === 'completed'" color="#67C23A"><CircleCheckFilled /></el-icon>
+                    <el-icon v-else-if="task.status === 'in_progress'" class="is-loading" color="#409EFF"><Loading /></el-icon>
+                    <el-icon v-else color="#909399"><CircleCheck /></el-icon>
+                  </div>
+                  <div class="task-content">
+                    <span class="task-id">{{ task.id }}.</span>
+                    <span class="task-desc">{{ task.description }}</span>
+                  </div>
+                </div>
+              </div>
+              <div v-else class="empty-tasks">
+                {{ $t('uiAutomation.ai.noTasks') }}
+              </div>
             </div>
-            <pre v-else class="log-content">{{ logs }}</pre>
           </div>
         </el-col>
 
         <el-col :span="12">
-          <div class="section-title">{{ $t('uiAutomation.ai.taskDetails') }}</div>
-          <div class="task-list-container">
-            <div v-if="analyzing" class="analyzing-state">
-              <el-icon class="is-loading"><Loading /></el-icon>
-              <span>{{ $t('uiAutomation.ai.analyzing') }}</span>
-            </div>
-            <div v-else-if="plannedTasks.length > 0">
-              <div
-                v-for="task in plannedTasks"
-                :key="task.id"
-                class="task-item"
-                :class="task.status"
-              >
-                <div class="task-status-icon">
-                  <el-icon v-if="task.status === 'completed'" color="#67C23A"><CircleCheckFilled /></el-icon>
-                  <el-icon v-else-if="task.status === 'in_progress'" class="is-loading" color="#409EFF"><Loading /></el-icon>
-                  <el-icon v-else color="#909399"><CircleCheck /></el-icon>
-                </div>
-                <div class="task-content">
-                  <span class="task-id">{{ task.id }}.</span>
-                  <span class="task-desc">{{ task.description }}</span>
-                </div>
+          <div class="card-container log-card">
+            <div class="section-title">{{ $t('uiAutomation.ai.executionLogs') }}</div>
+            <div class="log-container" ref="logContainer">
+              <div v-if="!logs && !running" class="empty-logs">
+                {{ $t('uiAutomation.ai.noLogs') }}
               </div>
-            </div>
-            <div v-else class="empty-tasks">
-              {{ $t('uiAutomation.ai.noTasks') }}
+              <pre v-else class="log-content">{{ logs }}</pre>
             </div>
           </div>
         </el-col>
@@ -298,28 +299,49 @@ const confirmSaveCase = async () => {
 
 <style lang="scss" scoped>
 .page-container {
-  padding: 20px;
+  padding: 24px;
+  min-height: calc(100vh - 60px);
+  background: linear-gradient(135deg, #f5f3ff 0%, #ede9fe 100%);
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
 }
 
 .page-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 20px;
-  
+  padding: 24px 28px;
+  background: linear-gradient(135deg, #ffffff 0%, #f8f7ff 100%);
+  border-radius: 12px;
+  box-shadow: 0 4px 16px rgba(147, 112, 219, 0.1);
+  border: 1px solid rgba(147, 112, 219, 0.1);
+
   .page-title {
-    font-size: 20px;
-    font-weight: 600;
+    font-size: 24px;
+    font-weight: 700;
+    color: #5a32a3;
     margin: 0;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: linear-gradient(135deg, #7b42f6 0%, #5a32a3 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
   }
 }
 
 .card-container {
-  background-color: #fff;
-  border-radius: 4px;
-  padding: 20px;
-  box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.1);
-  min-height: calc(100vh - 140px);
+  background: #ffffff;
+  border: 1px solid rgba(147, 112, 219, 0.12);
+  border-radius: 12px;
+  box-shadow: 0 4px 16px rgba(147, 112, 219, 0.08);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding: 24px;
+  flex: 1;
 }
 
 .section-title {
@@ -327,57 +349,140 @@ const confirmSaveCase = async () => {
   font-weight: 600;
   margin-bottom: 15px;
   padding-left: 10px;
-  border-left: 4px solid #409eff;
+  border-left: 4px solid #7b42f6;
+  color: #5a32a3;
+}
+
+// 表单操作区域
+.form-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  margin-top: 20px;
+  flex-wrap: wrap;
+  gap: 16px;
+
+  .task-desc-item {
+    margin-bottom: 20px;
+
+    :deep(.el-form-item__label) {
+      color: #5a32a3;
+      font-weight: 600;
+      font-size: 14px;
+      padding-left: 10px;
+      border-left: 4px solid #7b42f6;
+    }
+  }
+
+  .form-options {
+    .gif-option {
+      margin-bottom: 0;
+
+      :deep(.el-form-item__label) {
+        color: #5a32a3;
+        font-weight: 600;
+        font-size: 14px;
+        padding-left: 10px;
+        border-left: 4px solid #7b42f6;
+      }
+    }
+
+    .gif-switch-wrapper {
+      display: flex;
+      align-items: center;
+      margin-top: 8px;
+
+      :deep(.el-switch__label) {
+        color: #5a32a3;
+        font-weight: 500;
+        font-size: 14px;
+      }
+
+      :deep(.el-switch.is-checked .el-switch__label) {
+        color: #5a32a3;
+      }
+    }
+
+    .gif-tip {
+      margin-left: 10px;
+      color: #909399;
+      font-size: 12px;
+    }
+  }
+
+  .form-buttons {
+    display: flex;
+    gap: 12px;
+  }
+}
+
+// 底部区域
+.bottom-section {
+  .task-detail-card,
+  .log-card {
+    height: 100%;
+    min-height: 400px;
+  }
 }
 
 .task-list-container {
-  background-color: #f5f7fa;
-  border-radius: 4px;
-  padding: 15px;
-  margin-bottom: 20px;
-  height: calc(100vh - 200px);
+  background-color: #f8f7ff;
+  border-radius: 8px;
+  padding: 16px;
+  height: calc(100% - 40px);
   overflow-y: auto;
-  
+  border: 1px solid rgba(147, 112, 219, 0.1);
+
   .task-item {
     display: flex;
     align-items: flex-start;
-    padding: 10px;
-    border-bottom: 1px solid #e4e7ed;
+    padding: 12px;
+    margin-bottom: 8px;
+    border-radius: 8px;
+    background-color: #ffffff;
+    border: 1px solid rgba(147, 112, 219, 0.1);
     transition: all 0.3s;
-    
+
     &:last-child {
-      border-bottom: none;
+      margin-bottom: 0;
     }
-    
+
     &.completed {
       background-color: #f0f9eb;
+      border-color: rgba(103, 194, 58, 0.2);
       .task-desc {
         color: #67c23a;
         text-decoration: line-through;
       }
     }
-    
+
     &.in_progress {
       background-color: #ecf5ff;
+      border-color: rgba(64, 158, 255, 0.2);
       .task-desc {
         color: #409eff;
         font-weight: bold;
       }
     }
-    
+
     .task-status-icon {
       margin-right: 10px;
       margin-top: 2px;
       font-size: 16px;
     }
-    
+
     .task-content {
       flex: 1;
       line-height: 1.5;
-      
+
       .task-id {
         font-weight: bold;
         margin-right: 5px;
+        color: #5a32a3;
+      }
+
+      .task-desc {
+        color: #333;
       }
     }
   }
@@ -399,8 +504,8 @@ const confirmSaveCase = async () => {
   align-items: center;
   justify-content: center;
   height: 100%;
-  color: #409eff;
-  
+  color: #5a32a3;
+
   .el-icon {
     font-size: 24px;
     margin-bottom: 10px;
@@ -409,25 +514,86 @@ const confirmSaveCase = async () => {
 
 .log-container {
   background-color: #1e1e1e;
-  border-radius: 4px;
+  border-radius: 8px;
   height: 300px;
   overflow-y: auto;
   padding: 15px;
   color: #fff;
   font-family: 'Consolas', 'Monaco', monospace;
-  
+
   .empty-logs {
     color: #909399;
     text-align: center;
     margin-top: 100px;
   }
-  
+
   .log-content {
     margin: 0;
     white-space: pre-wrap;
     word-wrap: break-word;
     font-size: 14px;
     line-height: 1.5;
+  }
+}
+
+// 按钮样式
+:deep(.el-button--primary) {
+  background: linear-gradient(135deg, #7b42f6 0%, #5a32a3 100%) !important;
+  border: none !important;
+  color: white !important;
+  font-weight: 600 !important;
+  border-radius: 8px !important;
+  box-shadow: 0 4px 12px rgba(123, 66, 246, 0.3) !important;
+  transition: all 0.3s ease !important;
+
+  &:hover {
+    background: linear-gradient(135deg, #6d33e6 0%, #4a249c 100%) !important;
+    transform: translateY(-2px) !important;
+    box-shadow: 0 6px 20px rgba(123, 66, 246, 0.4) !important;
+  }
+
+  .el-icon {
+    margin-right: 6px;
+  }
+}
+
+:deep(.el-button--success) {
+  background: linear-gradient(135deg, #67c23a 0%, #389e0d 100%) !important;
+  border: none !important;
+  color: white !important;
+  font-weight: 600 !important;
+  border-radius: 8px !important;
+  box-shadow: 0 4px 12px rgba(103, 194, 58, 0.3) !important;
+  transition: all 0.3s ease !important;
+
+  &:hover {
+    background: linear-gradient(135deg, #85ce61 0%, #67c23a 100%) !important;
+    transform: translateY(-2px) !important;
+    box-shadow: 0 6px 20px rgba(103, 194, 58, 0.4) !important;
+  }
+
+  .el-icon {
+    margin-right: 6px;
+  }
+}
+
+:deep(.el-button--danger) {
+  background: linear-gradient(135deg, #f56c6c 0%, #c45656 100%) !important;
+  border: none !important;
+  color: white !important;
+  font-weight: 600 !important;
+  border-radius: 8px !important;
+  box-shadow: 0 4px 12px rgba(245, 108, 108, 0.3) !important;
+  transition: all 0.3s ease !important;
+
+  &:hover {
+    background: linear-gradient(135deg, #f78989 0%, #f56c6c 100%) !important;
+    transform: translateY(-2px) !important;
+    box-shadow: 0 6px 20px rgba(245, 108, 108, 0.4) !important;
+  }
+
+  .el-icon {
+    margin-right: 6px;
   }
 }
 </style>

@@ -451,7 +451,7 @@ export default {
     gifRecording: 'GIF录制',
     on: '开启',
     off: '关闭',
-    gifTip: '开启后将录制执行过程并生成GIF文件，保存到 ai_agent_history 目录',
+    gifTip: '开启后将录制执行过程并生成GIF文件，保存到路径/media/ai_recording/目录下',
     startExecution: '开始执行',
     stopExecution: '停止执行',
     saveAsCase: '保存为用例',
@@ -486,7 +486,7 @@ export default {
     caseList: {
       title: 'AI 用例管理',
       newCase: '新建AI用例',
-      searchPlaceholder: '搜索用例名称或描述',
+      searchPlaceholder: '搜索用例名称',
       caseName: '用例名称',
       taskDescription: '任务描述',
       runCount: '执行次数',
@@ -626,6 +626,25 @@ export default {
         exportSuccess: 'PDF报告导出成功！',
         exportFailed: '导出报告失败，请稍后重试'
       }
+    },
+    // 元素定位提取
+    elementLocator: {
+      title: '元素定位信息',
+      viewElements: '元素定位',
+      executionId: '执行ID',
+      caseName: '用例名称',
+      totalElements: '提取元素数',
+      step: '步骤',
+      description: '描述',
+      elementName: '元素名称',
+      locatorStrategy: '定位策略',
+      locatorValue: '定位值',
+      actionType: '操作类型',
+      noData: '暂无数据',
+      noElements: '未提取到元素定位信息',
+      loadError: '加载元素定位信息失败',
+      copySuccess: '复制成功',
+      copyFailed: '复制失败'
     }
   },
 

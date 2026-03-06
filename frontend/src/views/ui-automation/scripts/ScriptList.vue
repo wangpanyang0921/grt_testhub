@@ -21,27 +21,27 @@
             {{ row.project?.name || $t('uiAutomation.script.unknownProject') }}
           </template>
         </el-table-column>
-        <el-table-column prop="name" :label="$t('uiAutomation.script.nameColumn')" min-width="280" show-overflow-tooltip header-align="center" align="center" />
-        <el-table-column :label="$t('uiAutomation.script.languageColumn')" width="100" header-align="center" align="center">
+        <el-table-column prop="name" :label="$t('uiAutomation.script.nameColumn')" min-width="160" show-overflow-tooltip header-align="center" align="center" />
+        <el-table-column :label="$t('uiAutomation.script.languageColumn')" width="110" header-align="center" align="center">
           <template #default="{ row }">
-            <el-tag size="small" :type="row.language === 'python' ? 'success' : 'primary'">
+            <el-tag size="small" :type="row.language === 'python' ? 'success' : 'primary'" show-overflow-tooltip>
               {{ getLanguageText(row.language) }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column :label="$t('uiAutomation.script.frameworkColumn')" width="120" header-align="center" align="center">
+        <el-table-column :label="$t('uiAutomation.script.frameworkColumn')" width="140" header-align="center" align="center">
           <template #default="{ row }">
-            <el-tag size="small" :type="row.framework === 'playwright' ? 'warning' : 'info'">
+            <el-tag size="small" :type="row.framework === 'playwright' ? 'warning' : 'info'" show-overflow-tooltip>
               {{ getFrameworkText(row.framework) }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="created_at" :label="$t('uiAutomation.script.createTimeColumn')" width="170" header-align="center" align="center">
+        <el-table-column prop="created_at" :label="$t('uiAutomation.script.createTimeColumn')" width="180" header-align="center" align="center">
           <template #default="{ row }">
             {{ formatTime(row.created_at) }}
           </template>
         </el-table-column>
-        <el-table-column :label="$t('uiAutomation.script.operationColumn')" width="260" fixed="right" header-align="center" align="center">
+        <el-table-column :label="$t('uiAutomation.script.operationColumn')" width="340" fixed="right" header-align="center" align="center">
           <template #default="{ row }">
             <div class="action-buttons">
               <el-button size="small" class="action-btn view-btn" @click="viewScript(row)">
@@ -498,58 +498,86 @@ onMounted(async () => {
     --el-color-primary-light-5: #a888e0;
     --el-color-primary-light-7: #c2a9f3;
     --el-color-primary-light-9: #f8f7ff;
-    --el-border-color: rgba(147, 112, 219, 0.2);
-    --el-border-color-light: rgba(147, 112, 219, 0.15);
-    --el-border-color-lighter: rgba(147, 112, 219, 0.1);
-    --el-fill-color-light: #f8f7ff;
-    --el-fill-color-lighter: #f8f7ff;
-    --el-fill-color-blank: #f8f7ff;
-    --el-text-color-primary: var(--text-primary);
-    --el-text-color-regular: var(--text-secondary);
-    --el-text-color-secondary: var(--text-tertiary);
+    --el-border-color: #e9ecef;
+    --el-border-color-light: #e9ecef;
+    --el-border-color-lighter: #e9ecef;
+    --el-fill-color-light: #ffffff;
+    --el-fill-color-lighter: #ffffff;
+    --el-fill-color-blank: #ffffff;
+    --el-text-color-primary: #333;
+    --el-text-color-regular: #333;
+    --el-text-color-secondary: #666;
+    --el-text-color-placeholder: #999;
+    --el-table-header-bg-color: #ffffff;
+    --el-table-row-hover-bg-color: #f8f7ff;
+    --el-table-stripe-bg-color: #fafaff;
 
-    :deep(.el-table__header) {
-      background: linear-gradient(135deg, #f8f7ff 0%, #ede9fe 100%) !important;
+    &::before {
+      display: none;
+    }
 
-      th {
-        background: transparent !important;
-        color: #5a32a3 !important;
-        font-weight: 600 !important;
-        font-size: 14px !important;
-        padding: 16px 12px !important;
-        border-bottom: 2px solid rgba(147, 112, 219, 0.15) !important;
+    // 表头包装器
+    :deep(.el-table__header-wrapper) {
+      background-color: #ffffff !important;
 
-        .cell {
-          color: #5a32a3 !important;
-          font-weight: 600 !important;
+      // 表头
+      :deep(.el-table__header) {
+        background-color: #ffffff !important;
+
+        // 表头单元格
+        :deep(th) {
+          background-color: #ffffff !important;
+          color: #5a32a3;
+          font-weight: 600;
+          font-size: 14px;
+          border-bottom: 1px solid #e9ecef;
+          padding: 16px;
+          text-align: left;
+          line-height: 24px;
+          transition: all 0.3s ease;
+
+          &:hover {
+            background-color: #ffffff !important;
+          }
+
+          // 表头单元格内部
+          :deep(.cell) {
+            background-color: #ffffff !important;
+            color: #5a32a3 !important;
+            font-weight: 600 !important;
+          }
         }
       }
     }
 
-    :deep(.el-table__row) {
-      transition: all 0.3s ease;
+    // 表格体包装器
+    :deep(.el-table__body-wrapper) {
+      background-color: #ffffff !important;
 
-      &:hover {
-        background-color: #f8f7ff !important;
-        transform: translateY(-1px);
-        box-shadow: 0 2px 8px rgba(147, 112, 219, 0.1);
-      }
+      // 表格行
+      :deep(.el-table__row) {
+        transition: all 0.3s ease;
+        background-color: #ffffff !important;
 
-      td {
-        padding: 14px 12px !important;
-        border-bottom: 1px solid rgba(147, 112, 219, 0.08) !important;
-        color: #4a4a4a;
-        font-size: 14px;
-      }
-    }
+        &:hover {
+          background-color: #f8f7ff !important;
+          transform: translateY(-1px);
+          box-shadow: 0 4px 12px rgba(147, 112, 219, 0.1);
+        }
 
-    :deep(.el-table__empty-block) {
-      min-height: 200px;
-      background: #fafaff;
+        // 表格单元格
+        :deep(td) {
+          background-color: #ffffff !important;
+          border-bottom: 1px solid #e9ecef;
+          padding: 16px;
+          text-align: left;
+          line-height: 24px;
+          transition: all 0.3s ease;
+        }
 
-      .el-table__empty-text {
-        color: #9370db;
-        font-size: 14px;
+        &:hover :deep(td) {
+          background-color: #f8f7ff !important;
+        }
       }
     }
   }
@@ -559,17 +587,21 @@ onMounted(async () => {
   display: flex;
   justify-content: center;
   align-items: center;
-  gap: 4px;
+  gap: 1px;
   flex-wrap: nowrap;
 }
 
 .action-btn {
+  padding: 3px 6px !important;
+  font-size: 11px;
+  min-width: auto !important;
+  
   &.view-btn {
     background: linear-gradient(135deg, #7b42f6 0%, #5a32a3 100%) !important;
     border: none !important;
     color: #ffffff !important;
     font-weight: 600 !important;
-    padding: 4px 10px !important;
+    padding: 3px 6px !important;
     border-radius: 6px !important;
     box-shadow: 0 2px 8px rgba(123, 66, 246, 0.3) !important;
     transition: all 0.3s ease !important;
