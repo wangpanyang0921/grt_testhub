@@ -53,7 +53,6 @@ export default {
     // 配置中心
     aiCaseGenerationConfig: 'AI用例配置',
     aiModelConfig: '用例模型配置',
-    promptConfig: '提示词配置',
     generationConfig: '生成行为配置',
     uiEnvConfig: 'UI环境配置',
     aiModeConfig: 'AI智能配置',
