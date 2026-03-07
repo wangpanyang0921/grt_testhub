@@ -656,11 +656,10 @@ onMounted(() => {
     display: flex;
     justify-content: center;
     align-items: center;
-    padding: 24px;
-    margin-top: 16px;
-    background: linear-gradient(135deg, #f8f7ff 0%, #fafbff 100%);
-    border-top: 1px solid rgba(147, 112, 219, 0.15);
-    border-radius: 0 0 12px 12px;
+    padding: 16px 0;
+    margin-top: 8px;
+    background: transparent;
+    border: none;
     transition: all 0.3s ease;
 
     /* 覆盖 Element Plus 默认主题变量 */

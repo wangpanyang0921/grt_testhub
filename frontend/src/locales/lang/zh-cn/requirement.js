@@ -33,7 +33,7 @@ export default {
     selectFileBtn: '选择文件',
     selectFile: '选择文件',
     removeFile: '❌',
-    documentTitle: '文档标题',
+    documentTitle: '需求标题',
     documentTitlePlaceholder: '请输入文档标题',
     documentPlaceholder: '请输入文档标题',
     documentContent: '文档内容',
@@ -82,7 +82,7 @@ export default {
     preparing: '准备中...',
 
     // Generation Status
-    aiGeneratingTitle: '🤖 AI正在生成测试用例',
+    aiGeneratingTitle: 'AI正在生成测试用例',
     taskId: '任务ID',
     currentStatus: '当前状态',
     taskStatus: '任务状态',
@@ -93,11 +93,12 @@ export default {
     stepComplete: '生成完成',
     cancelGeneration: '取消生成',
     generationCancelled: '生成已取消',
-    statusGenerating: '正在编写测试用例...',
-    statusReviewing: '正在评审测试用例...',
-    statusRevising: '正在生成最终版用例...',
+    statusGenerating: 'AI正在编写测试用例...',
+    statusReviewing: 'AI正在评审测试用例...',
+    statusRevising: 'AI正在生成最终版用例...',
     statusCompleted: '生成完成！',
     statusFailed: '生成失败',
+    waitingForAI: 'AI正在思考中，请稍候...',
     generateCompleteSuccess: '测试用例生成完成！',
     checkProgressFailed: '检查进度失败',
     createTaskFailed: '创建任务失败',
@@ -106,6 +107,8 @@ export default {
     streamConnectionInterrupted: '流式连接中断，切换到轮询模式',
     streamReconnecting: '流式连接中断，正在自动重连...',
     fetchResultFailed: '获取结果失败',
+    taskLoaded: '任务加载成功',
+    loadTaskFailed: '加载任务失败',
 
     // Stream Display
     realtimeGeneratedContent: '✍️ 实时生成内容',
@@ -170,6 +173,7 @@ export default {
     statusRevising: '用例修订中',
     statusCompleted: '已完成',
     statusFailed: '失败',
+    statusCancelled: '已取消',
     statusDraft: '草稿',
     statusActive: '激活',
 
@@ -276,6 +280,7 @@ export default {
     // Messages
     deleteConfirm: '确定要删除这个任务吗？',
     batchDeleteConfirm: '确定要删除选中的 {count} 个任务吗？此操作不可恢复。',
+    confirmTitle: '确认删除',
     deleteSuccess: '成功删除 {success} 个任务，失败 {failed} 个',
     deleteFailed: '删除失败',
     batchDeleteSuccess: '成功删除 {count} 个任务',

@@ -1,10 +1,5 @@
 <template>
   <div class="requirement-analysis">
-    <div class="page-header">
-      <h1>{{ $t('requirementAnalysis.title') }}</h1>
-      <p>{{ $t('requirementAnalysis.subtitle') }}</p>
-    </div>
-
     <!-- 配置引导弹出窗口 -->
     <div v-if="showConfigGuide && !checkingConfig" class="modal-overlay" @click.self="showConfigGuide = false" :key="modalKey">
       <div class="guide-config-modal">
@@ -89,145 +84,215 @@
       </div>
     </div>
 
-    <!-- 输出模式选择器 - 全局设置 -->
-    <div class="output-mode-section" v-if="!isGenerating && !showResults">
-      <div class="output-mode-card">
-        <h3>{{ $t('requirementAnalysis.outputModeTitle') }}</h3>
-        <p class="mode-section-desc">{{ $t('requirementAnalysis.outputModeDesc') }}</p>
-        <div class="output-mode-selector">
-          <label class="mode-option" :class="{ active: globalOutputMode === 'stream' }">
-            <input type="radio" v-model="globalOutputMode" value="stream">
-            <div class="mode-content">
-              <div class="mode-title">{{ $t('requirementAnalysis.realtimeStream') }}</div>
-              <div class="mode-desc">{{ $t('requirementAnalysis.realtimeStreamDesc') }}</div>
-            </div>
-          </label>
-          <label class="mode-option" :class="{ active: globalOutputMode === 'complete' }">
-            <input type="radio" v-model="globalOutputMode" value="complete">
-            <div class="mode-content">
-              <div class="mode-title">{{ $t('requirementAnalysis.completeOutput') }}</div>
-              <div class="mode-desc">{{ $t('requirementAnalysis.completeOutputDesc') }}</div>
-            </div>
-          </label>
-        </div>
-      </div>
-    </div>
-
     <div class="main-content">
-      <!-- 手动输入需求描述区域 -->
-      <div class="manual-input-section" v-if="!isGenerating && !showResults">
-        <div class="manual-input-card">
-          <h2>{{ $t('requirementAnalysis.manualInputTitle') }}</h2>
-          <div class="input-form">
-            <div class="form-group">
-              <label>{{ $t('requirementAnalysis.requirementTitle') }} <span class="required">*</span></label>
-              <input
-                v-model="manualInput.title"
-                type="text"
-                class="form-input"
-                :placeholder="$t('requirementAnalysis.titlePlaceholder')">
-            </div>
-
-            <div class="form-group">
-              <label>{{ $t('requirementAnalysis.requirementDescription') }} <span class="required">*</span></label>
-              <textarea
-                v-model="manualInput.description"
-                class="form-textarea"
-                rows="8"
-                :placeholder="$t('requirementAnalysis.descriptionPlaceholder')"></textarea>
-              <div class="char-count">{{ manualInput.description.length }}/2000</div>
-            </div>
-
-            <div class="form-group">
-              <label>{{ $t('requirementAnalysis.associatedProject') }}</label>
-              <select v-model="manualInput.selectedProject" class="form-select">
-                <option value="">{{ $t('requirementAnalysis.selectProject') }}</option>
-                <option v-for="project in projects" :key="project.id" :value="project.id">
-                  {{ project.name }}
-                </option>
-              </select>
-            </div>
-
-            <button
-              class="generate-manual-btn"
-              @click="generateFromManualInput"
-              :disabled="!canGenerateManual || isGenerating">
-              <span v-if="isGenerating">{{ $t('requirementAnalysis.generating') }}</span>
-              <span v-else>{{ $t('requirementAnalysis.generateButton') }}</span>
-            </button>
-          </div>
+      <!-- 页面顶部步骤指示器 - 在所有步骤页面显示 -->
+      <div v-if="!isGenerating && !showResults && currentStep >= 1 && currentStep <= 3" class="steps-indicator-top">
+        <div class="step-indicator-item" :class="{ active: currentStep >= 1, clickable: currentStep > 1 }" @click="goToStep(1)">
+          <span class="step-indicator-number">1</span>
+          <span class="step-indicator-text">输出模式</span>
+        </div>
+        <div class="step-indicator-line-horizontal" :class="{ active: currentStep >= 2 }"></div>
+        <div class="step-indicator-item" :class="{ active: currentStep >= 2, clickable: currentStep > 2 }" @click="goToStep(2)">
+          <span class="step-indicator-number">2</span>
+          <span class="step-indicator-text">输入方式</span>
+        </div>
+        <div class="step-indicator-line-horizontal" :class="{ active: currentStep >= 3 }"></div>
+        <div class="step-indicator-item" :class="{ active: currentStep >= 3, clickable: currentStep > 3 }" @click="goToStep(3)">
+          <span class="step-indicator-number">3</span>
+          <span class="step-indicator-text">填写需求</span>
         </div>
       </div>
 
-      <!-- 分隔线 -->
-      <div class="divider" v-if="!isGenerating && !showResults">
-        <span>{{ $t('requirementAnalysis.dividerOr') }}</span>
+      <!-- 初始欢迎界面 -->
+      <div v-if="!isGenerating && !showResults && currentStep === 0" class="welcome-section">
+        <div class="welcome-card">
+          <div class="welcome-icon">🚀</div>
+          <h2>个性化生成测试用例</h2>
+          <button class="start-btn" @click="startSetup">
+            开始配置
+          </button>
+        </div>
       </div>
 
-      <!-- 文档上传区域 -->
-      <div class="upload-section" v-if="!isGenerating && !showResults">
-        <div class="upload-card">
-          <h2>{{ $t('requirementAnalysis.uploadTitle') }}</h2>
-          <div class="upload-area"
-               @dragover.prevent
-               @drop="handleDrop"
-               :class="{ 'drag-over': isDragOver }"
-               @dragenter="isDragOver = true"
-               @dragleave="isDragOver = false">
-            <div v-if="!selectedFile" class="upload-placeholder">
-              <i class="upload-icon">📁</i>
-              <p>{{ $t('requirementAnalysis.dragDropText') }}</p>
-              <p class="upload-hint">{{ $t('requirementAnalysis.supportedFormats') }}</p>
-              <input
-                type="file"
-                ref="fileInput"
-                @change="handleFileSelect"
-                accept=".pdf,.doc,.docx,.txt,.md"
-                style="display: none;">
-              <button class="select-file-btn" @click="$refs.fileInput.click()">
-                {{ $t('requirementAnalysis.selectFile') }}
-              </button>
-            </div>
-
-            <div v-else class="file-selected">
-              <div class="file-info">
-                <i class="file-icon">📄</i>
-                <div class="file-details">
-                  <p class="file-name">{{ selectedFile.name }}</p>
-                  <p class="file-size">{{ formatFileSize(selectedFile.size) }}</p>
+      <!-- 步骤1：选择输出模式 -->
+      <div v-if="!isGenerating && !showResults && currentStep === 1" class="step-section">
+        <div class="step-card">
+          <div class="step-card-main">
+            <div class="step-content-wrapper">
+              <div class="output-mode-selector">
+                <div class="mode-option" :class="{ active: globalOutputMode === 'stream' }" @click="selectOutputMode('stream')">
+                  <div class="mode-content">
+                    <div class="mode-title">
+                      <span class="mode-icon stream-icon">
+                        <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                          <path d="M3 12c0-1.1.9-2 2-2h2c1.1 0 2 .9 2 2s-.9 2-2 2H5c-1.1 0-2-.9-2-2z" fill="currentColor"/>
+                          <path d="M11 12c0-1.1.9-2 2-2h2c1.1 0 2 .9 2 2s-.9 2-2 2h-2c-1.1 0-2-.9-2-2z" fill="currentColor" opacity="0.6"/>
+                          <path d="M3 6c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2s-.9 2-2 2H5c-1.1 0-2-.9-2-2z" fill="currentColor" opacity="0.4"/>
+                          <path d="M3 18c0-1.1.9-2 2-2h6c1.1 0 2 .9 2 2s-.9 2-2 2H5c-1.1 0-2-.9-2-2z" fill="currentColor" opacity="0.8"/>
+                          <path d="M17 6c0-1.1.9-2 2-2h2c1.1 0 2 .9 2 2s-.9 2-2 2h-2c-1.1 0-2-.9-2-2z" fill="currentColor"/>
+                          <path d="M17 18c0-1.1.9-2 2-2h2c1.1 0 2 .9 2 2s-.9 2-2 2h-2c-1.1 0-2-.9-2-2z" fill="currentColor" opacity="0.6"/>
+                        </svg>
+                      </span>
+                      流式输出
+                    </div>
+                    <div class="mode-desc">生成过程内容可见</div>
+                  </div>
                 </div>
-                <button class="remove-file" @click="removeFile">❌</button>
+                <div class="mode-option" :class="{ active: globalOutputMode === 'complete' }" @click="selectOutputMode('complete')">
+                  <div class="mode-content">
+                    <div class="mode-title">
+                      <span class="mode-icon complete-icon">
+                        <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                          <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z" fill="currentColor"/>
+                        </svg>
+                      </span>
+                      完整输出
+                    </div>
+                    <div class="mode-desc">生成过程内容不可见</div>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
+        </div>
+      </div>
 
-          <div v-if="selectedFile" class="document-info">
-            <div class="form-group">
-              <label>{{ $t('requirementAnalysis.documentTitle') }}</label>
-              <input
-                v-model="documentTitle"
-                type="text"
-                class="form-input"
-                :placeholder="$t('requirementAnalysis.documentPlaceholder')">
+      <!-- 步骤2：选择输入方式 -->
+      <div v-if="!isGenerating && !showResults && currentStep === 2" class="step-section">
+        <div class="step-card">
+          <div class="step-card-main">
+            <div class="step-content-wrapper">
+              <div class="input-method-selector">
+                <div class="input-method-option" :class="{ active: selectedInputMethod === 'manual' }" @click="selectInputMethod('manual')">
+                  <div class="input-method-icon">✏️</div>
+                  <div class="input-method-title">手动输入</div>
+                </div>
+                <div class="input-method-option" :class="{ active: selectedInputMethod === 'upload' }" @click="selectInputMethod('upload')">
+                  <div class="input-method-icon">📁</div>
+                  <div class="input-method-title">文件上传</div>
+                </div>
+              </div>
             </div>
+          </div>
+        </div>
+      </div>
 
-            <div class="form-group">
-              <label>{{ $t('requirementAnalysis.associatedProject') }}</label>
-              <select v-model="selectedProject" class="form-select">
-                <option value="">{{ $t('requirementAnalysis.selectProject') }}</option>
-                <option v-for="project in projects" :key="project.id" :value="project.id">
-                  {{ project.name }}
-                </option>
-              </select>
+      <!-- 步骤3：填写需求 -->
+      <div v-if="!isGenerating && !showResults && currentStep === 3" class="step-section">
+        <!-- 手动输入需求描述区域 -->
+        <div v-if="selectedInputMethod === 'manual'" class="step-card">
+          <div class="step-card-main">
+            <div class="step-content-wrapper">
+              <div class="input-form">
+                <div class="form-group">
+                  <label><span class="required">*</span> {{ $t('requirementAnalysis.requirementTitle') }}</label>
+                  <input
+                    v-model="manualInput.title"
+                    type="text"
+                    class="form-input">
+                </div>
+
+                <div class="form-group textarea-with-count">
+                  <label><span class="required">*</span> {{ $t('requirementAnalysis.requirementDescription') }}</label>
+                  <div class="textarea-wrapper">
+                    <textarea
+                      v-model="manualInput.description"
+                      class="form-textarea"
+                      rows="8"></textarea>
+                    <div class="char-count">{{ manualInput.description.length }}/2000</div>
+                  </div>
+                </div>
+
+
+
+                <button
+                  class="generate-manual-btn"
+                  @click="generateFromManualInput"
+                  :disabled="!canGenerateManual || isGenerating">
+                  <span v-if="isGenerating">{{ $t('requirementAnalysis.generating') }}</span>
+                  <span v-else>{{ $t('requirementAnalysis.generateButton') }}</span>
+                </button>
+              </div>
             </div>
+          </div>
+        </div>
 
-            <button
-              class="generate-btn"
-              @click="generateFromDocument"
-              :disabled="!documentTitle || isGenerating">
-              <span v-if="isGenerating">{{ $t('requirementAnalysis.generating') }}</span>
-              <span v-else>{{ $t('requirementAnalysis.generateButton') }}</span>
-            </button>
+        <!-- 文档上传区域 -->
+        <div v-if="selectedInputMethod === 'upload'" class="step-card">
+          <div class="step-card-main">
+            <div class="step-content-wrapper">
+              <!-- 文档标题输入框 - 在文件选择上方 -->
+              <div v-if="selectedFile" class="document-info">
+                <div class="form-group">
+                  <label>{{ $t('requirementAnalysis.documentTitle') }}</label>
+                  <input
+                    v-model="documentTitle"
+                    type="text"
+                    class="form-input"
+                    :placeholder="$t('requirementAnalysis.documentPlaceholder')">
+                </div>
+              </div>
+
+              <h3 v-if="selectedFile" class="upload-section-title">需求上传</h3>
+              <div class="upload-area"
+                   @dragover.prevent
+                   @drop="handleDrop"
+                   :class="{ 'drag-over': isDragOver }"
+                   @dragenter="isDragOver = true"
+                   @dragleave="isDragOver = false">
+                <div v-if="!selectedFile" class="upload-placeholder">
+                  <i class="upload-icon">📁</i>
+                  <p class="upload-hint">{{ $t('requirementAnalysis.supportedFormats') }}</p>
+                  <input
+                    type="file"
+                    ref="fileInput"
+                    @change="handleFileSelect"
+                    accept=".pdf,.doc,.docx,.txt,.md"
+                    style="display: none;">
+                  <button class="select-file-btn" @click="$refs.fileInput.click()">
+                    {{ $t('requirementAnalysis.selectFile') }}
+                  </button>
+                </div>
+
+                <div v-else class="file-selected">
+                  <div class="file-info">
+                    <div class="file-icon-wrapper">
+                      <svg class="file-icon-svg" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M14 2H6C4.9 2 4 2.9 4 4V20C4 21.1 4.9 22 6 22H18C19.1 22 20 21.1 20 20V8L14 2Z" fill="url(#fileGradient)" stroke="#8b5cf6" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                        <path d="M14 2V8H20" stroke="#8b5cf6" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                        <path d="M16 13H8" stroke="#8b5cf6" stroke-width="1.5" stroke-linecap="round"/>
+                        <path d="M16 17H8" stroke="#8b5cf6" stroke-width="1.5" stroke-linecap="round"/>
+                        <path d="M10 9H8" stroke="#8b5cf6" stroke-width="1.5" stroke-linecap="round"/>
+                        <defs>
+                          <linearGradient id="fileGradient" x1="4" y1="2" x2="20" y2="22" gradientUnits="userSpaceOnUse">
+                            <stop stop-color="#f5f0ff"/>
+                            <stop offset="1" stop-color="#ede9fe"/>
+                          </linearGradient>
+                        </defs>
+                      </svg>
+                    </div>
+                    <div class="file-details">
+                      <p class="file-name">{{ selectedFile.name }}</p>
+                    </div>
+                    <button class="remove-file" @click="removeFile" title="移除文件">
+                      <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M18 6L6 18M6 6L18 18" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <div v-if="selectedFile">
+                <button
+                  class="generate-btn"
+                  @click="generateFromDocument"
+                  :disabled="!documentTitle || isGenerating">
+                  <span v-if="isGenerating">{{ $t('requirementAnalysis.generating') }}</span>
+                  <span v-else>{{ $t('requirementAnalysis.generateButton') }}</span>
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -235,87 +300,103 @@
       <!-- 生成进度和结果 -->
       <div v-if="isGenerating || showResults" class="generation-progress">
         <div class="progress-card">
-          <h3>
-            {{ $t('requirementAnalysis.aiGeneratingTitle') }}
-            <span class="current-mode-badge">
-              ({{ globalOutputMode === 'stream' ? $t('requirementAnalysis.realtimeStream') : $t('requirementAnalysis.completeOutput') }})
-            </span>
-          </h3>
-          <div class="progress-info">
-            <div class="progress-item">
-              <span class="label">{{ $t('requirementAnalysis.taskId') }}</span>
-              <span class="value">{{ currentTaskId || $t('requirementAnalysis.preparing') }}</span>
-            </div>
-            <div class="progress-item">
-              <span class="label">{{ $t('requirementAnalysis.currentStatus') }}</span>
-              <span class="value">{{ showResults ? $t('requirementAnalysis.generationComplete') : progressText }}</span>
-            </div>
-          </div>
-
-          <!-- 流式内容实时显示区域 -->
-          <div v-if="streamedContent" class="stream-content-display">
-            <div class="stream-header">
-              <span class="stream-title">{{ $t('requirementAnalysis.realtimeGeneratedContent') }}</span>
-              <span class="stream-status">{{ $t('requirementAnalysis.characters', { count: streamedContent.length }) }}</span>
-            </div>
-            <div class="stream-content" v-html="formatMarkdown(streamedContent)"></div>
-          </div>
-
-          <!-- 评审内容显示区域 -->
-          <div v-if="streamedReviewContent" class="stream-content-display" style="margin-top: 15px;">
-            <div class="stream-header">
-              <span class="stream-title">{{ $t('requirementAnalysis.aiReviewComments') }}</span>
-              <span class="stream-status">{{ $t('requirementAnalysis.characters', { count: streamedReviewContent.length }) }}</span>
-            </div>
-            <div class="stream-content" v-html="formatMarkdown(streamedReviewContent)"></div>
-          </div>
-
-          <!-- 最终版用例显示区域 -->
-          <div v-if="finalTestCases" class="stream-content-display" style="margin-top: 15px;">
-            <div class="stream-header">
-              <span class="stream-title">
-                {{ $t('requirementAnalysis.finalVersionTestCases') }}
-                <span v-if="isGenerating" class="streaming-indicator">{{ $t('requirementAnalysis.generating') }}</span>
-              </span>
-              <span class="stream-status">{{ $t('requirementAnalysis.characters', { count: finalTestCases.length }) }}</span>
-            </div>
-            <div class="stream-content final-testcases" v-html="formatMarkdown(finalTestCases)"></div>
-          </div>
-
+          <!-- 进度步骤指示器 -->
           <div class="progress-steps">
             <div class="step" :class="{ active: currentStep >= 1 }">
               <span class="step-number">1</span>
               <span class="step-text">{{ $t('requirementAnalysis.stepAnalysis') }}</span>
             </div>
+            <div class="step-line" :class="{ active: currentStep >= 2 }"></div>
             <div class="step" :class="{ active: currentStep >= 2 }">
               <span class="step-number">2</span>
               <span class="step-text">{{ $t('requirementAnalysis.stepWriting') }}</span>
             </div>
+            <div class="step-line" :class="{ active: currentStep >= 3 }" v-if="showReviewStep"></div>
             <div v-if="showReviewStep" class="step" :class="{ active: currentStep >= 3 }">
               <span class="step-number">3</span>
               <span class="step-text">{{ $t('requirementAnalysis.stepReview') }}</span>
             </div>
+            <div class="step-line" :class="{ active: currentStep >= (showReviewStep ? 4 : 3) }"></div>
             <div class="step" :class="{ active: currentStep >= (showReviewStep ? 4 : 3) }">
               <span class="step-number">{{ showReviewStep ? 4 : 3 }}</span>
               <span class="step-text">{{ $t('requirementAnalysis.stepComplete') }}</span>
             </div>
           </div>
 
-          <!-- 任务完成后的操作按钮 -->
-          <div v-if="showResults" class="completion-actions">
-            <button class="download-btn" @click="downloadTestCases">
-              <span>📥 {{ $t('requirementAnalysis.downloadExcel') }}</span>
-            </button>
-            <button class="save-btn" @click="saveToTestCaseRecords">
-              <span>💾 {{ $t('requirementAnalysis.saveToRecords') }}</span>
-            </button>
-            <button class="new-generation-btn" @click="resetGeneration">
-              <span>📝 {{ $t('requirementAnalysis.newGeneration') }}</span>
+          <!-- 进度信息区域 - 仅在流式输出模式下显示 -->
+          <div v-if="globalOutputMode === 'stream'" class="progress-info">
+            <div class="progress-item">
+              <span class="label">{{ $t('requirementAnalysis.currentStatus') }}</span>
+              <span class="value">{{ showResults ? $t('requirementAnalysis.generationComplete') : progressText }}</span>
+            </div>
+            <div class="progress-item mode-item">
+              <span class="label">输出模式</span>
+              <span class="value mode-value">
+                {{ $t('requirementAnalysis.realtimeStream') }}
+              </span>
+            </div>
+            <button v-if="!showResults" class="cancel-generation-btn-inline" @click="cancelGeneration">
+              {{ $t('requirementAnalysis.cancelGeneration') }}
             </button>
           </div>
-          <button v-else class="cancel-generation-btn" @click="cancelGeneration">
-            {{ $t('requirementAnalysis.cancelGeneration') }}
-          </button>
+
+          <!-- 完整输出模式提示区域 -->
+          <div v-if="globalOutputMode === 'complete' && isGenerating" class="complete-mode-notice">
+            <div class="notice-desc">AI正在后台生成测试用例，生成过程内容不可见。请耐心等待，完成后将显示最终结果。</div>
+          </div>
+
+          <!-- 完整输出模式下的取消按钮 -->
+          <div v-if="globalOutputMode === 'complete' && !showResults" class="complete-mode-cancel">
+            <button class="cancel-generation-btn-inline" @click="cancelGeneration">
+              {{ $t('requirementAnalysis.cancelGeneration') }}
+            </button>
+          </div>
+
+          <!-- 流式内容实时显示区域 - 仅在流式输出模式下显示 -->
+          <div v-if="streamedContent && globalOutputMode === 'stream'" class="stream-content-display">
+            <div class="stream-header" @click="contentExpanded = !contentExpanded" style="cursor: pointer;">
+              <div class="stream-header-left">
+                <span class="expand-icon">{{ contentExpanded ? '▼' : '▶' }}</span>
+                <span class="stream-title">{{ $t('requirementAnalysis.realtimeGeneratedContent') }}</span>
+              </div>
+              <span class="stream-status">{{ $t('requirementAnalysis.characters', { count: streamedContent.length }) }}</span>
+            </div>
+            <div v-show="contentExpanded" class="stream-content" v-html="formatMarkdown(streamedContent)"></div>
+          </div>
+
+          <!-- 评审内容显示区域 - 仅在流式输出模式下显示 -->
+          <div v-if="streamedReviewContent && globalOutputMode === 'stream'" class="stream-content-display" style="margin-top: 15px;">
+            <div class="stream-header" @click="reviewExpanded = !reviewExpanded" style="cursor: pointer;">
+              <div class="stream-header-left">
+                <span class="expand-icon">{{ reviewExpanded ? '▼' : '▶' }}</span>
+                <span class="stream-title">{{ $t('requirementAnalysis.aiReviewComments') }}</span>
+              </div>
+              <span class="stream-status">{{ $t('requirementAnalysis.characters', { count: streamedReviewContent.length }) }}</span>
+            </div>
+            <div v-show="reviewExpanded" class="stream-content" v-html="formatMarkdown(streamedReviewContent)"></div>
+          </div>
+
+          <!-- 最终版用例显示区域 - 仅在流式输出模式下显示 -->
+          <div v-if="finalTestCases && globalOutputMode === 'stream'" class="stream-content-display" style="margin-top: 15px;">
+            <div class="stream-header" @click="finalExpanded = !finalExpanded" style="cursor: pointer;">
+              <div class="stream-header-left">
+                <span class="expand-icon">{{ finalExpanded ? '▼' : '▶' }}</span>
+                <span class="stream-title">
+                  {{ $t('requirementAnalysis.finalVersionTestCases') }}
+                  <span v-if="isGenerating" class="streaming-indicator">{{ $t('requirementAnalysis.generating') }}</span>
+                </span>
+              </div>
+              <span class="stream-status">{{ $t('requirementAnalysis.characters', { count: finalTestCases.length }) }}</span>
+            </div>
+            <div v-show="finalExpanded" class="stream-content final-testcases" v-html="formatMarkdown(finalTestCases)"></div>
+          </div>
+
+          <!-- 任务完成后的操作按钮 -->
+          <div v-if="showResults" class="completion-actions">
+            <button class="new-generation-btn" @click="resetGeneration">
+              {{ $t('requirementAnalysis.newGeneration') }}
+            </button>
+          </div>
         </div>
       </div>
 
@@ -348,6 +429,10 @@ export default {
   name: 'RequirementAnalysisView',
   data() {
     return {
+      // 步骤管理：0-初始，1-选择输出模式，2-选择输入方式，3-填写需求
+      currentStep: 0,
+      // 输入方式选择：'manual'-手动输入，'upload'-文件上传
+      selectedInputMethod: null,
       // 全局输出模式设置
       globalOutputMode: 'stream',  // 默认使用流式输出
 
@@ -377,6 +462,11 @@ export default {
       finalTestCases: '',  // 最终版用例
       hasShownCompletionMessage: false,  // 是否已经显示过完成消息
       showReviewStep: true,  // 是否显示评审步骤（根据生成配置决定）
+
+      // 展开/收起状态
+      contentExpanded: true,  // 实时生成内容展开状态
+      reviewExpanded: true,   // AI评审意见展开状态
+      finalExpanded: true,    // 最终版用例展开状态
 
       // 生成结果
       showResults: false,
@@ -438,10 +528,20 @@ export default {
     }
   },
 
-  mounted() {
+  async mounted() {
     this.progressText = this.$t('requirementAnalysis.preparing')
     this.loadProjects()
     this.checkConfigStatus()
+
+    // 检查是否有任务ID参数，如果有则加载该任务
+    const taskId = this.$route.query.taskId
+    if (taskId) {
+      console.log('检测到任务ID参数:', taskId)
+      await this.loadExistingTask(taskId)
+    } else {
+      // 没有任务ID时，直接进入输出模式选择页面（跳过欢迎页面）
+      this.currentStep = 1
+    }
   },
 
   activated() {
@@ -467,6 +567,118 @@ export default {
   },
 
   methods: {
+    // 步骤管理方法
+    startSetup() {
+      this.currentStep = 1
+    },
+
+    selectOutputMode(mode) {
+      this.globalOutputMode = mode
+      this.currentStep = 2
+    },
+
+    // 加载已有任务
+    async loadExistingTask(taskId) {
+      try {
+        console.log('加载已有任务:', taskId)
+        const response = await api.get(`/requirement-analysis/testcase-generation/${taskId}/`)
+        const task = response.data
+
+        console.log('获取到任务信息:', task)
+        console.log('任务output_mode字段:', task.output_mode)
+        console.log('任务output_mode_display字段:', task.output_mode_display)
+
+        // 设置任务信息
+        this.currentTaskId = task.task_id
+        this.isGenerating = true
+        this.showResults = false
+        
+        // 设置输出模式 - 优先使用URL参数中的outputMode，如果没有则使用任务数据中的output_mode
+        const urlOutputMode = this.$route.query.outputMode
+        if (urlOutputMode) {
+          this.globalOutputMode = urlOutputMode
+          console.log('从URL参数设置输出模式:', urlOutputMode)
+        } else if (task.output_mode) {
+          this.globalOutputMode = task.output_mode
+          console.log('从任务数据设置输出模式:', task.output_mode)
+        } else {
+          console.log('没有可用的输出模式，使用默认值stream，当前globalOutputMode:', this.globalOutputMode)
+        }
+
+        // 根据任务状态设置当前步骤
+        if (task.status === 'pending') {
+          this.currentStep = 1
+          this.progressText = this.$t('requirementAnalysis.statusPending')
+        } else if (task.status === 'generating') {
+          this.currentStep = 2
+          this.progressText = this.$t('requirementAnalysis.statusGenerating')
+        } else if (task.status === 'reviewing' || task.status === 'revising') {
+          this.currentStep = 3
+          this.progressText = task.status === 'reviewing' ? this.$t('requirementAnalysis.statusReviewing') : this.$t('requirementAnalysis.statusRevising')
+        } else if (task.status === 'completed') {
+          this.currentStep = 4
+          this.showResults = true
+          this.progressText = this.$t('requirementAnalysis.statusCompleted')
+        }
+
+        // 恢复已有内容
+        if (task.generated_test_cases) {
+          this.streamedContent = task.generated_test_cases
+        }
+        if (task.review_feedback) {
+          this.streamedReviewContent = task.review_feedback
+        }
+        if (task.final_test_cases) {
+          this.finalTestCases = task.final_test_cases
+        }
+
+        // 如果任务还在进行中，继续监听进度
+        if (task.status !== 'completed' && task.status !== 'failed') {
+          console.log('任务仍在进行中，启动进度监听')
+          if (task.output_mode === 'stream') {
+            this.startStreamingProgress()
+          } else {
+            this.startPolling()
+          }
+        }
+
+        ElMessage.success(this.$t('requirementAnalysis.taskLoaded'))
+      } catch (error) {
+        console.error('加载任务失败:', error)
+        ElMessage.error(this.$t('requirementAnalysis.loadTaskFailed'))
+      }
+    },
+    
+    selectInputMethod(method) {
+      this.selectedInputMethod = method
+      this.currentStep = 3
+    },
+    
+    goBack() {
+      if (this.currentStep > 0) {
+        this.currentStep -= 1
+      }
+    },
+    
+    goToStep(step) {
+      // 只允许返回到已经完成的步骤
+      if (step < this.currentStep) {
+        this.currentStep = step
+      }
+    },
+    
+    resetToStart() {
+      this.currentStep = 0
+      this.selectedInputMethod = null
+      this.selectedFile = null
+      this.documentTitle = ''
+      this.manualInput = {
+        title: '',
+        description: '',
+        selectedProject: ''
+      }
+    },
+    
     async loadProjects() {
       try {
         const response = await api.get('/projects/')
@@ -508,7 +720,8 @@ export default {
           this.showConfigGuide = false
 
           // 如果生成配置允许用户修改，则使用配置的默认输出模式
-          if (response.data.generation_config && response.data.generation_config.default_output_mode) {
+          // 但只有在没有从URL加载任务的情况下才设置
+          if (response.data.generation_config && response.data.generation_config.default_output_mode && !this.$route.query.taskId) {
             this.globalOutputMode = response.data.generation_config.default_output_mode
           }
 
@@ -738,7 +951,20 @@ export default {
 
       this.isGenerating = true
       this.currentStep = 1
-      this.progressText = this.$t('requirementAnalysis.creatingTask')
+      // 根据输出模式设置初始提示
+      console.log('🚀 startGeneration: outputMode =', outputMode, typeof outputMode)
+      if (outputMode === 'stream') {
+        console.log('✅ 设置流式模式提示')
+        this.progressText = 'AI正在思考中，请稍候...'
+      } else {
+        console.log('❌ 设置非流式模式提示, outputMode:', outputMode)
+        this.progressText = this.$t('requirementAnalysis.creatingTask')
+      }
+      console.log('📝 progressText 设置为:', this.progressText)
+      // 强制Vue更新DOM
+      this.$nextTick(() => {
+        console.log('🔄 DOM已更新, progressText:', this.progressText)
+      })
       this.streamedContent = ''  // 清空流式内容
       this.finalTestCases = ''  // 清空最终版用例
       this.streamedReviewContent = ''  // 清空评审内容
@@ -763,7 +989,6 @@ export default {
         const response = await api.post('/requirement-analysis/testcase-generation/generate/', requestData)
 
         this.currentTaskId = response.data.task_id
-        this.progressText = this.$t('requirementAnalysis.taskCreated')
 
         ElMessage.success(this.$t('requirementAnalysis.generateSuccess'))
 
@@ -771,9 +996,15 @@ export default {
         console.log('🔄 输出模式:', outputMode, 'globalOutputMode:', this.globalOutputMode)
         if (outputMode === 'stream') {
           console.log('🚀 启动SSE流式输出')
+          // 先设置等待AI的提示，让用户知道正在连接
+          const waitingText = this.$t('requirementAnalysis.waitingForAI')
+          console.log('📝 设置progressText为:', waitingText)
+          this.progressText = waitingText
+          console.log('✅ progressText已设置为:', this.progressText)
           this.startStreamingProgress()
         } else {
           console.log('🔄 启动轮询模式')
+          this.progressText = this.$t('requirementAnalysis.taskCreated')
           this.startPolling()
         }
 
@@ -788,6 +1019,11 @@ export default {
       // 使用SSE进行流式进度获取
       // 注意：EventSource不使用axios代理，需要直接指向后端服务器
       // 完整的URL路径: /api/requirement-analysis/testcase-generation/{task_id}/stream_progress/
+
+      // 立即设置等待提示，让用户知道正在连接AI
+      console.log('📝 startStreamingProgress: 设置waitingForAI提示')
+      this.progressText = 'AI正在思考中，请稍候...'
+      console.log('✅ startStreamingProgress: progressText已设置为:', this.progressText)
 
       // 动态获取后端URL：使用当前页面的协议和主机名，端口改为8000
       // 这样无论通过 localhost、127.0.0.1 还是 IP 地址访问，都能正确连接后端
@@ -816,17 +1052,28 @@ export default {
           const data = JSON.parse(event.data)
           console.log('📦 解析后的数据:', data)
 
-          if (data.type === 'progress') {
-            // Update progress status
+          if (data.type === 'connected') {
+            // SSE连接已建立，更新状态提示用户
+            console.log('✅ SSE连接已建立:', data.message)
+            // 保持waitingForAI提示，不覆盖
+          } else if (data.type === 'progress') {
+            // Update progress status - 只更新步骤，不覆盖提示文本
             if (data.status === 'generating') {
               this.currentStep = 2
-              this.progressText = `${this.$t('requirementAnalysis.statusGenerating')} ${data.progress}%`
+              // 只有在已经开始接收内容后才更新进度文本
+              if (this.streamedContent) {
+                this.progressText = `${this.$t('requirementAnalysis.statusGenerating')} ${data.progress}%`
+              }
             } else if (data.status === 'reviewing') {
               this.currentStep = 3
-              this.progressText = `${this.$t('requirementAnalysis.statusReviewing')} ${data.progress}%`
+              if (this.streamedReviewContent) {
+                this.progressText = `${this.$t('requirementAnalysis.statusReviewing')} ${data.progress}%`
+              }
             } else if (data.status === 'revising') {
               this.currentStep = 3
-              this.progressText = `${this.$t('requirementAnalysis.statusRevising')} ${data.progress}%`
+              if (this.finalTestCases) {
+                this.progressText = `${this.$t('requirementAnalysis.statusRevising')} ${data.progress}%`
+              }
             }
           } else if (data.type === 'content') {
             // Real-time streaming content (case generation)
@@ -1050,14 +1297,30 @@ export default {
       }, 3000) // 每3秒检查一次
     },
 
-    cancelGeneration() {
+    async cancelGeneration() {
+      // 停止前端轮询
       if (this.pollInterval) {
         clearInterval(this.pollInterval)
         this.pollInterval = null
       }
+
+      // 如果有任务ID，调用后端API取消任务
+      if (this.currentTaskId) {
+        try {
+          await api.post(`/requirement-analysis/testcase-generation/${this.currentTaskId}/cancel/`)
+          ElMessage.success(this.$t('requirementAnalysis.generationCancelled'))
+        } catch (error) {
+          console.error('取消任务失败:', error)
+          ElMessage.error(error.response?.data?.error || '取消任务失败')
+        }
+      }
+
+      // 重置前端状态
       this.isGenerating = false
       this.currentTaskId = null
-      ElMessage.info(this.$t('requirementAnalysis.generationCancelled'))
+      this.streamedContent = ''
+      this.streamedReviewContent = ''
+      this.finalTestCases = ''
     },
 
     // 下载测试用例为xlsx文件
@@ -1188,6 +1451,9 @@ export default {
       this.showResults = false;
       this.generationResult = null;
 
+      // 重置步骤流程状态
+      this.resetToStart();
+
       // 清空流式内容和最终版用例
       this.streamedContent = '';
       this.streamedReviewContent = '';
@@ -1197,9 +1463,6 @@ export default {
         clearInterval(this.pollInterval);
         this.pollInterval = null;
       }
-
-      // 刷新页面以获取最新的配置
-      window.location.reload();
     },
 
     // 格式化日期时间
@@ -1482,96 +1745,90 @@ export default {
 
 <style scoped>
 .requirement-analysis {
-  padding: 20px;
-  max-width: 1400px;
-  margin: 0 auto;
+  padding: 0;
+  max-width: none;
+  margin: 0;
   position: relative;
+  min-height: calc(100vh - 80px);
 }
 
 .page-header {
   text-align: center;
-  margin-bottom: 40px;
+  margin-bottom: 32px;
+  padding: 24px;
+  background: linear-gradient(135deg, rgba(123, 66, 246, 0.05) 0%, rgba(90, 50, 163, 0.08) 100%);
+  border-radius: 16px;
+  border: 1px solid rgba(147, 112, 219, 0.1);
 }
 
 .page-header h1 {
-  font-size: 2.5rem;
+  font-size: 2rem;
   color: #4a249c;
-  margin-bottom: 10px;
+  margin-bottom: 8px;
   font-weight: 700;
-  text-shadow: 0 2px 4px rgba(74, 36, 156, 0.15);
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 16px;
+  gap: 12px;
 }
 
-.page-header h1::before,
-.page-header h1::after {
-  content: '✨';
-  font-size: 2rem;
+.page-header h1::before {
+  content: '🤖';
+  font-size: 1.8rem;
 }
 
 .page-header p {
   color: #6d5d8f;
-  font-size: 1.1rem;
+  font-size: 1rem;
   opacity: 0.9;
+  margin: 0;
+  line-height: 1.6;
 }
 
 /* 输出模式设置区域 - 全局 */
 .output-mode-section {
-  margin-bottom: 30px;
-}
-
-.output-mode-card {
-  background: linear-gradient(135deg, #ffffff 0%, #f5f3ff 100%);
-  border-radius: 20px;
-  padding: 32px;
-  box-shadow: 0 8px 32px rgba(147, 112, 219, 0.12);
-  border: 1px solid rgba(147, 112, 219, 0.2);
-  transition: all 0.3s ease;
-  margin: 0 auto;
-  max-width: 1200px;
-}
-
-.output-mode-card:hover {
-  box-shadow: 0 12px 48px rgba(147, 112, 219, 0.18);
-  transform: translateY(-2px);
-}
-
-.output-mode-header {
   margin-bottom: 24px;
 }
 
-.output-mode-header h3 {
-  font-size: 1.4rem;
-  color: #4a249c;
-  margin: 0;
-  font-weight: 700;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  letter-spacing: 0.5px;
-  text-shadow: 0 1px 2px rgba(74, 36, 156, 0.1);
+.output-mode-card {
+  background: linear-gradient(135deg, #ffffff 0%, #faf9ff 100%);
+  border-radius: 16px;
+  padding: 24px 28px;
+  box-shadow: 0 4px 16px rgba(147, 112, 219, 0.08);
+  border: 1px solid rgba(147, 112, 219, 0.12);
+  transition: all 0.3s ease;
+  margin: 0 auto;
+  max-width: 1400px;
 }
 
-.output-mode-content {
+.output-mode-card:hover {
+  box-shadow: 0 8px 24px rgba(147, 112, 219, 0.12);
+  transform: translateY(-1px);
+}
+
+.output-mode-header {
+  margin-bottom: 20px;
+}
+
+.output-mode-card h3 {
+  font-size: 1.15rem;
+  color: #4a249c;
+  margin: 0 0 8px 0;
+  font-weight: 600;
   display: flex;
-  flex-direction: column;
   align-items: center;
-  text-align: center;
-  width: 100%;
+  gap: 10px;
+  letter-spacing: 0.3px;
 }
 
 .mode-section-desc {
   color: #6d5d8f;
-  font-size: 1rem;
-  margin: 0 0 24px 0;
-  line-height: 1.6;
+  font-size: 0.95rem;
+  margin: 0 0 20px 0;
+  line-height: 1.5;
   font-weight: 400;
-  letter-spacing: 0.3px;
-  opacity: 0.9;
+  opacity: 0.85;
   max-width: 800px;
-  width: 100%;
 }
 
 /* 配置引导弹出窗口 */
@@ -1819,52 +2076,43 @@ export default {
 
 
 .manual-input-card, .upload-card {
-  background: linear-gradient(135deg, #ffffff 0%, #f5f3ff 100%);
-  border-radius: 20px;
-  padding: 32px;
-  box-shadow: 0 8px 32px rgba(147, 112, 219, 0.12);
-  border: 1px solid rgba(147, 112, 219, 0.2);
-  transition: all 0.3s ease;
-  margin: 0 auto 30px;
-  max-width: 1200px;
+  background: linear-gradient(135deg, #faf8ff 0%, #f5f3ff 100%);
+  border-radius: 16px;
+  padding: 28px;
+  box-shadow: 0 4px 16px rgba(147, 112, 219, 0.06);
+  border: 1px solid rgba(147, 112, 219, 0.1);
+  transition: all 0.25s ease;
+  margin: 0 auto 24px;
+  max-width: 1400px;
 }
 
 .manual-input-card:hover, .upload-card:hover {
-  box-shadow: 0 12px 48px rgba(147, 112, 219, 0.18);
-  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(147, 112, 219, 0.1);
+  transform: translateY(-1px);
 }
 
 .manual-input-card h2, .upload-card h2 {
   color: #4a249c;
-  margin-bottom: 24px;
-  font-size: 1.5rem;
-  font-weight: 700;
+  margin-bottom: 20px;
+  font-size: 1.25rem;
+  font-weight: 600;
   display: flex;
   align-items: center;
-  gap: 12px;
-  letter-spacing: 0.5px;
-  text-shadow: 0 1px 2px rgba(74, 36, 156, 0.1);
+  gap: 10px;
+  letter-spacing: 0.3px;
 }
 
 .form-group {
-  margin-bottom: 20px;
+  margin-bottom: 18px;
 }
 
 .form-group label {
   display: block;
-  margin-bottom: 10px;
-  font-weight: 600;
-  color: #4a249c;
-  font-size: 0.95rem;
-  letter-spacing: 0.3px;
-}
-
-/* 输出模式选择器 */
-.output-mode-selector {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 12px;
-  align-items: stretch;
+  margin-bottom: 8px;
+  font-weight: 500;
+  color: #475569;
+  font-size: 0.9rem;
+  letter-spacing: 0.2px;
 }
 
 .mode-option {
@@ -1881,162 +2129,197 @@ export default {
 }
 
 .mode-content {
-  border: 2px solid #e2e8f0;
-  border-radius: 12px;
-  padding: 16px;
-  transition: all 0.3s ease;
-  background: white;
+  border: 2px solid rgba(123, 66, 246, 0.15);
+  border-radius: 20px;
+  padding: 60px 48px;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.95) 0%, rgba(255, 255, 255, 0.9) 100%);
   display: flex;
   flex-direction: column;
   justify-content: center;
   width: 100%;
   box-sizing: border-box;
+  box-shadow: 0 4px 20px rgba(123, 66, 246, 0.08);
+  min-height: 200px;
 }
 
 .mode-option:hover .mode-content {
-  border-color: rgba(147, 112, 219, 0.4);
-  box-shadow: 0 8px 24px rgba(147, 112, 219, 0.15);
-  transform: translateY(-2px);
-}
-
-.mode-option:hover .mode-content::before {
-  transform: scaleX(1);
+  border-color: rgba(123, 66, 246, 0.4);
+  background: linear-gradient(145deg, rgba(255, 255, 255, 1) 0%, rgba(255, 255, 255, 0.98) 100%);
+  transform: translateY(-4px);
+  box-shadow: 0 8px 30px rgba(123, 66, 246, 0.15);
 }
 
 .mode-option.active .mode-content {
-  border-color: #9370db;
-  background: linear-gradient(145deg, #f8f4ff 0%, #f0e8ff 100%);
-  box-shadow: 0 12px 32px rgba(147, 112, 219, 0.25);
-  transform: translateY(-4px);
-}
-
-.mode-option.active .mode-content::before {
-  transform: scaleX(1);
-  height: 6px;
-  background: linear-gradient(90deg, #7b42f6, #9370db);
+  border-color: #7b42f6;
+  background: linear-gradient(145deg, rgba(123, 66, 246, 0.08) 0%, rgba(123, 66, 246, 0.04) 100%);
+  box-shadow: 0 4px 24px rgba(123, 66, 246, 0.2);
 }
 
 .mode-title {
-  font-size: 1.1rem;
-  font-weight: 700;
-  color: #4a249c;
+  font-size: 1.35rem;
+  font-weight: 600;
+  color: #1a1a2e;
   margin-bottom: 12px;
   display: flex;
   align-items: center;
-  gap: 10px;
-  letter-spacing: 0.5px;
+  justify-content: center;
+  gap: 12px;
 }
 
 .mode-desc {
-  font-size: 0.9rem;
-  color: #6d5d8f;
-  line-height: 1.5;
-  opacity: 0.9;
-  font-weight: 400;
+  font-size: 1rem;
+  color: #64748b;
+  line-height: 1.6;
+  text-align: center;
+}
+
+.mode-icon {
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  transition: all 0.3s ease;
+}
+
+.mode-icon svg {
+  width: 20px;
+  height: 20px;
+}
+
+.stream-icon {
+  background: linear-gradient(135deg, rgba(139, 92, 246, 0.15) 0%, rgba(139, 92, 246, 0.08) 100%);
+  color: #8b5cf6;
+}
+
+.complete-icon {
+  background: linear-gradient(135deg, rgba(123, 66, 246, 0.15) 0%, rgba(123, 66, 246, 0.08) 100%);
+  color: #7b42f6;
+}
+
+.mode-option.active .stream-icon {
+  background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
+  color: white;
+  box-shadow: 0 4px 12px rgba(139, 92, 246, 0.3);
+}
+
+.mode-option.active .complete-icon {
+  background: linear-gradient(135deg, #7b42f6 0%, #6d28d9 100%);
+  color: white;
+  box-shadow: 0 4px 12px rgba(123, 66, 246, 0.3);
 }
 
 .mode-option.active .mode-title {
-  color: #5a32a3;
+  color: #7b42f6;
 }
 
 .mode-option.active .mode-desc {
-  color: #6d5d8f;
+  color: #475569;
 }
 
 .form-input, .form-select, .form-textarea {
   width: 100%;
-  padding: 14px 16px;
-  border: 1px solid rgba(147, 112, 219, 0.3);
-  border-radius: 12px;
-  font-size: 1rem;
-  transition: all 0.3s ease;
-  background: linear-gradient(145deg, #ffffff 0%, #f8f6ff 100%);
-  box-shadow: inset 0 2px 4px rgba(147, 112, 219, 0.05);
+  padding: 12px 14px;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  font-size: 0.95rem;
+  transition: all 0.25s ease;
+  background: #ffffff;
 }
 
 .form-input:focus, .form-select:focus, .form-textarea:focus {
   outline: none;
-  border-color: #9370db;
-  box-shadow: 0 0 0 3px rgba(147, 112, 219, 0.25);
-  background: rgba(243, 240, 250, 0.8);
-  transform: translateY(-1px);
+  border-color: #7b42f6;
+  box-shadow: 0 0 0 3px rgba(123, 66, 246, 0.1);
+  background: #ffffff;
 }
 
 .form-textarea {
   resize: vertical;
   font-family: inherit;
-  min-height: 200px;
+  min-height: 180px;
   line-height: 1.6;
-  padding: 16px;
+  padding: 14px;
+}
+
+.textarea-wrapper {
+  position: relative;
+}
+
+.textarea-wrapper .form-textarea {
+  padding-bottom: 40px;
 }
 
 .char-count {
-  text-align: right;
-  font-size: 0.85rem;
-  color: #6d5d8f;
-  margin-top: 8px;
-  padding: 6px 12px;
-  background: rgba(147, 112, 219, 0.05);
-  border-radius: 8px;
-  display: inline-block;
-  margin-left: auto;
-  transition: all 0.3s ease;
+  position: absolute;
+  bottom: 12px;
+  right: 12px;
+  font-size: 0.75rem;
+  color: #94a3b8;
+  padding: 4px 10px;
+  background: rgba(255, 255, 255, 0.9);
+  border-radius: 6px;
+  transition: all 0.2s ease;
+  pointer-events: none;
+  backdrop-filter: blur(4px);
 }
 
 .char-count:hover {
-  background: rgba(147, 112, 219, 0.1);
-  color: #4a249c;
+  color: #64748b;
 }
 
 .required {
-  color: #e74c3c;
+  color: #ef4444;
+  margin-left: 2px;
 }
 
 .generate-manual-btn, .generate-btn {
-  background: linear-gradient(135deg, #7b42f6 0%, #5a32a3 100%);
+  background: linear-gradient(135deg, #7b42f6 0%, #6d28d9 100%);
   color: white;
   border: none;
-  padding: 16px 32px;
-  border-radius: 16px;
+  padding: 14px 28px;
+  border-radius: 12px;
   cursor: pointer;
-  font-size: 1.1rem;
+  font-size: 1rem;
   font-weight: 600;
-  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: all 0.25s ease;
   width: 100%;
-  margin-top: 20px;
-  box-shadow: 0 6px 20px rgba(90, 50, 163, 0.35);
+  margin-top: 16px;
+  box-shadow: 0 4px 12px rgba(109, 40, 217, 0.25);
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 10px;
-  letter-spacing: 0.5px;
+  gap: 8px;
+  letter-spacing: 0.3px;
 }
 
 .generate-manual-btn:hover:not(:disabled), .generate-btn:hover:not(:disabled) {
-  background: linear-gradient(135deg, #9370db 0%, #7b42f6 100%);
-  transform: translateY(-2px);
-  box-shadow: 0 8px 24px rgba(90, 50, 163, 0.45);
+  background: linear-gradient(135deg, #8b5cf6 0%, #7b42f6 100%);
+  transform: translateY(-1px);
+  box-shadow: 0 6px 20px rgba(109, 40, 217, 0.35);
 }
 
 .generate-manual-btn:active:not(:disabled), .generate-btn:active:not(:disabled) {
   transform: translateY(0);
-  box-shadow: 0 4px 12px rgba(90, 50, 163, 0.3);
+  box-shadow: 0 2px 8px rgba(109, 40, 217, 0.2);
 }
 
 .generate-manual-btn:disabled, .generate-btn:disabled {
-  opacity: 0.6;
+  opacity: 0.5;
   cursor: not-allowed;
   transform: none;
-  box-shadow: 0 4px 12px rgba(90, 50, 163, 0.2);
+  box-shadow: 0 2px 8px rgba(109, 40, 217, 0.15);
 }
 
 .divider {
   display: flex;
   align-items: center;
   justify-content: center;
-  margin: 30px 0;
+  margin: 24px 0;
   position: relative;
-  height: 40px;
+  height: 32px;
 }
 
 .divider::before {
@@ -2051,261 +2334,348 @@ export default {
 
 .divider span {
   background: white;
-  padding: 8px 20px;
-  color: #6d5d8f;
-  font-size: 0.9rem;
+  padding: 6px 18px;
+  color: #64748b;
+  font-size: 0.875rem;
   font-weight: 500;
-  border-radius: 20px;
-  border: 1px solid rgba(147, 112, 219, 0.2);
-  box-shadow: 0 1px 3px rgba(147, 112, 219, 0.05);
+  border-radius: 18px;
+  border: 1px solid #e2e8f0;
   position: relative;
   z-index: 1;
-  transition: all 0.3s ease;
+  transition: all 0.2s ease;
 }
 
 .divider span:hover {
-  border-color: rgba(147, 112, 219, 0.4);
-  box-shadow: 0 2px 6px rgba(147, 112, 219, 0.1);
-  color: #4a249c;
+  border-color: #cbd5e1;
+  color: #475569;
+}
+
+.upload-section-title {
+  display: block;
+  margin-bottom: 8px;
+  font-weight: 500;
+  color: #475569;
+  font-size: 0.9rem;
+  letter-spacing: 0.2px;
+  text-align: left;
 }
 
 .upload-area {
-  border: 2px dashed rgba(147, 112, 219, 0.3);
-  border-radius: 8px;
-  padding: 40px;
+  border: none;
+  border-radius: 0;
+  padding: 0;
   text-align: center;
-  transition: border-color 0.3s ease;
-  margin-bottom: 20px;
+  transition: all 0.25s ease;
+  margin-bottom: 24px;
+  background: transparent;
 }
 
 .upload-area.drag-over {
-  border-color: #9370db;
-  background: #f3f0fa;
+  border: 2px dashed #7b42f6;
+  background: rgba(123, 66, 246, 0.05);
+  border-radius: 12px;
+  padding: 20px;
 }
 
 .upload-placeholder {
-  color: #6d5d8f;
+  color: #64748b;
 }
 
 .upload-icon {
-  font-size: 3rem;
-  margin-bottom: 15px;
+  font-size: 2.5rem;
+  margin-bottom: 12px;
   display: block;
+  opacity: 0.7;
 }
 
 .upload-hint {
-  color: #6d5d8f;
-  font-size: 0.9rem;
-  margin-top: 5px;
+  color: #94a3b8;
+  font-size: 0.875rem;
+  margin-top: 4px;
 }
 
 .select-file-btn {
-  background: linear-gradient(135deg, #7b42f6 0%, #5a32a3 100%);
+  background: linear-gradient(135deg, #7b42f6 0%, #6d28d9 100%);
   color: white;
   border: none;
-  padding: 10px 20px;
-  border-radius: 6px;
+  padding: 10px 22px;
+  border-radius: 10px;
   cursor: pointer;
-  margin-top: 15px;
-  transition: all 0.3s ease;
-  box-shadow: 0 2px 8px rgba(90, 50, 163, 0.3);
+  margin-top: 14px;
+  transition: all 0.25s ease;
+  box-shadow: 0 2px 8px rgba(109, 40, 217, 0.2);
+  font-size: 0.95rem;
+  font-weight: 500;
 }
 
 .select-file-btn:hover {
-  background: linear-gradient(135deg, #9370db 0%, #6a4b8e 100%);
-  box-shadow: 0 4px 12px rgba(90, 50, 163, 0.4);
+  background: linear-gradient(135deg, #8b5cf6 0%, #7b42f6 100%);
+  box-shadow: 0 4px 12px rgba(109, 40, 217, 0.3);
   transform: translateY(-1px);
 }
 
 .file-selected {
-  padding: 20px;
-  background: linear-gradient(135deg, #f3f0fa 0%, #e8e3f5 100%);
-  border-radius: 6px;
-  border: 1px solid rgba(147, 112, 219, 0.3);
+  padding: 24px 28px;
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.95) 0%, rgba(255, 255, 255, 0.9) 100%);
+  border-radius: 16px;
+  border: 2px solid rgba(123, 66, 246, 0.15);
+  box-shadow: 0 4px 20px rgba(123, 66, 246, 0.08);
+  transition: all 0.3s ease;
+}
+
+.file-selected:hover {
+  border-color: rgba(123, 66, 246, 0.25);
+  box-shadow: 0 6px 24px rgba(123, 66, 246, 0.12);
 }
 
 .file-info {
   display: flex;
   align-items: center;
-  gap: 15px;
+  gap: 12px;
 }
 
-.file-icon {
-  font-size: 2rem;
+.file-icon-wrapper {
+  width: 48px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, rgba(139, 92, 246, 0.12) 0%, rgba(123, 66, 246, 0.08) 100%);
+  border-radius: 12px;
+  flex-shrink: 0;
+}
+
+.file-icon-svg {
+  width: 28px;
+  height: 28px;
 }
 
 .file-details {
   flex: 1;
+  min-width: 0;
 }
 
 .file-name {
-  font-weight: 600;
+  font-weight: 500;
   margin: 0;
+  font-size: 0.95rem;
+  color: #1a1a2e;
+  line-height: 1.4;
+  text-align: left;
 }
 
 .file-size {
-  color: #6d5d8f;
-  font-size: 0.9rem;
-  margin: 5px 0 0 0;
+  color: #8b5cf6;
+  font-size: 0.875rem;
+  margin: 6px 0 0 0;
+  font-weight: 500;
 }
 
 .remove-file {
-  background: none;
+  background: transparent;
   border: none;
   cursor: pointer;
-  font-size: 1.2rem;
-  color: #5a32a3;
-  transition: color 0.3s ease;
-}
-
-.remove-file:hover {
-  color: #7b42f6;
-}
-
-.generation-progress {
-  margin: 40px 0;
-}
-
-.progress-card {
-  background: white;
-  border-radius: 20px;
-  padding: 30px;
-  box-shadow: 0 8px 32px rgba(147, 112, 219, 0.12);
-  border: 1px solid rgba(147, 112, 219, 0.2);
-  text-align: center;
-  margin: 0 auto;
-  max-width: 1200px;
-}
-
-.progress-card h3 {
-  color: #4a249c;
-  margin-bottom: 20px;
+  color: #94a3b8;
+  transition: all 0.25s ease;
+  width: 32px;
+  height: 32px;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 10px;
-  flex-wrap: wrap;
+  border-radius: 8px;
+  padding: 0;
 }
 
-.current-mode-badge {
-  display: inline-block;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
-  padding: 4px 12px;
-  border-radius: 20px;
-  font-size: 0.85rem;
-  font-weight: 500;
-  margin-left: 8px;
-  box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+.remove-file svg {
+  width: 18px;
+  height: 18px;
+}
+
+.remove-file:hover {
+  background: rgba(239, 68, 68, 0.1);
+  color: #ef4444;
+  transform: rotate(90deg);
+}
+
+.remove-file:hover {
+  color: #ef4444;
+  background: #fef2f2;
+}
+
+.generation-progress {
+  margin: 0;
+  padding: 16px 24px;
+  background: #f5f0ff;
+  min-height: calc(100vh - 64px);
+  display: flex;
+  align-items: stretch;
+  justify-content: center;
+}
+
+.progress-card {
+  background: linear-gradient(135deg, #faf8ff 0%, #f5f3ff 100%);
+  border-radius: 16px;
+  padding: 32px 40px;
+  box-shadow: 0 4px 20px rgba(123, 66, 246, 0.08);
+  border: 1px solid rgba(123, 66, 246, 0.08);
+  text-align: center;
+  margin: 0 auto;
+  max-width: 1400px;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  min-height: calc(100vh - 96px);
+  justify-content: center;
+  align-items: center;
+}
+
+.progress-card h3 {
+  color: #1a1a2e;
+  margin-bottom: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  font-size: 1.5rem;
+  font-weight: 600;
 }
 
 .progress-info {
   display: flex;
-  justify-content: center;
-  gap: 30px;
-  margin-bottom: 30px;
+  justify-content: space-between;
+  align-items: center;
+  gap: 24px;
+  margin-bottom: 32px;
   flex-wrap: wrap;
 }
 
 .progress-item {
   display: flex;
-  flex-direction: column;
-  gap: 5px;
+  flex-direction: row;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 28px;
+  background: #faf8ff;
+  border-radius: 12px;
+  border: 1px solid rgba(123, 66, 246, 0.1);
+  min-width: 280px;
+}
+
+.progress-item.mode-item {
+  background: rgba(123, 66, 246, 0.06);
+  border: 1px solid rgba(123, 66, 246, 0.12);
 }
 
 .progress-item .label {
-  font-size: 0.9rem;
-  color: #6d5d8f;
+  font-size: 0.85rem;
+  color: #8b7aa0;
+  font-weight: 500;
+  letter-spacing: 0.5px;
+  white-space: nowrap;
 }
 
 .progress-item .value {
   font-weight: 600;
-  color: #4a249c;
+  color: #7b42f6;
+  font-size: 1rem;
+}
+
+.progress-item .value.mode-value {
+  font-size: 0.95rem;
 }
 
 /* 流式内容显示区域 */
 .stream-content-display {
-  margin: 20px 0;
-  border: 2px solid rgba(147, 112, 219, 0.3);
-  border-radius: 8px;
+  margin: 18px -40px;
+  border: none;
+  border-radius: 0;
   overflow: hidden;
-  background: linear-gradient(135deg, #f3f0fa 0%, #e8e3f5 100%);
+  background: #f5f3ff;
+  width: calc(100% + 80px);
 }
 
 .stream-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 12px 16px;
-  background: linear-gradient(135deg, #7b42f6 0%, #5a32a3 100%);
-  border-bottom: 1px solid rgba(147, 112, 219, 0.5);
+  padding: 12px 24px;
+  background: linear-gradient(135deg, #ede9fe 0%, #f5f3ff 100%);
+  border-bottom: 1px solid #ddd6fe;
+  transition: background 0.2s ease;
+}
+
+.stream-header:hover {
+  background: linear-gradient(135deg, #ddd6fe 0%, #ede9fe 100%);
+}
+
+.stream-header-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.expand-icon {
+  font-size: 0.8rem;
+  color: #7c3aed;
+  transition: transform 0.2s ease;
+  user-select: none;
 }
 
 .stream-title {
   font-weight: 600;
-  color: white;
+  color: #5b21b6;
   font-size: 0.95rem;
 }
 
 .stream-status {
-  font-size: 0.85rem;
-  color: #5a32a3;
-  background: white;
-  padding: 4px 10px;
+  font-size: 0.8rem;
+  color: #7c3aed;
+  background: #ede9fe;
+  padding: 4px 12px;
   border-radius: 12px;
-  border: 1px solid rgba(147, 112, 219, 0.3);
+  border: 1px solid #ddd6fe;
 }
 
 .stream-content {
-  max-height: 400px;
-  overflow-y: auto;
-  padding: 16px;
+  max-height: none;
+  overflow-y: visible;
+  padding: 20px 24px;
   text-align: left;
-  background: white;
-  font-size: 0.9rem;
-  line-height: 1.6;
-  color: #4a249c;
+  background: #f5f3ff;
+  font-size: 0.95rem;
+  line-height: 1.7;
+  color: #334155;
   white-space: pre-wrap;
   word-wrap: break-word;
 }
 
 .stream-content::-webkit-scrollbar {
-  width: 8px;
+  width: 6px;
 }
 
 .stream-content::-webkit-scrollbar-track {
-  background: #f3f0fa;
+  background: #f1f5f9;
   border-radius: 4px;
 }
 
 .stream-content::-webkit-scrollbar-thumb {
-  background: linear-gradient(135deg, #9370db 0%, #6a4b8e 100%);
+  background: #cbd5e1;
   border-radius: 4px;
-  box-shadow: 0 2px 4px rgba(147, 112, 219, 0.3);
+  transition: background 0.2s ease;
 }
 
 .stream-content::-webkit-scrollbar-thumb:hover {
-  background: linear-gradient(135deg, #7b42f6 0%, #5a32a3 100%);
+  background: #94a3b8;
 }
 
 /* 最终版用例特殊样式 */
 .stream-content.final-testcases {
-  background: linear-gradient(135deg, #f3f0fa 0%, #e8e3f5 100%);
-  border: 1px solid rgba(147, 112, 219, 0.3);
-  border-radius: 6px;
-  margin: -8px;
-  padding: 24px;
-  border-left: 4px solid #7b42f6;
-}
-
-.stream-content.final-testcases::before {
-  content: '📋 最终版本';
-  display: block;
-  font-weight: 600;
-  color: #5a32a3;
-  margin-bottom: 12px;
-  padding-bottom: 8px;
-  border-bottom: 2px solid rgba(147, 112, 219, 0.3);
+  background: #f5f3ff;
+  border: none;
+  border-radius: 0;
+  margin: 0;
+  padding: 20px 24px;
 }
 
 /* 流式输出指示器 */
@@ -2361,9 +2731,12 @@ export default {
 .progress-steps {
   display: flex;
   justify-content: center;
-  gap: 20px;
-  margin-bottom: 30px;
-  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 0;
+  margin-top: 60px;
+  margin-bottom: 48px;
+  flex-wrap: nowrap;
+  position: relative;
 }
 
 .step {
@@ -2371,148 +2744,145 @@ export default {
   flex-direction: column;
   align-items: center;
   gap: 10px;
-  opacity: 0.5;
+  opacity: 0.4;
   transition: all 0.3s ease;
+  position: relative;
+  z-index: 1;
+  width: 100px;
 }
 
 .step.active {
   opacity: 1;
-  transform: scale(1.05);
 }
 
 .step-number {
   width: 44px;
   height: 44px;
   border-radius: 50%;
-  background: linear-gradient(135deg, #e0e0e0 0%, #c0c0c0 100%);
+  background: white;
+  border: 2px solid #e2e8f0;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-weight: 700;
-  font-size: 1.1rem;
-  color: #888;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  font-weight: 600;
+  font-size: 1rem;
+  color: #94a3b8;
   transition: all 0.3s ease;
+  flex-shrink: 0;
 }
 
 .step.active .step-number {
-  background: linear-gradient(135deg, #7b42f6 0%, #5a32a3 100%);
+  background: linear-gradient(135deg, #7b42f6 0%, #6d28d9 100%);
+  border-color: #7b42f6;
   color: white;
-  box-shadow: 0 4px 15px rgba(123, 66, 246, 0.4);
-}
-
-.step:nth-child(1).active .step-number {
-  background: linear-gradient(135deg, #3498db 0%, #2980b9 100%);
-  box-shadow: 0 4px 15px rgba(52, 152, 219, 0.4);
-}
-
-.step:nth-child(2).active .step-number {
-  background: linear-gradient(135deg, #9b59b6 0%, #8e44ad 100%);
-  box-shadow: 0 4px 15px rgba(155, 89, 182, 0.4);
-}
-
-.step:nth-child(3).active .step-number {
-  background: linear-gradient(135deg, #e67e22 0%, #d35400 100%);
-  box-shadow: 0 4px 15px rgba(230, 126, 34, 0.4);
-}
-
-.step:nth-child(4).active .step-number {
-  background: linear-gradient(135deg, #27ae60 0%, #229954 100%);
-  box-shadow: 0 4px 15px rgba(39, 174, 96, 0.4);
+  box-shadow: 0 4px 16px rgba(123, 66, 246, 0.35);
 }
 
 .step-text {
-  font-size: 0.9rem;
-  color: #888;
+  font-size: 0.85rem;
+  color: #94a3b8;
   font-weight: 500;
   transition: all 0.3s ease;
+  text-align: center;
 }
 
 .step.active .step-text {
-  color: #5a32a3;
+  color: #7b42f6;
   font-weight: 600;
 }
 
-.step:nth-child(1).active .step-text {
-  color: #2980b9;
+/* 步骤之间的连接线 */
+.step-line {
+  width: 60px;
+  height: 2px;
+  background: #e2e8f0;
+  margin-top: 22px;
+  flex-shrink: 0;
+  transition: all 0.3s ease;
 }
 
-.step:nth-child(2).active .step-text {
-  color: #8e44ad;
+.step-line.active {
+  background: linear-gradient(90deg, #7b42f6 0%, #9f7aea 100%);
 }
 
-.step:nth-child(3).active .step-text {
-  color: #d35400;
-}
-
-.step:nth-child(4).active .step-text {
-  color: #229954;
-}
-
-.cancel-generation-btn {
-  background: #e74c3c;
-  color: white;
-  border: none;
+.cancel-generation-btn-inline {
+  background: white;
+  color: #ef4444;
+  border: 1.5px solid #ef4444;
   padding: 10px 20px;
-  border-radius: 6px;
+  border-radius: 8px;
   cursor: pointer;
+  font-size: 0.85rem;
+  font-weight: 500;
+  transition: all 0.25s ease;
+  margin-left: 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.cancel-generation-btn-inline::before {
+  content: '✕';
+  font-size: 0.75rem;
+}
+
+.cancel-generation-btn-inline:hover {
+  background: #ef4444;
+  color: white;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(239, 68, 68, 0.2);
+}
+
+/* 完整输出模式提示区域 */
+.complete-mode-notice {
+  padding: 16px 0;
+  margin: 16px 0;
+  text-align: center;
+}
+
+/* 完整输出模式下的取消按钮容器 */
+.complete-mode-cancel {
+  display: flex;
+  justify-content: center;
+  margin-top: 24px;
+}
+
+.notice-title {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #7b42f6;
+  margin-bottom: 8px;
+}
+
+.notice-desc {
+  font-size: 0.95rem;
+  color: #6b5b7a;
+  line-height: 1.6;
 }
 
 .completion-actions {
   display: flex;
-  gap: 12px;
-  margin-top: 20px;
-  flex-wrap: wrap;
-}
-
-.completion-actions button {
-  flex: 1;
-  min-width: 150px;
-  padding: 12px 20px;
-  border: none;
-  border-radius: 6px;
-  cursor: pointer;
-  font-weight: 500;
-  transition: all 0.3s ease;
-  display: flex;
-  align-items: center;
   justify-content: center;
-}
-
-.completion-actions .download-btn {
-  background: #28a745;
-  color: white;
-  font-size: 1rem;
-}
-
-.completion-actions .download-btn:hover {
-  background: #218838;
-  transform: translateY(-2px);
-  box-shadow: 0 4px 8px rgba(40, 167, 69, 0.3);
-}
-
-.completion-actions .save-btn {
-  background: #007bff;
-  color: white;
-  font-size: 1rem;
-}
-
-.completion-actions .save-btn:hover {
-  background: #0056b3;
-  transform: translateY(-2px);
-  box-shadow: 0 4px 8px rgba(0, 123, 255, 0.3);
+  margin-top: 20px;
 }
 
 .completion-actions .new-generation-btn {
-  background: #6c757d;
+  background: linear-gradient(135deg, #7b42f6 0%, #6d28d9 100%);
   color: white;
+  border: none;
+  padding: 14px 40px;
+  border-radius: 10px;
+  cursor: pointer;
+  font-weight: 500;
   font-size: 1rem;
+  transition: all 0.25s ease;
+  box-shadow: 0 4px 16px rgba(123, 66, 246, 0.25);
 }
 
 .completion-actions .new-generation-btn:hover {
-  background: #5a6268;
+  background: linear-gradient(135deg, #9f7aea 0%, #7b42f6 100%);
   transform: translateY(-2px);
-  box-shadow: 0 4px 8px rgba(108, 117, 125, 0.3);
+  box-shadow: 0 6px 20px rgba(123, 66, 246, 0.35);
 }
 
 .generation-result {
@@ -2520,11 +2890,11 @@ export default {
 }
 
 .result-header {
-  background: white;
+  background: linear-gradient(135deg, #faf8ff 0%, #f5f3ff 100%);
   border-radius: 12px;
   padding: 30px;
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-  border: 1px solid #e1e8ed;
+  box-shadow: 0 4px 6px rgba(123, 66, 246, 0.08);
+  border: 1px solid rgba(123, 66, 246, 0.1);
   margin-bottom: 20px;
   display: flex;
   justify-content: space-between;
@@ -2600,7 +2970,16 @@ export default {
   }
 
   .progress-steps {
-    gap: 10px;
+    gap: 0;
+    flex-wrap: wrap;
+  }
+
+  .step {
+    width: 80px;
+  }
+
+  .step-line {
+    width: 30px;
   }
 }
 
@@ -2654,6 +3033,402 @@ export default {
     max-width: 300px;
     justify-content: center;
   }
+}
+
+/* 纵向步骤指示器样式 */
+.steps-indicator-vertical {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 0;
+  background: transparent;
+  border-radius: 0;
+  border: none;
+  min-width: 100px;
+  align-self: center;
+}
+
+.steps-indicator-vertical .step-indicator-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.steps-indicator-vertical .step-indicator-number {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 500;
+  font-size: 1rem;
+  color: #8c8c8c;
+  transition: all 0.3s ease;
+}
+
+.steps-indicator-vertical .step-indicator-item.active .step-indicator-number {
+  background: #7b42f6;
+  color: white;
+}
+
+.steps-indicator-vertical .step-indicator-text {
+  font-size: 0.875rem;
+  color: #8c8c8c;
+  font-weight: 400;
+  transition: all 0.3s ease;
+}
+
+.steps-indicator-vertical .step-indicator-item.active .step-indicator-text {
+  color: #7b42f6;
+  font-weight: 500;
+}
+
+.step-indicator-line-vertical {
+  width: 2px;
+  height: 28px;
+  background: rgba(123, 66, 246, 0.2);
+  transition: all 0.3s ease;
+}
+
+.step-indicator-line-vertical.active {
+  background: #7b42f6;
+}
+
+/* 顶部步骤指示器样式 - 与页面融为一体 */
+.steps-indicator-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 0;
+  margin: 0;
+  padding: 32px 0 24px 0;
+  background: #f5f0ff;
+  border: none;
+  box-shadow: none;
+  width: 100%;
+}
+
+.steps-indicator-top .step-indicator-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  cursor: default;
+  width: 120px;
+}
+
+.steps-indicator-top .step-indicator-item.clickable {
+  cursor: pointer;
+}
+
+.steps-indicator-top .step-indicator-item.clickable:hover .step-indicator-number {
+  background: rgba(123, 66, 246, 0.1);
+  transform: scale(1.08);
+}
+
+.steps-indicator-top .step-indicator-number {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: transparent;
+  border: 2px solid rgba(123, 66, 246, 0.25);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  font-size: 1rem;
+  color: #9ca3af;
+  transition: all 0.3s ease;
+  flex-shrink: 0;
+}
+
+.steps-indicator-top .step-indicator-item.active .step-indicator-number {
+  background: #7b42f6;
+  border-color: #7b42f6;
+  color: white;
+  box-shadow: 0 4px 12px rgba(123, 66, 246, 0.3);
+}
+
+.steps-indicator-top .step-indicator-text {
+  font-size: 0.85rem;
+  color: #9ca3af;
+  font-weight: 500;
+  transition: all 0.3s ease;
+  text-align: center;
+}
+
+.steps-indicator-top .step-indicator-item.active .step-indicator-text {
+  color: #7b42f6;
+  font-weight: 600;
+}
+
+.step-indicator-line-horizontal {
+  width: 80px;
+  height: 2px;
+  background: rgba(123, 66, 246, 0.15);
+  transition: all 0.3s ease;
+  margin-top: 22px;
+  flex-shrink: 0;
+}
+
+.step-indicator-line-horizontal.active {
+  background: linear-gradient(90deg, #7b42f6 0%, rgba(123, 66, 246, 0.3) 100%);
+}
+
+/* 欢迎界面样式 */
+.welcome-section {
+  margin: 0;
+  min-height: calc(100vh - 80px);
+  display: flex;
+  align-items: stretch;
+  justify-content: center;
+  padding: 0;
+  background: #f5f0ff;
+}
+
+.welcome-card {
+  background: transparent;
+  border-radius: 0;
+  padding: 60px 60px;
+  text-align: center;
+  box-shadow: none;
+  border: none;
+  margin: 0;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 32px;
+}
+
+.welcome-icon {
+  font-size: 4rem;
+  opacity: 0.9;
+}
+
+.welcome-card h2 {
+  color: #1a1a2e;
+  font-size: 1.75rem;
+  font-weight: 600;
+  margin: 0;
+}
+
+.welcome-card p {
+  color: #8c8c8c;
+  font-size: 0.875rem;
+  margin-bottom: 32px;
+  line-height: 1.6;
+  max-width: none;
+  margin-left: auto;
+  margin-right: auto;
+  white-space: nowrap;
+}
+
+.start-btn {
+  background: linear-gradient(135deg, #7b42f6 0%, #6938d4 100%);
+  color: white;
+  border: none;
+  padding: 14px 48px;
+  border-radius: 12px;
+  cursor: pointer;
+  font-size: 1rem;
+  font-weight: 600;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 16px rgba(123, 66, 246, 0.3);
+}
+
+.start-btn:hover {
+  background: linear-gradient(135deg, #6938d4 0%, #5a2eb8 100%);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(123, 66, 246, 0.4);
+}
+
+.start-btn:active {
+  background: linear-gradient(135deg, #5a2eb8 0%, #4a249c 100%);
+  transform: translateY(0);
+  box-shadow: 0 2px 8px rgba(123, 66, 246, 0.3);
+}
+
+/* 步骤卡片样式 */
+.step-section {
+  margin: 0;
+  min-height: calc(100vh - 80px - 96px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  background: #f5f0ff;
+}
+
+.step-card {
+  background: transparent;
+  border-radius: 0;
+  padding: 40px 60px;
+  box-shadow: none;
+  border: none;
+  margin: 0;
+  width: 100%;
+  max-width: none;
+  display: flex;
+  gap: 48px;
+}
+
+.step-card-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 40px 0;
+}
+
+.step-content-wrapper {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.step-header {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 32px;
+}
+
+.step-footer {
+  display: flex;
+  justify-content: center;
+  margin-top: 48px;
+}
+
+/* 输出模式选择器 */
+.output-mode-selector {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 32px;
+  max-width: 1000px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+.back-btn {
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.9) 0%, rgba(255, 255, 255, 0.95) 100%);
+  border: 1px solid rgba(123, 66, 246, 0.25);
+  color: #7b42f6;
+  cursor: pointer;
+  font-size: 0.95rem;
+  font-weight: 600;
+  padding: 12px 28px;
+  border-radius: 12px;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  box-shadow: 0 2px 8px rgba(123, 66, 246, 0.1);
+}
+
+.back-btn:hover {
+  background: linear-gradient(135deg, rgba(123, 66, 246, 0.08) 0%, rgba(123, 66, 246, 0.15) 100%);
+  border-color: rgba(123, 66, 246, 0.6);
+  color: #6938d4;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(123, 66, 246, 0.2);
+}
+
+.step-header h3 {
+  color: #1a1a2e;
+  font-size: 1.75rem;
+  font-weight: 600;
+  margin: 0;
+  letter-spacing: -0.3px;
+}
+
+.step-description {
+  color: #8c8c8c;
+  font-size: 1rem;
+  margin-bottom: 48px;
+  text-align: center;
+}
+
+/* 输入方式选择器样式 */
+.input-method-selector {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 32px;
+  max-width: 1000px;
+  margin: 0 auto;
+}
+
+.input-method-option {
+  padding: 60px 48px;
+  border: 2px solid rgba(123, 66, 246, 0.15);
+  border-radius: 20px;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.95) 0%, rgba(255, 255, 255, 0.9) 100%);
+  text-align: center;
+  box-shadow: 0 4px 20px rgba(123, 66, 246, 0.08);
+  min-height: 200px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.input-method-option:hover {
+  border-color: rgba(123, 66, 246, 0.4);
+  background: linear-gradient(145deg, rgba(255, 255, 255, 1) 0%, rgba(255, 255, 255, 0.98) 100%);
+  transform: translateY(-4px);
+  box-shadow: 0 8px 30px rgba(123, 66, 246, 0.15);
+}
+
+.input-method-option.active {
+  border-color: #7b42f6;
+  background: linear-gradient(145deg, rgba(123, 66, 246, 0.08) 0%, rgba(123, 66, 246, 0.04) 100%);
+  box-shadow: 0 4px 24px rgba(123, 66, 246, 0.2);
+}
+
+.input-method-icon {
+  font-size: 3.5rem;
+  margin-bottom: 20px;
+}
+
+.input-method-title {
+  font-size: 1.15rem;
+  font-weight: 600;
+  color: #1a1a2e;
+  margin-bottom: 8px;
+}
+
+.input-method-desc {
+  font-size: 0.8rem;
+  color: #8c8c8c;
+  line-height: 1.5;
+}
+
+/* 步骤3的卡片样式调整 */
+.manual-input-section,
+.upload-section {
+  width: 100%;
+  display: contents;
+}
+
+/* 隐藏之前的输出模式选择器 */
+.output-mode-section {
+  display: none;
+}
+
+/* 隐藏分隔线 */
+.divider {
+  display: none;
 }
 </style>
 

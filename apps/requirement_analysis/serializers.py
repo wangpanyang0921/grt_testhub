@@ -229,23 +229,24 @@ class PromptConfigSerializer(serializers.ModelSerializer):
 class TestCaseGenerationTaskSerializer(serializers.ModelSerializer):
     """测试用例生成任务序列化器"""
     status_display = serializers.CharField(source='get_status_display', read_only=True)
+    output_mode_display = serializers.CharField(source='get_output_mode_display', read_only=True)
     created_by_name = serializers.CharField(source='created_by.username', read_only=True)
     project_name = serializers.CharField(source='project.name', read_only=True)
     writer_model_name = serializers.CharField(source='writer_model_config.name', read_only=True)
     reviewer_model_name = serializers.CharField(source='reviewer_model_config.name', read_only=True)
     writer_prompt_name = serializers.CharField(source='writer_prompt_config.name', read_only=True)
     reviewer_prompt_name = serializers.CharField(source='reviewer_prompt_config.name', read_only=True)
-    
+
     class Meta:
         model = TestCaseGenerationTask
         fields = ['id', 'task_id', 'title', 'requirement_text', 'status', 'status_display',
-                 'progress', 'project', 'project_name', 'writer_model_config', 'writer_model_name', 
-                 'reviewer_model_config', 'reviewer_model_name', 'writer_prompt_config', 'writer_prompt_name',
-                 'reviewer_prompt_config', 'reviewer_prompt_name', 'generated_test_cases',
-                 'review_feedback', 'final_test_cases', 'generation_log', 'error_message',
+                 'output_mode', 'output_mode_display', 'progress', 'project', 'project_name',
+                 'writer_model_config', 'writer_model_name', 'reviewer_model_config', 'reviewer_model_name',
+                 'writer_prompt_config', 'writer_prompt_name', 'reviewer_prompt_config', 'reviewer_prompt_name',
+                 'generated_test_cases', 'review_feedback', 'final_test_cases', 'generation_log', 'error_message',
                  'created_by', 'created_by_name', 'created_at', 'updated_at', 'completed_at']
-        read_only_fields = ['task_id', 'status', 'progress', 'generated_test_cases', 
-                          'review_feedback', 'final_test_cases', 'generation_log', 
+        read_only_fields = ['task_id', 'status', 'progress', 'generated_test_cases',
+                          'review_feedback', 'final_test_cases', 'generation_log',
                           'error_message', 'created_by', 'completed_at']
     
     def create(self, validated_data):

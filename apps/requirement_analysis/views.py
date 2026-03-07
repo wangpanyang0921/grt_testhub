@@ -1871,6 +1871,11 @@ class TestCaseGenerationTaskViewSet(viewsets.ModelViewSet):
                 last_progress_hash = None
                 MAX_TIMEOUT = 3600  # 1 hour safety timeout
 
+                # 立即发送连接成功消息，让前端知道SSE已建立
+                initial_status = json.dumps({'type': 'connected', 'message': 'SSE连接已建立，等待AI生成内容...'}, ensure_ascii=False)
+                logger.info(f"SSE发送初始连接消息")
+                yield f"data: {initial_status}\n\n"
+
                 while True:
                     loop_count += 1
 
@@ -2012,6 +2017,12 @@ class TestCaseGenerationTaskViewSet(viewsets.ModelViewSet):
 
                     # 减少休眠时间到 0.5s，提高响应速度
                     time.sleep(0.5)
+
+            # 创建StreamingHttpResponse，使用event_stream生成器
+            response = StreamingHttpResponse(
+                event_stream(),
+                content_type='text/event-stream'
+            )
 
             # 设置SSE相关的响应头（注意：不能设置Connection等hop-by-hop头部）
             response['Cache-Control'] = 'no-cache'
@@ -3029,6 +3040,38 @@ class TestCaseGenerationTaskViewSet(viewsets.ModelViewSet):
             logger.error(f"获取统计信息时出错: {e}")
             return Response(
                 {'error': f'获取统计信息失败: {str(e)}'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+    @action(detail=True, methods=['post'])
+    def cancel(self, request, task_id=None):
+        """取消测试用例生成任务"""
+        try:
+            task = self.get_object()
+
+            # 检查任务是否可以取消（只有进行中的任务才能取消）
+            if task.status in ['completed', 'failed', 'cancelled']:
+                return Response(
+                    {'error': f'任务当前状态为{task.get_status_display()}，无法取消'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            # 更新任务状态为已取消
+            task.status = 'cancelled'
+            task.save()
+
+            logger.info(f"任务已取消: {task.task_id}")
+
+            return Response({
+                'message': '任务已成功取消',
+                'task_id': task.task_id,
+                'status': task.status
+            }, status=status.HTTP_200_OK)
+
+        except Exception as e:
+            logger.error(f"取消任务时出错: {e}")
+            return Response(
+                {'error': f'取消任务失败: {str(e)}'},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 

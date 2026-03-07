@@ -40,9 +40,9 @@
 
         <el-table-column label="执行状态" width="110" header-align="center" align="center">
           <template #default="{ row }">
-            <el-tag :type="getExecutionStatusTag(row.execution_status)">
+            <span class="status-badge" :class="row.execution_status">
               {{ getExecutionStatusText(row.execution_status) }}
-            </el-tag>
+            </span>
           </template>
         </el-table-column>
         <el-table-column label="通过数" width="90" header-align="center" align="center">
@@ -622,6 +622,43 @@ onMounted(() => {
   --info-color: #1890ff;
 }
 
+// 状态徽章样式
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 16px;
+  border-radius: 4px;
+  font-size: 13px;
+  font-weight: 500;
+  transition: all 0.3s ease;
+  white-space: nowrap;
+
+  // 未执行 - 灰色
+  &.not_run {
+    background: #f5f5f5;
+    color: #8c8c8c;
+  }
+
+  // 通过 - 绿色
+  &.passed {
+    background: #f6ffed;
+    color: #52c41a;
+  }
+
+  // 失败 - 红色
+  &.failed {
+    background: #fff1f0;
+    color: #f5222d;
+  }
+
+  // 运行中 - 橙色
+  &.running {
+    background: #fff7e6;
+    color: #fa8c16;
+  }
+}
+
 .page-container {
   padding: 24px;
   min-height: calc(100vh - 60px);
@@ -909,11 +946,10 @@ onMounted(() => {
     display: flex;
     justify-content: center;
     align-items: center;
-    padding: 24px;
-    margin-top: 16px;
-    background: linear-gradient(135deg, #f8f7ff 0%, #fafbff 100%);
-    border-top: 1px solid rgba(147, 112, 219, 0.15);
-    border-radius: 0 0 12px 12px;
+    padding: 16px 0;
+    margin-top: 8px;
+    background: transparent;
+    border: none;
     transition: all 0.3s ease;
 
     /* 覆盖 Element Plus 默认主题变量 */
