@@ -1,7 +1,7 @@
 export default {
   // Login page
   welcomeBack: '欢迎体验',
-  loginSubtitle: '基于开源平台、使用AI二开智能化测试平台',
+  loginSubtitle: '幸福就在当下，眼中景、碗中餐、身边人',
   usernamePlaceholder: '请输入用户名',
   passwordPlaceholder: '请输入密码',
   login: '登录',
@@ -12,7 +12,7 @@ export default {
   loginFailed: '登录失败',
 
   // Register page
-  registerTitle: '注册国人通 TestHub',
+  registerTitle: '国人通 TestHub 注册',
   registerSubtitle: '创建您的测试账号',
   username: '用户名',
   email: '邮箱',

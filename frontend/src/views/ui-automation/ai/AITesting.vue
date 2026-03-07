@@ -520,11 +520,17 @@ const confirmSaveCase = async () => {
   padding: 15px;
   color: #fff;
   font-family: 'Consolas', 'Monaco', monospace;
+  display: flex;
+  flex-direction: column;
 
   .empty-logs {
     color: #909399;
     text-align: center;
-    margin-top: 100px;
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0;
   }
 
   .log-content {

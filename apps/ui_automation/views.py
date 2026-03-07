@@ -3957,32 +3957,21 @@ class UiDashboardViewSet(viewsets.ViewSet):
 
     @action(detail=False, methods=['get'])
     def stats(self, request):
-        """获取仪表盘统计数据"""
-        user = request.user
+        """获取仪表盘统计数据 - 所有用户看到相同数据，不区分权限"""
 
-        # 获取用户可访问的项目ID列表
-        accessible_projects = UiProject.objects.filter(
-            models.Q(owner=user) | models.Q(members__user=user)
-        ).distinct()
-        project_ids = accessible_projects.values_list('id', flat=True)
-
-        # 统计数据
-        project_count = accessible_projects.count()
+        # 统计数据 - 查询所有项目，不区分权限
+        project_count = UiProject.objects.count()
 
         # 测试用例数量
-        test_case_count = TestCase.objects.filter(project_id__in=project_ids).count()
+        test_case_count = TestCase.objects.count()
 
         # 测试套件数量（包含用例总数）
-        suite_count = TestSuite.objects.filter(project_id__in=project_ids).count()
-
         from .models import TestSuiteTestCase
-        suite_test_case_count = TestSuiteTestCase.objects.filter(
-            test_suite__project_id__in=project_ids
-        ).count()
+        suite_test_case_count = TestSuiteTestCase.objects.count()
 
         # 测试执行数量（传统+新版）
-        execution_count = TestExecution.objects.filter(project_id__in=project_ids).count()
-        test_case_execution_count = TestCaseExecution.objects.filter(project_id__in=project_ids).count()
+        execution_count = TestExecution.objects.count()
+        test_case_execution_count = TestCaseExecution.objects.count()
         total_execution_count = execution_count + test_case_execution_count
 
         return Response({

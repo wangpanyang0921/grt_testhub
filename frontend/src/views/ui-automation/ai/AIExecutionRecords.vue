@@ -1,21 +1,5 @@
 <template>
   <div class="page-container">
-    <div class="page-header">
-      <h1 class="page-title">{{ $t('uiAutomation.ai.executionRecords.title') }}</h1>
-      <div class="header-actions">
-        <el-button
-          type="danger"
-          class="batch-delete-btn"
-          :disabled="selectedRecords.length === 0"
-          @click="batchDeleteRecords"
-          :loading="isDeleting"
-        >
-          <el-icon><Delete /></el-icon>
-          {{ $t('uiAutomation.common.batchDelete') }}
-        </el-button>
-      </div>
-    </div>
-
     <div class="filter-bar">
       <el-input
         v-model="searchText"
@@ -33,6 +17,17 @@
       <el-button type="primary" class="query-btn" @click="handleSearch">
         <el-icon><Search /></el-icon>
         {{ $t('uiAutomation.common.search') }}
+      </el-button>
+      <div class="filter-bar-spacer"></div>
+      <el-button
+        type="danger"
+        class="batch-delete-btn"
+        :disabled="selectedRecords.length === 0"
+        @click="batchDeleteRecords"
+        :loading="isDeleting"
+      >
+        <el-icon><Delete /></el-icon>
+        {{ $t('uiAutomation.common.batchDelete') }}
       </el-button>
     </div>
 
@@ -591,6 +586,41 @@ onUnmounted(() => {
       box-shadow: 0 6px 16px rgba(123, 66, 246, 0.4) !important;
     }
   }
+
+  .filter-bar-spacer {
+    flex: 1;
+  }
+
+  .batch-delete-btn {
+    background: linear-gradient(135deg, #ff4d4f 0%, #ff7875 100%) !important;
+    border: none !important;
+    color: white !important;
+    font-weight: 600 !important;
+    padding: 10px 20px !important;
+    border-radius: 8px !important;
+    transition: all 0.3s ease !important;
+    box-shadow: 0 4px 12px rgba(255, 77, 79, 0.3) !important;
+
+    .el-icon {
+      margin-right: 6px;
+    }
+
+    &:hover:not(:disabled) {
+      background: linear-gradient(135deg, #ff7875 0%, #ffa39e 100%) !important;
+      transform: translateY(-2px) !important;
+      box-shadow: 0 6px 20px rgba(255, 77, 79, 0.4) !important;
+    }
+
+    &:active:not(:disabled) {
+      transform: translateY(0) !important;
+    }
+
+    &:disabled {
+      background: linear-gradient(135deg, #d9d9d9 0%, #bfbfbf 100%) !important;
+      box-shadow: none !important;
+      cursor: not-allowed !important;
+    }
+  }
 }
 
 // 表格容器
@@ -790,9 +820,11 @@ onUnmounted(() => {
     display: flex;
     justify-content: center;
     align-items: center;
-    padding: 8px 24px;
-    background: transparent;
-    border-top: 1px solid rgba(147, 112, 219, 0.1);
+    padding: 24px;
+    margin-top: 16px;
+    background: linear-gradient(135deg, #f8f7ff 0%, #fafbff 100%);
+    border-top: 1px solid rgba(147, 112, 219, 0.15);
+    border-radius: 0 0 12px 12px;
     transition: all 0.3s ease;
 
     /* 覆盖 Element Plus 默认主题变量 */

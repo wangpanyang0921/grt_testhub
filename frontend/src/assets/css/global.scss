@@ -367,6 +367,53 @@ body {
   color: #5a32a3 !important;
 }
 
+/* 覆盖 el-dropdown-menu 的样式 - 修复蓝色问题 */
+.el-dropdown-menu {
+  .el-dropdown-menu__item {
+    color: #374151 !important;
+    
+    &:hover,
+    &:focus,
+    &:active,
+    &.el-dropdown-menu__item--active {
+      background: rgba(139, 92, 246, 0.1) !important;
+      color: #7c3aed !important;
+    }
+    
+    &:not(.is-disabled) {
+      color: #374151 !important;
+    }
+    
+    &:not(.is-disabled):hover,
+    &:not(.is-disabled):focus,
+    &:not(.is-disabled):active,
+    &:not(.is-disabled).el-dropdown-menu__item--active {
+      background: rgba(139, 92, 246, 0.1) !important;
+      color: #7c3aed !important;
+    }
+    
+    .el-icon {
+      color: #6b7280 !important;
+    }
+    
+    &:hover .el-icon,
+    &:focus .el-icon,
+    &:active .el-icon,
+    &.el-dropdown-menu__item--active .el-icon {
+      color: #7c3aed !important;
+    }
+    
+    a,
+    a:link,
+    a:visited,
+    a:hover,
+    a:active,
+    span {
+      color: inherit !important;
+    }
+  }
+}
+
 /* 自定义 Tooltip 样式 */
 .custom-tooltip {
   background: linear-gradient(135deg, #7b42f6 0%, #5a32a3 100%) !important;

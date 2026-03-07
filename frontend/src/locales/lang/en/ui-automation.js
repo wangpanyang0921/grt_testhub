@@ -522,8 +522,8 @@ export default {
       duration: 'Duration',
       durationSeconds: 'Duration(s)',
       executor: 'Executor',
-      viewDetail: 'View Details',
-      viewReport: 'View Report',
+      viewDetail: 'Details',
+      viewReport: 'Report',
       executionDetail: 'Execution Details',
       taskDescription: 'Task Description',
       executionLogs: 'Execution Logs',
@@ -630,7 +630,7 @@ export default {
     // Element Locator Extraction
     elementLocator: {
       title: 'Element Locator Info',
-      viewElements: 'Element Locator',
+      viewElements: 'Element Extraction',
       executionId: 'Execution ID',
       caseName: 'Case Name',
       totalElements: 'Elements Extracted',

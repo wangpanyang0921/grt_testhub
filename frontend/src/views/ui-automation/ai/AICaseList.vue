@@ -1,13 +1,5 @@
 <template>
   <div class="page-container">
-    <div class="page-header">
-      <h1 class="page-title">{{ $t('uiAutomation.ai.caseList.title') }}</h1>
-      <el-button type="primary" class="create-btn" @click="handleCreate">
-        <el-icon><Plus /></el-icon>
-        {{ $t('uiAutomation.ai.caseList.createCase') }}
-      </el-button>
-    </div>
-
     <div class="filter-bar">
       <el-input
         v-model="searchText"
@@ -25,6 +17,11 @@
       <el-button type="primary" class="query-btn" @click="handleSearch">
         <el-icon><Search /></el-icon>
         {{ $t('uiAutomation.common.search') }}
+      </el-button>
+      <div class="filter-bar-spacer"></div>
+      <el-button type="primary" class="create-btn" @click="handleCreate">
+        <el-icon><Plus /></el-icon>
+        {{ $t('uiAutomation.ai.caseList.createCase') }}
       </el-button>
     </div>
 
@@ -390,31 +387,6 @@ onMounted(() => {
     -webkit-text-fill-color: transparent;
     background-clip: text;
   }
-
-  .create-btn {
-    background: linear-gradient(135deg, #7b42f6 0%, #5a32a3 100%) !important;
-    border: none !important;
-    color: white !important;
-    font-weight: 600 !important;
-    padding: 10px 20px !important;
-    border-radius: 8px !important;
-    transition: all 0.3s ease !important;
-    box-shadow: 0 4px 12px rgba(123, 66, 246, 0.3) !important;
-
-    .el-icon {
-      margin-right: 6px;
-    }
-
-    &:hover {
-      background: linear-gradient(135deg, #6d33e6 0%, #4a249c 100%) !important;
-      transform: translateY(-2px) !important;
-      box-shadow: 0 6px 20px rgba(123, 66, 246, 0.4) !important;
-    }
-
-    &:active {
-      transform: translateY(0) !important;
-    }
-  }
 }
 
 // 筛选栏
@@ -480,6 +452,35 @@ onMounted(() => {
       background: linear-gradient(135deg, #6d33e6 0%, #4a249c 100%) !important;
       transform: translateY(-2px) !important;
       box-shadow: 0 6px 16px rgba(123, 66, 246, 0.4) !important;
+    }
+  }
+
+  .filter-bar-spacer {
+    flex: 1;
+  }
+
+  .create-btn {
+    background: linear-gradient(135deg, #7b42f6 0%, #5a32a3 100%) !important;
+    border: none !important;
+    color: white !important;
+    font-weight: 600 !important;
+    padding: 10px 20px !important;
+    border-radius: 8px !important;
+    transition: all 0.3s ease !important;
+    box-shadow: 0 4px 12px rgba(123, 66, 246, 0.3) !important;
+
+    .el-icon {
+      margin-right: 6px;
+    }
+
+    &:hover {
+      background: linear-gradient(135deg, #6d33e6 0%, #4a249c 100%) !important;
+      transform: translateY(-2px) !important;
+      box-shadow: 0 6px 20px rgba(123, 66, 246, 0.4) !important;
+    }
+
+    &:active {
+      transform: translateY(0) !important;
     }
   }
 }
@@ -655,9 +656,11 @@ onMounted(() => {
     display: flex;
     justify-content: center;
     align-items: center;
-    padding: 8px 24px;
-    background: transparent;
-    border-top: 1px solid rgba(147, 112, 219, 0.1);
+    padding: 24px;
+    margin-top: 16px;
+    background: linear-gradient(135deg, #f8f7ff 0%, #fafbff 100%);
+    border-top: 1px solid rgba(147, 112, 219, 0.15);
+    border-radius: 0 0 12px 12px;
     transition: all 0.3s ease;
 
     /* 覆盖 Element Plus 默认主题变量 */

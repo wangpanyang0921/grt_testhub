@@ -33,18 +33,25 @@
                 <span>{{ $t('menu.aiGeneratedTestcases') }}</span>
               </el-menu-item>
             </el-sub-menu>
+            <!-- 临时隐藏：项目管理
             <el-menu-item index="/ai-generation/projects">
               <el-icon><Folder /></el-icon>
               <span>{{ $t('menu.projectManagement') }}</span>
             </el-menu-item>
+            -->
+            <!-- 临时隐藏：测试用例
             <el-menu-item index="/ai-generation/testcases">
               <el-icon><Document /></el-icon>
               <span>{{ $t('menu.testCases') }}</span>
             </el-menu-item>
+            -->
+            <!-- 临时隐藏：版本管理
             <el-menu-item index="/ai-generation/versions">
               <el-icon><Flag /></el-icon>
               <span>{{ $t('menu.versionManagement') }}</span>
             </el-menu-item>
+            -->
+            <!-- 临时隐藏：评审管理
             <el-sub-menu index="reviews">
               <template #title>
                 <el-icon><Check /></el-icon>
@@ -59,15 +66,19 @@
                 <span>{{ $t('menu.reviewTemplates') }}</span>
               </el-menu-item>
             </el-sub-menu>
-
+            -->
+            <!-- 临时隐藏：测试计划
             <el-menu-item index="/ai-generation/executions">
               <el-icon><VideoPlay /></el-icon>
               <span>{{ $t('menu.testPlan') }}</span>
             </el-menu-item>
+            -->
+            <!-- 临时隐藏：测试报告
             <el-menu-item index="/ai-generation/reports">
               <el-icon><DataAnalysis /></el-icon>
               <span>{{ $t('menu.testReport') }}</span>
             </el-menu-item>
+            -->
           </template>
 
           <!-- 接口测试模块菜单 -->
@@ -278,7 +289,7 @@
       <!-- 主体内容 -->
       <el-container>
         <!-- 顶部导航 -->
-        <el-header height="60px">
+        <el-header height="70px">
           <div class="header-content">
             <div class="header-left">
               <el-breadcrumb separator="/">
@@ -454,11 +465,10 @@ const breadcrumbTitle = computed(() => {
   return routeMap[route.path] || route.meta.title || ''
 })
 
-const handleCommand = (command) => {
+const handleCommand = async (command) => {
   if (command === 'logout') {
-    userStore.logout()
+    await userStore.logout()
     ElMessage.success('退出登录成功')
-    router.push('/login')
   } else if (command === 'profile') {
     router.push('/ai-generation/profile')
   }
@@ -483,11 +493,12 @@ const handleCommand = (command) => {
   align-items: center;
   justify-content: center;
   gap: 12px;
-  background: linear-gradient(135deg, #f8f7ff 0%, #ede9fe 100%);
+  background: transparent;
   color: #5a32a3;
   flex-shrink: 0;
   position: relative;
   overflow: hidden;
+  border-bottom: 1px solid rgba(147, 112, 219, 0.08);
 
   .logo-img-wrapper {
     width: 40px;
@@ -525,7 +536,7 @@ const handleCommand = (command) => {
 
 .el-aside {
   position: relative;
-  background: linear-gradient(135deg, #f3f0fa 0%, #e8e3f5 50%, #f3f0fa 100%);
+  background: linear-gradient(135deg, #f5f3ff 0%, #ede9fe 100%);
   height: 100%;
   display: flex;
   flex-direction: column;
@@ -534,17 +545,17 @@ const handleCommand = (command) => {
   width: 240px !important;
   min-width: 240px;
   max-width: 240px;
-  box-shadow: 2px 0 10px rgba(90, 50, 163, 0.1);
+  box-shadow: 2px 0 16px rgba(147, 112, 219, 0.12);
+  border-right: 1px solid rgba(147, 112, 219, 0.08);
 
   &::before {
     content: '';
     position: absolute;
     top: 0;
     right: 0;
-    width: 100px;
-    height: 100px;
-    background: linear-gradient(45deg, rgba(90, 50, 163, 0.1), rgba(74, 20, 140, 0.05));
-    border-radius: 0 0 0 100%;
+    width: 120px;
+    height: 120px;
+    background: radial-gradient(circle at top right, rgba(123, 66, 246, 0.08) 0%, transparent 70%);
     z-index: 1;
   }
 
@@ -553,10 +564,9 @@ const handleCommand = (command) => {
     position: absolute;
     bottom: 0;
     left: 0;
-    width: 150px;
-    height: 150px;
-    background: linear-gradient(135deg, rgba(90, 50, 163, 0.05), rgba(74, 20, 140, 0.1));
-    border-radius: 100% 0 0 0;
+    width: 180px;
+    height: 180px;
+    background: radial-gradient(circle at bottom left, rgba(90, 50, 163, 0.06) 0%, transparent 70%);
     z-index: 1;
   }
 
@@ -630,47 +640,49 @@ const handleCommand = (command) => {
   }
   
   :deep(.el-menu-item) {
-    background: #f3f0fa !important;
+    background: rgba(255, 255, 255, 0.6) !important;
     color: #5a32a3 !important;
     font-weight: 500 !important;
     transition: all 0.3s ease !important;
     padding-left: 20px !important;
     margin: 6px 12px !important;
     border-radius: 8px !important;
-    box-shadow: 0 2px 8px rgba(90, 50, 163, 0.05) !important;
+    box-shadow: 0 2px 8px rgba(147, 112, 219, 0.08) !important;
     backdrop-filter: blur(10px) !important;
     width: calc(100% - 24px) !important; /* Adjust for margins */
     box-sizing: border-box !important;
     outline: none !important;
+    border: 1px solid rgba(147, 112, 219, 0.08) !important;
     
     &:focus {
       outline: none !important;
-      box-shadow: 0 2px 8px rgba(90, 50, 163, 0.05) !important;
+      box-shadow: 0 2px 8px rgba(147, 112, 219, 0.08) !important;
     }
   }
   
   :deep(.el-sub-menu__title) {
-    background: #f3f0fa !important;
+    background: rgba(255, 255, 255, 0.6) !important;
     color: #5a32a3 !important;
     font-weight: 500 !important;
     transition: all 0.3s ease !important;
     padding-left: 20px !important;
     margin: 6px 12px !important;
     border-radius: 8px !important;
-    box-shadow: 0 2px 8px rgba(90, 50, 163, 0.05) !important;
+    box-shadow: 0 2px 8px rgba(147, 112, 219, 0.08) !important;
     backdrop-filter: blur(10px) !important;
     width: calc(100% - 24px) !important; /* Adjust for margins */
     box-sizing: border-box !important;
     outline: none !important;
+    border: 1px solid rgba(147, 112, 219, 0.08) !important;
     
     &:focus {
       outline: none !important;
-      box-shadow: 0 2px 8px rgba(90, 50, 163, 0.05) !important;
+      box-shadow: 0 2px 8px rgba(147, 112, 219, 0.08) !important;
     }
   }
   
   :deep(.el-menu-item.is-active) {
-    background: #5a32a3 !important;
+    background: linear-gradient(135deg, #7b42f6 0%, #5a32a3 100%) !important;
     color: #ffffff !important;
     font-weight: 600 !important;
     border-right: none !important;
@@ -678,18 +690,19 @@ const handleCommand = (command) => {
     padding-left: 20px !important;
     margin: 6px 12px !important;
     border-radius: 8px !important;
-    box-shadow: 0 4px 12px rgba(90, 50, 163, 0.3) !important;
+    box-shadow: 0 4px 12px rgba(123, 66, 246, 0.4) !important;
     backdrop-filter: blur(10px) !important;
     outline: none !important;
+    border: none !important;
     
     &:focus {
       outline: none !important;
-      box-shadow: 0 4px 12px rgba(90, 50, 163, 0.3) !important;
+      box-shadow: 0 4px 12px rgba(123, 66, 246, 0.4) !important;
     }
   }
   
   :deep(.el-sub-menu__title.is-active) {
-    background: #5a32a3 !important;
+    background: linear-gradient(135deg, #7b42f6 0%, #5a32a3 100%) !important;
     color: #ffffff !important;
     font-weight: 600 !important;
     border-right: none !important;
@@ -697,54 +710,57 @@ const handleCommand = (command) => {
     padding-left: 20px !important;
     margin: 6px 12px !important;
     border-radius: 8px !important;
-    box-shadow: 0 4px 12px rgba(90, 50, 163, 0.3) !important;
+    box-shadow: 0 4px 12px rgba(123, 66, 246, 0.4) !important;
     backdrop-filter: blur(10px) !important;
     outline: none !important;
+    border: none !important;
     
     &:focus {
       outline: none !important;
-      box-shadow: 0 4px 12px rgba(90, 50, 163, 0.3) !important;
+      box-shadow: 0 4px 12px rgba(123, 66, 246, 0.4) !important;
     }
   }
   
   :deep(.el-menu-item:hover) {
-    background: #e1d7f0 !important;
-    color: #5a32a3 !important;
+    background: rgba(255, 255, 255, 0.9) !important;
+    color: #7b42f6 !important;
     font-weight: 600 !important;
     transition: all 0.3s ease !important;
     padding-left: 20px !important;
     margin: 6px 12px !important;
     border-radius: 8px !important;
-    box-shadow: 0 4px 12px rgba(90, 50, 163, 0.1) !important;
+    box-shadow: 0 4px 12px rgba(147, 112, 219, 0.15) !important;
     backdrop-filter: blur(10px) !important;
     outline: none !important;
+    border: 1px solid rgba(147, 112, 219, 0.15) !important;
     
     &:focus {
       outline: none !important;
-      box-shadow: 0 4px 12px rgba(90, 50, 163, 0.1) !important;
+      box-shadow: 0 4px 12px rgba(147, 112, 219, 0.15) !important;
     }
   }
   
   :deep(.el-sub-menu__title:hover) {
-    background: #e1d7f0 !important;
-    color: #5a32a3 !important;
+    background: rgba(255, 255, 255, 0.9) !important;
+    color: #7b42f6 !important;
     font-weight: 600 !important;
     transition: all 0.3s ease !important;
     padding-left: 20px !important;
     margin: 6px 12px !important;
     border-radius: 8px !important;
-    box-shadow: 0 4px 12px rgba(90, 50, 163, 0.1) !important;
+    box-shadow: 0 4px 12px rgba(147, 112, 219, 0.15) !important;
     backdrop-filter: blur(10px) !important;
     outline: none !important;
+    border: 1px solid rgba(147, 112, 219, 0.15) !important;
     
     &:focus {
       outline: none !important;
-      box-shadow: 0 4px 12px rgba(90, 50, 163, 0.1) !important;
+      box-shadow: 0 4px 12px rgba(147, 112, 219, 0.15) !important;
     }
   }
   
   :deep(.el-menu-item.is-active:hover) {
-    background: #4a148c !important;
+    background: linear-gradient(135deg, #6d33e6 0%, #4a249c 100%) !important;
     color: #ffffff !important;
     font-weight: 600 !important;
     border-right: none !important;
@@ -752,18 +768,19 @@ const handleCommand = (command) => {
     padding-left: 20px !important;
     margin: 6px 12px !important;
     border-radius: 8px !important;
-    box-shadow: 0 6px 16px rgba(74, 20, 140, 0.4) !important;
+    box-shadow: 0 6px 16px rgba(123, 66, 246, 0.5) !important;
     backdrop-filter: blur(10px) !important;
     outline: none !important;
+    border: none !important;
     
     &:focus {
       outline: none !important;
-      box-shadow: 0 6px 16px rgba(74, 20, 140, 0.4) !important;
+      box-shadow: 0 6px 16px rgba(123, 66, 246, 0.5) !important;
     }
   }
   
   :deep(.el-sub-menu__title.is-active:hover) {
-    background: #4a148c !important;
+    background: linear-gradient(135deg, #6d33e6 0%, #4a249c 100%) !important;
     color: #ffffff !important;
     font-weight: 600 !important;
     border-right: none !important;
@@ -771,28 +788,29 @@ const handleCommand = (command) => {
     padding-left: 20px !important;
     margin: 6px 12px !important;
     border-radius: 8px !important;
-    box-shadow: 0 6px 16px rgba(74, 20, 140, 0.4) !important;
+    box-shadow: 0 6px 16px rgba(123, 66, 246, 0.5) !important;
     backdrop-filter: blur(10px) !important;
     outline: none !important;
+    border: none !important;
     
     &:focus {
       outline: none !important;
-      box-shadow: 0 6px 16px rgba(74, 20, 140, 0.4) !important;
+      box-shadow: 0 6px 16px rgba(123, 66, 246, 0.5) !important;
     }
   }
   
   /* 自定义悬浮子菜单样式 - 统一背景 */
   :deep(.custom-submenu-popper .el-menu) {
-    background: #f3f0fa !important; /* 统一背景色，与主侧边栏一致 */
-    border: 1px solid #e9ecef !important; /* 添加边框 */
-    border-radius: 8px !important; /* 保持圆角 */
-    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.1) !important; /* 悬浮阴影 */
-    padding: 4px !important; /* 内边距 */
+    background: linear-gradient(135deg, #f5f3ff 0%, #ede9fe 100%) !important;
+    border: 1px solid rgba(147, 112, 219, 0.12) !important;
+    border-radius: 8px !important;
+    box-shadow: 0 6px 16px rgba(147, 112, 219, 0.15) !important;
+    padding: 4px !important;
   }
-  
+
   /* 自定义悬浮子菜单项样式 */
   :deep(.custom-submenu-popper .el-menu .el-menu-item) {
-    background: transparent !important;
+    background: rgba(255, 255, 255, 0.6) !important;
     color: #5a32a3 !important;
     font-weight: 500 !important;
     margin: 2px 4px !important;
@@ -800,27 +818,27 @@ const handleCommand = (command) => {
     border-radius: 6px !important;
     transition: all 0.3s ease !important;
   }
-  
+
   /* 自定义悬浮子菜单项悬停状态 */
   :deep(.custom-submenu-popper .el-menu .el-menu-item:hover) {
-    background: #e1d7f0 !important;
-    color: #5a32a3 !important;
+    background: rgba(255, 255, 255, 0.9) !important;
+    color: #7b42f6 !important;
     font-weight: 600 !important;
   }
-  
+
   /* 自定义悬浮子菜单项激活状态 */
   :deep(.custom-submenu-popper .el-menu .el-menu-item.is-active) {
-    background: #5a32a3 !important;
+    background: linear-gradient(135deg, #7b42f6 0%, #5a32a3 100%) !important;
     color: #ffffff !important;
     font-weight: 600 !important;
   }
-  
+
   /* 通过popper显示子菜单内容 */
   :deep(.custom-submenu-popper.el-popper) {
-    background: #f3f0fa !important;
-    border: 1px solid #e9ecef !important;
+    background: linear-gradient(135deg, #f5f3ff 0%, #ede9fe 100%) !important;
+    border: 1px solid rgba(147, 112, 219, 0.12) !important;
     border-radius: 8px !important;
-    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.15) !important;
+    box-shadow: 0 6px 16px rgba(147, 112, 219, 0.15) !important;
   }
   
   /* 子菜单样式 - 确保背景色一致 */
@@ -1040,12 +1058,12 @@ const handleCommand = (command) => {
 }
 
 .el-header {
-  background: linear-gradient(135deg, #f3f0fa 0%, #e8e3f5 100%);
-  border-bottom: 1px solid rgba(90, 50, 163, 0.2);
+  background: linear-gradient(135deg, #f5f3ff 0%, #ede9fe 100%);
+  border-bottom: 1px solid rgba(147, 112, 219, 0.08);
   padding: 0;
   flex-shrink: 0;
-  height: 60px !important;
-  box-shadow: 0 2px 8px rgba(90, 50, 163, 0.1);
+  height: 70px !important;
+  box-shadow: 0 2px 8px rgba(147, 112, 219, 0.1);
   backdrop-filter: blur(10px);
 
   .header-content {
@@ -1314,7 +1332,7 @@ const handleCommand = (command) => {
   }
   
   .el-header {
-    height: 56px !important;
+    height: 60px !important;
   }
   
   .el-menu {
@@ -1335,7 +1353,7 @@ const handleCommand = (command) => {
   }
   
   .el-header {
-    height: 56px !important;
+    height: 60px !important;
     
     .header-content {
       padding: 0 15px;

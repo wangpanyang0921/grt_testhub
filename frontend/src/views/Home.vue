@@ -1,7 +1,37 @@
 <template>
   <div class="home-container">
-    <div class="content-wrapper">
+    <!-- 顶部用户信息 -->
+    <div class="header-bar">
+      <div class="user-dropdown">
+        <el-dropdown trigger="click" @command="handleCommand">
+          <div class="user-info">
+            <el-avatar 
+              :size="40" 
+              :src="userAvatar" 
+              class="user-avatar"
+            >
+              {{ userInitials }}
+            </el-avatar>
+            <span class="username">{{ userName }}</span>
+            <el-icon class="dropdown-arrow"><ArrowDown /></el-icon>
+          </div>
+          <template #dropdown>
+            <el-dropdown-menu class="user-dropdown-menu">
+              <el-dropdown-item command="profile">
+                <el-icon><User /></el-icon>
+                <span>个人中心</span>
+              </el-dropdown-item>
+              <el-dropdown-item divided command="logout">
+                <el-icon><SwitchButton /></el-icon>
+                <span>退出登录</span>
+              </el-dropdown-item>
+            </el-dropdown-menu>
+          </template>
+        </el-dropdown>
+      </div>
+    </div>
 
+    <div class="content-wrapper">
       <h1 class="main-title">{{ $t('home.title') }}</h1>
       <p class="subtitle">{{ $t('home.subtitle') }}</p>
 
@@ -87,12 +117,47 @@ import { computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
+import { useUserStore } from '@/stores/user'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { MagicStick, Link, Monitor, DataLine, Cpu, Setting, ChatDotRound, UserFilled, ArrowDown, Cellphone } from '@element-plus/icons-vue'
+import { MagicStick, Link, Monitor, DataLine, Cpu, Setting, ChatDotRound, Cellphone, ArrowDown, User, SwitchButton } from '@element-plus/icons-vue'
 
 const router = useRouter()
 const { t } = useI18n()
 const appStore = useAppStore()
+const userStore = useUserStore()
+
+// 用户信息
+const userName = computed(() => {
+  return userStore.user?.username || userStore.user?.first_name || '用户'
+})
+
+const userAvatar = computed(() => {
+  return userStore.user?.avatar || ''
+})
+
+const userInitials = computed(() => {
+  const name = userStore.user?.username || userStore.user?.first_name || 'U'
+  return name.charAt(0).toUpperCase()
+})
+
+// 下拉菜单命令处理
+const handleCommand = (command) => {
+  switch (command) {
+    case 'profile':
+      // 可以跳转到个人中心页面
+      ElMessage.info('个人中心功能开发中')
+      break
+    case 'logout':
+      handleLogout()
+      break
+  }
+}
+
+// 退出登录
+const handleLogout = async () => {
+  await userStore.logout()
+  ElMessage.success('已退出登录')
+}
 
 const handleNavigate = (type) => {
   const routes = {
@@ -118,15 +183,174 @@ const handleNavigate = (type) => {
   min-height: 100vh;
   background: linear-gradient(135deg, #e0c3fc 0%, #8ec5fc 100%);
   display: flex;
-  justify-content: center;
+  flex-direction: column;
+  padding: 20px 40px 40px;
+  position: relative;
+}
+
+// 顶部栏
+.header-bar {
+  display: flex;
+  justify-content: flex-end;
   align-items: center;
-  padding: 40px 20px;
+  margin-bottom: 20px;
+  padding: 0 20px;
+}
+
+// 用户下拉菜单
+.user-dropdown {
+  .user-info {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 12px;
+    border-radius: 24px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+
+    &:hover {
+      background: rgba(255, 255, 255, 0.3);
+    }
+
+    .user-avatar {
+      border: 2px solid rgba(255, 255, 255, 0.8);
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    }
+
+    .username {
+      font-size: 14px;
+      font-weight: 500;
+      color: #374151;
+      transition: color 0.3s ease;
+    }
+
+    .dropdown-arrow {
+      font-size: 12px;
+      color: #6b7280;
+      transition: transform 0.3s ease, color 0.3s ease;
+    }
+
+    &:hover {
+      .username {
+        color: #111827;
+      }
+      .dropdown-arrow {
+        color: #4b5563;
+        transform: rotate(180deg);
+      }
+    }
+  }
+}
+
+// 下拉菜单样式
+:deep(.user-dropdown-menu) {
+  border-radius: 12px;
+  padding: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  backdrop-filter: blur(10px);
+  background: rgba(255, 255, 255, 0.95);
+
+  // 覆盖所有子元素的默认蓝色
+  * {
+    color: inherit !important;
+  }
+
+  .el-dropdown-menu__item {
+    padding: 10px 16px;
+    border-radius: 8px;
+    font-size: 14px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition: all 0.2s ease;
+    color: #374151 !important;
+
+    &.el-dropdown-menu__item--active,
+    &:focus,
+    &:hover,
+    &:active {
+      background: rgba(139, 92, 246, 0.1) !important;
+      color: #7c3aed !important;
+    }
+
+    // 覆盖所有可能的颜色状态
+    &:not(.is-disabled) {
+      color: #374151 !important;
+    }
+
+    &:not(.is-disabled):hover,
+    &:not(.is-disabled):focus,
+    &:not(.is-disabled):active,
+    &:not(.is-disabled).el-dropdown-menu__item--active {
+      background: rgba(139, 92, 246, 0.1) !important;
+      color: #7c3aed !important;
+    }
+
+    .el-icon {
+      font-size: 16px;
+      color: #6b7280 !important;
+      transition: color 0.2s ease;
+    }
+
+    &:hover .el-icon,
+    &:focus .el-icon,
+    &:active .el-icon,
+    &.el-dropdown-menu__item--active .el-icon {
+      color: #7c3aed !important;
+    }
+
+    &.is-disabled {
+      color: #9ca3af !important;
+    }
+
+    // 强制覆盖链接样式
+    a,
+    a:link,
+    a:visited,
+    a:hover,
+    a:active {
+      color: inherit !important;
+      text-decoration: none !important;
+    }
+
+    // 覆盖 span 标签
+    span {
+      color: inherit !important;
+    }
+  }
+
+  .el-dropdown-menu__item--divided {
+    border-top: 1px solid rgba(0, 0, 0, 0.06);
+    margin: 6px 0;
+    padding-top: 6px;
+  }
+}
+
+// 额外的全局覆盖，确保完全覆盖
+:deep(.el-dropdown-menu__item) {
+  &:not(.is-disabled) {
+    color: #374151 !important;
+  }
+  
+  &:hover,
+  &:focus,
+  &:active,
+  &.el-dropdown-menu__item--active {
+    color: #7c3aed !important;
+    background: rgba(139, 92, 246, 0.1) !important;
+  }
 }
 
 .content-wrapper {
   max-width: 1400px;
   width: 100%;
+  margin: 0 auto;
   text-align: center;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
 }
 
 .main-title {
@@ -255,8 +479,27 @@ const handleNavigate = (type) => {
 }
 
 @media (max-width: 600px) {
+  .home-container {
+    padding: 16px 20px 40px;
+  }
+
+  .header-bar {
+    padding: 0;
+    margin-bottom: 16px;
+  }
+
+  .user-dropdown .user-info {
+    padding: 4px 10px;
+    gap: 6px;
+
+    .username {
+      font-size: 13px;
+    }
+  }
+
   .cards-container {
     grid-template-columns: 1fr;
+    padding: 0;
   }
 
   .main-title {

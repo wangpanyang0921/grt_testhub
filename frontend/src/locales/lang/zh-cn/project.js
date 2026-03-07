@@ -80,8 +80,8 @@ export default {
     },
 
     // Title
-    title: '国人通 TestHub 测试平台',
-    subtitle: '一站式智能化测试解决方案',
+    title: 'AI 赋能测试平台',
+    subtitle: '',
 
     // Cards
     aiCase: 'AI用例',

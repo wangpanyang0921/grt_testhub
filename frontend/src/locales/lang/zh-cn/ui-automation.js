@@ -522,8 +522,8 @@ export default {
       duration: '执行时长',
       durationSeconds: '耗时(秒)',
       executor: '执行人',
-      viewDetail: '查看详情',
-      viewReport: '查看报告',
+      viewDetail: '详情',
+      viewReport: '报告',
       executionDetail: '执行详情',
       taskDescription: '任务描述',
       executionLogs: '执行日志',
@@ -630,7 +630,7 @@ export default {
     // 元素定位提取
     elementLocator: {
       title: '元素定位信息',
-      viewElements: '元素定位',
+      viewElements: '元素提取',
       executionId: '执行ID',
       caseName: '用例名称',
       totalElements: '提取元素数',

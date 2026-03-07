@@ -14,7 +14,7 @@ export default {
   },
   menu: {
     // AI用例生成
-    intelligentCaseGeneration: '智能用例生成',
+    intelligentCaseGeneration: '智能用例',
     aiCaseGeneration: 'AI用例生成',
     aiGeneratedTestcases: 'AI用例记录',
     promptConfig: '提示词配置',
