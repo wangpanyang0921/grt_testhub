@@ -1,68 +1,64 @@
 <template>
-  <div class="ui-env-config">
-    <div class="page-header">
-      <h1>{{ $t('configuration.uiEnv.title') }}</h1>
-      <p>{{ $t('configuration.uiEnv.description') }}</p>
+  <div class="page-container">
+    <div class="card-container">
+      <div class="os-check-section">
+        <div class="os-info">
+          <div class="os-label">{{ $t('configuration.uiEnv.operatingSystem') }}</div>
+          <div class="os-name">{{ environmentData?.os || '-' }}</div>
+        </div>
+        <div class="check-action">
+          <el-button type="primary" class="check-btn" @click="checkEnvironment" :loading="checking">
+            <el-icon><Refresh /></el-icon>
+            {{ $t('configuration.uiEnv.checkEnvironment') }}
+          </el-button>
+          <div v-if="lastCheckTime" class="last-check">
+            {{ $t('configuration.uiEnv.lastCheckTime') }}: {{ lastCheckTime }}
+          </div>
+        </div>
+      </div>
     </div>
 
-    <div class="main-content">
-      <div class="check-section">
-        <el-button type="primary" size="large" @click="checkEnvironment" :loading="checking">
-          <el-icon><Refresh /></el-icon>
-          {{ $t('configuration.uiEnv.checkEnvironment') }}
-        </el-button>
-        <div v-if="lastCheckTime" class="last-check">
-          {{ $t('configuration.uiEnv.lastCheckTime') }}: {{ lastCheckTime }}
+    <div v-if="environmentData" class="card-container">
+      <!-- 系统浏览器 (Selenium) -->
+      <div class="section-title">
+        {{ $t('configuration.uiEnv.systemBrowsers') }}
+      </div>
+      <div class="browser-cards">
+        <div v-for="browser in environmentData.system_browsers" :key="browser.name" class="browser-card">
+          <div class="browser-content">
+            <div class="browser-icon">
+              <img :src="getBrowserIcon(browser.name)" :alt="browser.name" />
+            </div>
+            <div class="browser-info">
+              <h3>{{ formatBrowserName(browser.name) }}</h3>
+              <div class="status-row">
+                <el-tag :type="browser.installed ? 'success' : 'info'" effect="dark">
+                  {{ browser.installed ? (browser.version || $t('configuration.uiEnv.installed')) : $t('configuration.uiEnv.notInstalled') }}
+                </el-tag>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
-      <div v-if="environmentData" class="env-status-grid">
-        <div class="os-info-card">
-          <h3>{{ $t('configuration.uiEnv.operatingSystem') }}</h3>
-          <div class="os-name">{{ environmentData.os }}</div>
-        </div>
-
-        <!-- 系统浏览器 (Selenium) -->
-        <div class="section-title">
-          <h3>{{ $t('configuration.uiEnv.systemBrowsers') }}</h3>
-        </div>
-        <div class="browser-cards">
-          <div v-for="browser in environmentData.system_browsers" :key="browser.name" class="browser-card">
-              <div class="browser-content">
-                <div class="browser-icon">
-                  <img :src="getBrowserIcon(browser.name)" :alt="browser.name" />
-                </div>
-                <div class="browser-info">
-                  <h3>{{ formatBrowserName(browser.name) }}</h3>
-                  <div class="status-row">
-                    <el-tag :type="browser.installed ? 'success' : 'info'" effect="dark">
-                      {{ browser.installed ? (browser.version || $t('configuration.uiEnv.installed')) : $t('configuration.uiEnv.notInstalled') }}
-                    </el-tag>
-                  </div>
-                </div>
+      <!-- Playwright 浏览器 -->
+      <div class="section-title">
+        {{ $t('configuration.uiEnv.playwrightBrowsers') }}
+      </div>
+      <div class="browser-cards">
+        <div v-for="browser in environmentData.playwright_browsers" :key="browser.name" class="browser-card">
+          <div class="browser-content">
+            <div class="browser-icon">
+              <img :src="getBrowserIcon(browser.name)" :alt="browser.name" />
+            </div>
+            <div class="browser-info">
+              <h3>{{ formatBrowserName(browser.name) }}</h3>
+              <div class="status-row">
+                <el-tag :type="browser.installed ? 'success' : 'warning'" effect="dark">
+                  {{ browser.installed ? (browser.version || $t('configuration.uiEnv.installed')) : $t('configuration.uiEnv.notInstalled') }}
+                </el-tag>
               </div>
-          </div>
-        </div>
-
-        <!-- Playwright 浏览器 -->
-        <div class="section-title">
-          <h3>{{ $t('configuration.uiEnv.playwrightBrowsers') }}</h3>
-        </div>
-        <div class="browser-cards">
-          <div v-for="browser in environmentData.playwright_browsers" :key="browser.name" class="browser-card">
-              <div class="browser-content">
-                <div class="browser-icon">
-                  <img :src="getBrowserIcon(browser.name)" :alt="browser.name" />
-                </div>
-                <div class="browser-info">
-                  <h3>{{ formatBrowserName(browser.name) }}</h3>
-                  <div class="status-row">
-                    <el-tag :type="browser.installed ? 'success' : 'warning'" effect="dark">
-                      {{ browser.installed ? (browser.version || $t('configuration.uiEnv.installed')) : $t('configuration.uiEnv.notInstalled') }}
-                    </el-tag>
-                  </div>
-                </div>
-              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -80,7 +76,6 @@ import api from '@/utils/api'
 const { t } = useI18n()
 
 const checking = ref(false)
-const installing = ref(null)
 const lastCheckTime = ref('')
 const environmentData = ref(null)
 
@@ -115,131 +110,99 @@ const checkEnvironment = async () => {
   }
 }
 
-const installDriver = async (browserName) => {
-  installing.value = browserName
-  try {
-    await api.post('/ui-automation/config/environment/install_driver/', { browser: browserName })
-    ElMessage.success(t('configuration.uiEnv.messages.installSuccess', { browser: formatBrowserName(browserName) }))
-    // Re-check environment
-    await checkEnvironment()
-  } catch (error) {
-    console.error('Driver installation failed:', error)
-    ElMessage.error(`${t('configuration.uiEnv.messages.installFailed')}: ${error.response?.data?.error || error.message}`)
-  } finally {
-    installing.value = null
-  }
-}
-
 onMounted(() => {
   checkEnvironment()
 })
 </script>
 
-<style scoped>
-.ui-env-config {
-  padding: 20px;
-  max-width: 1200px;
-  margin: 0 auto;
-}
-
-.page-header {
-  text-align: center;
-  margin-bottom: 40px;
-  padding: 28px 20px;
-  background: linear-gradient(135deg, #ffffff 0%, #f5f3ff 100%);
-  border-radius: 20px;
-  box-shadow: 0 8px 32px rgba(147, 112, 219, 0.12);
-  border: 1px solid rgba(147, 112, 219, 0.2);
-}
-
-.page-header h1 {
-  font-size: 2.2rem;
-  color: #5a32a3;
-  margin-bottom: 12px;
-  font-weight: 700;
-  text-shadow: 0 1px 2px rgba(90, 50, 163, 0.1);
-  line-height: 1.2;
-}
-
-.page-header p {
-  color: #6d5d8f;
-  font-size: 1.05rem;
-  opacity: 0.9;
-  margin: 0;
-  line-height: 1.5;
-}
-
-.check-section {
+<style scoped lang="scss">
+.page-container {
+  margin: -20px;
+  min-height: calc(100% + 40px);
+  background: linear-gradient(135deg, #f5f3ff 0%, #ede9fe 100%);
   display: flex;
   flex-direction: column;
-  align-items: center;
-  margin-bottom: 40px;
-  gap: 10px;
+  line-height: 24px;
+  gap: 20px;
+  width: calc(100% + 40px);
+  box-sizing: border-box;
   padding: 24px;
-  background: linear-gradient(135deg, #ffffff 0%, #f5f3ff 100%);
-  border-radius: 16px;
-  box-shadow: 0 4px 20px rgba(147, 112, 219, 0.1);
-  border: 1px solid rgba(147, 112, 219, 0.2);
 }
 
-.last-check {
-  font-size: 0.9rem;
-  color: #6d5d8f;
-  font-style: italic;
-}
-
-.env-status-grid {
+.card-container {
+  background: #ffffff;
+  border: 1px solid rgba(147, 112, 219, 0.12);
+  border-radius: 12px;
+  box-shadow: 0 4px 16px rgba(147, 112, 219, 0.08);
   display: flex;
   flex-direction: column;
-  gap: 30px;
-}
-
-.os-info-card {
-  background: linear-gradient(135deg, #ffffff 0%, #f5f3ff 100%);
-  padding: 24px;
-  border-radius: 16px;
-  box-shadow: 0 4px 20px rgba(147, 112, 219, 0.1);
-  border: 1px solid rgba(147, 112, 219, 0.2);
-  text-align: center;
-  position: relative;
   overflow: hidden;
+  padding: 24px;
+
+  .section-title {
+    font-size: 16px;
+    font-weight: 600;
+    color: #262626;
+    margin-top: 32px;
+    margin-bottom: 20px;
+
+    &:first-child {
+      margin-top: 0;
+    }
+  }
 }
 
-.os-info-card::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 4px;
-  background: linear-gradient(90deg, #7b42f6 0%, #5a32a3 100%);
+.os-check-section {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 24px;
+
+  .os-info {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+
+    .os-label {
+      font-size: 14px;
+      color: #8c8c8c;
+    }
+
+    .os-name {
+      font-size: 20px;
+      font-weight: 600;
+      color: #7b42f6;
+    }
+  }
+
+  .check-action {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+
+    .last-check {
+      font-size: 12px;
+      color: #8c8c8c;
+    }
+  }
 }
 
-.os-info-card h3 {
-  color: #5a32a3;
-  font-size: 1.1rem;
-  margin-bottom: 12px;
-  font-weight: 600;
-}
+.check-btn {
+  background: linear-gradient(135deg, #7b42f6 0%, #5a32a3 100%) !important;
+  border: none !important;
+  font-weight: 500 !important;
+  padding: 10px 20px !important;
+  border-radius: 8px !important;
+  box-shadow: 0 4px 12px rgba(123, 66, 246, 0.3) !important;
 
-.os-name {
-  font-size: 1.5rem;
-  font-weight: bold;
-  color: #7b42f6;
-  margin-top: 10px;
-}
+  &:hover {
+    background: linear-gradient(135deg, #6d33e6 0%, #4a249c 100%) !important;
+    box-shadow: 0 6px 16px rgba(123, 66, 246, 0.4) !important;
+  }
 
-.section-title {
-  margin: 20px 0 10px;
-  border-left: 4px solid #7b42f6;
-  padding-left: 12px;
-}
-
-.section-title h3 {
-  margin: 0;
-  font-size: 1.2rem;
-  color: #5a32a3;
-  font-weight: 600;
+  .el-icon {
+    margin-right: 6px;
+  }
 }
 
 .browser-cards {
@@ -249,30 +212,17 @@ onMounted(() => {
 }
 
 .browser-card {
-  background: linear-gradient(135deg, #ffffff 0%, #f5f3ff 100%);
-  border-radius: 16px;
+  background: #ffffff;
+  border-radius: 12px;
   padding: 20px;
-  box-shadow: 0 4px 20px rgba(147, 112, 219, 0.1);
-  border: 1px solid rgba(147, 112, 219, 0.2);
+  box-shadow: 0 2px 12px rgba(147, 112, 219, 0.08);
+  border: 1px solid rgba(147, 112, 219, 0.1);
   transition: all 0.3s ease;
-  cursor: default;
-  position: relative;
-  overflow: hidden;
-}
 
-.browser-card::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 4px;
-  background: linear-gradient(90deg, #7b42f6 0%, #5a32a3 100%);
-}
-
-.browser-card:hover {
-  transform: translateY(-3px);
-  box-shadow: 0 8px 32px rgba(147, 112, 219, 0.15);
+  &:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 20px rgba(147, 112, 219, 0.15);
+  }
 }
 
 .browser-content {
@@ -289,36 +239,27 @@ onMounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-}
 
-.browser-icon img {
-  width: 48px;
-  height: 48px;
-  object-fit: contain;
+  img {
+    width: 48px;
+    height: 48px;
+    object-fit: contain;
+  }
 }
 
 .browser-info {
   width: 100%;
   text-align: center;
-  margin-bottom: 15px;
-}
 
-.browser-info h3 {
-  margin: 0 0 10px;
-  color: #5a32a3;
-  font-size: 1.1rem;
-  font-weight: 600;
+  h3 {
+    margin: 0 0 10px;
+    color: #262626;
+    font-size: 16px;
+    font-weight: 600;
+  }
 }
 
 .status-row {
-  display: flex;
-  justify-content: center;
-  margin-bottom: 5px;
-}
-
-.browser-actions {
-  margin-top: 10px;
-  width: 100%;
   display: flex;
   justify-content: center;
 }

@@ -1,7 +1,9 @@
 <template>
   <div class="page-container">
-    <div class="page-header">
-      <h1 class="page-title">{{ $t('uiAutomation.scheduledTask.title') }}</h1>
+    <div class="page-header-card">
+      <div class="page-header-content">
+        <h1>{{ $t('uiAutomation.scheduledTask.title') }}</h1>
+      </div>
       <el-button type="primary" class="create-btn" @click="handleCreateClick">
         <el-icon><Plus /></el-icon>
         {{ $t('uiAutomation.scheduledTask.newTask') }}
@@ -9,7 +11,7 @@
     </div>
 
     <!-- 筛选条件 -->
-    <div class="filter-bar">
+    <div class="filter-bar card-container">
       <el-row :gutter="20">
         <el-col :span="6">
           <el-select v-model="filters.task_type" :placeholder="$t('uiAutomation.scheduledTask.taskType')" clearable>
@@ -139,7 +141,9 @@
       v-model="showCreateDialog"
       :title="editingTask ? $t('uiAutomation.scheduledTask.editTask') : $t('uiAutomation.scheduledTask.createTask')"
       width="800px"
+      :close-on-click-modal="false"
       @close="resetTaskForm"
+      class="task-dialog"
     >
       <el-form :model="taskForm" label-width="120px">
         <el-form-item :label="$t('uiAutomation.scheduledTask.taskName')" required>
@@ -292,10 +296,12 @@
       </el-form>
 
       <template #footer>
-        <el-button @click="showCreateDialog = false">{{ $t('uiAutomation.common.cancel') }}</el-button>
-        <el-button type="primary" @click="submitTaskForm" :loading="submitting">
-          {{ editingTask ? $t('uiAutomation.messages.success.update') : $t('uiAutomation.messages.success.create') }}
-        </el-button>
+        <div class="dialog-footer">
+          <el-button class="cancel-btn" @click="showCreateDialog = false">{{ $t('uiAutomation.common.cancel') }}</el-button>
+          <el-button type="primary" class="save-btn" @click="submitTaskForm" :loading="submitting">
+            {{ editingTask ? $t('uiAutomation.scheduledTask.saveTask') : $t('uiAutomation.scheduledTask.createTaskBtn') }}
+          </el-button>
+        </div>
       </template>
     </el-dialog>
   </div>
@@ -711,129 +717,103 @@ const deleteTask = async (task) => {
 </script>
 
 <style scoped lang="scss">
+:root {
+  --primary-color: #7b42f6;
+  --primary-dark: #5a32a3;
+  --primary-light: #f8f7ff;
+  --border-color: #e8e8e8;
+  --text-primary: #262626;
+  --text-secondary: #595959;
+  --text-tertiary: #8c8c8c;
+  --bg-light: #ffffff;
+  --bg-gray: #fafafa;
+  --success-color: #52c41a;
+  --warning-color: #faad14;
+  --danger-color: #ff4d4f;
+  --info-color: #1890ff;
+}
+
 .page-container {
-  padding: 24px;
-  min-height: calc(100vh - 60px);
+  margin: -20px;
+  min-height: calc(100% + 40px);
   background: linear-gradient(135deg, #f5f3ff 0%, #ede9fe 100%);
   display: flex;
   flex-direction: column;
   line-height: 24px;
   gap: 20px;
+  width: calc(100% + 40px);
+  box-sizing: border-box;
+  padding: 24px;
 }
 
-.page-header {
+.page-header-card {
+  padding: 24px 28px;
+  background: #ffffff;
+  border-radius: 16px;
+  box-shadow: 0 4px 20px rgba(147, 112, 219, 0.1);
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 24px 28px;
-  background: linear-gradient(135deg, #ffffff 0%, #f8f7ff 100%);
-  border-radius: 12px;
-  box-shadow: 0 4px 16px rgba(147, 112, 219, 0.1);
-  border: 1px solid rgba(147, 112, 219, 0.1);
-}
+  gap: 16px;
 
-.page-title {
-  font-size: 24px;
-  font-weight: 700;
-  color: #5a32a3;
-  margin: 0;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  background: linear-gradient(135deg, #7b42f6 0%, #5a32a3 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
+  .page-header-content {
+    display: flex;
+    align-items: center;
+
+    h1 {
+      font-size: 20px;
+      font-weight: 600;
+      color: #262626;
+      margin: 0;
+    }
+  }
 }
 
 .create-btn {
   background: linear-gradient(135deg, #7b42f6 0%, #5a32a3 100%) !important;
   border: none !important;
-  color: #ffffff !important;
+  color: white !important;
   font-weight: 600 !important;
   padding: 10px 20px !important;
   border-radius: 8px !important;
-  box-shadow: 0 4px 12px rgba(123, 66, 246, 0.3) !important;
   transition: all 0.3s ease !important;
+  box-shadow: 0 4px 12px rgba(123, 66, 246, 0.3) !important;
+
+  .el-icon {
+    margin-right: 6px;
+  }
 
   &:hover {
     background: linear-gradient(135deg, #6d33e6 0%, #4a249c 100%) !important;
     transform: translateY(-2px) !important;
-    box-shadow: 0 6px 16px rgba(123, 66, 246, 0.4) !important;
-  }
-
-  .el-icon {
-    color: #ffffff !important;
-    margin-right: 6px;
+    box-shadow: 0 6px 20px rgba(123, 66, 246, 0.4) !important;
   }
 }
 
 .filter-bar {
   padding: 20px 24px;
-  background: #ffffff;
-  border: 1px solid rgba(147, 112, 219, 0.12);
-  border-radius: 12px;
-  box-shadow: 0 4px 16px rgba(147, 112, 219, 0.08);
-
-  :deep(.el-input__wrapper) {
-    border-radius: 8px;
-    border: 1px solid rgba(147, 112, 219, 0.2);
-    background: #ffffff;
-    box-shadow: none;
-
-    &:hover {
-      border-color: #7b42f6;
-      box-shadow: 0 0 0 3px rgba(123, 66, 246, 0.1);
-    }
-
-    &.is-focus {
-      border-color: #7b42f6;
-      box-shadow: 0 0 0 3px rgba(123, 66, 246, 0.15);
-    }
-  }
-
-  :deep(.el-input__inner) {
-    color: #5a32a3;
-    font-weight: 500;
-  }
 
   :deep(.el-select) {
     width: 100%;
   }
-
-  :deep(.el-select .el-input__wrapper) {
-    border-radius: 8px;
-    border: 1px solid rgba(147, 112, 219, 0.2);
-    background: #ffffff;
-    box-shadow: none;
-
-    &:hover {
-      border-color: #7b42f6;
-      box-shadow: 0 0 0 3px rgba(123, 66, 246, 0.1);
-    }
-  }
 }
 
 .reset-btn {
-  background: #f8f7ff !important;
-  border: 1px solid rgba(147, 112, 219, 0.2) !important;
-  color: #5a32a3 !important;
-  font-weight: 500 !important;
-  padding: 9px 20px !important;
+  padding: 10px 24px !important;
   border-radius: 8px !important;
-  transition: all 0.3s ease !important;
+  font-weight: 500 !important;
 
   &:hover {
-    background: #ede9fe !important;
-    border-color: #7b42f6 !important;
-    transform: translateY(-1px);
+    color: #7b42f6;
+    border-color: #7b42f6;
+    background: #f8f7ff;
   }
 }
 
 .query-btn {
   background: linear-gradient(135deg, #7b42f6 0%, #5a32a3 100%) !important;
   border: none !important;
-  color: #ffffff !important;
+  color: white !important;
   font-weight: 600 !important;
   padding: 10px 24px !important;
   border-radius: 8px !important;
@@ -843,7 +823,7 @@ const deleteTask = async (task) => {
   &:hover {
     background: linear-gradient(135deg, #6d33e6 0%, #4a249c 100%) !important;
     transform: translateY(-2px) !important;
-    box-shadow: 0 6px 16px rgba(123, 66, 246, 0.4) !important;
+    box-shadow: 0 6px 20px rgba(123, 66, 246, 0.4) !important;
   }
 }
 
@@ -866,8 +846,7 @@ const deleteTask = async (task) => {
     transition: all 0.3s ease;
     background-color: transparent !important;
 
-    /* 覆盖 Element Plus 默认主题变量 */
-    --el-color-primary: var(--primary-color);
+    --el-color-primary: #7b42f6;
     --el-color-primary-light-3: #9370db;
     --el-color-primary-light-5: #a888e0;
     --el-color-primary-light-7: #c2a9f3;
@@ -890,15 +869,12 @@ const deleteTask = async (task) => {
       display: none;
     }
 
-    // 表头包装器
     :deep(.el-table__header-wrapper) {
       background-color: #ffffff !important;
 
-      // 表头
       :deep(.el-table__header) {
         background-color: #ffffff !important;
 
-        // 表头单元格
         :deep(th) {
           background-color: #ffffff !important;
           color: #5a32a3;
@@ -906,7 +882,7 @@ const deleteTask = async (task) => {
           font-size: 14px;
           border-bottom: 1px solid #e9ecef;
           padding: 16px;
-          text-align: left;
+          text-align: center;
           line-height: 24px;
           transition: all 0.3s ease;
 
@@ -914,7 +890,6 @@ const deleteTask = async (task) => {
             background-color: #ffffff !important;
           }
 
-          // 表头单元格内部
           :deep(.cell) {
             background-color: #ffffff !important;
             color: #5a32a3 !important;
@@ -924,33 +899,26 @@ const deleteTask = async (task) => {
       }
     }
 
-    // 表格体包装器
     :deep(.el-table__body-wrapper) {
-      background-color: #ffffff !important;
+      :deep(.el-table__body) {
+        :deep(tr) {
+          transition: all 0.3s ease;
 
-      // 表格行
-      :deep(.el-table__row) {
-        transition: all 0.3s ease;
-        background-color: #ffffff !important;
+          &:hover {
+            background-color: #f8f7ff !important;
+          }
 
-        &:hover {
-          background-color: #f8f7ff !important;
-          transform: translateY(-1px);
-          box-shadow: 0 4px 12px rgba(147, 112, 219, 0.1);
+          &.el-table__row--striped {
+            background-color: #fafaff !important;
+          }
         }
 
-        // 表格单元格
         :deep(td) {
-          background-color: #ffffff !important;
           border-bottom: 1px solid #e9ecef;
           padding: 16px;
-          text-align: left;
-          line-height: 24px;
+          color: #333;
+          text-align: center;
           transition: all 0.3s ease;
-        }
-
-        &:hover :deep(td) {
-          background-color: #f8f7ff !important;
         }
       }
     }
@@ -959,28 +927,29 @@ const deleteTask = async (task) => {
 
 .action-buttons {
   display: flex;
+  gap: 6px;
   justify-content: center;
-  align-items: center;
-  gap: 4px;
-  flex-wrap: nowrap;
 }
 
 .action-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 10px !important;
+  min-width: 32px;
+
+  .el-icon {
+    font-size: 14px;
+  }
+
   &.run-btn {
-    background: linear-gradient(135deg, #67c23a 0%, #529b2e 100%) !important;
-    border: none !important;
-    color: #ffffff !important;
-    font-weight: 600 !important;
-    padding: 4px 10px !important;
-    border-radius: 6px !important;
-    box-shadow: 0 2px 8px rgba(103, 194, 58, 0.3) !important;
-    transition: all 0.3s ease !important;
-    white-space: nowrap;
+    background: #52c41a;
+    border-color: #52c41a;
+    color: white !important;
 
     &:hover {
-      background: linear-gradient(135deg, #5daf34 0%, #458a28 100%) !important;
-      transform: translateY(-2px) !important;
-      box-shadow: 0 4px 12px rgba(103, 194, 58, 0.4) !important;
+      background: #73d13d !important;
+      border-color: #73d13d !important;
     }
 
     span {
@@ -989,20 +958,13 @@ const deleteTask = async (task) => {
   }
 
   &.more-btn {
-    background: linear-gradient(135deg, #7b42f6 0%, #5a32a3 100%) !important;
-    border: none !important;
-    color: #ffffff !important;
-    font-weight: 600 !important;
-    padding: 4px 10px !important;
-    border-radius: 6px !important;
-    box-shadow: 0 2px 8px rgba(123, 66, 246, 0.3) !important;
-    transition: all 0.3s ease !important;
-    white-space: nowrap;
+    background: #7c3aed;
+    border-color: #7c3aed;
+    color: white !important;
 
     &:hover {
-      background: linear-gradient(135deg, #6d33e6 0%, #4a249c 100%) !important;
-      transform: translateY(-2px) !important;
-      box-shadow: 0 4px 12px rgba(123, 66, 246, 0.4) !important;
+      background: #8b5cf6 !important;
+      border-color: #8b5cf6 !important;
     }
 
     span {
@@ -1010,7 +972,6 @@ const deleteTask = async (task) => {
     }
 
     .el-icon {
-      color: #ffffff !important;
       margin-left: 3px;
       font-size: 12px;
     }
@@ -1021,81 +982,24 @@ const deleteTask = async (task) => {
   display: flex;
   justify-content: center;
   align-items: center;
-  padding: 8px 24px;
+  padding: 16px 24px;
   background: transparent;
   border-top: 1px solid rgba(147, 112, 219, 0.1);
-  transition: all 0.3s ease;
-  margin-top: 0;
-
-  /* 覆盖 Element Plus 默认主题变量 */
-  --el-color-primary: var(--primary-color);
-  --el-color-primary-light-3: #9370db;
-  --el-color-primary-light-5: #a888e0;
-  --el-color-primary-light-7: #c2a9f3;
-  --el-color-primary-light-9: #f8f7ff;
-  --el-border-color: rgba(147, 112, 219, 0.2);
-  --el-border-color-light: rgba(147, 112, 219, 0.15);
-  --el-border-color-lighter: rgba(147, 112, 219, 0.1);
-  --el-fill-color-light: #f8f7ff;
-  --el-fill-color-lighter: #f8f7ff;
-  --el-fill-color-blank: #f8f7ff;
-  --el-text-color-primary: var(--text-primary);
-  --el-text-color-regular: var(--text-secondary);
-  --el-text-color-secondary: var(--text-tertiary);
 
   :deep(.el-pagination) {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    font-weight: 500;
+    --el-color-primary: #7b42f6;
 
-    // 总条数
     .el-pagination__total {
       color: #5a32a3;
-      font-size: 14px;
       font-weight: 500;
-      margin-right: 12px;
     }
 
-    // 每页条数选择器
-    .el-pagination__sizes {
-      margin-right: 12px;
-
-      .el-select {
-        .el-input__wrapper {
-          border-radius: 8px;
-          border: 1px solid rgba(147, 112, 219, 0.2);
-          background: #ffffff;
-          box-shadow: none;
-
-          &:hover {
-            border-color: #7b42f6;
-            box-shadow: 0 0 0 3px rgba(123, 66, 246, 0.1);
-          }
-
-          &.is-focus {
-            border-color: #7b42f6;
-            box-shadow: 0 0 0 3px rgba(123, 66, 246, 0.15);
-          }
-        }
-
-        .el-input__inner {
-          color: #5a32a3;
-          font-weight: 500;
-        }
-      }
-    }
-
-    // 上一页/下一页按钮
     .btn-prev,
     .btn-next {
-      width: 32px;
-      height: 32px;
       border-radius: 8px;
       border: 1px solid rgba(147, 112, 219, 0.2);
       background: #ffffff;
       color: #5a32a3;
-      transition: all 0.3s ease;
 
       &:hover:not(:disabled) {
         background: linear-gradient(135deg, #7b42f6 0%, #5a32a3 100%);
@@ -1111,85 +1015,79 @@ const deleteTask = async (task) => {
       }
     }
 
-    // 页码
-    .el-pager {
-      display: flex;
-      gap: 4px;
-
-      li {
-        min-width: 32px;
-        height: 32px;
-        padding: 0 8px;
-        border-radius: 8px;
-        border: 1px solid rgba(147, 112, 219, 0.2);
-        background: #ffffff;
-        color: #5a32a3;
-        font-size: 14px;
-        font-weight: 500;
-        transition: all 0.3s ease;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-
-        &:hover:not(.is-active) {
-          background: rgba(123, 66, 246, 0.1);
-          border-color: #7b42f6;
-          color: #7b42f6;
-          transform: translateY(-1px);
-        }
-
-        &.is-active {
-          background: linear-gradient(135deg, #7b42f6 0%, #5a32a3 100%);
-          border-color: transparent;
-          color: white;
-          box-shadow: 0 4px 12px rgba(123, 66, 246, 0.3);
-          font-weight: 600;
-        }
-
-        &.btn-quicknext,
-        &.btn-quickprev {
-          color: #9370db;
-
-          &:hover {
-            color: #7b42f6;
-          }
-        }
-      }
-    }
-
-    // 跳转页
-    .el-pagination__jump {
-      margin-left: 12px;
+    .el-pager li {
+      border-radius: 8px;
+      border: 1px solid rgba(147, 112, 219, 0.2);
+      background: #ffffff;
       color: #5a32a3;
       font-weight: 500;
 
-      .el-input {
-        width: 48px;
-        margin: 0 8px;
+      &.is-active {
+        background: linear-gradient(135deg, #7b42f6 0%, #5a32a3 100%);
+        border-color: transparent;
+        color: white;
+      }
+    }
 
-        .el-input__wrapper {
-          border-radius: 8px;
-          border: 1px solid rgba(147, 112, 219, 0.2);
-          background: #ffffff;
-          box-shadow: none;
-          padding: 0 8px;
+    .el-pagination__jump {
+      color: #5a32a3;
+      font-weight: 500;
+    }
+  }
+}
 
-          &:hover {
-            border-color: #7b42f6;
-            box-shadow: 0 0 0 3px rgba(123, 66, 246, 0.1);
-          }
+// 对话框样式
+:deep(.task-dialog) {
+  .el-dialog__header {
+    padding: 20px 24px;
+    margin: 0;
+    border-bottom: 1px solid #f0f0f0;
 
-          &.is-focus {
-            border-color: #7b42f6;
-            box-shadow: 0 0 0 3px rgba(123, 66, 246, 0.15);
-          }
-        }
+    .el-dialog__title {
+      font-size: 16px;
+      font-weight: 600;
+      color: #333;
+    }
+  }
 
-        .el-input__inner {
-          color: #5a32a3;
-          font-weight: 500;
-          text-align: center;
-        }
+  .el-dialog__body {
+    padding: 24px;
+  }
+
+  .el-form-item__label {
+    font-weight: 500;
+    color: #333;
+  }
+
+  .dialog-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+    padding: 16px 24px 0;
+
+    .cancel-btn {
+      padding: 10px 24px;
+      border-radius: 8px;
+      font-weight: 500;
+
+      &:hover {
+        color: #7b42f6;
+        border-color: #7b42f6;
+        background: #f8f7ff;
+      }
+    }
+
+    .save-btn {
+      padding: 10px 24px;
+      border-radius: 8px;
+      font-weight: 500;
+      background: linear-gradient(135deg, #7b42f6 0%, #5a32a3 100%);
+      border: none;
+      box-shadow: 0 4px 12px rgba(123, 66, 246, 0.3);
+
+      &:hover {
+        background: linear-gradient(135deg, #6d33e6 0%, #4a249c 100%);
+        box-shadow: 0 6px 16px rgba(123, 66, 246, 0.4);
       }
     }
   }

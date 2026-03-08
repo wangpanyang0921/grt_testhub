@@ -134,8 +134,19 @@ class EnvironmentConfigViewSet(viewsets.ViewSet):
                 'install_cmd': install_cmd
             })
 
+        # 获取更友好的系统名称
+        system_name = platform.system()
+        if system_name == 'Darwin':
+            os_friendly_name = 'MacOS'
+        elif system_name == 'Windows':
+            os_friendly_name = 'Windows'
+        elif system_name == 'Linux':
+            os_friendly_name = 'Linux'
+        else:
+            os_friendly_name = system_name
+
         return Response({
-            'os': platform.system(),
+            'os': os_friendly_name,
             'system_browsers': system_results,
             'playwright_browsers': playwright_results
         })

@@ -31,6 +31,7 @@ class DataFactoryRecord(models.Model):
     tool_name = models.CharField(max_length=100, verbose_name='工具名称')
     tool_category = models.CharField(max_length=20, choices=TOOL_CATEGORIES, verbose_name='工具分类')
     tool_scenario = models.CharField(max_length=20, choices=TOOL_SCENARIOS, verbose_name='使用场景')
+    custom_name = models.CharField(max_length=200, verbose_name='自定义名称', null=True, blank=True)
     input_data = models.JSONField(verbose_name='输入数据', null=True, blank=True)
     output_data = models.JSONField(verbose_name='输出数据')
     is_saved = models.BooleanField(default=True, verbose_name='是否保存')

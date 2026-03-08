@@ -497,7 +497,18 @@ export default {
     enableFailed: 'Failed to enable',
     deleteSuccess: 'Configuration deleted successfully',
     deleteFailed: 'Failed to delete',
-    deleteConfirm: 'Are you sure to delete this configuration?'
+    deleteConfirm: 'Are you sure to delete this configuration?',
+
+    // Common
+    unnamed: 'Unnamed',
+    operation: 'Operation',
+    confirm: 'Confirm',
+    nameRequired: 'Please enter config name',
+    outputModeRequired: 'Please select output mode',
+    selectOutputMode: 'Please select output mode',
+
+    // Table Headers
+    status: 'Status'
   },
 
   // Task Detail Page

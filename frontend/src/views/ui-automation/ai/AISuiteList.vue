@@ -45,28 +45,19 @@
             </span>
           </template>
         </el-table-column>
-        <el-table-column label="通过数" width="90" header-align="center" align="center">
-          <template #default="{ row }">
-            <span style="color: #67c23a; font-weight: bold;">{{ row.passed_count || 0 }}</span>
-          </template>
-        </el-table-column>
-        <el-table-column label="失败数" width="90" header-align="center" align="center">
-          <template #default="{ row }">
-            <span style="color: #f56c6c; font-weight: bold;">{{ row.failed_count || 0 }}</span>
-          </template>
-        </el-table-column>
         <el-table-column prop="created_at" label="创建时间" width="180" :formatter="formatDate" header-align="center" align="center" />
         <el-table-column prop="updated_at" label="更新时间" width="180" :formatter="formatDate" header-align="center" align="center" />
+        <el-table-column prop="creator_name" label="创建人" width="120" header-align="center" align="center" />
         <el-table-column label="操作" width="280" fixed="right" header-align="center" align="center">
           <template #default="{ row }">
             <div class="action-buttons">
+              <el-button size="small" type="success" class="action-btn run-btn" @click="runSuite(row)">
+                <el-icon><VideoPlay /></el-icon>
+                <span>运行</span>
+              </el-button>
               <el-button size="small" type="primary" class="action-btn edit-btn" @click="editSuite(row.id)">
                 <el-icon><Edit /></el-icon>
                 <span>编辑</span>
-              </el-button>
-              <el-button size="small" class="action-btn run-btn" @click="runSuite(row)">
-                <el-icon><RefreshRight /></el-icon>
-                <span>运行</span>
               </el-button>
               <el-button size="small" type="danger" class="action-btn delete-btn" @click="deleteSuite(row.id)">
                 <el-icon><Delete /></el-icon>
@@ -241,7 +232,7 @@
 import { ref, reactive, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
-  Plus, Search, Edit, Delete, RefreshRight,
+  Plus, Search, Edit, Delete, VideoPlay,
   ArrowRight, Top, Bottom
 } from '@element-plus/icons-vue'
 import {

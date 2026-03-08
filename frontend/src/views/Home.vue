@@ -5,23 +5,24 @@
       <div class="user-dropdown">
         <el-dropdown trigger="click" @command="handleCommand">
           <div class="user-info">
-            <el-avatar 
-              :size="40" 
-              :src="userAvatar" 
-              class="user-avatar"
-            >
-              {{ userInitials }}
-            </el-avatar>
-            <span class="username">{{ userName }}</span>
-            <el-icon class="dropdown-arrow"><ArrowDown /></el-icon>
+            <template v-if="!isLoggingOut">
+              <el-avatar
+                :size="40"
+                :src="userAvatar"
+                class="user-avatar"
+              >
+                {{ userInitials }}
+              </el-avatar>
+              <span class="username">{{ userName }}</span>
+              <el-icon class="dropdown-arrow"><ArrowDown /></el-icon>
+            </template>
+            <template v-else>
+              <div class="logout-placeholder"></div>
+            </template>
           </div>
           <template #dropdown>
             <el-dropdown-menu class="user-dropdown-menu">
-              <el-dropdown-item command="profile">
-                <el-icon><User /></el-icon>
-                <span>个人中心</span>
-              </el-dropdown-item>
-              <el-dropdown-item divided command="logout">
+              <el-dropdown-item command="logout">
                 <el-icon><SwitchButton /></el-icon>
                 <span>退出登录</span>
               </el-dropdown-item>
@@ -36,7 +37,7 @@
       <p class="subtitle">{{ $t('home.subtitle') }}</p>
 
       <div class="cards-container">
-        <!-- AI用例 -->
+        <!-- AI智能用例 -->
         <div class="nav-card" @click="handleNavigate('ai')" role="button" tabindex="0">
           <div class="card-icon ai-icon">
             <el-icon><MagicStick /></el-icon>
@@ -45,7 +46,7 @@
           <p>{{ $t('home.aiCaseDesc') }}</p>
         </div>
 
-        <!-- AI智能 -->
+        <!-- AI智能测试 -->
         <div class="nav-card" @click="handleNavigate('ai-intelligent')" role="button" tabindex="0">
           <div class="card-icon ai-intelligent-icon">
             <el-icon><Cpu /></el-icon>
@@ -54,22 +55,22 @@
           <p>{{ $t('home.aiIntelligentDesc') }}</p>
         </div>
 
-        <!-- Web自动化 -->
-        <div class="nav-card" @click="handleNavigate('ui')" role="button" tabindex="0">
-          <div class="card-icon ui-icon">
-            <el-icon><Monitor /></el-icon>
-          </div>
-          <h3>Web自动化</h3>
-          <p>可视化的Web UI自动化测试</p>
-        </div>
-
-        <!-- 数据工厂 -->
+        <!-- 数据工具箱 -->
         <div class="nav-card" @click="handleNavigate('data')" role="button" tabindex="0">
           <div class="card-icon data-icon">
             <el-icon><DataLine /></el-icon>
           </div>
           <h3>{{ $t('home.dataFactory') }}</h3>
           <p>{{ $t('home.dataFactoryDesc') }}</p>
+        </div>
+
+        <!-- 配置中心 -->
+        <div class="nav-card" @click="handleNavigate('config')" role="button" tabindex="0">
+          <div class="card-icon config-icon">
+            <el-icon><Setting /></el-icon>
+          </div>
+          <h3>{{ $t('home.configCenter') }}</h3>
+          <p>{{ $t('home.configCenterDesc') }}</p>
         </div>
 
         <!-- AI知识库 -->
@@ -81,13 +82,13 @@
           <p>{{ $t('home.aiKnowledgeBaseDesc') }}</p>
         </div>
 
-        <!-- 接口测试 -->
-        <div class="nav-card" @click="handleNavigate('api')" role="button" tabindex="0">
-          <div class="card-icon api-icon">
-            <el-icon><Link /></el-icon>
+        <!-- Web自动化 -->
+        <div class="nav-card" @click="handleNavigate('ui')" role="button" tabindex="0">
+          <div class="card-icon ui-icon">
+            <el-icon><Monitor /></el-icon>
           </div>
-          <h3>{{ $t('home.apiTesting') }}</h3>
-          <p>{{ $t('home.apiTestingDesc') }}</p>
+          <h3>Web自动化</h3>
+          <p>可视化的Web UI自动化测试</p>
         </div>
 
         <!-- APP自动化 -->
@@ -99,13 +100,13 @@
           <p>可视化的Android App自动化测试</p>
         </div>
 
-        <!-- 配置中心 -->
-        <div class="nav-card" @click="handleNavigate('config')" role="button" tabindex="0">
-          <div class="card-icon config-icon">
-            <el-icon><Setting /></el-icon>
+        <!-- 接口测试 -->
+        <div class="nav-card" @click="handleNavigate('api')" role="button" tabindex="0">
+          <div class="card-icon api-icon">
+            <el-icon><Link /></el-icon>
           </div>
-          <h3>{{ $t('home.configCenter') }}</h3>
-          <p>{{ $t('home.configCenterDesc') }}</p>
+          <h3>{{ $t('home.apiTesting') }}</h3>
+          <p>{{ $t('home.apiTestingDesc') }}</p>
         </div>
       </div>
     </div>
@@ -113,7 +114,7 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
@@ -126,12 +127,19 @@ const { t } = useI18n()
 const appStore = useAppStore()
 const userStore = useUserStore()
 
+// 退出登录中标志，用于隐藏头像避免闪烁默认图
+const isLoggingOut = ref(false)
+
 // 用户信息
 const userName = computed(() => {
   return userStore.user?.username || userStore.user?.first_name || '用户'
 })
 
 const userAvatar = computed(() => {
+  // 退出登录过程中不显示头像
+  if (isLoggingOut.value) {
+    return ''
+  }
   return userStore.user?.avatar || ''
 })
 
@@ -155,8 +163,9 @@ const handleCommand = (command) => {
 
 // 退出登录
 const handleLogout = async () => {
+  // 设置退出登录标志，避免头像闪烁默认图
+  isLoggingOut.value = true
   await userStore.logout()
-  ElMessage.success('已退出登录')
 }
 
 const handleNavigate = (type) => {
@@ -228,6 +237,13 @@ const handleNavigate = (type) => {
       font-size: 12px;
       color: #6b7280;
       transition: transform 0.3s ease, color 0.3s ease;
+    }
+
+    .logout-placeholder {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, rgba(123, 66, 246, 0.2) 0%, rgba(139, 92, 246, 0.1) 100%);
     }
 
     &:hover {
@@ -354,7 +370,7 @@ const handleNavigate = (type) => {
 }
 
 .main-title {
-  font-size: 42px;
+  font-size: 52px;
   font-weight: 700;
   color: #2c3e50;
   margin-bottom: 16px;
@@ -503,7 +519,7 @@ const handleNavigate = (type) => {
   }
 
   .main-title {
-    font-size: 32px;
+    font-size: 36px;
   }
 }
 </style>

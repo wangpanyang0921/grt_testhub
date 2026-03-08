@@ -102,8 +102,10 @@
     <el-dialog
       v-model="showCreateDialog"
       :title="isEditing ? $t('uiAutomation.suite.editSuite') : $t('uiAutomation.suite.createSuite')"
-      width="900px"
+      width="85%"
       :close-on-click-modal="false"
+      class="suite-edit-dialog"
+      :max-width="1200"
     >
       <el-form ref="createFormRef" :model="createForm" :rules="formRules" label-width="100px">
         <el-form-item :label="$t('uiAutomation.suite.suiteName')" prop="name">
@@ -137,22 +139,22 @@
                   @row-click="handleScriptRowClick"
                   :row-class-name="getScriptRowClassName"
                 >
-                  <el-table-column prop="name" label="脚本名称" min-width="150" show-overflow-tooltip />
-                  <el-table-column prop="language" label="语言" width="80">
+                  <el-table-column prop="name" label="脚本名称" min-width="120" show-overflow-tooltip />
+                  <el-table-column prop="language" label="语言" width="70">
                     <template #default="{ row }">
                       <el-tag size="small" :type="row.language === 'python' ? 'success' : 'primary'">
                         {{ row.language }}
                       </el-tag>
                     </template>
                   </el-table-column>
-                  <el-table-column prop="framework" label="框架" width="90">
+                  <el-table-column prop="framework" label="框架" width="80">
                     <template #default="{ row }">
                       <el-tag size="small" type="info">
                         {{ row.framework }}
                       </el-tag>
                     </template>
                   </el-table-column>
-                  <el-table-column label="操作" width="80">
+                  <el-table-column label="操作" width="60" align="center">
                     <template #default="{ row }">
                       <el-button size="small" text @click.stop="addScript(row)">
                         <el-icon><ArrowRight /></el-icon>
@@ -172,21 +174,22 @@
                   :data="selectedScripts"
                   height="200"
                 >
-                  <el-table-column prop="name" label="脚本名称" min-width="150" show-overflow-tooltip />
-                  <el-table-column prop="language" label="语言" width="80">
+                  <el-table-column prop="name" label="脚本名称" min-width="120" show-overflow-tooltip />
+                  <el-table-column prop="language" label="语言" width="70">
                     <template #default="{ row }">
                       <el-tag size="small" :type="row.language === 'python' ? 'success' : 'primary'">
                         {{ row.language }}
                       </el-tag>
                     </template>
                   </el-table-column>
-                  <el-table-column label="操作" width="120">
+                  <el-table-column label="操作" width="90" align="center">
                     <template #default="{ row, $index }">
                       <el-button
                         size="small"
                         text
                         @click="moveScriptUp($index)"
                         :disabled="$index === 0"
+                        title="上移"
                       >
                         <el-icon><Top /></el-icon>
                       </el-button>
@@ -195,6 +198,7 @@
                         text
                         @click="moveScriptDown($index)"
                         :disabled="$index === selectedScripts.length - 1"
+                        title="下移"
                       >
                         <el-icon><Bottom /></el-icon>
                       </el-button>
@@ -203,6 +207,7 @@
                         text
                         type="danger"
                         @click="removeScript($index)"
+                        title="删除"
                       >
                         <el-icon><Delete /></el-icon>
                       </el-button>
@@ -239,22 +244,22 @@
                   @row-click="handleTestCaseRowClick"
                   :row-class-name="getTestCaseRowClassName"
                 >
-                  <el-table-column prop="name" :label="$t('uiAutomation.suite.caseName')" min-width="150" show-overflow-tooltip />
-                  <el-table-column prop="priority" :label="$t('uiAutomation.suite.priority')" width="80">
+                  <el-table-column prop="name" :label="$t('uiAutomation.suite.caseName')" min-width="120" show-overflow-tooltip />
+                  <el-table-column prop="priority" :label="$t('uiAutomation.suite.priority')" width="70">
                     <template #default="{ row }">
                       <el-tag size="small" :type="getPriorityTag(row.priority)">
                         {{ getPriorityText(row.priority) }}
                       </el-tag>
                     </template>
                   </el-table-column>
-                  <el-table-column prop="status" :label="$t('uiAutomation.common.status')" width="80">
+                  <el-table-column prop="status" :label="$t('uiAutomation.common.status')" width="70">
                     <template #default="{ row }">
                       <el-tag size="small" :type="getCaseStatusTag(row.status)">
                         {{ getCaseStatusText(row.status) }}
                       </el-tag>
                     </template>
                   </el-table-column>
-                  <el-table-column :label="$t('uiAutomation.common.operation')" width="80">
+                  <el-table-column :label="$t('uiAutomation.common.operation')" width="60" align="center">
                     <template #default="{ row }">
                       <el-button size="small" text @click.stop="addTestCase(row)">
                         <el-icon><ArrowRight /></el-icon>
@@ -274,21 +279,22 @@
                   :data="selectedTestCases"
                   height="200"
                 >
-                  <el-table-column prop="name" :label="$t('uiAutomation.suite.caseName')" min-width="150" show-overflow-tooltip />
-                  <el-table-column prop="priority" :label="$t('uiAutomation.suite.priority')" width="80">
+                  <el-table-column prop="name" :label="$t('uiAutomation.suite.caseName')" min-width="120" show-overflow-tooltip />
+                  <el-table-column prop="priority" :label="$t('uiAutomation.suite.priority')" width="70">
                     <template #default="{ row }">
                       <el-tag size="small" :type="getPriorityTag(row.priority)">
                         {{ getPriorityText(row.priority) }}
                       </el-tag>
                     </template>
                   </el-table-column>
-                  <el-table-column :label="$t('uiAutomation.common.operation')" width="120">
+                  <el-table-column :label="$t('uiAutomation.common.operation')" width="90" align="center">
                     <template #default="{ row, $index }">
                       <el-button
                         size="small"
                         text
                         @click="moveUp($index)"
                         :disabled="$index === 0"
+                        :title="$t('uiAutomation.common.moveUp')"
                       >
                         <el-icon><Top /></el-icon>
                       </el-button>
@@ -297,6 +303,7 @@
                         text
                         @click="moveDown($index)"
                         :disabled="$index === selectedTestCases.length - 1"
+                        :title="$t('uiAutomation.common.moveDown')"
                       >
                         <el-icon><Bottom /></el-icon>
                       </el-button>
@@ -305,6 +312,7 @@
                         text
                         type="danger"
                         @click="removeTestCase($index)"
+                        :title="$t('uiAutomation.common.delete')"
                       >
                         <el-icon><Delete /></el-icon>
                       </el-button>
@@ -1506,6 +1514,159 @@ const handleNewSuite = async () => {
     font-size: 12px;
     color: #909399;
     line-height: 1.5;
+  }
+}
+
+// 套件编辑弹窗样式优化
+.suite-edit-dialog {
+  :deep(.el-dialog__body) {
+    max-height: 70vh;
+    overflow-y: auto;
+    padding: 20px 24px;
+  }
+
+  :deep(.el-dialog__footer) {
+    border-top: 1px solid rgba(147, 112, 219, 0.15);
+    padding: 16px 24px;
+
+    .dialog-footer {
+      display: flex;
+      justify-content: flex-end;
+      gap: 12px;
+
+      .el-button {
+        min-width: 80px;
+      }
+    }
+  }
+
+  .test-case-selector {
+    display: flex;
+    gap: 16px;
+    width: 100%;
+    min-width: 0;
+
+    .selector-panel {
+      flex: 1;
+      min-width: 0;
+      border: 1px solid rgba(147, 112, 219, 0.2);
+      border-radius: 8px;
+      overflow: hidden;
+      background: #ffffff;
+
+      .panel-header {
+        background: linear-gradient(135deg, #faf8ff 0%, #f5f3ff 100%);
+        padding: 10px 12px;
+        border-bottom: 1px solid rgba(147, 112, 219, 0.15);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 8px;
+
+        h4 {
+          margin: 0;
+          font-size: 13px;
+          color: #5a32a3;
+          font-weight: 600;
+          white-space: nowrap;
+        }
+
+        .el-input {
+          width: 140px !important;
+
+          :deep(.el-input__wrapper) {
+            border-radius: 4px;
+            border: 1px solid rgba(147, 112, 219, 0.2);
+            box-shadow: none;
+            padding: 0 8px;
+
+            .el-input__inner {
+              font-size: 12px;
+            }
+          }
+        }
+      }
+
+      .panel-content {
+        padding: 8px;
+
+        :deep(.el-table) {
+          font-size: 12px;
+
+          .el-table__cell {
+            padding: 4px 0;
+          }
+
+          .el-button {
+            padding: 2px;
+            height: 22px;
+            width: 22px;
+            min-height: 22px;
+            margin: 0 1px;
+
+            .el-icon {
+              font-size: 12px;
+            }
+          }
+
+          .el-tag {
+            font-size: 11px;
+            padding: 0 4px;
+            height: 18px;
+          }
+
+          // 操作列按钮容器
+          .cell {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            white-space: nowrap;
+            padding: 0 4px;
+          }
+        }
+      }
+    }
+  }
+}
+
+// 响应式适配
+@media screen and (max-width: 1200px) {
+  .suite-edit-dialog {
+    width: 95% !important;
+
+    .test-case-selector {
+      gap: 12px;
+
+      .selector-panel {
+        .panel-header {
+          flex-direction: column;
+          align-items: flex-start;
+          gap: 8px;
+
+          .el-input {
+            width: 100% !important;
+          }
+        }
+      }
+    }
+  }
+}
+
+@media screen and (max-width: 768px) {
+  .suite-edit-dialog {
+    .test-case-selector {
+      flex-direction: column;
+
+      .selector-panel {
+        .panel-header {
+          flex-direction: row;
+
+          .el-input {
+            width: 120px !important;
+          }
+        }
+      }
+    }
   }
 }
 </style>

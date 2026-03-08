@@ -2,28 +2,27 @@
   <div class="data-factory-container">
     <el-card class="header-card">
       <div class="header-content">
-        <div class="header-left">
+        <div class="header-title">
           <h1 class="page-title" @click="goToHome">
-            <el-icon class="title-icon"><DataLine /></el-icon>
+            <el-icon class="title-icon"><DataAnalysis /></el-icon>
             {{ $t('dataFactory.title') }}
           </h1>
-          <p class="page-subtitle">{{ $t('dataFactory.subtitle') }}</p>
         </div>
         <div class="header-actions">
           <el-button-group>
-            <el-button
-              :type="viewMode === 'category' ? 'primary' : ''"
-              @click="viewMode = 'category'"
-            >
-              <el-icon><Menu /></el-icon>
-              {{ $t('dataFactory.viewMode.category') }}
-            </el-button>
             <el-button
               :type="viewMode === 'scenario' ? 'primary' : ''"
               @click="viewMode = 'scenario'"
             >
               <el-icon><Grid /></el-icon>
               {{ $t('dataFactory.viewMode.scenario') }}
+            </el-button>
+            <el-button
+              :type="viewMode === 'category' ? 'primary' : ''"
+              @click="viewMode = 'category'"
+            >
+              <el-icon><Menu /></el-icon>
+              {{ $t('dataFactory.viewMode.category') }}
             </el-button>
           </el-button-group>
           <el-button type="info" @click="showHistory = true">
@@ -54,6 +53,8 @@
               <el-button
                 v-if="currentScenario"
                 size="small"
+                class="clear-filter-btn"
+                :icon="CircleClose"
                 @click.stop="clearScenario"
                 style="margin-left: auto;"
               >
@@ -85,24 +86,29 @@
 
     <!-- 场景视图 -->
     <div v-else class="scenario-view">
-      <el-row :gutter="20">
-        <el-col :span="8" v-for="scenario in scenarios" :key="scenario.scenario">
-          <el-card class="scenario-card" :style="{ '--primary-color': getCategoryColor(scenario.scenario).primary, '--light-color': getCategoryColor(scenario.scenario).light, '--dark-color': getCategoryColor(scenario.scenario).dark }" @click="filterByScenario(scenario)">
-            <div class="scenario-content">
+      <div class="scenario-grid">
+        <div
+          v-for="scenario in scenarios"
+          :key="scenario.scenario"
+          class="scenario-card"
+          :style="{ '--primary-color': getCategoryColor(scenario.scenario).primary, '--light-color': getCategoryColor(scenario.scenario).light, '--dark-color': getCategoryColor(scenario.scenario).dark }"
+          @click="filterByScenario(scenario)"
+        >
+          <div class="scenario-glow"></div>
+          <div class="scenario-content">
+            <div class="scenario-icon-wrapper">
               <el-icon class="scenario-icon" :style="{ color: getCategoryColor(scenario.scenario).primary }">
                 <component :is="getScenarioIcon(scenario.scenario)" />
               </el-icon>
-              <h3 class="scenario-title">{{ getScenarioName(scenario.scenario) }}</h3>
-              <p class="scenario-desc">{{ getScenarioDesc(scenario.scenario) }}</p>
-              <div class="scenario-stats">
-                <el-tag size="small" :style="{ background: getCategoryColor(scenario.scenario).light, borderColor: getCategoryColor(scenario.scenario).primary, color: getCategoryColor(scenario.scenario).primary }">
-                  {{ $t('dataFactory.toolCount', { count: scenario.tool_count }) }}
-                </el-tag>
-              </div>
             </div>
-          </el-card>
-        </el-col>
-      </el-row>
+            <h3 class="scenario-title">{{ getScenarioName(scenario.scenario) }}</h3>
+            <p class="scenario-desc">{{ getScenarioDesc(scenario.scenario) }}</p>
+            <div class="scenario-stats">
+              <span class="tool-count">{{ scenario.tool_count }} 个工具</span>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- 工具执行对话框 -->
@@ -842,10 +848,10 @@
             <el-switch v-model="toolForm.isSaved" />
             <span class="form-tip">{{ $t('dataFactory.form.saveResultTip') }}</span>
           </el-form-item>
-          <el-form-item :label="$t('dataFactory.form.tags')">
+          <el-form-item v-if="toolForm.isSaved" :label="$t('dataFactory.form.recordName')">
             <el-input
               v-model="toolForm.tags"
-              :placeholder="$t('dataFactory.form.tagsPlaceholder')"
+              :placeholder="$t('dataFactory.form.recordNamePlaceholder')"
             />
           </el-form-item>
         </el-form>
@@ -888,6 +894,15 @@
       </div>
       <template #footer>
         <el-button @click="toolDialogVisible = false">{{ $t('dataFactory.actions.cancel') }}</el-button>
+        <el-button
+          v-if="canExportToExcel"
+          type="success"
+          :disabled="!toolResult"
+          @click="exportToExcel"
+        >
+          <el-icon><Download /></el-icon>
+          {{ $t('dataFactory.actions.export') }}
+        </el-button>
         <el-button type="primary" :loading="executing" @click="executeTool">
           {{ $t('dataFactory.actions.execute') }}
         </el-button>
@@ -904,21 +919,46 @@
         <el-tab-pane :label="$t('dataFactory.history.allRecords')" name="all">
           <div class="history-content">
             <el-table :data="historyRecords" stripe class="history-table">
-              <el-table-column :label="$t('dataFactory.history.toolName')" min-width="180">
+              <el-table-column type="index" :label="$t('dataFactory.history.serialNumber')" width="60" align="center" />
+              <el-table-column :label="$t('dataFactory.history.recordName')" min-width="200">
                 <template #default="{ row }">
-                  <span>{{ getToolDisplayName(row.tool_name) }}</span>
+                  <el-input
+                    v-if="editingRecordId === row.id"
+                    v-model="editingRecordName"
+                    ref="editInputRef"
+                    @blur="saveRecordName(row)"
+                    @keyup.enter="saveRecordName(row)"
+                    @keyup.escape="cancelEdit()"
+                    size="small"
+                    autofocus
+                  />
+                  <span
+                    v-else
+                    class="record-name-text"
+                    @click="startEdit(row)"
+                  >
+                    {{ row.custom_name || getToolDisplayName(row.tool_name) }}
+                  </span>
                 </template>
               </el-table-column>
-              <el-table-column prop="tool_category_display" :label="$t('dataFactory.history.category')" min-width="120" />
-              <el-table-column prop="tool_scenario_display" :label="$t('dataFactory.history.scenario')" min-width="120" />
+              <el-table-column prop="user_name" :label="$t('dataFactory.history.userName')" min-width="120" />
               <el-table-column :label="$t('dataFactory.history.usageTime')" min-width="180">
                 <template #default="{ row }">
                   {{ formatDateTime(row.created_at) }}
                 </template>
               </el-table-column>
-              <el-table-column :label="$t('dataFactory.history.operation')" width="100" align="center" fixed="right">
+              <el-table-column :label="$t('dataFactory.history.operation')" width="240" align="center" fixed="right">
                 <template #default="{ row }">
-                  <el-button size="small" type="danger" @click="deleteRecord(row)">{{ $t('dataFactory.actions.delete') }}</el-button>
+                  <div class="operation-buttons">
+                    <el-button size="small" type="success" @click="exportRecord(row)" v-if="canExportToExcelRecord(row)">
+                      <el-icon><Download /></el-icon>
+                      <span>{{ $t('dataFactory.actions.export') }}</span>
+                    </el-button>
+                    <el-button size="small" type="danger" @click="deleteRecord(row)">
+                      <el-icon><Delete /></el-icon>
+                      <span>{{ $t('dataFactory.actions.delete') }}</span>
+                    </el-button>
+                  </div>
                 </template>
               </el-table-column>
             </el-table>
@@ -1003,13 +1043,17 @@
 import { ref, onMounted, watch, computed, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   DataLine, Menu, Grid, Clock, Operation, ArrowRight,
   Document, List, Lock, User, MagicStick, VideoPlay, ChatDotSquare, Picture, Connection,
-  Phone, Message, Location, Ticket, OfficeBuilding, CreditCard, CircleCheck, DocumentCopy, Search, Delete, Edit, Unlock, DataLine as DataLineIcon, Sort, Share, View, Upload
+  Phone, Message, Location, Ticket, OfficeBuilding, CreditCard, CircleCheck, DocumentCopy, Search, Delete, Edit, Unlock, DataLine as DataLineIcon, Sort, Share, View, Upload,
+  DataAnalysis, Files, DocumentChecked, Brush, Timer, Key,
+  UserFilled, DocumentRemove, Link, RefreshRight, Lock as LockIcon, Calendar, CircleClose,
+  Refresh, Download
 } from '@element-plus/icons-vue'
 import axios from 'axios'
+import * as XLSX from 'xlsx'
 
 const router = useRouter()
 const { t } = useI18n()
@@ -1027,7 +1071,7 @@ const debounce = (func, wait) => {
   }
 }
 
-const viewMode = ref('category')
+const viewMode = ref('scenario')
 const categories = ref([])
 const scenarios = ref([])
 const currentScenario = ref(null)
@@ -1037,7 +1081,7 @@ const currentCategory = ref('')
 const toolForm = ref({
   count: 1,
   text: '',
-  isSaved: true,
+  isSaved: false,
   tags: '',
   gender: 'random',
   region: 'all',
@@ -1131,9 +1175,44 @@ const historyPageSize = ref(10)
 const historyLoading = ref(false)
 const statsLoading = ref(false)
 const statistics = ref({})
+const editingRecordId = ref(null)
+const editingRecordName = ref('')
 const jsonTreeData = ref(null)
 const jsonExpandedKeys = ref([])
 const jsonCollapseState = ref({})
+
+// 可以导出到Excel的工具列表
+const canExportToExcel = computed(() => {
+  if (!currentTool.value) return false
+  const exportableTools = [
+    'generate_chinese_name',
+    'generate_chinese_phone',
+    'generate_chinese_email',
+    'generate_chinese_address',
+    'generate_id_card',
+    'generate_company_name',
+    'generate_user_profile',
+    'random_int',
+    'random_float',
+    'random_string',
+    'random_uuid',
+    'random_mac_address',
+    'random_ip_address',
+    'random_date',
+    'random_boolean',
+    'random_color',
+    'random_password',
+    'random_sequence',
+    'mock_string',
+    'mock_number',
+    'mock_date',
+    'mock_datetime',
+    'mock_boolean',
+    'mock_array',
+    'mock_object'
+  ]
+  return exportableTools.includes(currentTool.value.name)
+})
 
 const iconMap = {
   'document': Document,
@@ -1186,13 +1265,13 @@ const getIcon = (iconName) => {
 
 const getScenarioIcon = (scenario) => {
   const iconMapping = {
-    'test_data': User,
-    'json': List,
-    'string': Document,
-    'encoding': Connection,
-    'random': MagicStick,
-    'encryption': Lock,
-    'crontab': Clock
+    'test_data': UserFilled,       // 测试数据 - 用户填充图标（生成用户档案数据）
+    'json': DocumentChecked,       // JSON工具 - 文档检查图标（JSON数据验证格式化）
+    'string': DocumentRemove,      // 字符工具 - 文档编辑图标（字符串处理转换）
+    'encoding': Link,              // 编码工具 - 链接图标（编码解码转换）
+    'random': RefreshRight,        // 随机工具 - 刷新图标（随机数据生成）
+    'encryption': LockIcon,        // 加密工具 - 锁图标（数据安全加密）
+    'crontab': Calendar            // Crontab工具 - 日历图标（定时任务调度）
   }
   return iconMapping[scenario] || Operation
 }
@@ -1427,7 +1506,7 @@ const executeTool = async () => {
       tool_scenario: currentTool.value.scenario || 'other',
       input_data: input_data,
       is_saved: toolForm.value.isSaved,
-      tags: toolForm.value.tags ? toolForm.value.tags.split(',') : []
+      custom_name: toolForm.value.tags || null
     })
 
     toolResult.value = response.data
@@ -1443,7 +1522,7 @@ const resetToolForm = () => {
   toolForm.value = {
     count: 1,
     text: '',
-    isSaved: true,
+    isSaved: false,
     tags: '',
     gender: 'random',
     region: 'all',
@@ -1838,6 +1917,165 @@ const downloadResult = () => {
   URL.revokeObjectURL(url)
 }
 
+// 字段名中文映射
+const getFieldNameMap = () => {
+  return {
+    // 用户档案相关
+    name: '姓名',
+    phone: '手机号',
+    email: '邮箱',
+    address: '地址',
+    id_card: '身份证号',
+    company: '公司',
+    job: '职位',
+    age: '年龄',
+    gender: '性别',
+    birthday: '生日',
+    // 通用字段
+    value: '值',
+    result: '结果',
+    // 随机数据
+    uuid: 'UUID',
+    mac_address: 'MAC地址',
+    ip_address: 'IP地址',
+    date: '日期',
+    color: '颜色',
+    password: '密码',
+    // Mock数据
+    string: '字符串',
+    number: '数字',
+    boolean: '布尔值',
+    datetime: '日期时间',
+    array: '数组',
+    object: '对象'
+  }
+}
+
+// 导出Excel功能
+const exportToExcel = () => {
+  if (!toolResult.value) {
+    ElMessage.warning(t('dataFactory.messages.noDataToExport'))
+    return
+  }
+
+  try {
+    let data = []
+    const result = toolResult.value.result || toolResult.value
+
+    // 处理不同类型的结果数据
+    if (Array.isArray(result)) {
+      // 如果结果是数组，直接使用
+      data = result
+    } else if (typeof result === 'object' && result !== null) {
+      // 如果结果是对象，检查是否有嵌套数组
+      const values = Object.values(result)
+      if (values.length === 1 && Array.isArray(values[0])) {
+        // 如果对象只有一个属性且是数组，使用该数组
+        data = values[0]
+      } else {
+        // 否则将整个对象作为单行数据
+        data = [result]
+      }
+    } else if (typeof result === 'string') {
+      // 如果结果是字符串，尝试解析为JSON
+      try {
+        const parsed = JSON.parse(result)
+        if (Array.isArray(parsed)) {
+          data = parsed
+        } else if (typeof parsed === 'object' && parsed !== null) {
+          data = [parsed]
+        } else {
+          data = [{ value: parsed }]
+        }
+      } catch {
+        // 如果不是有效的JSON，作为单个值导出
+        data = [{ value: result }]
+      }
+    } else {
+      // 其他类型，包装为对象
+      data = [{ value: result }]
+    }
+
+    if (data.length === 0) {
+      ElMessage.warning(t('dataFactory.messages.noDataToExport'))
+      return
+    }
+
+    // 获取字段名映射
+    const fieldNameMap = getFieldNameMap()
+
+    // 转换数据：将英文字段名映射为中文
+    const translatedData = data.map(item => {
+      const translatedItem = {}
+      for (const [key, value] of Object.entries(item)) {
+        const chineseKey = fieldNameMap[key] || key
+        translatedItem[chineseKey] = value
+      }
+      return translatedItem
+    })
+
+    // 创建工作簿
+    const wb = XLSX.utils.book_new()
+
+    // 将数据转换为工作表
+    const ws = XLSX.utils.json_to_sheet(translatedData)
+
+    // 计算列宽
+    const colWidths = []
+    if (translatedData.length > 0) {
+      const headers = Object.keys(translatedData[0])
+      headers.forEach((header, index) => {
+        // 计算表头宽度
+        let maxWidth = header.length * 2
+
+        // 计算数据列的最大宽度
+        translatedData.forEach(row => {
+          const value = row[header]
+          if (value !== undefined && value !== null) {
+            const cellValue = String(value)
+            // 中文字符占2个宽度，英文占1个
+            let cellWidth = 0
+            for (const char of cellValue) {
+              cellWidth += (char.charCodeAt(0) > 127) ? 2 : 1
+            }
+            maxWidth = Math.max(maxWidth, cellWidth)
+          }
+        })
+
+        // 设置最小宽度和最大宽度限制
+        maxWidth = Math.max(maxWidth, 10) // 最小宽度
+        maxWidth = Math.min(maxWidth, 50) // 最大宽度
+
+        colWidths.push({ wch: maxWidth + 2 }) // 加一些边距
+      })
+    }
+    ws['!cols'] = colWidths
+
+    // 添加工作表到工作簿
+    XLSX.utils.book_append_sheet(wb, ws, 'Sheet1')
+
+    // 生成中文文件名
+    const toolDisplayName = getToolDisplayName(currentTool.value?.name) || currentTool.value?.display_name || '导出数据'
+    const timestamp = new Date().toLocaleString('zh-CN', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit'
+    }).replace(/[/:]/g, '-')
+    const filename = `${toolDisplayName}_${timestamp}.xlsx`
+
+    // 下载文件
+    XLSX.writeFile(wb, filename)
+
+    ElMessage.success(t('dataFactory.messages.exportSuccess'))
+  } catch (error) {
+    console.error('Export to Excel failed:', error)
+    ElMessage.error(t('dataFactory.messages.exportFailed'))
+  }
+}
+
 const filterByScenario = (scenario) => {
   currentScenario.value = scenario
   viewMode.value = 'category'
@@ -1943,16 +2181,29 @@ const deleteRecord = async (record) => {
       ElMessage.error('记录ID不存在')
       return
     }
+
+    // 显示确认对话框
+    await ElMessageBox.confirm(
+      t('dataFactory.history.deleteConfirm'),
+      t('dataFactory.history.deleteConfirmTitle'),
+      {
+        confirmButtonText: t('dataFactory.actions.confirm'),
+        cancelButtonText: t('dataFactory.actions.cancel'),
+        type: 'warning'
+      }
+    )
+
     const response = await axios.delete(`/api/data-factory/${record.id}/`)
     ElMessage.success(t('dataFactory.history.deleteSuccess'))
-    
-    // 清除统计信息缓存
-    cache.remove('statistics')
-    
+
     // 立即刷新数据，确保总数一致
     await fetchHistoryImmediate()
     await fetchStatistics()
   } catch (error) {
+    if (error === 'cancel' || (error.action && error.action === 'cancel')) {
+      // 用户取消删除，不显示错误
+      return
+    }
     console.error('Delete error:', error)
     if (error.response && error.response.status === 404) {
       ElMessage.error('记录不存在或已被删除')
@@ -1964,6 +2215,216 @@ const deleteRecord = async (record) => {
       ElMessage.error(t('dataFactory.history.deleteFailed'))
     }
   }
+}
+
+const canExportToExcelRecord = (record) => {
+  if (!record) return false
+  const exportableTools = [
+    'generate_chinese_name',
+    'generate_chinese_phone',
+    'generate_chinese_email',
+    'generate_chinese_address',
+    'generate_id_card',
+    'generate_company_name',
+    'generate_user_profile',
+    'random_int',
+    'random_float',
+    'random_string',
+    'random_uuid',
+    'random_mac_address',
+    'random_ip_address',
+    'random_date',
+    'random_boolean',
+    'random_color',
+    'random_password',
+    'random_sequence',
+    'mock_string',
+    'mock_number',
+    'mock_date',
+    'mock_datetime',
+    'mock_boolean',
+    'mock_array',
+    'mock_object'
+  ]
+  return exportableTools.includes(record.tool_name)
+}
+
+const reExecuteRecord = async (record) => {
+  try {
+    historyDialogVisible.value = false
+    
+    await nextTick()
+    
+    currentTool.value = toolsList.value.find(t => t.name === record.tool_name)
+    currentCategory.value = record.tool_category
+    currentScenario.value = record.tool_scenario
+    
+    if (record.input_data) {
+      Object.keys(record.input_data).forEach(key => {
+        if (inputData.value.hasOwnProperty(key)) {
+          inputData.value[key] = record.input_data[key]
+        }
+      })
+    }
+    
+    ElMessage.success(t('dataFactory.messages.reExecuteSuccess'))
+  } catch (error) {
+    console.error('Re-execute error:', error)
+    ElMessage.error(t('dataFactory.messages.reExecuteFailed'))
+  }
+}
+
+const exportRecord = (record) => {
+  try {
+    if (!record || !record.output_data) {
+      ElMessage.warning(t('dataFactory.messages.noDataToExport'))
+      return
+    }
+
+    let data = []
+    const result = record.output_data.result || record.output_data
+
+    if (Array.isArray(result)) {
+      data = result
+    } else if (typeof result === 'object' && result !== null) {
+      const values = Object.values(result)
+      if (values.length === 1 && Array.isArray(values[0])) {
+        data = values[0]
+      } else {
+        data = [result]
+      }
+    } else if (typeof result === 'string') {
+      try {
+        const parsed = JSON.parse(result)
+        if (Array.isArray(parsed)) {
+          data = parsed
+        } else if (typeof parsed === 'object' && parsed !== null) {
+          data = [parsed]
+        } else {
+          data = [{ value: parsed }]
+        }
+      } catch {
+        data = [{ value: result }]
+      }
+    } else {
+      data = [{ value: result }]
+    }
+
+    if (data.length === 0) {
+      ElMessage.warning(t('dataFactory.messages.noDataToExport'))
+      return
+    }
+
+    const fieldNameMap = getFieldNameMap()
+
+    const translatedData = data.map(item => {
+      const translatedItem = {}
+      for (const [key, value] of Object.entries(item)) {
+        const chineseKey = fieldNameMap[key] || key
+        translatedItem[chineseKey] = value
+      }
+      return translatedItem
+    })
+
+    const wb = XLSX.utils.book_new()
+    const ws = XLSX.utils.json_to_sheet(translatedData)
+
+    const colWidths = []
+    if (translatedData.length > 0) {
+      const headers = Object.keys(translatedData[0])
+      headers.forEach((header, index) => {
+        let maxWidth = header.length * 2
+        translatedData.forEach(row => {
+          const value = row[header]
+          if (value !== undefined && value !== null) {
+            const cellValue = String(value)
+            let cellWidth = 0
+            for (const char of cellValue) {
+              cellWidth += (char.charCodeAt(0) > 127) ? 2 : 1
+            }
+            maxWidth = Math.max(maxWidth, cellWidth)
+          }
+        })
+        maxWidth = Math.max(maxWidth, 10)
+        maxWidth = Math.min(maxWidth, 50)
+        colWidths.push({ wch: maxWidth + 2 })
+      })
+    }
+    ws['!cols'] = colWidths
+
+    XLSX.utils.book_append_sheet(wb, ws, 'Sheet1')
+
+    const userName = record.user_name || '未知用户'
+    const timestamp = new Date().toLocaleString('zh-CN', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit'
+    }).replace(/[/:]/g, '-')
+    const filename = `${userName}_${timestamp}.xlsx`
+
+    XLSX.writeFile(wb, filename)
+    ElMessage.success(t('dataFactory.messages.exportSuccess'))
+  } catch (error) {
+    console.error('Export to Excel failed:', error)
+    ElMessage.error(t('dataFactory.messages.exportFailed'))
+  }
+}
+
+const editInputRef = ref(null)
+
+const startEdit = (record) => {
+  editingRecordId.value = record.id
+  editingRecordName.value = record.custom_name || getToolDisplayName(record.tool_name)
+  nextTick(() => {
+    if (editInputRef.value) {
+      editInputRef.value.focus()
+      editInputRef.value.select()
+    }
+  })
+}
+
+const cancelEdit = () => {
+  editingRecordId.value = null
+  editingRecordName.value = ''
+}
+
+const saveRecordName = async (record) => {
+  const newName = editingRecordName.value.trim()
+  
+  if (!newName) {
+    cancelEdit()
+    return
+  }
+  
+  if (newName === (record.custom_name || getToolDisplayName(record.tool_name))) {
+    cancelEdit()
+    return
+  }
+  
+  try {
+    await axios.patch(`/api/data-factory/${record.id}/`, {
+      custom_name: newName
+    })
+    
+    const index = historyRecords.value.findIndex(r => r.id === record.id)
+    if (index !== -1) {
+      historyRecords.value[index] = { ...historyRecords.value[index], custom_name: newName }
+    }
+    
+    ElMessage.success(t('dataFactory.history.editRecordNameSuccess'))
+  } catch (error) {
+    console.error('Edit record name error:', error)
+    ElMessage.error(t('dataFactory.history.editRecordNameFailed'))
+  } finally {
+    cancelEdit()
+  }
+}
+
+const editRecordName = (record) => {
+  startEdit(record)
 }
 
 const calculatePercentage = (value, total) => {
@@ -2030,8 +2491,9 @@ onMounted(() => {
 <style scoped lang="scss">
 .data-factory-container {
   padding: 24px;
-  min-height: calc(100vh - 60px);
+  min-height: 100vh;
   background: linear-gradient(135deg, #f5f3ff 0%, #ede9fe 100%);
+  box-sizing: border-box;
 }
 
 .header-card {
@@ -2045,24 +2507,25 @@ onMounted(() => {
     display: flex;
     flex-direction: row;
     align-items: center;
-    justify-content: space-between;
+    justify-content: center;
     gap: 24px;
-    padding: 8px;
+    padding: 16px 8px;
+    position: relative;
   }
 
-  .header-left {
+  .header-title {
     display: flex;
-    flex-direction: column;
-    gap: 8px;
+    align-items: center;
+    justify-content: center;
   }
 
   .page-title {
-    font-size: 28px;
+    font-size: 32px;
     font-weight: 700;
     color: #5a32a3;
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 12px;
     margin: 0;
     cursor: pointer;
     transition: all 0.3s ease;
@@ -2072,82 +2535,81 @@ onMounted(() => {
     background-clip: text;
 
     &:hover {
-      transform: translateX(5px);
+      transform: scale(1.02);
     }
 
     .title-icon {
-      font-size: 32px;
+      font-size: 36px;
       color: #7b42f6;
       -webkit-text-fill-color: #7b42f6;
     }
-  }
-
-  .page-subtitle {
-    font-size: 14px;
-    color: #6d5d8f;
-    margin: 0;
-    font-weight: 500;
   }
 
   .header-actions {
     display: flex;
     align-items: center;
     flex-shrink: 0;
+    position: absolute;
+    right: 8px;
 
     :deep(.el-button-group) {
       display: flex;
+      background: #f0f2f5;
+      border-radius: 20px;
+      padding: 3px;
+      gap: 3px;
 
       .el-button {
-        border-radius: 4px !important;
-        margin: 0 3px !important;
-        padding: 6px 12px;
+        border-radius: 17px !important;
+        margin: 0 !important;
+        padding: 6px 16px;
         font-weight: 500;
         font-size: 13px;
-        height: 32px;
+        height: 34px;
         line-height: 1;
-        transition: all 0.2s ease;
+        transition: all 0.3s ease;
+        border: none !important;
 
         &.el-button--primary {
-          background: #7b42f6;
-          border: 1px solid #7b42f6;
-          color: #ffffff;
+          background: #ffffff;
+          color: #7b42f6;
+          box-shadow: 0 2px 6px rgba(123, 66, 246, 0.2);
 
           &:hover {
-            background: #6d33e6;
-            border-color: #6d33e6;
+            background: #ffffff;
+            color: #7b42f6;
+            box-shadow: 0 3px 8px rgba(123, 66, 246, 0.3);
           }
         }
 
         &:not(.el-button--primary) {
-          border: 1px solid #dcdfe6;
           color: #606266;
-          background: #ffffff;
+          background: transparent;
 
           &:hover {
-            border-color: #7b42f6;
             color: #7b42f6;
-            background: #f8f7ff;
+            background: rgba(123, 66, 246, 0.08);
           }
         }
       }
     }
 
     :deep(.el-button--info) {
-      border-radius: 4px;
-      padding: 6px 12px;
+      border-radius: 17px;
+      padding: 6px 16px;
       font-weight: 500;
       font-size: 13px;
-      height: 32px;
+      height: 34px;
       line-height: 1;
-      background: #909399;
-      border: 1px solid #909399;
-      color: #ffffff;
-      transition: all 0.2s ease;
-      margin-left: 3px;
+      background: #f0f2f5;
+      border: none;
+      color: #606266;
+      transition: all 0.3s ease;
+      margin-left: 10px;
 
       &:hover {
-        background: #82848a;
-        border-color: #82848a;
+        background: rgba(123, 66, 246, 0.08);
+        color: #7b42f6;
       }
     }
   }
@@ -2196,6 +2658,28 @@ onMounted(() => {
           border-radius: 12px;
           padding: 4px 12px;
           font-weight: 600;
+        }
+
+        .clear-filter-btn {
+          border-radius: 17px;
+          padding: 6px 14px;
+          font-weight: 500;
+          font-size: 12px;
+          height: 30px;
+          line-height: 1;
+          background: #f0f2f5;
+          border: none;
+          color: #606266;
+          transition: all 0.3s ease;
+
+          &:hover {
+            background: rgba(123, 66, 246, 0.08);
+            color: #7b42f6;
+          }
+
+          .el-icon {
+            margin-right: 4px;
+          }
         }
       }
 
@@ -2275,57 +2759,120 @@ onMounted(() => {
 }
 
 .scenario-view {
+  .scenario-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    grid-template-rows: repeat(2, 1fr);
+    gap: 20px;
+    padding: 0 8px;
+    min-height: calc(100vh - 280px);
+  }
+
   .scenario-card {
-    margin-bottom: 24px;
+    position: relative;
     cursor: pointer;
-    background: linear-gradient(135deg, #ffffff 0%, #f9fafb 100%);
-    border: 1px solid rgba(107, 114, 128, 0.12);
-    border-radius: 16px;
-    box-shadow: 0 4px 16px rgba(107, 114, 128, 0.08);
-    transition: all 0.3s ease;
+    background: linear-gradient(145deg, #ffffff 0%, #f8fafc 100%);
+    border: 1px solid rgba(148, 163, 184, 0.15);
+    border-radius: 12px;
+    box-shadow:
+      0 2px 8px rgba(0, 0, 0, 0.04),
+      0 0 0 1px rgba(255, 255, 255, 0.8) inset;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    overflow: hidden;
+    min-height: 200px;
 
     &:hover {
-      box-shadow: 0 8px 28px rgba(107, 114, 128, 0.18);
-      transform: translateY(-5px);
+      box-shadow:
+        0 8px 24px rgba(0, 0, 0, 0.08),
+        0 0 0 1px var(--primary-color) inset,
+        0 0 20px var(--light-color);
+      transform: translateY(-3px);
       border-color: var(--primary-color);
+
+      .scenario-glow {
+        opacity: 1;
+      }
+
+      .scenario-icon-wrapper {
+        transform: scale(1.05);
+        box-shadow: 0 4px 12px var(--light-color);
+      }
+    }
+
+    .scenario-glow {
+      position: absolute;
+      top: -50%;
+      left: -50%;
+      width: 200%;
+      height: 200%;
+      background: radial-gradient(circle, var(--light-color) 0%, transparent 70%);
+      opacity: 0;
+      transition: opacity 0.4s ease;
+      pointer-events: none;
     }
 
     .scenario-content {
+      position: relative;
+      z-index: 1;
       text-align: center;
-      padding: 32px 24px;
+      padding: 32px 20px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100%;
 
-      .scenario-icon {
-        font-size: 56px;
+      .scenario-icon-wrapper {
+        width: 64px;
+        height: 64px;
+        border-radius: 14px;
+        background: linear-gradient(145deg, #ffffff, #f1f5f9);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+        display: flex;
+        align-items: center;
+        justify-content: center;
         margin-bottom: 20px;
         transition: all 0.3s ease;
-      }
 
-      &:hover .scenario-icon {
-        transform: scale(1.1);
+        .scenario-icon {
+          font-size: 32px;
+          transition: all 0.3s ease;
+        }
       }
 
       .scenario-title {
-        font-size: 20px;
-        font-weight: 700;
-        margin: 0 0 12px 0;
-        color: #1f2937;
+        font-size: 17px;
+        font-weight: 600;
+        margin: 0 0 10px 0;
+        color: #1e293b;
+        line-height: 1.3;
       }
 
       .scenario-desc {
-        font-size: 14px;
-        color: #6b7280;
-        margin: 0 0 20px 0;
-        line-height: 1.6;
+        font-size: 13px;
+        color: #64748b;
+        margin: 0 0 16px 0;
+        line-height: 1.5;
+        flex: 1;
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
       }
 
       .scenario-stats {
         display: flex;
         justify-content: center;
 
-        :deep(.el-tag) {
-          border-radius: 12px;
-          padding: 6px 16px;
-          font-weight: 600;
+        .tool-count {
+          font-size: 11px;
+          font-weight: 500;
+          color: var(--primary-color);
+          background: var(--light-color);
+          padding: 3px 10px;
+          border-radius: 10px;
+          border: 1px solid var(--primary-color);
+          opacity: 0.8;
         }
       }
     }
@@ -2439,6 +2986,38 @@ onMounted(() => {
         th {
           text-align: center;
           background-color: #f5f7fa;
+        }
+      }
+    }
+    
+    .record-name-text {
+      cursor: pointer;
+      padding: 4px 8px;
+      border-radius: 4px;
+      transition: all 0.2s ease;
+      display: inline-block;
+      min-width: 40px;
+      
+      &:hover {
+        background-color: rgba(123, 66, 246, 0.1);
+        color: #7b42f6;
+      }
+    }
+    
+    .operation-buttons {
+      display: flex;
+      flex-wrap: nowrap;
+      justify-content: center;
+      gap: 4px;
+      
+      .el-button {
+        display: inline-flex;
+        align-items: center;
+        gap: 2px;
+        padding: 5px 8px;
+        
+        span {
+          font-size: 12px;
         }
       }
     }
@@ -3031,6 +3610,47 @@ onMounted(() => {
       
       &.json-type-null {
         color: #9e9e9e;
+      }
+    }
+  }
+}
+
+// 弹窗按钮样式优化
+:deep(.el-dialog) {
+  .el-dialog__footer {
+    padding: 16px 24px;
+    border-top: 1px solid #f0f0f0;
+    
+    .el-button {
+      border-radius: 8px !important;
+      font-weight: 500 !important;
+      padding: 10px 20px !important;
+      height: auto !important;
+      
+      // 取消按钮
+      &:not(.el-button--primary) {
+        border: 1px solid #d9d9d9 !important;
+        color: #595959 !important;
+        background: #ffffff !important;
+        
+        &:hover {
+          color: #7b42f6 !important;
+          border-color: #7b42f6 !important;
+          background: #f8f7ff !important;
+        }
+      }
+      
+      // 执行/保存按钮
+      &.el-button--primary {
+        background: linear-gradient(135deg, #7b42f6 0%, #5a32a3 100%) !important;
+        border: none !important;
+        color: #ffffff !important;
+        box-shadow: 0 4px 12px rgba(123, 66, 246, 0.3) !important;
+        
+        &:hover {
+          background: linear-gradient(135deg, #6d33e6 0%, #4a249c 100%) !important;
+          box-shadow: 0 6px 16px rgba(123, 66, 246, 0.4) !important;
+        }
       }
     }
   }

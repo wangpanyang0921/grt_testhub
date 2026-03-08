@@ -193,11 +193,19 @@ class TestSuiteSerializer(serializers.ModelSerializer):
     suite_test_cases = TestSuiteTestCaseSerializer(many=True, read_only=True)
     test_case_count = serializers.SerializerMethodField()
     script_count = serializers.SerializerMethodField()
+    creator_name = serializers.SerializerMethodField()
 
     class Meta:
         model = TestSuite
         fields = '__all__'
         read_only_fields = ('created_at', 'updated_at', 'execution_status', 'passed_count', 'failed_count')
+
+    def get_creator_name(self, obj):
+        """获取创建人名称"""
+        if obj.created_by:
+            return obj.created_by.username
+        return '-'
+
 
     def get_test_cases_data(self, obj):
         """获取测试用例数据"""
@@ -1044,6 +1052,7 @@ class AITestSuiteAICaseSerializer(serializers.ModelSerializer):
 class AITestSuiteSerializer(serializers.ModelSerializer):
     project = UiProjectSerializer(read_only=True)
     created_by = UserSerializer(read_only=True)
+    creator_name = serializers.SerializerMethodField()
     ai_cases = AICaseSerializer(many=True, read_only=True)
     suite_ai_cases = AITestSuiteAICaseSerializer(many=True, read_only=True)
     ai_case_count = serializers.SerializerMethodField()
@@ -1053,6 +1062,12 @@ class AITestSuiteSerializer(serializers.ModelSerializer):
         model = AITestSuite
         fields = '__all__'
         read_only_fields = ('created_at', 'updated_at', 'created_by', 'execution_status', 'passed_count', 'failed_count')
+
+    def get_creator_name(self, obj):
+        """获取创建人名称"""
+        if obj.created_by:
+            return obj.created_by.username
+        return '-'
 
     def get_ai_case_count(self, obj):
         """获取AI测试用例数量"""

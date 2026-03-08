@@ -1,6 +1,7 @@
 export default {
   // 仪表板
   dashboard: {
+    dataOverview: '数据概览',
     uiTestProjects: 'UI测试项目',
     testCases: '测试用例',
     testSuites: '测试套件',
@@ -670,7 +671,9 @@ export default {
     lastRunTime: '上次执行时间',
     lastRunStatus: '上次执行状态',
     createTask: '新建定时任务',
+    createTaskBtn: '创建任务',
     editTask: '编辑定时任务',
+    saveTask: '保存任务',
     relatedProject: '关联项目',
     selectProject: '请选择项目',
     testSuite: '测试套件',

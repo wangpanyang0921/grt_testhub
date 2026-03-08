@@ -19,6 +19,7 @@ export default {
     status: '状态',
     notSet: '未设置',
     unnamed: '未命名配置',
+    operation: '操作',
     locale: 'zh-CN'
   },
 
@@ -76,7 +77,7 @@ export default {
   // AI 智能模式配置
   aiMode: {
     title: 'AI智能模式配置',
-    description: '配置Browser-use执行时的智能模式与模型参数',
+    description: '配置Browser-use执行时的模型参数',
     configList: '配置列表',
     addConfig: '添加配置',
     addFirstConfig: '添加第一个配置',

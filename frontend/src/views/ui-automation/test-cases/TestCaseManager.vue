@@ -1142,10 +1142,12 @@ onMounted(() => {
 
 .test-case-layout {
   display: flex;
+  flex-direction: row;
 }
 
 .left-panel {
   width: 380px;
+  min-width: 380px;
   border-right: 1px solid rgba(147, 112, 219, 0.15);
   display: flex;
   flex-direction: column;
@@ -1976,6 +1978,369 @@ onMounted(() => {
   &:hover {
     transform: translateY(-1px);
     box-shadow: 0 2px 8px rgba(123, 66, 246, 0.3);
+  }
+}
+
+// 响应式布局适配
+@media screen and (max-width: 1440px) {
+  .page-container {
+    padding: 16px;
+    gap: 16px;
+  }
+
+  .page-header {
+    padding: 16px 20px;
+
+    .page-title {
+      font-size: 20px;
+    }
+  }
+
+  .left-panel {
+    width: 320px;
+    min-width: 320px;
+
+    .panel-header {
+      padding: 14px 16px;
+    }
+
+    .test-case-list {
+      padding: 12px;
+
+      .test-case-item {
+        padding: 12px;
+        margin-bottom: 10px;
+      }
+    }
+  }
+
+  .right-panel {
+    .test-case-detail {
+      padding: 16px;
+
+      .detail-header {
+        margin-bottom: 16px;
+        padding-bottom: 12px;
+
+        .detail-title {
+          font-size: 16px;
+        }
+      }
+    }
+  }
+}
+
+@media screen and (max-width: 1280px) {
+  .page-container {
+    padding: 12px;
+    gap: 12px;
+  }
+
+  .page-header {
+    padding: 14px 16px;
+    flex-wrap: wrap;
+
+    .page-title {
+      font-size: 18px;
+    }
+
+    .header-actions {
+      gap: 8px;
+
+      .project-select {
+        width: 180px !important;
+      }
+    }
+  }
+
+  .test-case-layout {
+    flex-direction: column;
+  }
+
+  .left-panel {
+    width: 100%;
+    min-width: auto;
+    border-right: none;
+    border-bottom: 1px solid rgba(147, 112, 219, 0.15);
+    max-height: 300px;
+
+    .panel-header {
+      padding: 12px 16px;
+
+      .panel-title {
+        font-size: 14px;
+      }
+    }
+
+    .test-case-list {
+      padding: 12px;
+
+      .test-case-item {
+        padding: 12px;
+        margin-bottom: 8px;
+
+        .case-header {
+          .case-info {
+            .case-name {
+              font-size: 14px;
+            }
+
+            .case-description {
+              font-size: 12px;
+            }
+          }
+
+          .case-actions {
+            .action-icon-btn {
+              padding: 4px;
+            }
+          }
+        }
+      }
+    }
+  }
+
+  .right-panel {
+    .test-case-detail {
+      padding: 16px;
+
+      .detail-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 12px;
+
+        .detail-actions {
+          width: 100%;
+          flex-wrap: wrap;
+
+          .config-select {
+            width: 100px !important;
+          }
+        }
+      }
+
+      .steps-container {
+        .steps-header {
+          padding: 12px 16px;
+
+          .steps-title {
+            font-size: 14px;
+          }
+        }
+
+        .steps-scroll-container {
+          padding: 12px;
+        }
+      }
+    }
+  }
+}
+
+@media screen and (max-width: 1024px) {
+  .page-header {
+    .header-actions {
+      .project-select {
+        width: 160px !important;
+      }
+
+      .el-button {
+        padding: 8px 14px;
+        font-size: 13px;
+      }
+    }
+  }
+
+  .left-panel {
+    max-height: 250px;
+  }
+
+  .right-panel {
+    .test-case-detail {
+      .detail-header {
+        .detail-actions {
+          .config-select {
+            width: 90px !important;
+
+            :deep(.el-input__inner) {
+              font-size: 12px;
+            }
+          }
+
+          .el-button {
+            padding: 6px 10px;
+            font-size: 12px;
+          }
+        }
+      }
+    }
+  }
+}
+
+@media screen and (max-width: 768px) {
+  .page-container {
+    padding: 8px;
+    gap: 8px;
+  }
+
+  .page-header {
+    padding: 12px;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+
+    .page-title {
+      font-size: 16px;
+    }
+
+    .header-actions {
+      width: 100%;
+      flex-wrap: wrap;
+
+      .project-select {
+        width: 100% !important;
+        margin-right: 0;
+        margin-bottom: 8px;
+      }
+
+      .el-button {
+        flex: 1;
+        min-width: 120px;
+      }
+    }
+  }
+
+  .card-container {
+    padding: 12px;
+    border-radius: 8px;
+  }
+
+  .left-panel {
+    max-height: 200px;
+
+    .panel-header {
+      padding: 10px 12px;
+
+      .panel-title {
+        font-size: 13px;
+      }
+    }
+
+    .test-case-list {
+      padding: 8px;
+
+      .test-case-item {
+        padding: 10px;
+
+        .case-header {
+          flex-wrap: wrap;
+          gap: 8px;
+
+          .case-actions {
+            width: 100%;
+            justify-content: flex-end;
+          }
+        }
+      }
+    }
+  }
+
+  .right-panel {
+    .test-case-detail {
+      padding: 12px;
+
+      .detail-header {
+        .detail-title {
+          font-size: 15px;
+        }
+
+        .detail-actions {
+          .config-select {
+            width: calc(50% - 4px) !important;
+            margin-right: 0 !important;
+            margin-bottom: 8px;
+          }
+
+          .el-button {
+            flex: 1;
+            min-width: auto;
+          }
+        }
+      }
+
+      .steps-container {
+        .steps-list {
+          .step-item {
+            .step-header {
+              flex-wrap: wrap;
+              gap: 8px;
+              padding: 10px 12px;
+
+              .step-left {
+                flex-wrap: wrap;
+                gap: 8px;
+
+                .action-select,
+                .element-select {
+                  width: calc(50% - 4px) !important;
+                }
+              }
+            }
+
+            .step-content {
+              padding: 12px;
+
+              .step-param {
+                flex-wrap: wrap;
+
+                label {
+                  width: 100%;
+                  margin-bottom: 4px;
+                }
+
+                .param-input,
+                .param-select {
+                  width: 100% !important;
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+@media screen and (max-width: 480px) {
+  .page-header {
+    .page-title {
+      font-size: 15px;
+    }
+  }
+
+  .left-panel {
+    max-height: 180px;
+
+    .test-case-list {
+      .test-case-item {
+        .case-header {
+          .case-info {
+            .case-name {
+              font-size: 13px;
+            }
+          }
+        }
+      }
+    }
+  }
+
+  .right-panel {
+    .test-case-detail {
+      .detail-header {
+        .detail-title {
+          font-size: 14px;
+        }
+      }
+    }
   }
 }
 </style>

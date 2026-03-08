@@ -84,15 +84,15 @@ export default {
     subtitle: '',
 
     // Cards
-    aiCase: 'AI用例',
+    aiCase: 'AI智能用例',
     aiCaseDesc: '智能分析需求，自动生成测试用例',
     apiTesting: '接口测试',
     apiTestingDesc: '高效的接口自动化测试与管理',
     uiAutomation: 'UI自动化测试',
     uiAutomationDesc: '可视化的Web/App UI自动化测试',
-    dataFactory: '数据工厂',
+    dataFactory: '数据工具箱',
     dataFactoryDesc: '灵活的测试数据构造与管理',
-    aiIntelligent: 'AI智能',
+    aiIntelligent: 'AI智能测试',
     aiIntelligentDesc: '基于自然语言的智能化测试执行',
     aiKnowledgeBase: 'AI知识库',
     aiKnowledgeBaseDesc: '基于Dify平台知识库，提供测试问答',

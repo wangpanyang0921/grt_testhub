@@ -9,9 +9,22 @@
   padding: 24px !important;
   background: linear-gradient(135deg, #ffffff 0%, #f8f7ff 100%) !important;
 
+  &.el-message-box--center {
+    .el-message-box__header {
+      text-align: left !important;
+    }
+    .el-message-box__content {
+      text-align: left !important;
+    }
+    .el-message-box__btns {
+      justify-content: flex-end !important;
+    }
+  }
+
   .el-message-box__header {
     padding: 0 0 16px 0 !important;
     border-bottom: 1px solid rgba(147, 112, 219, 0.1) !important;
+    text-align: left !important;
 
     .el-message-box__title {
       font-size: 18px !important;
@@ -19,7 +32,9 @@
       color: #5a32a3 !important;
       display: flex !important;
       align-items: center !important;
+      justify-content: flex-start !important;
       gap: 8px !important;
+      text-align: left !important;
 
       &::before {
         content: '';
@@ -57,43 +72,49 @@
 
   .el-message-box__content {
     padding: 20px 0 !important;
+    display: flex !important;
+    align-items: center !important;
+    gap: 12px !important;
 
-    .el-message-box__container {
-      display: flex !important;
-      align-items: flex-start !important;
-      gap: 12px !important;
+    // 确保内容区域的图标正常显示
+    .el-message-box__status {
+      display: inline-block !important;
+      font-size: 24px !important;
+      margin: 0 !important;
+      position: static !important;
+      transform: none !important;
+      flex-shrink: 0 !important;
+      float: none !important;
 
-      .el-message-box__status {
-        font-size: 24px !important;
-        margin: 0 !important;
-        position: static !important;
-        transform: none !important;
-
-        &.el-icon-warning {
-          color: #faad14 !important;
-        }
-
-        &.el-icon-error {
-          color: #ff4d4f !important;
-        }
-
-        &.el-icon-success {
-          color: #52c41a !important;
-        }
-
-        &.el-icon-info {
-          color: #1890ff !important;
-        }
+      &.el-icon-warning {
+        color: #faad14 !important;
       }
 
-      .el-message-box__message {
-        padding: 0 !important;
-        margin: 0 !important;
-        color: #333 !important;
-        font-size: 14px !important;
-        line-height: 1.6 !important;
+      &.el-icon-error {
+        color: #ff4d4f !important;
+      }
+
+      &.el-icon-success {
+        color: #52c41a !important;
+      }
+
+      &.el-icon-info {
+        color: #1890ff !important;
       }
     }
+
+    .el-message-box__message {
+      padding: 0 !important;
+      margin: 0 !important;
+      color: #333 !important;
+      font-size: 14px !important;
+      line-height: 1.6 !important;
+    }
+  }
+
+  // 只隐藏header中的状态图标（放在后面覆盖前面的样式）
+  .el-message-box__header .el-message-box__status {
+    display: none !important;
   }
 
   .el-message-box__btns {
@@ -101,7 +122,6 @@
     display: flex !important;
     justify-content: flex-end !important;
     gap: 12px !important;
-    border-top: 1px solid rgba(147, 112, 219, 0.1) !important;
 
     .el-button {
       padding: 10px 24px !important;
@@ -285,7 +305,6 @@
 
   .el-dialog__footer {
     padding: 16px 24px !important;
-    border-top: 1px solid rgba(147, 112, 219, 0.1) !important;
     background: linear-gradient(135deg, #f8f7ff 0%, #ffffff 100%) !important;
 
     .dialog-footer {

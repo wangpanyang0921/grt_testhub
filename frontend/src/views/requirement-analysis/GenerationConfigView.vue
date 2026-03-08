@@ -1,195 +1,146 @@
 <template>
-  <div class="generation-config">
-    <div class="page-header">
-      <h1>{{ $t('generationConfig.title') }}</h1>
-      <p>{{ $t('generationConfig.subtitle') }}</p>
+  <div class="page-container">
+    <div class="page-header-card">
+      <div class="page-header-content">
+        <h1>{{ $t('generationConfig.title') }}</h1>
+      </div>
+      <el-button type="primary" class="create-btn" @click="openAddModal">
+        <el-icon><Plus /></el-icon>
+        {{ $t('generationConfig.addConfig') }}
+      </el-button>
     </div>
 
-    <div class="main-content">
-      <!-- 配置列表 -->
-      <div class="configs-section">
-        <div class="section-header">
-          <h2>{{ $t('generationConfig.configList') }}</h2>
-          <button class="add-config-btn" @click="openAddModal">
-            {{ $t('generationConfig.addConfig') }}
-          </button>
-        </div>
-
-        <div class="configs-grid">
-          <div v-for="config in configs" :key="config.id" class="config-card">
-            <div class="config-header">
-              <div class="config-title">
-                <h3>{{ config.name }}</h3>
-                <div class="config-badges">
-                  <span class="status-badge" :class="{ active: config.is_active }">
-                    {{ config.is_active ? $t('generationConfig.enabled') : $t('generationConfig.disabled') }}
-                  </span>
-                  <span class="mode-badge">
-                    {{ config.default_output_mode === 'stream' ? $t('generationConfig.streamMode') : $t('generationConfig.completeMode') }}
-                  </span>
-                </div>
-              </div>
-              <div class="config-actions">
-                <button v-if="!config.is_active" class="enable-btn" @click="enableConfig(config.id)">
-                  {{ $t('generationConfig.enable') }}
-                </button>
-                <button class="edit-btn" @click="editConfig(config)">{{ $t('generationConfig.edit') }}</button>
-                <button class="delete-btn" @click="deleteConfig(config.id)">{{ $t('generationConfig.delete') }}</button>
-              </div>
+    <div class="card-container">
+      <el-table :data="configs" v-loading="loading" stripe style="width: 100%">
+        <el-table-column :label="$t('generationConfig.configName')" min-width="180" show-overflow-tooltip header-align="center" align="left">
+          <template #default="{ row }">
+            <div class="config-name-cell">{{ row.name || $t('generationConfig.unnamed') }}</div>
+          </template>
+        </el-table-column>
+        <el-table-column :label="$t('generationConfig.outputMode')" width="120" header-align="center" align="center">
+          <template #default="{ row }">
+            <span class="mode-badge">
+              {{ row.default_output_mode === 'stream' ? $t('generationConfig.streamMode') : $t('generationConfig.completeMode') }}
+            </span>
+          </template>
+        </el-table-column>
+        <el-table-column :label="$t('generationConfig.aiReview')" width="100" header-align="center" align="center">
+          <template #default="{ row }">
+            <span class="review-badge" :class="{ enabled: row.enable_auto_review }">
+              {{ row.enable_auto_review ? $t('generationConfig.enabled') : $t('generationConfig.disabled') }}
+            </span>
+          </template>
+        </el-table-column>
+        <el-table-column :label="$t('generationConfig.reviewTimeout')" width="120" header-align="center" align="center">
+          <template #default="{ row }">
+            <span class="timeout-value">{{ row.review_timeout }} {{ $t('generationConfig.seconds') }}</span>
+          </template>
+        </el-table-column>
+        <el-table-column :label="$t('generationConfig.status')" width="90" header-align="center" align="center">
+          <template #default="{ row }">
+            <span class="status-badge" :class="{ active: row.is_active }">
+              {{ row.is_active ? $t('generationConfig.enabled') : $t('generationConfig.disabled') }}
+            </span>
+          </template>
+        </el-table-column>
+        <el-table-column :label="$t('generationConfig.operation')" width="280" fixed="right" header-align="center" align="center">
+          <template #default="{ row }">
+            <div class="action-buttons">
+              <el-button v-if="!row.is_active" size="small" type="success" class="action-btn enable-btn" @click="enableConfig(row.id)">
+                <el-icon><Check /></el-icon>
+                <span>{{ $t('generationConfig.enable') }}</span>
+              </el-button>
+              <el-button size="small" type="primary" class="action-btn edit-btn" @click="editConfig(row)">
+                <el-icon><Edit /></el-icon>
+                <span>{{ $t('generationConfig.edit') }}</span>
+              </el-button>
+              <el-button size="small" type="danger" class="action-btn delete-btn" @click="deleteConfig(row.id)">
+                <el-icon><Delete /></el-icon>
+                <span>{{ $t('generationConfig.delete') }}</span>
+              </el-button>
             </div>
+          </template>
+        </el-table-column>
+      </el-table>
 
-            <div class="config-details">
-              <div class="detail-section">
-                <h4>{{ $t('generationConfig.outputMode') }}</h4>
-                <div class="detail-item">
-                  <label>{{ $t('generationConfig.defaultMode') }}</label>
-                  <span>{{ config.default_output_mode === 'stream' ? $t('generationConfig.realtimeStream') : $t('generationConfig.completeOutput') }}</span>
-                </div>
-              </div>
-
-              <div class="detail-section">
-                <h4>{{ $t('generationConfig.automationProcess') }}</h4>
-                <div class="detail-item">
-                  <label>{{ $t('generationConfig.aiReview') }}</label>
-                  <span :class="{ enabled: config.enable_auto_review, disabled: !config.enable_auto_review }">
-                    {{ config.enable_auto_review ? $t('generationConfig.enabled') : $t('generationConfig.disabled') }}
-                  </span>
-                </div>
-              </div>
-
-              <div class="detail-section">
-                <h4>{{ $t('generationConfig.timeoutSettings') }}</h4>
-                <div class="detail-item">
-                  <label>{{ $t('generationConfig.reviewTimeout') }}</label>
-                  <span>{{ config.review_timeout }} {{ $t('generationConfig.seconds') }}</span>
-                </div>
-              </div>
-
-              <div class="config-meta">
-                <div class="meta-item">
-                  <label>{{ $t('generationConfig.createdAt') }}</label>
-                  <span>{{ formatDateTime(config.created_at) }}</span>
-                </div>
-                <div class="meta-item">
-                  <label>{{ $t('generationConfig.updatedAt') }}</label>
-                  <span>{{ formatDateTime(config.updated_at) }}</span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div v-if="configs.length === 0" class="empty-state">
-          <div class="empty-icon">⚙️</div>
-          <h3>{{ $t('generationConfig.emptyTitle') }}</h3>
-          <p>{{ $t('generationConfig.emptyDescription') }}</p>
-          <button class="add-first-config-btn" @click="openAddModal">
-            {{ $t('generationConfig.addFirstConfig') }}
-          </button>
-        </div>
+      <div v-if="configs.length === 0" class="empty-state">
+        <div class="empty-icon">⚙️</div>
+        <h3>{{ $t('generationConfig.emptyTitle') }}</h3>
+        <p>{{ $t('generationConfig.emptyDescription') }}</p>
+        <el-button type="primary" class="add-first-config-btn" @click="openAddModal">
+          {{ $t('generationConfig.addFirstConfig') }}
+        </el-button>
       </div>
     </div>
 
-    <!-- 添加/编辑配置弹窗 -->
-    <div v-if="showAddModal || showEditModal" class="config-modal" @click="closeModals">
-      <div class="modal-content" @click.stop>
-        <div class="modal-header">
-          <h3>{{ isEditing ? $t('generationConfig.editTitle') : $t('generationConfig.addTitle') }}{{ $t('generationConfig.formTitle') }}</h3>
-          <button class="close-btn" @click="closeModals">×</button>
+    <el-dialog v-model="showModal" :title="isEditing ? $t('generationConfig.editTitle') : $t('generationConfig.addTitle')" width="600px" :close-on-click-modal="false" class="config-dialog">
+      <el-form :model="configForm" ref="configFormRef" label-width="110px" class="config-form">
+        <el-form-item :class="{ 'is-error': formErrors.name }">
+          <template #label>
+            <span>{{ $t('generationConfig.configName') }}</span><span class="required-star">*</span>
+          </template>
+          <el-input v-model="configForm.name" :placeholder="$t('generationConfig.configNamePlaceholder')" />
+          <div v-if="formErrors.name" class="error-message">{{ formErrors.name }}</div>
+        </el-form-item>
+        <el-form-item :class="{ 'is-error': formErrors.default_output_mode }">
+          <template #label>
+            <span>{{ $t('generationConfig.defaultOutputMode') }}</span><span class="required-star">*</span>
+          </template>
+          <el-select v-model="configForm.default_output_mode" :placeholder="$t('generationConfig.selectOutputMode')" style="width: 100%">
+            <el-option value="stream" :label="$t('generationConfig.realtimeStream')" />
+            <el-option value="complete" :label="$t('generationConfig.completeOutput')" />
+          </el-select>
+          <div v-if="formErrors.default_output_mode" class="error-message">{{ formErrors.default_output_mode }}</div>
+          <div class="form-hint">{{ $t('generationConfig.outputModeHint') }}</div>
+        </el-form-item>
+        <el-form-item>
+          <template #label>
+            <span>{{ $t('generationConfig.automationSettings') }}</span>
+          </template>
+          <el-checkbox v-model="configForm.enable_auto_review">
+            {{ $t('generationConfig.enableAutoReview') }}
+          </el-checkbox>
+          <div class="form-hint">{{ $t('generationConfig.autoReviewHint') }}</div>
+        </el-form-item>
+        <el-form-item>
+          <template #label>
+            <span>{{ $t('generationConfig.reviewTimeoutLabel') }}</span>
+          </template>
+          <el-input v-model.number="configForm.review_timeout" type="number" :min="10" :max="3600" style="width: 200px" />
+          <div class="form-hint">{{ $t('generationConfig.timeoutHint') }}</div>
+        </el-form-item>
+        <el-form-item>
+          <el-checkbox v-model="configForm.is_active">
+            {{ $t('generationConfig.enableThisConfig') }}
+          </el-checkbox>
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <div class="dialog-footer">
+          <el-button class="cancel-btn" @click="closeModals">{{ $t('generationConfig.cancel') }}</el-button>
+          <el-button type="primary" class="save-btn" @click="saveConfig" :loading="isSaving">
+            {{ $t('generationConfig.saveConfig') }}</el-button>
         </div>
-        <div class="modal-body">
-          <form @submit.prevent="saveConfig">
-            <div class="form-section">
-              <h4>{{ $t('generationConfig.basicInfo') }}</h4>
-              <div class="form-group">
-                <label>{{ $t('generationConfig.configName') }} <span class="required">*</span></label>
-                <input
-                  v-model="configForm.name"
-                  type="text"
-                  class="form-input"
-                  :placeholder="$t('generationConfig.configNamePlaceholder')"
-                  required>
-              </div>
-
-              <div class="form-group">
-                <label class="checkbox-label">
-                  <input v-model="configForm.is_active" type="checkbox">
-                  <span class="checkmark"></span>
-                  {{ $t('generationConfig.enableThisConfig') }}
-                </label>
-                <div class="checkbox-hint">
-                  {{ $t('generationConfig.enableHint') }}
-                </div>
-              </div>
-            </div>
-
-            <div class="form-section">
-              <h4>{{ $t('generationConfig.outputModeSettings') }}</h4>
-              <div class="form-group">
-                <label>{{ $t('generationConfig.defaultOutputMode') }} <span class="required">*</span></label>
-                <select v-model="configForm.default_output_mode" class="form-select" required>
-                  <option value="stream">{{ $t('generationConfig.realtimeStream') }}</option>
-                  <option value="complete">{{ $t('generationConfig.completeOutput') }}</option>
-                </select>
-                <div class="field-hint">
-                  {{ $t('generationConfig.outputModeHint') }}
-                </div>
-              </div>
-            </div>
-
-            <div class="form-section">
-              <h4>{{ $t('generationConfig.automationSettings') }}</h4>
-              <div class="form-group">
-                <label class="checkbox-label">
-                  <input v-model="configForm.enable_auto_review" type="checkbox">
-                  <span class="checkmark"></span>
-                  {{ $t('generationConfig.enableAutoReview') }}
-                </label>
-                <div class="checkbox-hint">
-                  {{ $t('generationConfig.autoReviewHint') }}
-                </div>
-              </div>
-            </div>
-
-            <div class="form-section">
-              <h4>{{ $t('generationConfig.timeoutSettingsLabel') }}</h4>
-              <div class="form-group">
-                <label>{{ $t('generationConfig.reviewTimeoutLabel') }}</label>
-                <input
-                  v-model.number="configForm.review_timeout"
-                  type="number"
-                  class="form-input"
-                  min="10"
-                  max="3600">
-                <div class="field-hint">{{ $t('generationConfig.timeoutHint') }}</div>
-              </div>
-            </div>
-
-            <div class="modal-actions">
-              <button type="button" class="cancel-btn" @click="closeModals">{{ $t('generationConfig.cancel') }}</button>
-              <button
-                type="submit"
-                class="confirm-btn"
-                :disabled="isSaving">
-                <span v-if="isSaving">{{ $t('generationConfig.saving') }}</span>
-                <span v-else>{{ $t('generationConfig.saveConfig') }}</span>
-              </button>
-            </div>
-          </form>
-        </div>
-      </div>
-    </div>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script>
 import { getGenerationConfigs, createGenerationConfig, updateGenerationConfig, deleteGenerationConfig } from '@/api/requirement-analysis'
 import api from '@/utils/api'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { useI18n } from 'vue-i18n'
+import { Plus, Edit, Delete, Check } from '@element-plus/icons-vue'
 
 export default {
   name: 'GenerationConfigView',
+  components: {
+    Plus,
+    Edit,
+    Delete,
+    Check
+  },
   setup() {
     const { t, locale } = useI18n()
     return { t, locale }
@@ -197,8 +148,8 @@ export default {
   data() {
     return {
       configs: [],
-      showAddModal: false,
-      showEditModal: false,
+      loading: false,
+      showModal: false,
       isEditing: false,
       isSaving: false,
       editingConfigId: null,
@@ -208,6 +159,10 @@ export default {
         enable_auto_review: true,
         review_timeout: 1500,
         is_active: true
+      },
+      formErrors: {
+        name: '',
+        default_output_mode: ''
       }
     }
   },
@@ -220,11 +175,13 @@ export default {
   methods: {
     openAddModal() {
       this.resetForm()
+      this.clearFormErrors()
       this.isEditing = false
-      this.showAddModal = true
+      this.showModal = true
     },
 
     async loadConfigs() {
+      this.loading = true
       try {
         console.log('Loading generation configs...')
         const response = await getGenerationConfigs()
@@ -250,6 +207,8 @@ export default {
         } else {
           ElMessage.error(this.t('generationConfig.loadFailed') + ': ' + (error.response?.data?.error || error.message))
         }
+      } finally {
+        this.loading = false
       }
     },
 
@@ -263,6 +222,30 @@ export default {
       }
     },
 
+    clearFormErrors() {
+      this.formErrors = {
+        name: '',
+        default_output_mode: ''
+      }
+    },
+
+    validateForm() {
+      this.clearFormErrors()
+      let isValid = true
+
+      if (!this.configForm.name || this.configForm.name.trim() === '') {
+        this.formErrors.name = this.t('generationConfig.nameRequired')
+        isValid = false
+      }
+
+      if (!this.configForm.default_output_mode) {
+        this.formErrors.default_output_mode = this.t('generationConfig.outputModeRequired')
+        isValid = false
+      }
+
+      return isValid
+    },
+
     editConfig(config) {
       this.isEditing = true
       this.editingConfigId = config.id
@@ -273,10 +256,15 @@ export default {
         review_timeout: config.review_timeout,
         is_active: config.is_active
       }
-      this.showEditModal = true
+      this.clearFormErrors()
+      this.showModal = true
     },
 
     async saveConfig() {
+      if (!this.validateForm()) {
+        return
+      }
+
       this.isSaving = true
 
       try {
@@ -310,7 +298,17 @@ export default {
     },
 
     async deleteConfig(configId) {
-      if (!confirm(this.t('generationConfig.deleteConfirm'))) {
+      try {
+        await ElMessageBox.confirm(
+          this.t('generationConfig.deleteConfirm'),
+          this.t('generationConfig.deleteTitle'),
+          {
+            confirmButtonText: this.t('generationConfig.confirm'),
+            cancelButtonText: this.t('generationConfig.cancel'),
+            type: 'warning'
+          }
+        )
+      } catch {
         return
       }
 
@@ -325,333 +323,209 @@ export default {
     },
 
     closeModals() {
-      this.showAddModal = false
-      this.showEditModal = false
+      this.showModal = false
       this.isEditing = false
       this.editingConfigId = null
       this.resetForm()
-    },
-
-    formatDateTime(dateString) {
-      if (!dateString) return ''
-      const date = new Date(dateString)
-      return date.toLocaleString(this.locale === 'zh-cn' ? 'zh-CN' : 'en-US', {
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit'
-      })
     }
   }
 }
 </script>
 
-<style scoped>
-.generation-config {
-  padding: 20px;
-  max-width: 1400px;
-  margin: 0 auto;
+<style lang="scss" scoped>
+:root {
+  --primary-color: #7b42f6;
+  --primary-dark: #5a32a3;
+  --primary-light: #f8f7ff;
+  --border-color: #e8e8e8;
+  --text-primary: #262626;
+  --text-secondary: #595959;
+  --text-tertiary: #8c8c8c;
+  --bg-light: #ffffff;
+  --bg-gray: #fafafa;
+  --success-color: #52c41a;
+  --warning-color: #faad14;
+  --danger-color: #ff4d4f;
+  --info-color: #1890ff;
 }
 
-.page-header {
-  text-align: center;
-  margin-bottom: 40px;
-  padding: 28px 20px;
-  background: linear-gradient(135deg, #ffffff 0%, #f5f3ff 100%);
-  border-radius: 20px;
-  box-shadow: 0 8px 32px rgba(147, 112, 219, 0.12);
-  border: 1px solid rgba(147, 112, 219, 0.2);
-}
-
-.page-header h1 {
-  font-size: 2.2rem;
-  color: #5a32a3;
-  margin-bottom: 12px;
-  font-weight: 700;
-  text-shadow: 0 1px 2px rgba(90, 50, 163, 0.1);
-  line-height: 1.2;
-}
-
-.page-header p {
-  color: #6d5d8f;
-  font-size: 1.05rem;
-  opacity: 0.9;
-  margin: 0;
-  line-height: 1.5;
-}
-
-.section-header {
+.page-container {
+  margin: -20px;
+  min-height: calc(100% + 40px);
+  background: linear-gradient(135deg, #f5f3ff 0%, #ede9fe 100%);
   display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 28px;
-  flex-wrap: wrap;
-  gap: 12px;
-  padding: 0 16px;
-}
-
-.section-header h2 {
-  color: #5a32a3;
-  margin: 0;
-  font-size: 1.4rem;
-  font-weight: 600;
-  line-height: 1.3;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.section-header h2::before {
-  content: '⚙️';
-  font-size: 1.2rem;
-}
-
-.add-config-btn {
-  background: linear-gradient(135deg, #7b42f6 0%, #5a32a3 100%);
-  color: white;
-  border: none;
-  padding: 10px 20px;
-  border-radius: 12px;
-  cursor: pointer;
-  font-size: 0.95rem;
-  font-weight: 500;
-  transition: all 0.3s ease;
-  box-shadow: 0 4px 16px rgba(147, 112, 219, 0.2);
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.add-config-btn:hover:not(:disabled) {
-  background: linear-gradient(135deg, #6d33e6 0%, #4a249c 100%);
-  transform: translateY(-2px);
-  box-shadow: 0 8px 24px rgba(147, 112, 219, 0.3);
-}
-
-.add-config-btn:disabled {
-  background: linear-gradient(135deg, #d1c5f7 0%, #b8a7e8 100%);
-  cursor: not-allowed;
-  transform: none;
-  box-shadow: none;
-}
-
-.configs-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(550px, 1fr));
+  flex-direction: column;
+  line-height: 24px;
   gap: 20px;
-  padding: 0 16px;
-}
-
-.config-card {
-  background: linear-gradient(135deg, #ffffff 0%, #f5f3ff 100%);
-  border-radius: 16px;
+  width: calc(100% + 40px);
+  box-sizing: border-box;
   padding: 24px;
+}
+
+.page-header-card {
+  padding: 24px 28px;
+  background: #ffffff;
+  border-radius: 16px;
   box-shadow: 0 4px 20px rgba(147, 112, 219, 0.1);
-  border: 1px solid rgba(147, 112, 219, 0.2);
-  transition: all 0.3s ease;
-  position: relative;
-  overflow: hidden;
-}
-
-.config-card::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 4px;
-  background: linear-gradient(90deg, #7b42f6 0%, #5a32a3 100%);
-  border-radius: 16px 16px 0 0;
-}
-
-.config-card:hover {
-  transform: translateY(-3px);
-  box-shadow: 0 8px 32px rgba(147, 112, 219, 0.15);
-}
-
-.config-header {
   display: flex;
   justify-content: space-between;
-  align-items: flex-start;
-  margin-bottom: 20px;
-  flex-wrap: wrap;
-  gap: 12px;
-}
-
-.config-title h3 {
-  color: #5a32a3;
-  margin: 0 0 8px 0;
-  font-size: 1.2rem;
-  font-weight: 600;
-  line-height: 1.4;
-}
-
-.config-badges {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
-.status-badge, .mode-badge {
-  padding: 4px 12px;
-  border-radius: 16px;
-  font-size: 0.8rem;
-  font-weight: 600;
-  transition: all 0.3s ease;
-}
-
-.status-badge {
-  background: rgba(211, 47, 47, 0.1);
-  color: #d32f2f;
-  border: 1px solid rgba(211, 47, 47, 0.2);
-}
-
-.status-badge.active {
-  background: rgba(74, 36, 156, 0.1);
-  color: #5a32a3;
-  border: 1px solid rgba(147, 112, 219, 0.2);
-}
-
-.mode-badge {
-  background: rgba(25, 118, 210, 0.1);
-  color: #1976d2;
-  border: 1px solid rgba(25, 118, 210, 0.2);
-}
-
-.config-actions {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
   align-items: center;
-}
-
-.enable-btn, .edit-btn, .delete-btn {
-  padding: 6px 14px;
-  border: none;
-  border-radius: 8px;
-  cursor: pointer;
-  font-size: 0.8rem;
-  font-weight: 500;
-  transition: all 0.3s ease;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  white-space: nowrap;
-}
-
-.enable-btn {
-  background: linear-gradient(135deg, #27ae60 0%, #219a52 100%);
-  color: white;
-}
-
-.enable-btn:hover {
-  background: linear-gradient(135deg, #219a52 0%, #1e8449 100%);
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(39, 174, 96, 0.3);
-}
-
-.edit-btn {
-  background: linear-gradient(135deg, #f39c12 0%, #e67e22 100%);
-  color: white;
-}
-
-.edit-btn:hover {
-  background: linear-gradient(135deg, #e67e22 0%, #d35400 100%);
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(243, 156, 18, 0.3);
-}
-
-.delete-btn {
-  background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%);
-  color: white;
-}
-
-.delete-btn:hover {
-  background: linear-gradient(135deg, #c0392b 0%, #a93226 100%);
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(231, 76, 60, 0.3);
-}
-
-.config-details {
-  margin-top: 20px;
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
   gap: 16px;
 }
 
-.detail-section {
-  padding: 16px;
-  background: rgba(243, 240, 250, 0.6);
-  border-radius: 12px;
-  border: 1px solid rgba(147, 112, 219, 0.1);
-}
-
-.detail-section h4 {
-  margin: 0 0 12px 0;
-  color: #5a32a3;
-  font-size: 0.95rem;
-  font-weight: 600;
-}
-
-.detail-item {
+.page-header-content {
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  padding: 6px 0;
-  font-size: 0.9rem;
 }
 
-.detail-item label {
-  color: #6d5d8f;
-  font-weight: 500;
-  font-size: 0.85rem;
-}
-
-.detail-item span {
-  color: #5a32a3;
+.page-header-content h1 {
+  margin: 0;
+  font-size: 20px;
   font-weight: 600;
+  color: #262626;
+  line-height: 1.4;
 }
 
-.detail-item span.enabled {
-  color: #27ae60;
+.create-btn {
+  background: linear-gradient(135deg, #7b42f6 0%, #5a32a3 100%) !important;
+  border: none !important;
+  color: white !important;
+  font-weight: 600 !important;
+  padding: 10px 20px !important;
+  border-radius: 8px !important;
+  transition: all 0.3s ease !important;
+  box-shadow: 0 4px 12px rgba(123, 66, 246, 0.3) !important;
+
+  .el-icon {
+    margin-right: 6px;
+  }
+
+  &:hover {
+    background: linear-gradient(135deg, #6d33e6 0%, #4a249c 100%) !important;
+    transform: translateY(-2px) !important;
+    box-shadow: 0 6px 20px rgba(123, 66, 246, 0.4) !important;
+  }
 }
 
-.detail-item span.disabled {
-  color: #e74c3c;
-}
-
-.config-meta {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-  gap: 12px;
-  margin-top: 16px;
-  padding: 16px;
-  background: rgba(243, 240, 250, 0.4);
-  border-radius: 10px;
-  border: 1px solid rgba(147, 112, 219, 0.1);
-  grid-column: 1 / -1;
-}
-
-.meta-item {
+.card-container {
+  background: #ffffff;
+  border: 1px solid rgba(147, 112, 219, 0.12);
+  border-radius: 12px;
+  box-shadow: 0 4px 16px rgba(147, 112, 219, 0.08);
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  overflow: hidden;
+  padding-top: 16px;
 }
 
-.meta-item label {
-  font-size: 0.75rem;
-  color: #6d5d8f;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
+.config-name-cell {
+  padding: 4px 8px;
+  line-height: 1.6;
+  font-weight: 400;
+  color: #333;
+  text-align: center;
 }
 
-.meta-item span {
-  color: #5a32a3;
-  font-size: 0.85rem;
+.mode-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 13px;
   font-weight: 500;
+  white-space: nowrap;
+  background: #e6f7ff;
+  color: #1890ff;
+}
+
+.review-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+  background: #fff1f0;
+  color: #f5222d;
+}
+
+.review-badge.enabled {
+  background: #f6ffed;
+  color: #52c41a;
+}
+
+.timeout-value {
+  font-size: 14px;
+  color: #333;
+}
+
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+  background: #fff1f0;
+  color: #f5222d;
+}
+
+.status-badge.active {
+  background: #f6ffed;
+  color: #52c41a;
+}
+
+.action-buttons {
+  display: flex;
+  gap: 6px;
+  justify-content: center;
+}
+
+.action-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 10px !important;
+  min-width: 32px;
+
+  .el-icon {
+    font-size: 14px;
+  }
+}
+
+.enable-btn {
+  background: #52c41a;
+  border-color: #52c41a;
+}
+
+.enable-btn:hover {
+  background: #45a314;
+  border-color: #45a314;
+}
+
+.edit-btn {
+  background: #7b42f6;
+  border-color: #7b42f6;
+}
+
+.edit-btn:hover {
+  background: #6d33e6;
+  border-color: #6d33e6;
+}
+
+.delete-btn {
+  background: #ff4d4f;
+  border-color: #ff4d4f;
+}
+
+.delete-btn:hover {
+  background: #e03c3e;
+  border-color: #e03c3e;
 }
 
 .empty-state {
@@ -679,13 +553,11 @@ export default {
 
 .add-first-config-btn {
   background: linear-gradient(135deg, #7b42f6 0%, #5a32a3 100%);
-  color: white;
   border: none;
   padding: 12px 24px;
-  border-radius: 12px;
-  cursor: pointer;
   font-size: 1rem;
   font-weight: 500;
+  border-radius: 12px;
   transition: all 0.3s ease;
   box-shadow: 0 4px 16px rgba(147, 112, 219, 0.2);
 }
@@ -696,216 +568,227 @@ export default {
   box-shadow: 0 8px 24px rgba(147, 112, 219, 0.3);
 }
 
-.config-modal {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
-}
-
-.modal-content {
-  background: white;
-  border-radius: 16px;
-  padding: 0;
-  max-width: 700px;
-  width: 90%;
-  max-height: 90vh;
-  overflow-y: auto;
-  box-shadow: 0 20px 60px rgba(147, 112, 219, 0.2);
-}
-
-.modal-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 20px 30px;
-  border-bottom: 1px solid rgba(147, 112, 219, 0.15);
-  background: linear-gradient(135deg, #ffffff 0%, #f5f3ff 100%);
-}
-
-.modal-header h3 {
-  margin: 0;
-  color: #5a32a3;
-  font-size: 1.3rem;
-  font-weight: 600;
-}
-
-.close-btn {
-  background: none;
+:deep(.el-table) {
   border: none;
-  font-size: 1.5rem;
-  cursor: pointer;
-  color: #6d5d8f;
+  border-radius: 8px 8px 0 0;
+  overflow: hidden;
+  min-height: 200px;
+  box-shadow: none;
   transition: all 0.3s ease;
-  padding: 5px 10px;
-  border-radius: 8px;
+  background-color: transparent !important;
+
+  --el-color-primary: #7b42f6;
+  --el-color-primary-light-3: #9370db;
+  --el-color-primary-light-5: #a888e0;
+  --el-color-primary-light-7: #c2a9f3;
+  --el-color-primary-light-9: #f8f7ff;
+  --el-border-color: #e9ecef;
+  --el-border-color-light: #e9ecef;
+  --el-border-color-lighter: #e9ecef;
+  --el-fill-color-light: #ffffff;
+  --el-fill-color-lighter: #ffffff;
+  --el-fill-color-blank: #ffffff;
+  --el-text-color-primary: #333;
+  --el-text-color-regular: #333;
+  --el-text-color-secondary: #666;
+  --el-text-color-placeholder: #999;
+  --el-table-header-bg-color: #ffffff;
+  --el-table-row-hover-bg-color: #f8f7ff;
+  --el-table-stripe-bg-color: #fafaff;
+
+  &::before {
+    display: none;
+  }
+
+  :deep(.el-table__header-wrapper) {
+    background-color: #ffffff !important;
+
+    :deep(.el-table__header) {
+      background-color: #ffffff !important;
+
+      :deep(th) {
+        background-color: #ffffff !important;
+        color: #5a32a3;
+        font-weight: 600;
+        font-size: 14px;
+        border-bottom: 1px solid #e9ecef;
+        padding: 16px;
+        text-align: center;
+        line-height: 24px;
+        transition: all 0.3s ease;
+
+        &:hover {
+          background-color: #ffffff !important;
+        }
+      }
+    }
+  }
+
+  :deep(.el-table__body-wrapper) {
+    :deep(.el-table__body) {
+      :deep(tr) {
+        transition: all 0.3s ease;
+
+        &:hover {
+          background-color: #f8f7ff !important;
+        }
+
+        &.el-table__row--striped {
+          background-color: #fafaff !important;
+        }
+      }
+
+      :deep(td) {
+        border-bottom: 1px solid #e9ecef;
+        padding: 16px;
+        color: #333;
+        transition: all 0.3s ease;
+      }
+    }
+  }
 }
 
-.close-btn:hover {
+.config-dialog :deep(.el-dialog__header) {
+  background: linear-gradient(135deg, #ffffff 0%, #f5f3ff 100%);
+  border-bottom: 1px solid rgba(147, 112, 219, 0.15);
+  padding: 20px 24px;
+  margin-right: 0;
+}
+
+.config-dialog :deep(.el-dialog__title) {
   color: #5a32a3;
-  background: rgba(147, 112, 219, 0.1);
-}
-
-.modal-body {
-  padding: 30px;
-}
-
-.form-section {
-  margin-bottom: 25px;
-  padding: 20px;
-  background: rgba(243, 240, 250, 0.6);
-  border-radius: 12px;
-  border: 1px solid rgba(147, 112, 219, 0.1);
-}
-
-.form-section h4 {
-  margin: 0 0 15px 0;
-  color: #5a32a3;
-  font-size: 1.1rem;
   font-weight: 600;
+  font-size: 1.2rem;
 }
 
-.form-group {
-  margin-bottom: 18px;
+.config-dialog :deep(.el-dialog__body) {
+  padding: 24px;
 }
 
-.form-row {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 15px;
-}
-
-.form-group label {
-  display: block;
-  margin-bottom: 8px;
-  font-weight: 600;
-  color: #5a32a3;
-  font-size: 0.9rem;
-}
-
-.form-input, .form-select {
-  width: 100%;
-  padding: 10px;
-  border: 1px solid rgba(147, 112, 219, 0.2);
-  border-radius: 10px;
-  font-size: 0.95rem;
-  transition: all 0.3s ease;
-  background: white;
-}
-
-.form-input:focus, .form-select:focus {
-  outline: none;
-  border-color: #7b42f6;
-  box-shadow: 0 0 0 3px rgba(123, 66, 246, 0.15);
-}
-
-.field-hint {
-  margin-top: 5px;
-  font-size: 0.8rem;
-  color: #6d5d8f;
-  font-style: italic;
-}
-
-.checkbox-label {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  cursor: pointer;
-  user-select: none;
+.config-form :deep(.el-form-item__label) {
   color: #5a32a3;
   font-weight: 500;
 }
 
-.checkbox-label input[type="checkbox"] {
-  width: auto;
-  accent-color: #7b42f6;
+.required-star {
+  color: #ff4d4f;
+  margin-left: 4px;
 }
 
-.checkbox-hint {
-  margin-top: 5px;
+.form-hint {
+  font-size: 12px;
+  color: #8c8c8c;
+  margin-top: 4px;
+  line-height: 1.5;
+}
+
+.error-message {
+  color: #ff4d4f;
   font-size: 0.8rem;
-  color: #6d5d8f;
-  font-style: italic;
+  margin-top: 4px;
 }
 
-.required {
-  color: #e74c3c;
+:deep(.el-form-item.is-error .el-input__wrapper) {
+  box-shadow: 0 0 0 1px #ff4d4f inset;
 }
 
-.modal-actions {
+/* 下拉选择框样式 - 紫色主题 */
+:deep(.el-select .el-input__wrapper) {
+  box-shadow: 0 0 0 1px #7b42f6 inset !important;
+}
+
+:deep(.el-select .el-input.is-focus .el-input__wrapper),
+:deep(.el-select .el-input__wrapper.is-focus) {
+  box-shadow: 0 0 0 1px #7b42f6 inset !important;
+}
+
+:deep(.el-select:hover .el-input__wrapper) {
+  box-shadow: 0 0 0 1px #7b42f6 inset !important;
+}
+
+/* 覆盖 Element Plus 默认的聚焦样式 */
+:deep(.el-select .el-input__wrapper:focus-within) {
+  box-shadow: 0 0 0 1px #7b42f6 inset !important;
+}
+
+/* 针对展开状态的下拉框 */
+:deep(.el-select.is-focus .el-input__wrapper) {
+  box-shadow: 0 0 0 1px #7b42f6 inset !important;
+}
+
+/* 针对激活状态 */
+:deep(.el-select .el-input__wrapper--focus) {
+  box-shadow: 0 0 0 1px #7b42f6 inset !important;
+}
+
+/* 全局覆盖 */
+:deep(.el-select .el-input__inner) {
+  box-shadow: none !important;
+}
+
+.dialog-footer {
   display: flex;
-  gap: 15px;
   justify-content: flex-end;
-  margin-top: 30px;
+  gap: 12px;
+  padding-top: 20px;
 }
 
 .cancel-btn {
-  background: linear-gradient(135deg, #95a5a6 0%, #7f8c8d 100%);
-  color: white;
-  border: none;
-  padding: 10px 20px;
+  padding: 10px 24px;
   border-radius: 10px;
-  cursor: pointer;
-  font-weight: 500;
   transition: all 0.3s ease;
 }
 
-.cancel-btn:hover {
-  background: linear-gradient(135deg, #7f8c8d 0%, #6c7a7d 100%);
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(149, 165, 166, 0.3);
-}
-
-.confirm-btn {
+.save-btn {
   background: linear-gradient(135deg, #7b42f6 0%, #5a32a3 100%);
-  color: white;
   border: none;
-  padding: 10px 20px;
+  padding: 10px 24px;
   border-radius: 10px;
-  cursor: pointer;
-  font-weight: 500;
   transition: all 0.3s ease;
-  box-shadow: 0 4px 16px rgba(147, 112, 219, 0.2);
 }
 
-.confirm-btn:hover:not(:disabled) {
+.save-btn:hover {
   background: linear-gradient(135deg, #6d33e6 0%, #4a249c 100%);
   transform: translateY(-1px);
-  box-shadow: 0 8px 24px rgba(147, 112, 219, 0.3);
-}
-
-.confirm-btn:disabled {
-  background: linear-gradient(135deg, #d1c5f7 0%, #b8a7e8 100%);
-  cursor: not-allowed;
-  transform: none;
-  box-shadow: none;
 }
 
 @media (max-width: 768px) {
-  .configs-grid {
-    grid-template-columns: 1fr;
+  .page-container {
+    padding: 16px;
+    margin: -16px;
+    min-height: calc(100% + 32px);
   }
 
-  .config-header {
-    flex-direction: column;
-    gap: 15px;
-    align-items: flex-start;
-  }
-
-  .form-row {
-    grid-template-columns: 1fr;
-  }
-
-  .detail-item {
+  .page-header-card {
+    padding: 20px;
     flex-direction: column;
     align-items: flex-start;
-    gap: 5px;
+  }
+
+  .page-header-content h1 {
+    font-size: 1.4rem;
+  }
+
+  .create-btn {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .card-container {
+    padding: 16px;
+  }
+
+  .action-buttons {
+    flex-wrap: wrap;
+  }
+
+  .action-btn {
+    padding: 4px 8px;
+    font-size: 0.8rem;
+  }
+
+  .action-btn span {
+    display: none;
   }
 }
 </style>

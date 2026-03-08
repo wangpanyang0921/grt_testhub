@@ -1,95 +1,70 @@
 <template>
-  <div class="dify-config-container">
-    <div class="page-header">
-      <h1>{{ $t('configuration.dify.title') }}</h1>
-      <p>{{ $t('configuration.dify.description') }}</p>
+  <div class="page-container">
+    <div class="card-container">
+      <el-form :model="form" :rules="rules" ref="configForm" label-width="120px" class="config-form">
+        <el-form-item :label="$t('configuration.dify.apiUrl')" prop="api_url">
+          <el-input
+            v-model="form.api_url"
+            :placeholder="$t('configuration.dify.apiUrlPlaceholder')"
+            clearable
+          />
+          <div class="form-tip">{{ $t('configuration.dify.apiUrlTip') }}</div>
+        </el-form-item>
+
+        <el-form-item :label="$t('configuration.dify.apiKey')" prop="api_key">
+          <el-input
+            v-model="form.api_key"
+            type="password"
+            :placeholder="currentConfig ? $t('configuration.dify.apiKeyPlaceholderEdit') : $t('configuration.dify.apiKeyPlaceholder')"
+            show-password
+            clearable
+          />
+          <div class="form-tip">{{ $t('configuration.dify.apiKeyTip') }}</div>
+        </el-form-item>
+
+        <el-form-item :label="$t('configuration.dify.enableStatus')" prop="is_active">
+          <el-switch v-model="form.is_active" />
+          <span class="switch-label">{{ form.is_active ? $t('configuration.common.enabled') : $t('configuration.common.disabled') }}</span>
+        </el-form-item>
+
+        <el-form-item class="form-actions">
+          <el-button type="primary" class="test-btn" @click="testConnection" :loading="testing">
+            <el-icon><Connection /></el-icon>
+            {{ $t('configuration.dify.testConnection') }}
+          </el-button>
+          <el-button type="primary" class="save-btn" @click="saveConfig" :loading="saving">
+            <el-icon><Check /></el-icon>
+            {{ $t('configuration.common.save') }}
+          </el-button>
+          <el-button class="reset-btn" @click="resetForm">
+            <el-icon><RefreshLeft /></el-icon>
+            {{ $t('configuration.common.reset') }}
+          </el-button>
+        </el-form-item>
+      </el-form>
     </div>
 
-    <div class="config-content">
-      <el-card class="config-card">
-        <template #header>
-          <div class="card-header">
-            <span>{{ $t('configuration.dify.apiConfig') }}</span>
-            <el-tag v-if="currentConfig" type="success">{{ $t('configuration.common.configured') }}</el-tag>
-            <el-tag v-else type="info">{{ $t('configuration.common.notConfigured') }}</el-tag>
-          </div>
-        </template>
-
-        <el-form :model="form" :rules="rules" ref="configForm" label-width="120px">
-          <el-form-item :label="$t('configuration.dify.apiUrl')" prop="api_url">
-            <el-input
-              v-model="form.api_url"
-              :placeholder="$t('configuration.dify.apiUrlPlaceholder')"
-              clearable
-            >
-              <template #prepend>
-                <el-icon><Link /></el-icon>
-              </template>
-            </el-input>
-            <div class="form-tip">{{ $t('configuration.dify.apiUrlTip') }}</div>
-          </el-form-item>
-
-          <el-form-item :label="$t('configuration.dify.apiKey')" prop="api_key">
-            <el-input
-              v-model="form.api_key"
-              type="password"
-              :placeholder="currentConfig ? $t('configuration.dify.apiKeyPlaceholderEdit') : $t('configuration.dify.apiKeyPlaceholder')"
-              show-password
-              clearable
-            >
-              <template #prepend>
-                <el-icon><Key /></el-icon>
-              </template>
-            </el-input>
-            <div class="form-tip">{{ $t('configuration.dify.apiKeyTip') }}</div>
-          </el-form-item>
-
-          <el-form-item :label="$t('configuration.dify.enableStatus')" prop="is_active">
-            <el-switch v-model="form.is_active" />
-            <span class="switch-label">{{ form.is_active ? $t('configuration.common.enabled') : $t('configuration.common.disabled') }}</span>
-          </el-form-item>
-
-          <el-form-item>
-            <el-button type="primary" @click="testConnection" :loading="testing">
-              <el-icon><Connection /></el-icon>
-              {{ $t('configuration.dify.testConnection') }}
-            </el-button>
-            <el-button type="success" @click="saveConfig" :loading="saving">
-              <el-icon><Check /></el-icon>
-              {{ $t('configuration.common.save') }}
-            </el-button>
-            <el-button @click="resetForm">
-              <el-icon><RefreshLeft /></el-icon>
-              {{ $t('configuration.common.reset') }}
-            </el-button>
-          </el-form-item>
-        </el-form>
-      </el-card>
-
-      <el-card class="info-card" v-if="currentConfig">
-        <template #header>
-          <span>{{ $t('configuration.dify.currentConfig') }}</span>
-        </template>
-        <el-descriptions :column="1" border>
-          <el-descriptions-item :label="$t('configuration.dify.apiUrl')">
-            {{ currentConfig.api_url }}
-          </el-descriptions-item>
-          <el-descriptions-item :label="$t('configuration.dify.apiKey')">
-            {{ currentConfig.api_key_masked || '****' }}
-          </el-descriptions-item>
-          <el-descriptions-item :label="$t('configuration.common.status')">
-            <el-tag :type="currentConfig.is_active ? 'success' : 'info'">
-              {{ currentConfig.is_active ? $t('configuration.common.enabled') : $t('configuration.common.disabled') }}
-            </el-tag>
-          </el-descriptions-item>
-          <el-descriptions-item :label="$t('configuration.common.createdAt')">
-            {{ formatDate(currentConfig.created_at) }}
-          </el-descriptions-item>
-          <el-descriptions-item :label="$t('configuration.common.updatedAt')">
-            {{ formatDate(currentConfig.updated_at) }}
-          </el-descriptions-item>
-        </el-descriptions>
-      </el-card>
+    <div class="card-container" v-if="currentConfig">
+      <div class="section-title">{{ $t('configuration.dify.currentConfig') }}</div>
+      <el-descriptions :column="1" border class="config-descriptions">
+        <el-descriptions-item :label="$t('configuration.dify.apiUrl')">
+          {{ currentConfig.api_url }}
+        </el-descriptions-item>
+        <el-descriptions-item :label="$t('configuration.dify.apiKey')">
+          {{ currentConfig.api_key_masked || '****' }}
+        </el-descriptions-item>
+        <el-descriptions-item :label="$t('configuration.common.status')">
+          <span class="status-badge" :class="{ active: currentConfig.is_active }">
+            {{ currentConfig.is_active ? $t('configuration.common.enabled') : $t('configuration.common.disabled') }}
+          </span>
+        </el-descriptions-item>
+        <el-descriptions-item :label="$t('configuration.common.createdAt')">
+          {{ formatDate(currentConfig.created_at) }}
+        </el-descriptions-item>
+        <el-descriptions-item :label="$t('configuration.common.updatedAt')">
+          {{ formatDate(currentConfig.updated_at) }}
+        </el-descriptions-item>
+      </el-descriptions>
     </div>
   </div>
 </template>
@@ -238,160 +213,173 @@ onMounted(() => {
 </script>
 
 <style scoped lang="scss">
-.dify-config-container {
-  padding: 20px;
-  max-width: 900px;
-  margin: 0 auto;
-}
-
-.page-header {
-  text-align: center;
-  margin-bottom: 40px;
-  padding: 28px 20px;
-  background: linear-gradient(135deg, #ffffff 0%, #f5f3ff 100%);
-  border-radius: 20px;
-  box-shadow: 0 8px 32px rgba(147, 112, 219, 0.12);
-  border: 1px solid rgba(147, 112, 219, 0.2);
-
-  h1 {
-    font-size: 2.2rem;
-    color: #5a32a3;
-    margin-bottom: 12px;
-    font-weight: 700;
-    text-shadow: 0 1px 2px rgba(90, 50, 163, 0.1);
-    line-height: 1.2;
-  }
-
-  p {
-    color: #6d5d8f;
-    font-size: 1.05rem;
-    opacity: 0.9;
-    margin: 0;
-    line-height: 1.5;
-  }
-}
-
-.config-content {
+.page-container {
+  margin: -20px;
+  min-height: calc(100% + 40px);
+  background: linear-gradient(135deg, #f5f3ff 0%, #ede9fe 100%);
   display: flex;
   flex-direction: column;
+  line-height: 24px;
   gap: 20px;
+  width: calc(100% + 40px);
+  box-sizing: border-box;
+  padding: 24px;
 }
 
-.config-card, .info-card {
-  background: linear-gradient(135deg, #ffffff 0%, #f5f3ff 100%);
-  border-radius: 16px;
-  box-shadow: 0 4px 20px rgba(147, 112, 219, 0.1);
-  border: 1px solid rgba(147, 112, 219, 0.2);
+.card-container {
+  background: #ffffff;
+  border: 1px solid rgba(147, 112, 219, 0.12);
+  border-radius: 12px;
+  box-shadow: 0 4px 16px rgba(147, 112, 219, 0.08);
+  display: flex;
+  flex-direction: column;
   overflow: hidden;
+  padding: 24px;
 
-  :deep(.el-card__header) {
-    background: linear-gradient(135deg, #ffffff 0%, #f5f3ff 100%);
-    border-bottom: 1px solid rgba(147, 112, 219, 0.15);
-    padding: 16px 20px;
-  }
-
-  :deep(.el-card__body) {
-    padding: 24px;
-  }
-
-  .card-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
+  .section-title {
+    font-size: 16px;
     font-weight: 600;
-    color: #5a32a3;
-    font-size: 1.1rem;
+    color: #262626;
+    margin-bottom: 20px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid #f0f0f0;
+  }
+}
 
-    span {
-      display: flex;
-      align-items: center;
-      gap: 8px;
+.config-form {
+  .el-form-item {
+    margin-bottom: 24px;
 
-      &::before {
-        content: '🔧';
-        font-size: 1.2rem;
+    :deep(.el-form-item__label) {
+      font-weight: 500;
+      color: #333;
+    }
+
+    :deep(.el-input__wrapper) {
+      border-radius: 8px;
+      box-shadow: 0 0 0 1px #d9d9d9 inset;
+
+      &:hover {
+        box-shadow: 0 0 0 1px #7b42f6 inset;
+      }
+
+      &.is-focus {
+        box-shadow: 0 0 0 1px #7b42f6 inset;
       }
     }
+
+    :deep(.el-input-group__prepend) {
+      background: #f5f5f5;
+      border-color: #d9d9d9;
+      color: #666;
+    }
+  }
+
+  .form-actions {
+    margin-bottom: 0;
+    padding-top: 8px;
   }
 }
 
 .form-tip {
   font-size: 12px;
-  color: #6d5d8f;
-  margin-top: 4px;
-  font-style: italic;
+  color: #8c8c8c;
+  margin-top: 6px;
+  line-height: 1.5;
 }
 
 .switch-label {
   margin-left: 10px;
-  color: #5a32a3;
+  color: #333;
   font-weight: 500;
 }
 
-.el-form-item {
-  margin-bottom: 24px;
+.test-btn {
+  background: #52c41a !important;
+  border-color: #52c41a !important;
+  font-weight: 500 !important;
+  padding: 10px 20px !important;
+  border-radius: 8px !important;
 
-  :deep(.el-form-item__label) {
-    color: #5a32a3;
-    font-weight: 600;
+  &:hover {
+    background: #73d13d !important;
+    border-color: #73d13d !important;
   }
 
-  :deep(.el-input__wrapper) {
-    border-radius: 10px;
-    box-shadow: 0 0 0 1px rgba(147, 112, 219, 0.2) inset;
-
-    &:hover {
-      box-shadow: 0 0 0 1px rgba(147, 112, 219, 0.4) inset;
-    }
-
-    &.is-focus {
-      box-shadow: 0 0 0 1px #7b42f6 inset, 0 0 0 3px rgba(123, 66, 246, 0.15);
-    }
+  .el-icon {
+    margin-right: 6px;
   }
 }
 
-// 按钮样式优化
-:deep(.el-button--primary) {
-  background: linear-gradient(135deg, #7b42f6 0%, #5a32a3 100%);
-  border: none;
-  border-radius: 10px;
+.save-btn {
+  background: linear-gradient(135deg, #7b42f6 0%, #5a32a3 100%) !important;
+  border: none !important;
+  font-weight: 500 !important;
+  padding: 10px 20px !important;
+  border-radius: 8px !important;
+  box-shadow: 0 4px 12px rgba(123, 66, 246, 0.3) !important;
+
+  &:hover {
+    background: linear-gradient(135deg, #6d33e6 0%, #4a249c 100%) !important;
+    box-shadow: 0 6px 16px rgba(123, 66, 246, 0.4) !important;
+  }
+
+  .el-icon {
+    margin-right: 6px;
+  }
+}
+
+.reset-btn {
+  font-weight: 500 !important;
+  padding: 10px 20px !important;
+  border-radius: 8px !important;
+  border-color: #d9d9d9 !important;
+  color: #595959 !important;
+  background: #ffffff !important;
+
+  &:hover {
+    color: #7b42f6 !important;
+    border-color: #7b42f6 !important;
+    background: #f8f7ff !important;
+  }
+
+  .el-icon {
+    margin-right: 6px;
+  }
+}
+
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 12px;
+  border-radius: 4px;
+  font-size: 13px;
   font-weight: 500;
-  transition: all 0.3s ease;
-  box-shadow: 0 4px 16px rgba(147, 112, 219, 0.2);
+  background: #fff1f0;
+  color: #f5222d;
 
-  &:hover:not(:disabled) {
-    background: linear-gradient(135deg, #6d33e6 0%, #4a249c 100%);
-    transform: translateY(-2px);
-    box-shadow: 0 8px 24px rgba(147, 112, 219, 0.3);
-  }
-
-  &:disabled {
-    background: linear-gradient(135deg, #d1c5f7 0%, #b8a7e8 100%);
+  &.active {
+    background: #f6ffed;
+    color: #52c41a;
   }
 }
 
-:deep(.el-button--success) {
-  background: linear-gradient(135deg, #27ae60 0%, #219a52 100%);
-  border: none;
-  border-radius: 10px;
-  font-weight: 500;
-  transition: all 0.3s ease;
-  box-shadow: 0 4px 16px rgba(39, 174, 96, 0.2);
+.config-descriptions {
+  :deep(.el-descriptions__label) {
+    font-weight: 500;
+    color: #333;
+    background: #fafafa;
+    width: 120px;
+  }
 
-  &:hover:not(:disabled) {
-    background: linear-gradient(135deg, #219a52 0%, #1e8449 100%);
-    transform: translateY(-2px);
-    box-shadow: 0 8px 24px rgba(39, 174, 96, 0.3);
+  :deep(.el-descriptions__content) {
+    color: #595959;
   }
 }
 
-:deep(.el-descriptions__label) {
-  color: #5a32a3;
-  font-weight: 600;
-  background: rgba(243, 240, 250, 0.6);
-}
-
-:deep(.el-descriptions__content) {
-  color: #6d5d8f;
+// 隐藏原始 header
+.page-header {
+  display: none;
 }
 </style>

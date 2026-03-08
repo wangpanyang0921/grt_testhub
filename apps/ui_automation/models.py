@@ -154,7 +154,7 @@ class Element(models.Model):
     validation_message = models.TextField(blank=True, verbose_name='验证消息')
 
     # 基础字段
-    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, verbose_name='创建人')
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='ui_test_suites', verbose_name='创建人')
     created_at = models.DateTimeField(auto_now_add=True, verbose_name='创建时间')
     updated_at = models.DateTimeField(auto_now=True, verbose_name='更新时间')
 
@@ -242,7 +242,7 @@ class PageObject(models.Model):
     project = models.ForeignKey(UiProject, on_delete=models.CASCADE, related_name='page_objects', verbose_name='所属项目')
     description = models.TextField(blank=True, verbose_name='描述')
     template_code = models.TextField(blank=True, verbose_name='模板代码', help_text='生成的页面对象代码模板')
-    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, verbose_name='创建人')
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='ui_automation_testsuites', verbose_name='创建人')
     created_at = models.DateTimeField(auto_now_add=True, verbose_name='创建时间')
     updated_at = models.DateTimeField(auto_now=True, verbose_name='更新时间')
 
@@ -440,6 +440,7 @@ class TestSuite(models.Model):
     passed_count = models.IntegerField(default=0, verbose_name='通过数')
     failed_count = models.IntegerField(default=0, verbose_name='失败数')
 
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='ui_test_suites_created', verbose_name='创建人')
     created_at = models.DateTimeField(auto_now_add=True, verbose_name='创建时间')
     updated_at = models.DateTimeField(auto_now=True, verbose_name='更新时间')
 

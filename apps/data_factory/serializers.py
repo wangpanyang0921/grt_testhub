@@ -14,7 +14,7 @@ class DataFactoryRecordSerializer(serializers.ModelSerializer):
         model = DataFactoryRecord
         fields = [
             'id', 'user', 'user_name', 'tool_name', 'tool_name_display', 'tool_category', 'tool_category_display',
-            'tool_scenario', 'tool_scenario_display', 'input_data', 'output_data',
+            'tool_scenario', 'tool_scenario_display', 'custom_name', 'input_data', 'output_data',
             'is_saved', 'tags', 'created_at'
         ]
         read_only_fields = ['id', 'user', 'created_at']
@@ -39,3 +39,4 @@ class ToolExecuteSerializer(serializers.Serializer):
     input_data = serializers.JSONField(required=True)
     is_saved = serializers.BooleanField(default=True)
     tags = serializers.ListField(child=serializers.CharField(), required=False, allow_null=True)
+    custom_name = serializers.CharField(required=False, allow_null=True, allow_blank=True)

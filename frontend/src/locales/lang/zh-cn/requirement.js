@@ -23,8 +23,8 @@ export default {
     selectProject: '请选择项目',
     charCount: '{count}/2000',
     generating: '🔄 生成中...',
-    generateBtn: '🚀 生成测试用例',
-    generateButton: '🚀 生成测试用例',
+    generateBtn: '🚀 开始生成',
+    generateButton: '🚀 开始生成',
 
     // Document Upload
     uploadTitle: '📄 上传需求文档',
@@ -111,9 +111,9 @@ export default {
     loadTaskFailed: '加载任务失败',
 
     // Stream Display
-    realtimeGeneratedContent: '✍️ 实时生成内容',
-    aiReviewComments: '📝 AI评审意见',
-    finalVersionTestCases: '✅ 最终版测试用例',
+    realtimeGeneratedContent: '实时生成内容',
+    aiReviewComments: 'AI评审意见',
+    finalVersionTestCases: '最终版测试用例',
     characters: '{count} 字符',
 
     // Results
@@ -324,32 +324,32 @@ export default {
   },
   promptConfig: {
     // Page
-    title: '📝 提示词配置',
+    title: '提示词配置',
     subtitle: '配置用于测试用例编写和评审的AI提示词',
 
     // Section
     configListTitle: '提示词配置列表',
-    loadDefaults: '📂 加载默认提示词',
-    addConfig: '➕ 添加配置',
+    loadDefaults: '加载默认提示词',
+    addConfig: '添加配置',
 
     // Config Card
-    enabled: '启用',
-    disabled: '禁用',
-    preview: '👁️ 预览',
-    edit: '✏️ 编辑',
-    delete: '🗑️ 删除',
+    enabled: '已启用',
+    disabled: '已禁用',
+    preview: '预览',
+    edit: '编辑',
+    delete: '删除',
 
     // Config Details
-    contentPreview: '提示词内容预览:',
-    createdAt: '创建时间:',
-    updatedAt: '更新时间:',
-    creator: '创建者:',
-    createdBy: '创建者:',
+    contentPreview: '内容预览',
+    createdAt: '创建时间',
+    updatedAt: '更新时间',
+    creator: '创建者',
+    createdBy: '创建者',
     unknown: '未知',
 
     // Modal
-    addTitle: '添加提示词配置',
-    editTitle: '编辑提示词配置',
+    addTitle: '添加配置',
+    editTitle: '编辑配置',
     editConfig: '编辑提示词配置',
     configName: '配置名称',
     configNamePlaceholder: '例如：测试用例编写提示词 v1.0',
@@ -359,23 +359,23 @@ export default {
     testCaseReviewer: '测试用例评审',
     selectType: '请选择类型',
     selectPromptType: '请选择提示词类型',
-    writerPrompt: '测试用例编写提示词',
-    reviewerPrompt: '测试用例评审提示词',
+    writerPrompt: '用例编写',
+    reviewerPrompt: '用例评审',
     isActive: '是否启用',
     promptContent: '提示词内容',
     contentPlaceholder: '请输入提示词内容，支持使用变量占位符...',
     contentHint: '提示：可使用 {requirement} {project} 等变量',
     charCount: '字符数: {count}',
-    saveBtn: '💾 保存',
-    saveConfig: '💾 保存配置',
+    saveBtn: '保存',
+    saveConfig: '保存配置',
     cancel: '取消',
     cancelBtn: '取消',
-    saving: '💾 保存中...',
+    saving: '保存中...',
     enableConfig: '启用此配置',
     enableHint: '启用后，相同类型的其他配置将被禁用',
 
     // Writing Tips
-    writingTipsTitle: '提示词编写建议:',
+    writingTipsTitle: '提示词编写建议',
     tip1: '使用 {requirement} 表示需求内容',
     tip2: '使用 {project} 表示项目信息',
     tip3: '清晰描述AI的角色和任务',
@@ -383,8 +383,8 @@ export default {
 
     // Preview Modal
     previewTitle: '预览提示词 - {name}',
-    type: '类型:',
-    status: '状态:',
+    type: '类型',
+    status: '状态',
     closeBtn: '关闭',
 
     // Default Prompts Modal
@@ -402,8 +402,8 @@ export default {
     noConfigs: '暂无提示词配置',
     noConfigsHint: '请添加提示词配置以自定义AI的行为和输出格式',
     emptyHint: '请添加提示词配置以自定义AI的行为和输出格式',
-    addFirstConfig: '➕ 添加第一个配置',
-    loadDefaultsFirst: '📂 加载默认提示词',
+    addFirstConfig: '添加第一个配置',
+    loadDefaultsFirst: '加载默认提示词',
 
     // Messages
     nameRequired: '请输入配置名称',
@@ -415,6 +415,7 @@ export default {
     updateSuccess: '配置更新成功',
     saveConfigFailed: '保存配置失败',
     deleteConfirm: '确定要删除这个配置吗？',
+    deleteTitle: '确认删除',
     deleteSuccess: '删除成功',
     deleteFailed: '删除失败',
     deleteConfigFailed: '删除配置失败',
@@ -422,48 +423,53 @@ export default {
     loadDefaultsFailed: '加载默认提示词失败',
     loadConfigsFailed: '加载配置失败',
     loadFailed: '加载失败',
-    pleaseLogin: '请先登录'
+    pleaseLogin: '请先登录',
+
+    // Common
+    unnamed: '未命名',
+    operation: '操作',
+    confirm: '确认'
   },
   generationConfig: {
     // Page
-    title: '⚙️ 生成行为配置',
+    title: '生成行为配置',
     subtitle: '配置测试用例生成的默认行为和自动化流程',
     description: '配置测试用例生成的默认行为和自动化流程',
 
     // Config List
     configList: '配置列表',
-    addConfig: '➕ 添加配置',
-    addFirstConfig: '➕ 添加第一个配置',
+    addConfig: '添加配置',
+    addFirstConfig: '添加第一个配置',
     emptyTitle: '暂无生成配置',
     emptyDescription: '请添加生成行为配置以控制测试用例生成的默认行为',
 
     // Config Card
-    enabled: '✅ 启用中',
-    disabled: '❌ 未启用',
-    streamMode: '⚡ 流式输出',
-    completeMode: '📄 完整输出',
-    enable: '✅ 启用',
-    edit: '✏️ 编辑',
-    delete: '🗑️ 删除',
+    enabled: '已启用',
+    disabled: '已禁用',
+    streamMode: '流式输出',
+    completeMode: '完整输出',
+    enable: '启用',
+    edit: '编辑',
+    delete: '删除',
 
     // Sections
-    outputMode: '📤 输出模式',
-    automationProcess: '🤖 自动化流程',
-    timeoutSettings: '⏱️ 超时设置',
+    outputMode: '输出模式',
+    automationProcess: '自动化流程',
+    timeoutSettings: '超时设置',
 
     // Fields
-    defaultMode: '默认模式:',
-    aiReview: 'AI评审和改进:',
-    reviewTimeout: '评审和改进超时:',
+    defaultMode: '默认模式',
+    aiReview: 'AI评审',
+    reviewTimeout: '评审超时',
     seconds: '秒',
-    createdAt: '创建时间:',
-    updatedAt: '更新时间:',
+    createdAt: '创建时间',
+    updatedAt: '更新时间',
 
     // Form
-    editTitle: '编辑',
-    addTitle: '添加',
+    editTitle: '编辑配置',
+    addTitle: '添加配置',
     formTitle: '生成行为配置',
-    basicInfo: '📋 基本信息',
+    basicInfo: '基本信息',
     configName: '配置名称',
     configNamePlaceholder: '例如：默认生成配置',
     defaultConfigName: '默认生成配置',
@@ -471,26 +477,26 @@ export default {
     enableHint: '注意：只能有一个启用的配置，启用此配置将自动禁用其他配置',
 
     // Output Mode
-    outputModeSettings: '📤 输出模式设置',
+    outputModeSettings: '输出模式设置',
     defaultOutputMode: '默认输出模式',
-    realtimeStream: '⚡ 实时流式输出',
-    completeOutput: '📄 完整输出',
+    realtimeStream: '实时流式输出',
+    completeOutput: '完整输出',
     outputModeHint: '实时流式输出：内容逐字显示，体验流畅；完整输出：完成后一次性展示',
 
     // Automation
-    automationSettings: '🤖 自动化流程配置',
+    automationSettings: '自动化流程配置',
     enableAutoReview: '启用AI评审和改进',
     autoReviewHint: '生成完成后自动进行AI评审，并根据评审意见改进测试用例',
 
     // Timeout
-    timeoutSettingsLabel: '⏱️ 超时设置',
-    reviewTimeoutLabel: '评审和改进超时时间（秒）',
+    timeoutSettingsLabel: '超时设置',
+    reviewTimeoutLabel: '评审超时（秒）',
     timeoutHint: 'AI评审和改进的总超时时间（建议：小文档120秒，大文档600-1800秒，超大文档可设置到3600秒）',
 
     // Buttons
     cancel: '取消',
-    saving: '🔄 保存中...',
-    saveConfig: '💾 保存配置',
+    saving: '保存中...',
+    saveConfig: '保存配置',
 
     // Messages
     loadFailed: '加载配置失败',
@@ -502,7 +508,19 @@ export default {
     enableFailed: '启用失败',
     deleteSuccess: '配置删除成功',
     deleteFailed: '删除失败',
-    deleteConfirm: '确定要删除此配置吗？'
+    deleteConfirm: '确定要删除此配置吗？',
+    deleteTitle: '确认删除',
+
+    // Common
+    unnamed: '未命名',
+    operation: '操作',
+    confirm: '确认',
+    nameRequired: '请输入配置名称',
+    outputModeRequired: '请选择输出模式',
+    selectOutputMode: '请选择输出模式',
+
+    // Table Headers
+    status: '状态'
   },
 
   // 任务详情页面

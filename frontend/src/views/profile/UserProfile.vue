@@ -1,25 +1,21 @@
 <template>
   <div class="page-container">
-    <div class="page-header">
-      <h1 class="page-title">{{ $t('profile.title') }}</h1>
-    </div>
-
     <div class="card-container">
       <el-tabs v-model="activeTab">
         <el-tab-pane :label="$t('profile.basicInfo')" name="basic">
           <div class="profile-layout">
-            <!-- 左侧头像区域 -->
+            <!-- 上方头像区域 -->
             <div class="avatar-section">
               <div class="avatar-wrapper">
                 <el-avatar 
-                  :size="120" 
+                  :size="100" 
                   :src="avatarUrl"
                   class="user-avatar"
                 >
-                  <el-icon :size="60"><UserFilled /></el-icon>
+                  <el-icon :size="50"><UserFilled /></el-icon>
                 </el-avatar>
                 <div class="avatar-overlay" @click="triggerAvatarUpload">
-                  <el-icon :size="24"><Camera /></el-icon>
+                  <el-icon :size="20"><Camera /></el-icon>
                   <span>更换头像</span>
                 </div>
               </div>
@@ -33,7 +29,7 @@
               <p class="avatar-hint">支持 JPG、PNG、GIF 格式，最大 5MB</p>
             </div>
 
-            <!-- 右侧表单区域 -->
+            <!-- 下方表单区域 -->
             <div class="form-section">
               <el-form v-if="userStore.user" :model="userStore.user" label-width="100px">
                 <el-form-item :label="$t('profile.username')">
@@ -179,30 +175,23 @@ const handleAvatarUpload = async (event) => {
 
 <style scoped lang="scss">
 .page-container {
-  padding: 24px;
-}
-
-.page-header {
-  margin-bottom: 24px;
-}
-
-.page-title {
-  font-size: 24px;
-  font-weight: 600;
-  color: #333;
-  margin: 0;
+  padding: 0;
+  height: 100%;
 }
 
 .card-container {
-  background: white;
-  border-radius: 8px;
+  background: #f5f0ff;
+  border-radius: 0;
   padding: 24px;
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.1);
+  box-shadow: none;
+  height: 100%;
 }
 
 .profile-layout {
   display: flex;
-  gap: 48px;
+  flex-direction: column;
+  align-items: center;
+  gap: 32px;
   padding: 24px 0;
 }
 
@@ -210,18 +199,17 @@ const handleAvatarUpload = async (event) => {
   display: flex;
   flex-direction: column;
   align-items: center;
-  min-width: 200px;
 }
 
 .avatar-wrapper {
   position: relative;
-  width: 120px;
-  height: 120px;
+  width: 100px;
+  height: 100px;
   border-radius: 50%;
   overflow: hidden;
   cursor: pointer;
   transition: all 0.3s ease;
-  
+
   &:hover {
     .avatar-overlay {
       opacity: 1;
@@ -249,7 +237,7 @@ const handleAvatarUpload = async (event) => {
   color: white;
   opacity: 0;
   transition: opacity 0.3s ease;
-  
+
   span {
     margin-top: 8px;
     font-size: 12px;
@@ -257,14 +245,14 @@ const handleAvatarUpload = async (event) => {
 }
 
 .avatar-hint {
-  margin-top: 16px;
+  margin-top: 12px;
   font-size: 12px;
   color: #999;
   text-align: center;
 }
 
 .form-section {
-  flex: 1;
+  width: 100%;
   max-width: 500px;
 }
 

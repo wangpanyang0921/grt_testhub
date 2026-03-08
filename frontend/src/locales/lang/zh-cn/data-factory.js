@@ -1,6 +1,6 @@
 export default {
   // 页面标题
-  title: '数据工厂',
+  title: '数据工具箱',
   subtitle: '智能数据生成工具箱 - 为测试提供高质量测试数据',
 
   // 视图切换
@@ -16,12 +16,16 @@ export default {
     execute: '执行',
     cancel: '取消',
     delete: '删除',
+    confirm: '确认',
     download: '下载结果',
     downloadImage: '下载图片',
     expandAll: '全部展开',
     collapseAll: '全部收缩',
     selectImage: '选择图片',
-    copy: '复制'
+    copy: '复制',
+    export: '导出',
+    edit: '编辑',
+    reExecute: '再次执行'
   },
 
   // 工具数量
@@ -40,6 +44,8 @@ export default {
     saveResultTip: '保存后可在历史记录中查看',
     tags: '标签',
     tagsPlaceholder: '输入标签，多个标签用逗号分隔',
+    recordName: '记录名称',
+    recordNamePlaceholder: '请输入记录名称',
 
     // 测试数据工具
     carrier: '运营商',
@@ -295,7 +301,10 @@ export default {
     title: '使用历史',
     allRecords: '所有记录',
     statistics: '统计信息',
+    serialNumber: '序号',
     toolName: '工具名称',
+    recordName: '记录名称',
+    userName: '使用人',
     category: '分类',
     scenario: '场景',
     usageTime: '使用时间',
@@ -307,9 +316,15 @@ export default {
     noData: '暂无数据',
 
     // 消息
-    deleteConfirm: '确定要删除这条记录吗？',
+    deleteConfirm: '确定要删除这条记录吗？此操作不可恢复',
+    deleteConfirmTitle: '确认删除',
     deleteSuccess: '删除成功',
-    deleteFailed: '删除失败'
+    deleteFailed: '删除失败',
+    editRecordNamePrompt: '请输入记录名称',
+    editRecordNameTitle: '编辑记录名称',
+    recordNameRequired: '记录名称不能为空',
+    editRecordNameSuccess: '记录名称修改成功',
+    editRecordNameFailed: '记录名称修改失败'
   },
 
   // 消息提示
@@ -320,6 +335,11 @@ export default {
     copyFailed: '复制失败',
     downloadSuccess: '下载成功',
     downloadFailed: '下载失败',
+    exportSuccess: '导出Excel成功',
+    exportFailed: '导出Excel失败',
+    noDataToExport: '没有可导出的数据',
+    reExecuteSuccess: '已加载记录，可重新执行',
+    reExecuteFailed: '重新执行失败',
     downloadStarted: '下载已开始',
     pleaseInputData: '请输入数据',
     pleaseUploadImage: '请上传图片',

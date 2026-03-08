@@ -1,48 +1,61 @@
 <template>
-  <div class="notification-configs-container">
-    <!-- 页面说明 -->
-    <div class="page-header">
-      <h1 class="page-title">
-        <el-icon class="title-icon">
-          <Setting/>
-        </el-icon>
-        {{ $t('uiAutomation.notification.configs.pageTitle') }}
-      </h1>
-      <p class="page-description">
-        {{ $t('uiAutomation.notification.configs.pageDesc') }}
-      </p>
+  <div class="page-container">
+    <!-- 页面头部 + Tab切换 -->
+    <div class="page-header-card">
+      <div class="page-header-content">
+        <h1>{{ $t('uiAutomation.notification.configs.pageTitle') }}</h1>
+      </div>
+      <div class="header-tabs">
+        <div
+          class="header-tab-item"
+          :class="{ active: activeTab === 'feishu' }"
+          @click="activeTab = 'feishu'"
+        >
+          {{ $t('uiAutomation.notification.configs.feishuBot') }}
+        </div>
+        <div
+          class="header-tab-item"
+          :class="{ active: activeTab === 'wechat' }"
+          @click="activeTab = 'wechat'"
+        >
+          {{ $t('uiAutomation.notification.configs.wechatBot') }}
+        </div>
+        <div
+          class="header-tab-item"
+          :class="{ active: activeTab === 'dingtalk' }"
+          @click="activeTab = 'dingtalk'"
+        >
+          {{ $t('uiAutomation.notification.configs.dingtalkBot') }}
+        </div>
+      </div>
     </div>
 
-    <!-- Tab切换 -->
-    <div class="content-wrapper">
-      <el-tabs v-model="activeTab" class="notification-tabs">
+    <!-- 内容区域 -->
+    <div class="card-container">
+      <div class="tab-content-wrapper">
 
-        <!-- 飞书机器人Tab -->
-        <el-tab-pane :label="$t('uiAutomation.notification.configs.feishuBot')" name="feishu">
+        <!-- 飞书机器人 -->
+        <div v-show="activeTab === 'feishu'" class="tab-panel">
           <div class="tab-content">
             <div class="config-section">
               <el-form
                   ref="feishuFormRef"
                   :model="webhookBots.feishu"
-                  label-position="top"
-                  class="config-form"
+                  label-position="left"
+                  label-width="140px"
+                  class="config-form inline-form"
               >
                 <el-row :gutter="20">
-                  <el-col :span="12">
-                    <el-form-item :label="$t('uiAutomation.notification.configs.botName')">
+                  <el-col :span="24">
+                    <el-form-item :label="$t('uiAutomation.notification.configs.botName')" class="inline-form-item">
                       <el-input
                           v-model="webhookBots.feishu.name"
                           :placeholder="$t('uiAutomation.notification.configs.feishuBotNamePlaceholder')"
                       />
                     </el-form-item>
                   </el-col>
-                  <el-col :span="12">
-                    <el-form-item :label="$t('uiAutomation.notification.configs.enable')">
-                      <el-switch v-model="webhookBots.feishu.enabled"/>
-                    </el-form-item>
-                  </el-col>
                   <el-col :span="24">
-                    <el-form-item :label="$t('uiAutomation.notification.configs.webhookUrl')">
+                    <el-form-item :label="$t('uiAutomation.notification.configs.webhookUrl')" class="inline-form-item">
                       <el-input
                           v-model="webhookBots.feishu.webhook_url"
                           :placeholder="$t('uiAutomation.notification.configs.webhookPlaceholder')"
@@ -53,49 +66,57 @@
                     </el-form-item>
                   </el-col>
                   <el-col :span="24">
-                    <el-form-item :label="$t('uiAutomation.notification.configs.businessType')">
-                      <el-checkbox v-model="webhookBots.feishu.enable_ui_automation">{{ $t('uiAutomation.notification.configs.uiAutomationTest') }}</el-checkbox>
-                      <el-checkbox v-model="webhookBots.feishu.enable_api_testing">{{ $t('uiAutomation.notification.configs.apiTest') }}</el-checkbox>
+                    <el-form-item class="all-switches-item">
+                      <div class="switches-row">
+                        <div class="switch-item">
+                          <span class="switch-label">机器人启用状态</span>
+                          <el-switch v-model="webhookBots.feishu.enabled"/>
+                        </div>
+                        <div class="switch-item">
+                          <span class="switch-label">{{ $t('uiAutomation.notification.configs.uiAutomationTest') }}</span>
+                          <el-switch v-model="webhookBots.feishu.enable_ui_automation" />
+                        </div>
+                        <div class="switch-item">
+                          <span class="switch-label">{{ $t('uiAutomation.notification.configs.apiTest') }}</span>
+                          <el-switch v-model="webhookBots.feishu.enable_api_testing" />
+                        </div>
+                      </div>
                     </el-form-item>
                   </el-col>
                 </el-row>
 
                 <div class="form-actions">
-                  <el-button type="primary" @click="saveWebhookBot('feishu')">
+                  <el-button type="primary" class="save-btn" @click="saveWebhookBot('feishu')">
                     {{ $t('uiAutomation.notification.configs.saveFeishuConfig') }}
                   </el-button>
                 </div>
               </el-form>
             </div>
           </div>
-        </el-tab-pane>
+        </div>
 
-        <!-- 企业微信机器人Tab -->
-        <el-tab-pane :label="$t('uiAutomation.notification.configs.wechatBot')" name="wechat">
+        <!-- 企业微信机器人 -->
+        <div v-show="activeTab === 'wechat'" class="tab-panel">
           <div class="tab-content">
             <div class="config-section">
               <el-form
                   ref="wechatFormRef"
                   :model="webhookBots.wechat"
-                  label-position="top"
-                  class="config-form"
+                  label-position="left"
+                  label-width="140px"
+                  class="config-form inline-form"
               >
                 <el-row :gutter="20">
-                  <el-col :span="12">
-                    <el-form-item :label="$t('uiAutomation.notification.configs.botName')">
+                  <el-col :span="24">
+                    <el-form-item :label="$t('uiAutomation.notification.configs.botName')" class="inline-form-item">
                       <el-input
                           v-model="webhookBots.wechat.name"
                           :placeholder="$t('uiAutomation.notification.configs.wechatBotNamePlaceholder')"
                       />
                     </el-form-item>
                   </el-col>
-                  <el-col :span="12">
-                    <el-form-item :label="$t('uiAutomation.notification.configs.enable')">
-                      <el-switch v-model="webhookBots.wechat.enabled"/>
-                    </el-form-item>
-                  </el-col>
                   <el-col :span="24">
-                    <el-form-item :label="$t('uiAutomation.notification.configs.webhookUrl')">
+                    <el-form-item :label="$t('uiAutomation.notification.configs.webhookUrl')" class="inline-form-item">
                       <el-input
                           v-model="webhookBots.wechat.webhook_url"
                           :placeholder="$t('uiAutomation.notification.configs.webhookPlaceholder')"
@@ -106,49 +127,57 @@
                     </el-form-item>
                   </el-col>
                   <el-col :span="24">
-                    <el-form-item :label="$t('uiAutomation.notification.configs.businessType')">
-                      <el-checkbox v-model="webhookBots.wechat.enable_ui_automation">{{ $t('uiAutomation.notification.configs.uiAutomationTest') }}</el-checkbox>
-                      <el-checkbox v-model="webhookBots.wechat.enable_api_testing">{{ $t('uiAutomation.notification.configs.apiTest') }}</el-checkbox>
+                    <el-form-item class="all-switches-item">
+                      <div class="switches-row">
+                        <div class="switch-item">
+                          <span class="switch-label">机器人启用状态</span>
+                          <el-switch v-model="webhookBots.wechat.enabled"/>
+                        </div>
+                        <div class="switch-item">
+                          <span class="switch-label">{{ $t('uiAutomation.notification.configs.uiAutomationTest') }}</span>
+                          <el-switch v-model="webhookBots.wechat.enable_ui_automation" />
+                        </div>
+                        <div class="switch-item">
+                          <span class="switch-label">{{ $t('uiAutomation.notification.configs.apiTest') }}</span>
+                          <el-switch v-model="webhookBots.wechat.enable_api_testing" />
+                        </div>
+                      </div>
                     </el-form-item>
                   </el-col>
                 </el-row>
 
                 <div class="form-actions">
-                  <el-button type="primary" @click="saveWebhookBot('wechat')">
+                  <el-button type="primary" class="save-btn" @click="saveWebhookBot('wechat')">
                     {{ $t('uiAutomation.notification.configs.saveWechatConfig') }}
                   </el-button>
                 </div>
               </el-form>
             </div>
           </div>
-        </el-tab-pane>
+        </div>
 
-        <!-- 钉钉机器人Tab -->
-        <el-tab-pane :label="$t('uiAutomation.notification.configs.dingtalkBot')" name="dingtalk">
+        <!-- 钉钉机器人 -->
+        <div v-show="activeTab === 'dingtalk'" class="tab-panel">
           <div class="tab-content">
             <div class="config-section">
               <el-form
                   ref="dingtalkFormRef"
                   :model="webhookBots.dingtalk"
-                  label-position="top"
-                  class="config-form"
+                  label-position="left"
+                  label-width="140px"
+                  class="config-form inline-form"
               >
                 <el-row :gutter="20">
-                  <el-col :span="12">
-                    <el-form-item :label="$t('uiAutomation.notification.configs.botName')">
+                  <el-col :span="24">
+                    <el-form-item :label="$t('uiAutomation.notification.configs.botName')" class="inline-form-item">
                       <el-input
                           v-model="webhookBots.dingtalk.name"
                           :placeholder="$t('uiAutomation.notification.configs.dingtalkBotNamePlaceholder')"
                       />
                     </el-form-item>
                   </el-col>
-                  <el-col :span="12">
-                    <el-form-item :label="$t('uiAutomation.notification.configs.enable')">
-                      <el-switch v-model="webhookBots.dingtalk.enabled"/>
-                    </el-form-item>
-                  </el-col>
                   <el-col :span="24">
-                    <el-form-item :label="$t('uiAutomation.notification.configs.webhookUrl')">
+                    <el-form-item :label="$t('uiAutomation.notification.configs.webhookUrl')" class="inline-form-item">
                       <el-input
                           v-model="webhookBots.dingtalk.webhook_url"
                           :placeholder="$t('uiAutomation.notification.configs.webhookPlaceholder')"
@@ -159,7 +188,7 @@
                     </el-form-item>
                   </el-col>
                   <el-col :span="24">
-                    <el-form-item :label="$t('uiAutomation.notification.configs.signatureSecret')">
+                    <el-form-item :label="$t('uiAutomation.notification.configs.signatureSecret')" class="inline-form-item">
                       <el-input
                           v-model="webhookBots.dingtalk.secret"
                           :placeholder="$t('uiAutomation.notification.configs.signatureSecretPlaceholder')"
@@ -172,29 +201,40 @@
                     </el-form-item>
                   </el-col>
                   <el-col :span="24">
-                    <el-form-item :label="$t('uiAutomation.notification.configs.businessType')">
-                      <el-checkbox v-model="webhookBots.dingtalk.enable_ui_automation">{{ $t('uiAutomation.notification.configs.uiAutomationTest') }}</el-checkbox>
-                      <el-checkbox v-model="webhookBots.dingtalk.enable_api_testing">{{ $t('uiAutomation.notification.configs.apiTest') }}</el-checkbox>
+                    <el-form-item class="all-switches-item">
+                      <div class="switches-row">
+                        <div class="switch-item">
+                          <span class="switch-label">机器人启用状态</span>
+                          <el-switch v-model="webhookBots.dingtalk.enabled"/>
+                        </div>
+                        <div class="switch-item">
+                          <span class="switch-label">{{ $t('uiAutomation.notification.configs.uiAutomationTest') }}</span>
+                          <el-switch v-model="webhookBots.dingtalk.enable_ui_automation" />
+                        </div>
+                        <div class="switch-item">
+                          <span class="switch-label">{{ $t('uiAutomation.notification.configs.apiTest') }}</span>
+                          <el-switch v-model="webhookBots.dingtalk.enable_api_testing" />
+                        </div>
+                      </div>
                     </el-form-item>
                   </el-col>
                 </el-row>
 
                 <div class="form-actions">
-                  <el-button type="primary" @click="saveWebhookBot('dingtalk')">
+                  <el-button type="primary" class="save-btn" @click="saveWebhookBot('dingtalk')">
                     {{ $t('uiAutomation.notification.configs.saveDingtalkConfig') }}
                   </el-button>
                 </div>
               </el-form>
             </div>
           </div>
-        </el-tab-pane>
-      </el-tabs>
+        </div>
+      </div>
     </div>
   </div>
 </template>
 
 <script>
-import {Setting} from '@element-plus/icons-vue'
 import {ref, reactive, onMounted} from 'vue'
 import {ElMessage} from 'element-plus'
 import {
@@ -206,9 +246,6 @@ import { useI18n } from 'vue-i18n'
 
 export default {
   name: 'NotificationConfigs',
-  components: {
-    Setting
-  },
   setup() {
     const { t } = useI18n()
 
@@ -427,177 +464,309 @@ export default {
 }
 </script>
 
-<style scoped>
-.notification-configs-container {
-  padding: 24px;
-  background: #f5f7fa;
-  min-height: 100vh;
+<style scoped lang="scss">
+:root {
+  --primary-color: #7b42f6;
+  --primary-dark: #5a32a3;
+  --primary-light: #f8f7ff;
+  --border-color: #e8e8e8;
+  --text-primary: #262626;
+  --text-secondary: #595959;
+  --text-tertiary: #8c8c8c;
+  --bg-light: #ffffff;
+  --bg-gray: #fafafa;
+  --success-color: #52c41a;
+  --warning-color: #faad14;
+  --danger-color: #ff4d4f;
+  --info-color: #1890ff;
 }
 
-.page-header {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
-  padding: 32px 24px;
-  border-radius: 12px;
-  margin-bottom: 24px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+.config-form {
+  :deep(.el-form-item) {
+    .el-form-item__label {
+      text-align: right !important;
+      width: 140px !important;
+      padding-right: 20px !important;
+      line-height: 36px !important;
+      font-size: 14px !important;
+      color: #606266 !important;
+      font-weight: 500 !important;
+      justify-content: flex-end !important;
+    }
+  }
 }
 
-.page-title {
-  font-size: 28px;
-  font-weight: 600;
-  margin: 0 0 12px 0;
+.page-container {
+  margin: -20px;
+  min-height: calc(100% + 40px);
+  background: linear-gradient(135deg, #f5f3ff 0%, #ede9fe 100%);
   display: flex;
+  flex-direction: column;
+  line-height: 24px;
+  gap: 20px;
+  width: calc(100% + 40px);
+  box-sizing: border-box;
+  padding: 24px;
+}
+
+.page-header-card {
+  padding: 24px 28px;
+  background: #ffffff;
+  border-radius: 16px;
+  box-shadow: 0 4px 20px rgba(147, 112, 219, 0.1);
+  display: flex;
+  justify-content: space-between;
   align-items: center;
+  gap: 16px;
+
+  .page-header-content {
+    display: flex;
+    align-items: center;
+
+    h1 {
+      font-size: 20px;
+      font-weight: 600;
+      color: #262626;
+      margin: 0;
+    }
+  }
+
+  .header-tabs {
+    display: flex;
+    gap: 8px;
+    background: #f5f3ff;
+    padding: 4px;
+    border-radius: 10px;
+
+    .header-tab-item {
+      padding: 10px 24px;
+      font-size: 14px;
+      font-weight: 500;
+      color: #595959;
+      cursor: pointer;
+      border-radius: 8px;
+      transition: all 0.3s ease;
+
+      &:hover {
+        color: #7b42f6;
+        background: rgba(123, 66, 246, 0.08);
+      }
+
+      &.active {
+        color: #ffffff;
+        background: linear-gradient(135deg, #7b42f6 0%, #5a32a3 100%);
+        box-shadow: 0 2px 8px rgba(123, 66, 246, 0.3);
+      }
+    }
+  }
 }
 
-.title-icon {
-  margin-right: 12px;
-  font-size: 24px;
-}
-
-.page-description {
-  font-size: 16px;
-  opacity: 0.9;
-  margin: 0;
-}
-
-.content-wrapper {
-  background: white;
+.card-container {
+  background: #ffffff;
+  border: 1px solid rgba(147, 112, 219, 0.12);
   border-radius: 12px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  box-shadow: 0 4px 16px rgba(147, 112, 219, 0.08);
+  display: flex;
+  flex-direction: column;
   overflow: hidden;
 }
 
-.notification-tabs :deep(.el-tabs__nav-wrap) {
-  background: #f8f9fa;
-  border-bottom: 1px solid #e9ecef;
-}
-
-.notification-tabs :deep(.el-tabs__nav-scroll) {
+.tab-content-wrapper {
   padding: 0;
-}
-
-.notification-tabs :deep(.el-tabs__nav) {
-  display: flex;
-  background: #f8f9fa;
-}
-
-.notification-tabs :deep(.el-tabs__item) {
-  padding: 16px 32px;
-  font-size: 15px;
-  font-weight: 500;
-  color: #6c757d;
-  border: none;
-  position: relative;
-}
-
-.notification-tabs :deep(.el-tabs__item:hover) {
-  color: #667eea;
-  background: rgba(102, 126, 234, 0.08);
-}
-
-.notification-tabs :deep(.el-tabs__item.is-active) {
-  color: #667eea;
-  background: white;
-  border-bottom: 2px solid #667eea;
-}
-
-.notification-tabs :deep(.el-tabs__active-bar) {
-  background-color: #667eea;
-  height: 2px;
-}
-
-.notification-tabs :deep(.el-tabs__content) {
-  padding: 0;
-}
-
-/* 让Tab标签水平居中显示 */
-.notification-tabs :deep(.el-tabs__header) {
-  display: flex !important;
-  justify-content: center !important;
-  margin-bottom: 0 !important;
-  width: 100% !important;
-}
-
-.notification-tabs :deep(.el-tabs__nav-wrap) {
-  flex: 1 !important;
-  display: flex !important;
-  justify-content: center !important;
-}
-
-.notification-tabs :deep(.el-tabs__nav) {
-  margin: 0 auto !important;
-  float: none !important;
-  text-align: center !important;
 }
 
 .tab-content {
-  min-height: 600px;
+  min-height: 500px;
   padding: 24px;
 }
 
 .config-section {
   padding: 20px 0;
-}
 
-.config-section h3 {
-  margin: 0 0 20px 0;
-  font-size: 18px;
-  font-weight: 600;
-  color: #333;
+  h3 {
+    margin: 0 0 20px 0;
+    font-size: 18px;
+    font-weight: 600;
+    color: #5a32a3;
+  }
 }
 
 .form-item-hint {
   font-size: 12px;
-  color: #999;
+  color: #8c8c8c;
   margin-top: 4px;
 }
 
+.inline-form {
+  :deep(.el-form-item) {
+    margin-bottom: 24px;
+
+    &.inline-form-item {
+      display: flex;
+      align-items: flex-start;
+      margin-bottom: 24px;
+
+      .el-form-item__content {
+        flex: 1;
+        margin-left: 0 !important;
+
+        .el-input {
+          width: 100%;
+        }
+
+        .form-item-hint {
+          margin-left: 0;
+          height: 20px;
+          line-height: 20px;
+        }
+      }
+    }
+
+    &.all-switches-item {
+      display: flex;
+      align-items: flex-start;
+      margin-bottom: 24px;
+
+      .el-form-item__label {
+        width: 0 !important;
+        padding: 0 !important;
+        margin: 0 !important;
+      }
+
+      .el-form-item__content {
+        margin-left: 0 !important;
+        padding-left: 0 !important;
+      }
+    }
+  }
+}
+
 .form-actions {
-  margin-top: 20px;
-  padding-top: 20px;
-  border-top: 1px solid #eee;
-  text-align: right;
+  margin-top: 30px;
+  text-align: center;
 }
 
-/* 自定义按钮样式 - 与头部紫色渐变一致 */
-:deep(.el-button--primary) {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  border: none;
-  color: white;
-  font-weight: 600;
-  transition: all 0.3s ease;
+.save-btn {
+  background: linear-gradient(135deg, #7b42f6 0%, #5a32a3 100%) !important;
+  border: none !important;
+  color: white !important;
+  font-weight: 600 !important;
+  padding: 10px 24px !important;
+  border-radius: 8px !important;
+  box-shadow: 0 4px 12px rgba(123, 66, 246, 0.3) !important;
+  transition: all 0.3s ease !important;
+
+  &:hover {
+    background: linear-gradient(135deg, #6d33e6 0%, #4a249c 100%) !important;
+    transform: translateY(-2px) !important;
+    box-shadow: 0 6px 20px rgba(123, 66, 246, 0.4) !important;
+  }
 }
 
-:deep(.el-button--primary:hover) {
-  background: linear-gradient(135deg, #764ba2 0%, #667eea 100%);
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+.enable-switch-item {
+  :deep(.el-form-item__label) {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  :deep(.el-form-item__content) {
+    display: flex;
+    align-items: center;
+  }
 }
 
-:deep(.el-button--primary:active) {
-  transform: translateY(0);
+.switches-row {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 0;
+
+  .switch-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+
+    .switch-label {
+      font-size: 14px;
+      color: #606266;
+      font-weight: 500;
+      line-height: 36px;
+      width: 140px;
+      flex-shrink: 0;
+      text-align: right;
+      padding-right: 20px;
+    }
+  }
 }
 
 /* 自定义复选框样式 - 与头部紫色一致 */
-:deep(.el-checkbox__input.is-checked .el-checkbox__inner) {
-  background-color: #667eea;
-  border-color: #667eea;
-}
+:deep(.el-checkbox) {
+  margin-right: 24px;
 
-:deep(.el-checkbox__input.is-checked .el-checkbox__inner:hover) {
-  background-color: #764ba2;
-  border-color: #764ba2;
+  .el-checkbox__input {
+    .el-checkbox__inner {
+      width: 18px;
+      height: 18px;
+      border-radius: 4px;
+      border: 2px solid #d9d9d9;
+      transition: all 0.3s ease;
+
+      &::after {
+        width: 5px;
+        height: 9px;
+        left: 5px;
+        top: 2px;
+      }
+    }
+
+    &.is-checked {
+      .el-checkbox__inner {
+        background-color: #7b42f6;
+        border-color: #7b42f6;
+
+        &:hover {
+          background-color: #5a32a3;
+          border-color: #5a32a3;
+        }
+      }
+    }
+
+    &.is-focus {
+      .el-checkbox__inner {
+        border-color: #7b42f6;
+      }
+    }
+  }
+
+  .el-checkbox__label {
+    font-size: 15px;
+    color: #595959;
+    padding-left: 10px;
+    transition: all 0.3s ease;
+  }
+
+  &.is-checked {
+    .el-checkbox__label {
+      color: #7b42f6;
+      font-weight: 500;
+    }
+  }
+
+  &:hover {
+    .el-checkbox__inner {
+      border-color: #7b42f6;
+    }
+  }
 }
 
 /* 自定义开关样式 - 与头部紫色一致 */
 :deep(.el-switch.is-active .el-switch__core) {
-  background-color: #667eea !important;
+  background-color: #7b42f6 !important;
 }
 
 :deep(.el-switch.is-active .el-switch__core:hover) {
-  background-color: #764ba2 !important;
+  background-color: #5a32a3 !important;
 }
 
 /* 自定义开关滑块颜色 */
@@ -607,14 +776,8 @@ export default {
 
 /* 确保开关激活状态的边框和背景都是紫色 */
 :deep(.el-switch.is-active) {
-  --el-switch-on-color: #667eea !important;
-  --el-switch-on-border-color: #667eea !important;
-}
-
-/* 自定义复选框文字颜色 - 与头部紫色一致 */
-:deep(.el-checkbox.is-checked .el-checkbox__label) {
-  color: #667eea;
-  font-weight: 500;
+  --el-switch-on-color: #7b42f6 !important;
+  --el-switch-on-border-color: #7b42f6 !important;
 }
 
 /* 响应式设计 */

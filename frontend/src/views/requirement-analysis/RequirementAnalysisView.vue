@@ -106,7 +106,19 @@
       <!-- 初始欢迎界面 -->
       <div v-if="!isGenerating && !showResults && currentStep === 0" class="welcome-section">
         <div class="welcome-card">
-          <div class="welcome-icon">🚀</div>
+          <div class="welcome-icon">
+            <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M12 2L2 7L12 12L22 7L12 2Z" fill="url(#rocketGradient)" stroke="#7b42f6" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="M2 17L12 22L22 17" stroke="#7b42f6" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="M2 12L12 17L22 12" stroke="#7b42f6" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+              <defs>
+                <linearGradient id="rocketGradient" x1="2" y1="2" x2="22" y2="22" gradientUnits="userSpaceOnUse">
+                  <stop stop-color="#f5f0ff"/>
+                  <stop offset="1" stop-color="#ede9fe"/>
+                </linearGradient>
+              </defs>
+            </svg>
+          </div>
           <h2>个性化生成测试用例</h2>
           <button class="start-btn" @click="startSetup">
             开始配置
@@ -164,11 +176,19 @@
             <div class="step-content-wrapper">
               <div class="input-method-selector">
                 <div class="input-method-option" :class="{ active: selectedInputMethod === 'manual' }" @click="selectInputMethod('manual')">
-                  <div class="input-method-icon">✏️</div>
+                  <div class="input-method-icon manual-icon">
+                    <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                      <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z" fill="currentColor"/>
+                    </svg>
+                  </div>
                   <div class="input-method-title">手动输入</div>
                 </div>
                 <div class="input-method-option" :class="{ active: selectedInputMethod === 'upload' }" @click="selectInputMethod('upload')">
-                  <div class="input-method-icon">📁</div>
+                  <div class="input-method-icon upload-icon">
+                    <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                      <path d="M9 16h6v-6h4l-7-7-7 7h4v6zm-4 2h14v2H5v-2z" fill="currentColor"/>
+                    </svg>
+                  </div>
                   <div class="input-method-title">文件上传</div>
                 </div>
               </div>
@@ -189,7 +209,8 @@
                   <input
                     v-model="manualInput.title"
                     type="text"
-                    class="form-input">
+                    class="form-input"
+                    placeholder="请输入需求">
                 </div>
 
                 <div class="form-group textarea-with-count">
@@ -198,7 +219,8 @@
                     <textarea
                       v-model="manualInput.description"
                       class="form-textarea"
-                      rows="8"></textarea>
+                      rows="8"
+                      placeholder="请输入需求描述"></textarea>
                     <div class="char-count">{{ manualInput.description.length }}/2000</div>
                   </div>
                 </div>
@@ -241,7 +263,20 @@
                    @dragenter="isDragOver = true"
                    @dragleave="isDragOver = false">
                 <div v-if="!selectedFile" class="upload-placeholder">
-                  <i class="upload-icon">📁</i>
+                  <div class="upload-area-icon">
+                    <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                      <path d="M14 2H6C4.9 2 4 2.9 4 4V20C4 21.1 4.9 22 6 22H18C19.1 22 20 21.1 20 20V8L14 2Z" fill="url(#uploadGradient)" stroke="#8b5cf6" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                      <path d="M14 2V8H20" stroke="#8b5cf6" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                      <path d="M12 18V12" stroke="#8b5cf6" stroke-width="1.5" stroke-linecap="round"/>
+                      <path d="M9 15L12 12L15 15" stroke="#8b5cf6" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                      <defs>
+                        <linearGradient id="uploadGradient" x1="4" y1="2" x2="20" y2="22" gradientUnits="userSpaceOnUse">
+                          <stop stop-color="#f5f0ff"/>
+                          <stop offset="1" stop-color="#ede9fe"/>
+                        </linearGradient>
+                      </defs>
+                    </svg>
+                  </div>
                   <p class="upload-hint">{{ $t('requirementAnalysis.supportedFormats') }}</p>
                   <input
                     type="file"
@@ -357,6 +392,11 @@
             <div class="stream-header" @click="contentExpanded = !contentExpanded" style="cursor: pointer;">
               <div class="stream-header-left">
                 <span class="expand-icon">{{ contentExpanded ? '▼' : '▶' }}</span>
+                <span class="stream-icon-content">
+                  <svg class="section-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z" fill="currentColor"/>
+                  </svg>
+                </span>
                 <span class="stream-title">{{ $t('requirementAnalysis.realtimeGeneratedContent') }}</span>
               </div>
               <span class="stream-status">{{ $t('requirementAnalysis.characters', { count: streamedContent.length }) }}</span>
@@ -369,6 +409,11 @@
             <div class="stream-header" @click="reviewExpanded = !reviewExpanded" style="cursor: pointer;">
               <div class="stream-header-left">
                 <span class="expand-icon">{{ reviewExpanded ? '▼' : '▶' }}</span>
+                <span class="stream-icon-content">
+                  <svg class="section-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M14 2H6C4.9 2 4 2.9 4 4V20C4 21.1 4.9 22 6 22H18C19.1 22 20 21.1 20 20V8L14 2ZM16 18H8V16H16V18ZM16 14H8V12H16V14ZM13 9V3.5L18.5 9H13Z" fill="currentColor"/>
+                  </svg>
+                </span>
                 <span class="stream-title">{{ $t('requirementAnalysis.aiReviewComments') }}</span>
               </div>
               <span class="stream-status">{{ $t('requirementAnalysis.characters', { count: streamedReviewContent.length }) }}</span>
@@ -381,6 +426,11 @@
             <div class="stream-header" @click="finalExpanded = !finalExpanded" style="cursor: pointer;">
               <div class="stream-header-left">
                 <span class="expand-icon">{{ finalExpanded ? '▼' : '▶' }}</span>
+                <span class="stream-icon-content">
+                  <svg class="section-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z" fill="currentColor"/>
+                  </svg>
+                </span>
                 <span class="stream-title">
                   {{ $t('requirementAnalysis.finalVersionTestCases') }}
                   <span v-if="isGenerating" class="streaming-indicator">{{ $t('requirementAnalysis.generating') }}</span>
@@ -815,13 +865,13 @@ export default {
       const config = this.configStatus[configKey]
       if (config.enabled) {
         // 绿色对勾
-        return '<span style="color: #27ae60; font-size: 18px;">✓</span>'
+        return '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style="vertical-align: middle;"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z" fill="#27ae60"/></svg>'
       } else if (config.configured) {
         // 禁用图标
-        return '<span style="color: #95a5a6; font-size: 18px;">○</span>'
+        return '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style="vertical-align: middle;"><circle cx="12" cy="12" r="9" stroke="#95a5a6" stroke-width="2" fill="none"/></svg>'
       } else {
         // 红色叉号
-        return '<span style="color: #e74c3c; font-size: 18px;">✗</span>'
+        return '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style="vertical-align: middle;"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41z" fill="#e74c3c"/></svg>'
       }
     },
 
@@ -1773,8 +1823,15 @@ export default {
 }
 
 .page-header h1::before {
-  content: '🤖';
-  font-size: 1.8rem;
+  content: '';
+  display: inline-block;
+  width: 32px;
+  height: 32px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none'%3E%3Cpath d='M12 2L2 7L12 12L22 7L12 2Z' fill='%23f5f0ff' stroke='%237b42f6' stroke-width='1.5'/%3E%3Cpath d='M2 17L12 22L22 17' stroke='%237b42f6' stroke-width='1.5'/%3E%3Cpath d='M2 12L12 17L22 12' stroke='%237b42f6' stroke-width='1.5'/%3E%3C/svg%3E");
+  background-size: contain;
+  background-repeat: no-repeat;
+  vertical-align: middle;
+  margin-right: 8px;
 }
 
 .page-header p {
@@ -2381,11 +2438,21 @@ export default {
   color: #64748b;
 }
 
-.upload-icon {
-  font-size: 2.5rem;
-  margin-bottom: 12px;
-  display: block;
-  opacity: 0.7;
+.upload-area-icon {
+  width: 64px;
+  height: 64px;
+  margin: 0 auto 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, rgba(139, 92, 246, 0.1) 0%, rgba(123, 66, 246, 0.05) 100%);
+  border-radius: 16px;
+  transition: all 0.3s ease;
+
+  svg {
+    width: 36px;
+    height: 36px;
+  }
 }
 
 .upload-hint {
@@ -2622,6 +2689,23 @@ export default {
   user-select: none;
 }
 
+.stream-icon-content {
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, rgba(123, 66, 246, 0.15) 0%, rgba(139, 92, 246, 0.1) 100%);
+  border-radius: 8px;
+  flex-shrink: 0;
+
+  .section-icon {
+    width: 16px;
+    height: 16px;
+    color: #7b42f6;
+  }
+}
+
 .stream-title {
   font-weight: 600;
   color: #5b21b6;
@@ -2822,8 +2906,14 @@ export default {
 }
 
 .cancel-generation-btn-inline::before {
-  content: '✕';
-  font-size: 0.75rem;
+  content: '';
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none'%3E%3Cpath d='M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41z' fill='%236b7280'/%3E%3C/svg%3E");
+  background-size: contain;
+  background-repeat: no-repeat;
+  vertical-align: middle;
 }
 
 .cancel-generation-btn-inline:hover {
@@ -3207,8 +3297,19 @@ export default {
 }
 
 .welcome-icon {
-  font-size: 4rem;
-  opacity: 0.9;
+  width: 80px;
+  height: 80px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, rgba(123, 66, 246, 0.12) 0%, rgba(139, 92, 246, 0.08) 100%);
+  border-radius: 20px;
+  margin-bottom: 8px;
+
+  svg {
+    width: 48px;
+    height: 48px;
+  }
 }
 
 .welcome-card h2 {
@@ -3397,8 +3498,41 @@ export default {
 }
 
 .input-method-icon {
-  font-size: 3.5rem;
+  width: 64px;
+  height: 64px;
+  border-radius: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   margin-bottom: 20px;
+  transition: all 0.3s ease;
+
+  svg {
+    width: 32px;
+    height: 32px;
+  }
+
+  &.manual-icon {
+    background: linear-gradient(135deg, rgba(139, 92, 246, 0.15) 0%, rgba(139, 92, 246, 0.08) 100%);
+    color: #8b5cf6;
+  }
+
+  &.upload-icon {
+    background: linear-gradient(135deg, rgba(123, 66, 246, 0.15) 0%, rgba(123, 66, 246, 0.08) 100%);
+    color: #7b42f6;
+  }
+}
+
+.input-method-option.active .manual-icon {
+  background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
+  color: white;
+  box-shadow: 0 4px 12px rgba(139, 92, 246, 0.3);
+}
+
+.input-method-option.active .upload-icon {
+  background: linear-gradient(135deg, #7b42f6 0%, #6d28d9 100%);
+  color: white;
+  box-shadow: 0 4px 12px rgba(123, 66, 246, 0.3);
 }
 
 .input-method-title {

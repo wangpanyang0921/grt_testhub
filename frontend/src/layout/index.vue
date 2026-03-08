@@ -304,11 +304,16 @@
               <!-- 用户信息 -->
               <el-dropdown @command="handleCommand" class="user-dropdown">
                 <span class="user-info">
-                  <el-avatar :size="32" :src="avatarUrl">
-                    <el-icon :size="20"><UserFilled /></el-icon>
-                  </el-avatar>
-                  <span class="username">{{ userStore.user?.username }}</span>
-                  <el-icon><ArrowDown /></el-icon>
+                  <template v-if="!isLoggingOut">
+                    <el-avatar :size="32" :src="avatarUrl">
+                      <el-icon :size="20"><UserFilled /></el-icon>
+                    </el-avatar>
+                    <span class="username">{{ userStore.user?.username }}</span>
+                    <el-icon><ArrowDown /></el-icon>
+                  </template>
+                  <template v-else>
+                    <div class="logout-placeholder"></div>
+                  </template>
                 </span>
                 <template #dropdown>
                   <el-dropdown-menu>
@@ -337,6 +342,7 @@ import { useUserStore } from '@/stores/user'
 import { useAppStore } from '@/stores/app'
 import { ElMessage } from 'element-plus'
 import { useI18n } from 'vue-i18n'
+import { ref } from 'vue'
 import {
   Monitor, Folder, Document, Flag, Check, Collection, VideoPlay,
   DataAnalysis, ChatDotRound, DocumentCopy, Link, MagicStick,
@@ -349,8 +355,15 @@ const userStore = useUserStore()
 const appStore = useAppStore()
 const { t } = useI18n()
 
+// 退出登录中标志，用于隐藏头像避免闪烁默认图
+const isLoggingOut = ref(false)
+
 // 计算头像URL
 const avatarUrl = computed(() => {
+  // 退出登录过程中不显示头像
+  if (isLoggingOut.value) {
+    return ''
+  }
   if (userStore.user?.avatar) {
     // 如果头像URL已经是完整路径，直接返回
     if (userStore.user.avatar.startsWith('http')) {
@@ -467,8 +480,9 @@ const breadcrumbTitle = computed(() => {
 
 const handleCommand = async (command) => {
   if (command === 'logout') {
+    // 设置退出登录标志，避免头像闪烁默认图
+    isLoggingOut.value = true
     await userStore.logout()
-    ElMessage.success('退出登录成功')
   } else if (command === 'profile') {
     router.push('/ai-generation/profile')
   }
@@ -578,21 +592,28 @@ const handleCommand = async (command) => {
     background: transparent !important;
     position: relative;
     z-index: 2;
-    
+
+    // 默认隐藏滚动条
     &::-webkit-scrollbar {
+      width: 0px;
+      background: transparent;
+    }
+
+    // 悬停时显示滚动条
+    &:hover::-webkit-scrollbar {
       width: 6px;
     }
-    
+
     &::-webkit-scrollbar-track {
       background: rgba(90, 50, 163, 0.05);
       border-radius: 10px;
     }
-    
+
     &::-webkit-scrollbar-thumb {
       background: rgba(90, 50, 163, 0.2);
       border-radius: 10px;
     }
-    
+
     &::-webkit-scrollbar-thumb:hover {
       background: rgba(90, 50, 163, 0.3);
     }
@@ -1157,7 +1178,14 @@ const handleCommand = async (command) => {
       }
     }
   }
-  
+
+  .logout-placeholder {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, rgba(123, 66, 246, 0.2) 0%, rgba(139, 92, 246, 0.1) 100%);
+  }
+
   /* 下拉菜单样式 */
   .user-dropdown {
     :deep(.el-dropdown-menu) {

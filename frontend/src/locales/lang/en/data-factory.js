@@ -1,6 +1,6 @@
 export default {
   // Page title
-  title: 'Data Factory',
+  title: 'Data Toolkit',
   subtitle: 'Smart Data Generation Toolkit - Providing High-Quality Test Data',
 
   // View mode
@@ -16,12 +16,16 @@ export default {
     execute: 'Execute',
     cancel: 'Cancel',
     delete: 'Delete',
+    confirm: 'Confirm',
     download: 'Download Result',
     downloadImage: 'Download Image',
     expandAll: 'Expand All',
     collapseAll: 'Collapse All',
     selectImage: 'Select Image',
-    copy: 'Copy'
+    copy: 'Copy',
+    export: 'Export',
+    edit: 'Edit',
+    reExecute: 'Re-execute'
   },
 
   // Tool count
@@ -40,6 +44,8 @@ export default {
     saveResultTip: 'Can be viewed in history after saving',
     tags: 'Tags',
     tagsPlaceholder: 'Enter tags, separated by commas',
+    recordName: 'Record Name',
+    recordNamePlaceholder: 'Please enter record name',
 
     // Test data tools
     carrier: 'Carrier',
@@ -295,7 +301,10 @@ export default {
     title: 'Usage History',
     allRecords: 'All Records',
     statistics: 'Statistics',
+    serialNumber: 'No.',
     toolName: 'Tool Name',
+    recordName: 'Record Name',
+    userName: 'User',
     category: 'Category',
     scenario: 'Scenario',
     usageTime: 'Usage Time',
@@ -307,9 +316,15 @@ export default {
     noData: 'No Data',
 
     // Messages
-    deleteConfirm: 'Are you sure to delete this record?',
+    deleteConfirm: 'Are you sure you want to delete this record? This action cannot be undone.',
+    deleteConfirmTitle: 'Confirm Delete',
     deleteSuccess: 'Deleted successfully',
-    deleteFailed: 'Delete failed'
+    deleteFailed: 'Delete failed',
+    editRecordNamePrompt: 'Please enter record name',
+    editRecordNameTitle: 'Edit Record Name',
+    recordNameRequired: 'Record name is required',
+    editRecordNameSuccess: 'Record name updated successfully',
+    editRecordNameFailed: 'Failed to update record name'
   },
 
   // Messages
@@ -320,6 +335,11 @@ export default {
     copyFailed: 'Copy failed',
     downloadSuccess: 'Downloaded successfully',
     downloadFailed: 'Download failed',
+    exportSuccess: 'Exported to Excel successfully',
+    exportFailed: 'Failed to export to Excel',
+    noDataToExport: 'No data to export',
+    reExecuteSuccess: 'Record loaded, ready to re-execute',
+    reExecuteFailed: 'Failed to re-execute',
     downloadStarted: 'Download started',
     pleaseInputData: 'Please enter data',
     pleaseUploadImage: 'Please upload an image',

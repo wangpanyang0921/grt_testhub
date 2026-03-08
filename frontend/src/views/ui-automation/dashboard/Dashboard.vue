@@ -2,6 +2,7 @@
   <div class="dashboard-container">
     <!-- 数据概览 -->
     <div class="stats-section">
+      <h2 class="section-title">{{ $t('uiAutomation.dashboard.dataOverview') }}</h2>
       <el-row :gutter="20">
         <el-col :span="6">
           <el-card shadow="hover" class="stat-card">
@@ -58,9 +59,8 @@
       </el-row>
     </div>
     
-    <!-- 最近活动和快速操作 -->
+    <!-- 最近活动和快速操作 - 暂时隐藏
     <el-row :gutter="20" class="content-section">
-      <!-- 最近活动 -->
       <el-col :span="12">
         <el-card class="recent-activities" :title="$t('uiAutomation.dashboard.operationRecords')" shadow="hover">
           <div v-if="loading" class="loading-container">
@@ -87,8 +87,6 @@
           </div>
         </el-card>
       </el-col>
-      
-      <!-- 快速操作 -->
       <el-col :span="12">
         <el-card class="quick-actions" :title="$t('uiAutomation.dashboard.quickActions')" shadow="hover">
           <div class="actions-grid">
@@ -138,12 +136,13 @@
         </el-card>
       </el-col>
     </el-row>
-    
+    -->
+
     <!-- 核心功能介绍 -->
     <div class="features-section">
       <h2 class="section-title">{{ $t('uiAutomation.dashboard.coreFeatures') }}</h2>
       <el-row :gutter="20" class="features-row">
-        <el-col :span="6">
+        <el-col :span="8">
           <el-card shadow="hover" class="feature-card">
             <div class="feature-icon">
               <el-icon><Cpu /></el-icon>
@@ -152,7 +151,7 @@
             <p class="feature-description">{{ $t('uiAutomation.dashboard.elementLocationDesc') }}</p>
           </el-card>
         </el-col>
-        <el-col :span="6">
+        <el-col :span="8">
           <el-card shadow="hover" class="feature-card">
             <div class="feature-icon">
               <el-icon><Monitor /></el-icon>
@@ -161,7 +160,7 @@
             <p class="feature-description">{{ $t('uiAutomation.dashboard.dualEngineDesc') }}</p>
           </el-card>
         </el-col>
-        <el-col :span="6">
+        <el-col :span="8">
           <el-card shadow="hover" class="feature-card">
             <div class="feature-icon">
               <el-icon><Platform /></el-icon>
@@ -170,7 +169,9 @@
             <p class="feature-description">{{ $t('uiAutomation.dashboard.multiBrowserDesc') }}</p>
           </el-card>
         </el-col>
-        <el-col :span="6">
+      </el-row>
+      <el-row :gutter="20" class="features-row">
+        <el-col :span="8">
           <el-card shadow="hover" class="feature-card">
             <div class="feature-icon">
               <el-icon><Bell /></el-icon>
@@ -179,9 +180,7 @@
             <p class="feature-description">{{ $t('uiAutomation.dashboard.fullNotificationDesc') }}</p>
           </el-card>
         </el-col>
-      </el-row>
-      <el-row :gutter="20" class="features-row">
-        <el-col :span="6">
+        <el-col :span="8">
           <el-card shadow="hover" class="feature-card">
             <div class="feature-icon">
               <el-icon><Edit /></el-icon>
@@ -190,7 +189,7 @@
             <p class="feature-description">{{ $t('uiAutomation.dashboard.scriptRecordingDesc') }}</p>
           </el-card>
         </el-col>
-        <el-col :span="6">
+        <el-col :span="8">
           <el-card shadow="hover" class="feature-card">
             <div class="feature-icon">
               <el-icon><RefreshRight /></el-icon>
@@ -626,11 +625,12 @@ onMounted(() => {
 
 // 功能区域
 .features-section {
+  margin-top: 32px;
   margin-bottom: 20px;
 }
 
 .features-section .features-row {
-  margin-bottom: 20px;
+  margin-bottom: 24px;
 }
 
 .features-section .features-row:last-child {
@@ -638,14 +638,16 @@ onMounted(() => {
 }
 
 .section-title {
-  font-size: 24px;
-  font-weight: bold;
-  margin-bottom: 24px;
+  font-size: 22px;
+  font-weight: 600;
+  margin-bottom: 28px;
   color: #5a32a3;
   background: linear-gradient(135deg, #7b42f6 0%, #5a32a3 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
+  padding-left: 12px;
+  border-left: 4px solid #7b42f6;
 }
 
 .feature-card {

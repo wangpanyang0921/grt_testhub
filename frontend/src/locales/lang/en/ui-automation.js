@@ -1,6 +1,7 @@
 export default {
   // Dashboard
   dashboard: {
+    dataOverview: 'Data Overview',
     uiTestProjects: 'UI Test Projects',
     testCases: 'Test Cases',
     testSuites: 'Test Suites',
@@ -666,7 +667,9 @@ export default {
     lastRunTime: 'Last Run Time',
     lastRunStatus: 'Last Run Status',
     createTask: 'Create Scheduled Task',
+    createTaskBtn: 'Create Task',
     editTask: 'Edit Scheduled Task',
+    saveTask: 'Save Task',
     relatedProject: 'Related Project',
     selectProject: 'Please select project',
     testSuite: 'Test Suite',

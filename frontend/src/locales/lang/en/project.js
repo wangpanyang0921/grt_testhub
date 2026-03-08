@@ -84,15 +84,15 @@ export default {
     subtitle: 'All-in-One Intelligent Testing Solution',
 
     // Cards
-    aiCaseGeneration: 'AI Case Generation',
+    aiCaseGeneration: 'AI Intelligent Case',
     aiCaseGenerationDesc: 'Intelligently analyze requirements, auto-generate test cases',
     apiTesting: 'API Testing',
     apiTestingDesc: 'Efficient API automation testing and management',
     uiAutomation: 'UI Automation Testing',
     uiAutomationDesc: 'Visual Web/App UI automation testing',
-    dataFactory: 'Data Factory',
+    dataFactory: 'Data Toolkit',
     dataFactoryDesc: 'Flexible test data construction and management',
-    aiIntelligentMode: 'AI Intelligent Mode',
+    aiIntelligentMode: 'AI Intelligent Testing',
     aiIntelligentModeDesc: 'Natural language-based intelligent test execution',
     aiEvaluator: 'AI Evaluator',
     aiEvaluatorDesc: 'Professional software testing Q&A based on evaluator knowledge base',

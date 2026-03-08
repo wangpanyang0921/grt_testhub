@@ -19,6 +19,7 @@ export default {
     status: 'Status',
     notSet: 'Not Set',
     unnamed: 'Unnamed Config',
+    operation: 'Operation',
     locale: 'en-US'
   },
 

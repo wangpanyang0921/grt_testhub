@@ -668,7 +668,7 @@ class TestSuiteViewSet(viewsets.ModelViewSet):
         return TestSuite.objects.all()
 
     def perform_create(self, serializer):
-        instance = serializer.save()
+        instance = serializer.save(created_by=self.request.user)
         # 记录操作
         log_operation('create', 'suite', instance.id, instance.name, self.request.user)
 

@@ -677,6 +677,23 @@ onMounted(() => {
           line-height: 24px;
           transition: all 0.3s ease;
 
+          // 链接样式 - 统一与其他字段一致
+          .el-link {
+            font-size: 14px;
+            font-weight: 400;
+            line-height: 24px;
+            color: #333;
+
+            &:hover {
+              color: #7b42f6;
+            }
+
+            .el-link__inner {
+              font-size: 14px;
+              font-weight: 400;
+            }
+          }
+
           // 标签样式
           .el-tag {
             border-radius: 4px;

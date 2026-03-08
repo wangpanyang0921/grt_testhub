@@ -6,6 +6,7 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.pagination import PageNumberPagination
+from rest_framework.exceptions import NotFound, PermissionDenied
 from django.contrib.auth.models import User
 from django.db.models import Q
 from django.utils import timezone
@@ -45,13 +46,21 @@ class DataFactoryViewSet(viewsets.ModelViewSet):
     pagination_class = DataFactoryPagination
 
     def get_queryset(self):
-        """获取当前用户的记录"""
+        """获取所有用户的记录"""
         queryset = super().get_queryset()
         # 只选择必要的字段，减少内存使用
-        return queryset.filter(user=self.request.user).only(
+        return queryset.only(
             'id', 'user', 'tool_name', 'tool_category', 'tool_scenario',
-            'input_data', 'output_data', 'is_saved', 'tags', 'created_at', 'updated_at'
+            'custom_name', 'input_data', 'output_data', 'is_saved', 'tags', 'created_at', 'updated_at'
         ).order_by('-created_at')
+
+    def get_object(self):
+        """获取对象并验证用户权限"""
+        obj = super().get_object()
+        # 验证用户是否有权限操作该记录
+        if obj.user != self.request.user:
+            raise PermissionDenied('无权操作该记录')
+        return obj
 
     def filter_queryset(self, queryset):
         """自定义过滤逻辑，支持JSONField的过滤"""
@@ -139,7 +148,8 @@ class DataFactoryViewSet(viewsets.ModelViewSet):
                         input_data=data['input_data'],
                         output_data=result,
                         is_saved=data.get('is_saved', True),
-                        tags=data.get('tags', None)
+                        tags=data.get('tags', None),
+                        custom_name=data.get('custom_name', None)
                     )
                     result['record_id'] = str(record.id)
                     result['created_at'] = record.created_at.isoformat()
@@ -157,19 +167,19 @@ class DataFactoryViewSet(viewsets.ModelViewSet):
             # 使用self.get_object()获取记录，它会自动处理权限过滤
             instance = self.get_object()
             logger.info(f'成功获取记录: ID={instance.id}, 用户ID={instance.user.id}')
-            
+
             # 删除记录
             instance.delete()
             logger.info(f'成功删除记录: ID={kwargs.get("pk")}')
-            
+
             # 清除相关缓存
             self.clear_user_cache(request.user.id)
             logger.info(f'成功清除缓存: 用户ID={request.user.id}')
-            
+
             return Response({'message': '删除成功'}, status=status.HTTP_200_OK)
-        except DataFactoryRecord.DoesNotExist:
+        except NotFound:
             logger.error(f'记录不存在: ID={kwargs.get("pk")}, 用户ID={request.user.id}')
-            return Response({'error': '记录不存在'}, status=status.HTTP_404_NOT_FOUND)
+            return Response({'error': '记录不存在或无权访问'}, status=status.HTTP_404_NOT_FOUND)
         except Exception as e:
             logger.error(f'删除记录失败: {str(e)}, ID={kwargs.get("pk")}, 用户ID={request.user.id}', exc_info=True)
             return Response({'error': f'删除失败: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

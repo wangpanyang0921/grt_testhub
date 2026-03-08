@@ -79,7 +79,7 @@
     </div>
 
     <!-- 查看详情对话框 -->
-    <el-dialog v-model="showDetailDialog" :title="$t('uiAutomation.script.scriptDetail')" width="70%">
+    <el-dialog v-model="showDetailDialog" :title="$t('uiAutomation.script.scriptDetail')" width="70%" class="custom-dialog">
       <div v-if="currentScript" class="script-detail">
         <el-descriptions :column="2" border>
           <el-descriptions-item :label="$t('uiAutomation.script.scriptName')" :span="2">{{ currentScript.name }}</el-descriptions-item>
@@ -97,26 +97,30 @@
         </div>
       </div>
       <template #footer>
-        <el-button @click="showDetailDialog = false">{{ $t('uiAutomation.script.close') }}</el-button>
-        <el-button type="primary" @click="editScript(currentScript)">{{ $t('uiAutomation.script.editScript') }}</el-button>
+        <span class="dialog-footer">
+          <el-button @click="showDetailDialog = false" class="btn-cancel">{{ $t('uiAutomation.script.close') }}</el-button>
+          <el-button type="primary" @click="editScript(currentScript)" class="btn-confirm">{{ $t('uiAutomation.script.editScript') }}</el-button>
+        </span>
       </template>
     </el-dialog>
 
     <!-- 重命名对话框 -->
-    <el-dialog v-model="showRenameDialog" :title="$t('uiAutomation.script.renameScript')" width="400px">
+    <el-dialog v-model="showRenameDialog" :title="$t('uiAutomation.script.renameScript')" width="400px" class="custom-dialog">
       <el-form :model="renameForm" label-width="80px">
         <el-form-item :label="$t('uiAutomation.script.newName')">
           <el-input v-model="renameForm.newName" :placeholder="$t('uiAutomation.script.newNamePlaceholder')" />
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="showRenameDialog = false">{{ $t('uiAutomation.common.cancel') }}</el-button>
-        <el-button type="primary" @click="confirmRename">{{ $t('uiAutomation.common.confirm') }}</el-button>
+        <span class="dialog-footer">
+          <el-button @click="showRenameDialog = false" class="btn-cancel">{{ $t('uiAutomation.common.cancel') }}</el-button>
+          <el-button type="primary" @click="confirmRename" class="btn-confirm">{{ $t('uiAutomation.common.confirm') }}</el-button>
+        </span>
       </template>
     </el-dialog>
 
     <!-- 编辑对话框 -->
-    <el-dialog v-model="showEditDialog" :title="$t('uiAutomation.script.editScript')" width="80%" :close-on-click-modal="false">
+    <el-dialog v-model="showEditDialog" :title="$t('uiAutomation.script.editScript')" width="80%" :close-on-click-modal="false" class="custom-dialog">
       <div v-if="editingScript" class="script-editor">
         <div class="editor-header">
           <span class="script-name">{{ editingScript.name }}</span>
@@ -138,8 +142,10 @@
         </div>
       </div>
       <template #footer>
-        <el-button @click="showEditDialog = false">{{ $t('uiAutomation.common.cancel') }}</el-button>
-        <el-button type="primary" @click="saveEditedScript" :loading="saving">{{ $t('uiAutomation.script.save') }}</el-button>
+        <span class="dialog-footer">
+          <el-button @click="showEditDialog = false" class="btn-cancel">{{ $t('uiAutomation.common.cancel') }}</el-button>
+          <el-button type="primary" @click="saveEditedScript" :loading="saving" class="btn-confirm">{{ $t('uiAutomation.script.save') }}</el-button>
+        </span>
       </template>
     </el-dialog>
   </div>
@@ -957,5 +963,57 @@ onMounted(async () => {
   background-color: #1e1e1e;
   color: #d4d4d4;
   tab-size: 2;
+}
+
+// 统一弹窗样式
+.custom-dialog {
+  :deep(.el-dialog__header) {
+    background: linear-gradient(135deg, #faf8ff 0%, #f5f3ff 100%);
+    border-bottom: 1px solid rgba(147, 112, 219, 0.15);
+    padding: 20px 24px;
+    margin-right: 0;
+
+    .el-dialog__title {
+      font-weight: 600;
+      color: #5a32a3;
+    }
+  }
+
+  :deep(.el-dialog__body) {
+    padding: 24px;
+  }
+
+  :deep(.el-dialog__footer) {
+    border-top: 1px solid rgba(147, 112, 219, 0.15);
+    padding: 16px 24px;
+  }
+
+  .dialog-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+
+    .btn-cancel {
+      border-radius: 6px;
+      border: 1px solid rgba(147, 112, 219, 0.4);
+      color: #5a32a3;
+
+      &:hover {
+        background: #f8f7ff;
+        border-color: #7b42f6;
+      }
+    }
+
+    .btn-confirm {
+      border-radius: 6px;
+      background: linear-gradient(135deg, #7b42f6 0%, #5a32a3 100%);
+      border: none;
+
+      &:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(123, 66, 246, 0.3);
+      }
+    }
+  }
 }
 </style>
