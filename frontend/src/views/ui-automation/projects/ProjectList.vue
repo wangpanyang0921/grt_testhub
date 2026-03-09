@@ -1,56 +1,56 @@
 <template>
   <div class="page-container">
-    <div class="page-header">
-      <h1 class="page-title">{{ $t('uiAutomation.project.title') }}</h1>
-      <el-button type="primary" @click="showCreateDialog = true">
+    <div class="filter-bar">
+      <el-input
+        v-model="searchText"
+        :placeholder="$t('uiAutomation.project.searchPlaceholder')"
+        clearable
+        @input="handleSearch"
+        style="width: 300px;"
+      >
+        <template #prefix>
+          <el-icon><Search /></el-icon>
+        </template>
+      </el-input>
+      <!-- 状态筛选已隐藏 -->
+      <!--
+      <el-select v-model="statusFilter" :placeholder="$t('uiAutomation.project.statusFilter')" clearable @change="handleFilter" style="width: 160px;">
+        <el-option :label="$t('uiAutomation.status.notStarted')" value="NOT_STARTED" />
+        <el-option :label="$t('uiAutomation.status.inProgress')" value="IN_PROGRESS" />
+        <el-option :label="$t('uiAutomation.status.completed')" value="COMPLETED" />
+      </el-select>
+      -->
+      <div class="filter-bar-spacer"></div>
+      <el-button type="primary" class="create-btn" @click="showCreateDialog = true">
         <el-icon><Plus /></el-icon>
         {{ $t('uiAutomation.project.newProject') }}
       </el-button>
     </div>
-    
+
     <div class="card-container">
-      <div class="filter-bar">
-        <el-row :gutter="20">
-          <el-col :span="6">
-            <el-input
-              v-model="searchText"
-              :placeholder="$t('uiAutomation.project.searchPlaceholder')"
-              clearable
-              @input="handleSearch"
-            >
-              <template #prefix>
-                <el-icon><Search /></el-icon>
-              </template>
-            </el-input>
-          </el-col>
-          <el-col :span="4">
-            <el-select v-model="statusFilter" :placeholder="$t('uiAutomation.project.statusFilter')" clearable @change="handleFilter">
-              <el-option :label="$t('uiAutomation.status.notStarted')" value="NOT_STARTED" />
-              <el-option :label="$t('uiAutomation.status.inProgress')" value="IN_PROGRESS" />
-              <el-option :label="$t('uiAutomation.status.completed')" value="COMPLETED" />
-            </el-select>
-          </el-col>
-        </el-row>
-      </div>
       
       <el-table :data="projects" v-loading="loading" stripe style="width: 100%">
-        <el-table-column prop="name" :label="$t('uiAutomation.project.projectName')" min-width="200" header-align="center" align="center">
-          <template #default="{ row }">
-            <el-link @click="goToProjectDetail(row.id)" type="primary">
-              {{ row.name }}
-            </el-link>
+        <el-table-column label="序号" width="80" header-align="center" align="center">
+          <template #default="{ $index }">
+            {{ (pagination.currentPage - 1) * pagination.pageSize + $index + 1 }}
           </template>
         </el-table-column>
-        <el-table-column prop="description" :label="$t('uiAutomation.common.description')" min-width="300" show-overflow-tooltip header-align="center" align="center" />
-        <el-table-column prop="status" :label="$t('uiAutomation.common.status')" width="100" header-align="center" align="center">
+        <el-table-column prop="name" :label="$t('uiAutomation.project.projectName')" min-width="200" header-align="center" align="center">
           <template #default="{ row }">
-            <el-tag :type="getStatusType(row.status)">{{ getStatusText(row.status) }}</el-tag>
+            <span class="project-name-cell" @click="goToProjectDetail(row.id)">
+              {{ row.name }}
+            </span>
+          </template>
+        </el-table-column>
+        <el-table-column prop="status" :label="$t('uiAutomation.common.status')" width="110" header-align="center" align="center">
+          <template #default="{ row }">
+            <span class="status-badge" :class="getStatusClass(row.status)">
+              {{ getStatusText(row.status) }}
+            </span>
           </template>
         </el-table-column>
         <el-table-column prop="base_url" :label="$t('uiAutomation.project.baseUrl')" min-width="200" show-overflow-tooltip header-align="center" align="center" />
         <el-table-column prop="owner.username" :label="$t('uiAutomation.project.owner')" width="100" header-align="center" align="center" />
-        <el-table-column prop="created_at" :label="$t('uiAutomation.common.createTime')" width="180" :formatter="formatDate" header-align="center" align="center" />
-        <el-table-column prop="updated_at" :label="$t('uiAutomation.common.updateTime')" width="180" :formatter="formatDate" header-align="center" align="center" />
         <el-table-column :label="$t('uiAutomation.common.operation')" width="240" fixed="right" header-align="center" align="center">
           <template #default="{ row }">
             <div class="action-buttons">
@@ -159,9 +159,9 @@
           <el-descriptions-item :label="$t('uiAutomation.project.projectName')">{{ currentProjectDetail.name }}</el-descriptions-item>
           <el-descriptions-item :label="$t('uiAutomation.project.projectDesc')" :span="2">{{ currentProjectDetail.description || $t('uiAutomation.project.noDescription') }}</el-descriptions-item>
           <el-descriptions-item :label="$t('uiAutomation.common.status')">
-            <el-tag :type="getStatusType(currentProjectDetail.status)">
+            <span class="status-badge" :class="getStatusClass(currentProjectDetail.status)">
               {{ getStatusText(currentProjectDetail.status) }}
-            </el-tag>
+            </span>
           </el-descriptions-item>
           <el-descriptions-item :label="$t('uiAutomation.project.baseUrl')">{{ currentProjectDetail.base_url }}</el-descriptions-item>
           <el-descriptions-item :label="$t('uiAutomation.project.owner')">{{ currentProjectDetail.owner?.username || $t('uiAutomation.project.none') }}</el-descriptions-item>
@@ -259,7 +259,7 @@ const formatDate = (row, column, cellValue) => {
   })
 }
 
-// 获取状态样式
+// 获取状态样式（用于 el-tag）
 const getStatusType = (status) => {
   const statusMap = {
     'NOT_STARTED': 'warning',
@@ -267,6 +267,16 @@ const getStatusType = (status) => {
     'COMPLETED': 'success'
   }
   return statusMap[status] || 'default'
+}
+
+// 获取状态徽章样式类
+const getStatusClass = (status) => {
+  const statusMap = {
+    'NOT_STARTED': 'not_started',
+    'IN_PROGRESS': 'in_progress',
+    'COMPLETED': 'completed'
+  }
+  return statusMap[status] || 'not_started'
 }
 
 // 获取状态文本
@@ -481,6 +491,37 @@ onMounted(() => {
   --info-color: #1890ff;
 }
 
+// 状态徽章样式
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 16px;
+  border-radius: 4px;
+  font-size: 13px;
+  font-weight: 500;
+  transition: all 0.3s ease;
+  white-space: nowrap;
+
+  // 未开始 - 灰色
+  &.not_started {
+    background: #f5f5f5;
+    color: #8c8c8c;
+  }
+
+  // 进行中 - 蓝色
+  &.in_progress {
+    background: #e6f7ff;
+    color: #1890ff;
+  }
+
+  // 已完成 - 绿色
+  &.completed {
+    background: #f6ffed;
+    color: #52c41a;
+  }
+}
+
 // 页面容器
 .page-container {
   padding: 24px;
@@ -516,8 +557,43 @@ onMounted(() => {
     -webkit-text-fill-color: transparent;
     background-clip: text;
   }
+}
 
-  .el-button {
+// 筛选栏
+.filter-bar {
+  padding: 20px 24px;
+  background: #ffffff;
+  border: 1px solid rgba(147, 112, 219, 0.12);
+  border-radius: 12px;
+  box-shadow: 0 4px 16px rgba(147, 112, 219, 0.08);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+
+  :deep(.el-input__wrapper),
+  :deep(.el-select .el-input__wrapper) {
+    box-shadow: 0 2px 8px rgba(147, 112, 219, 0.08);
+    border-radius: 8px;
+    border: 1px solid rgba(147, 112, 219, 0.2);
+    background: #ffffff;
+
+    &:hover,
+    &:focus {
+      box-shadow: 0 2px 8px rgba(147, 112, 219, 0.15);
+      border-color: #7b42f6;
+    }
+  }
+
+  :deep(.el-input__inner) {
+    color: #5a32a3;
+    font-weight: 500;
+  }
+
+  .filter-bar-spacer {
+    flex: 1;
+  }
+
+  .create-btn {
     background: linear-gradient(135deg, #7b42f6 0%, #5a32a3 100%) !important;
     border: none !important;
     color: white !important;
@@ -527,45 +603,14 @@ onMounted(() => {
     transition: all 0.3s ease !important;
     box-shadow: 0 4px 12px rgba(123, 66, 246, 0.3) !important;
 
+    .el-icon {
+      margin-right: 6px;
+    }
+
     &:hover {
       background: linear-gradient(135deg, #6d33e6 0%, #4a249c 100%) !important;
       transform: translateY(-2px) !important;
       box-shadow: 0 6px 20px rgba(123, 66, 246, 0.4) !important;
-    }
-
-    &:active {
-      transform: translateY(0) !important;
-    }
-  }
-}
-
-// 筛选栏
-.filter-bar {
-  padding: 20px 24px;
-  background: linear-gradient(135deg, #ffffff 0%, #f8f7ff 100%);
-  border-radius: 12px;
-  box-shadow: 0 4px 16px rgba(147, 112, 219, 0.08);
-  border: 1px solid rgba(147, 112, 219, 0.1);
-
-  .el-row {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 16px;
-    align-items: center;
-
-    .el-col {
-      margin-bottom: 0;
-
-      .el-input__wrapper,
-      .el-select .el-input__wrapper {
-        box-shadow: 0 2px 8px rgba(147, 112, 219, 0.08);
-        border-radius: 8px;
-
-        &:hover,
-        &:focus {
-          box-shadow: 0 2px 8px rgba(147, 112, 219, 0.15);
-        }
-      }
     }
   }
 }
@@ -671,26 +716,23 @@ onMounted(() => {
         :deep(td) {
           padding: 14px 16px;
           border-bottom: 1px solid #e9ecef;
-          color: #333;
+          color: #595959;
           font-size: 14px;
-          font-weight: 400;
+          font-weight: normal;
           line-height: 24px;
           transition: all 0.3s ease;
 
-          // 链接样式 - 统一与其他字段一致
-          .el-link {
+          // 项目名称样式 - 与其他字段一致
+          .project-name-cell {
             font-size: 14px;
-            font-weight: 400;
+            font-weight: normal;
+            color: #595959;
             line-height: 24px;
-            color: #333;
+            cursor: pointer;
+            transition: color 0.3s ease;
 
             &:hover {
               color: #7b42f6;
-            }
-
-            .el-link__inner {
-              font-size: 14px;
-              font-weight: 400;
             }
           }
 
@@ -703,83 +745,12 @@ onMounted(() => {
             transition: all 0.3s ease;
           }
 
-          // 按钮样式
-          .el-button {
-            font-size: 13px;
-            padding: 0;
-            margin-right: 12px;
-            transition: all 0.3s ease;
-
-            &:last-child {
-              margin-right: 0;
-            }
-
-            &:hover {
-              transform: translateY(-1px);
-            }
-
-            &.el-button--text {
-              color: var(--primary-color);
-
-              &:hover {
-                color: var(--primary-dark);
-                background: #f8f7ff;
-                border-radius: 4px;
-              }
-            }
-
-            &:not(.el-button--text) {
-              font-weight: 500 !important;
-              padding: 6px 14px !important;
-              border-radius: 6px !important;
-              transition: all 0.3s ease !important;
-              box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1) !important;
-            }
-
-            &.el-button--primary {
-              background: linear-gradient(135deg, #7b42f6 0%, #5a32a3 100%) !important;
-              border: none !important;
-              color: #ffffff !important;
-              font-weight: 600 !important;
-              box-shadow: 0 2px 8px rgba(123, 66, 246, 0.3) !important;
-
-              &:hover {
-                background: linear-gradient(135deg, #6d33e6 0%, #4a249c 100%) !important;
-                transform: translateY(-2px) !important;
-                box-shadow: 0 4px 12px rgba(123, 66, 246, 0.4) !important;
-              }
-
-              .el-icon {
-                color: #ffffff !important;
-              }
-            }
-
-            &.el-button--default {
-              background: #ffffff !important;
-              border: 1px solid rgba(147, 112, 219, 0.3) !important;
-              color: #5a32a3 !important;
-
-              &:hover {
-                background: #f8f7ff !important;
-                border-color: #7b42f6 !important;
-                color: #7b42f6 !important;
-                transform: translateY(-1px) !important;
-                box-shadow: 0 2px 8px rgba(147, 112, 219, 0.2) !important;
-              }
-            }
-
-            &.el-button--danger {
-              background: linear-gradient(135deg, #ff4d4f 0%, #cf1322 100%) !important;
-              border: none !important;
-              color: white !important;
-              box-shadow: 0 2px 8px rgba(255, 77, 79, 0.3) !important;
-
-              &:hover {
-                background: linear-gradient(135deg, #ff7875 0%, #a8071a 100%) !important;
-                transform: translateY(-2px) !important;
-                box-shadow: 0 4px 12px rgba(255, 77, 79, 0.4) !important;
-              }
-            }
+          // 单元格内部容器样式统一
+          :deep(.cell) {
+            font-size: 14px;
+            font-weight: normal;
+            color: #595959;
+            line-height: 24px;
           }
         }
       }
@@ -837,11 +808,11 @@ onMounted(() => {
     display: flex;
     justify-content: center;
     align-items: center;
-    padding: 8px 24px;
+    padding: 16px 0;
+    margin-top: 8px;
     background: transparent;
-    border-top: 1px solid rgba(147, 112, 219, 0.1);
+    border: none;
     transition: all 0.3s ease;
-    margin-top: 0;
 
     /* 覆盖 Element Plus 默认主题变量 */
     --el-color-primary: var(--primary-color);
@@ -1021,7 +992,10 @@ onMounted(() => {
   box-shadow: 0 12px 24px rgba(147, 112, 219, 0.2);
 
   .el-dialog__header {
-    padding: 24px 24px 0;
+    background: linear-gradient(135deg, #f8f7ff 0%, #ffffff 100%);
+    padding: 20px 24px;
+    border-bottom: 1px solid #ebeef5;
+    margin: 0;
 
     .el-dialog__title {
       font-size: 18px;
@@ -1045,10 +1019,22 @@ onMounted(() => {
         .el-date-picker .el-input__wrapper {
           box-shadow: 0 2px 8px rgba(147, 112, 219, 0.08);
           border-radius: 8px;
+          border: 1px solid rgba(147, 112, 219, 0.2);
 
           &:hover,
           &:focus {
             box-shadow: 0 2px 8px rgba(147, 112, 219, 0.15);
+            border-color: #7b42f6;
+          }
+        }
+
+        .el-textarea__inner {
+          border-radius: 8px;
+          border: 1px solid rgba(147, 112, 219, 0.2);
+
+          &:hover,
+          &:focus {
+            border-color: #7b42f6;
           }
         }
       }
@@ -1056,7 +1042,9 @@ onMounted(() => {
   }
 
   .el-dialog__footer {
-    padding: 0 24px 24px;
+    padding: 16px 24px 20px;
+    border-top: 1px solid #ebeef5;
+    background: #fafafa;
 
     .el-button {
       font-weight: 500;
@@ -1088,61 +1076,46 @@ onMounted(() => {
 
 // 操作按钮样式
 .action-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 500;
+  padding: 4px 10px !important;
+  border-radius: 6px;
+  transition: all 0.3s ease;
+
+  .el-icon {
+    font-size: 14px;
+  }
+
+  span {
+    font-size: 12px;
+  }
+
   &.view-btn {
-    background: linear-gradient(135deg, #7b42f6 0%, #5a32a3 100%) !important;
+    background: linear-gradient(135deg, #52c41a 0%, #389e0d 100%) !important;
     border: none !important;
     color: #ffffff !important;
     font-weight: 600 !important;
-    padding: 4px 10px !important;
-    border-radius: 6px !important;
-    box-shadow: 0 2px 8px rgba(123, 66, 246, 0.3) !important;
-    transition: all 0.3s ease !important;
-    white-space: nowrap;
 
     &:hover {
-      background: linear-gradient(135deg, #6d33e6 0%, #4a249c 100%) !important;
-      transform: translateY(-2px) !important;
-      box-shadow: 0 4px 12px rgba(123, 66, 246, 0.4) !important;
-    }
-
-    .el-icon {
-      color: #ffffff !important;
-      margin-right: 3px;
-      font-size: 12px;
-    }
-
-    span {
-      font-size: 12px;
+      background: linear-gradient(135deg, #73d13d 0%, #52c41a 100%) !important;
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(82, 196, 26, 0.4);
     }
   }
 
   &.edit-btn {
-    background: #ffffff !important;
-    border: 1px solid rgba(147, 112, 219, 0.4) !important;
-    color: #5a32a3 !important;
-    font-weight: 500 !important;
-    padding: 4px 10px !important;
-    border-radius: 6px !important;
-    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08) !important;
-    transition: all 0.3s ease !important;
-    white-space: nowrap;
+    background: linear-gradient(135deg, #1890ff 0%, #096dd9 100%) !important;
+    border: none !important;
+    color: #ffffff !important;
+    font-weight: 600 !important;
 
     &:hover {
-      background: #f8f7ff !important;
-      border-color: #7b42f6 !important;
-      color: #7b42f6 !important;
-      transform: translateY(-1px) !important;
-      box-shadow: 0 2px 8px rgba(147, 112, 219, 0.2) !important;
-    }
-
-    .el-icon {
-      color: #5a32a3 !important;
-      margin-right: 3px;
-      font-size: 12px;
-    }
-
-    span {
-      font-size: 12px;
+      background: linear-gradient(135deg, #40a9ff 0%, #1890ff 100%) !important;
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(24, 144, 255, 0.4);
     }
   }
 
@@ -1151,26 +1124,11 @@ onMounted(() => {
     border: none !important;
     color: #ffffff !important;
     font-weight: 600 !important;
-    padding: 4px 10px !important;
-    border-radius: 6px !important;
-    box-shadow: 0 2px 8px rgba(255, 77, 79, 0.3) !important;
-    transition: all 0.3s ease !important;
-    white-space: nowrap;
 
     &:hover {
-      background: linear-gradient(135deg, #ff7875 0%, #a8071a 100%) !important;
-      transform: translateY(-2px) !important;
-      box-shadow: 0 4px 12px rgba(255, 77, 79, 0.4) !important;
-    }
-
-    .el-icon {
-      color: #ffffff !important;
-      margin-right: 3px;
-      font-size: 12px;
-    }
-
-    span {
-      font-size: 12px;
+      background: linear-gradient(135deg, #ff7875 0%, #ff4d4f 100%) !important;
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(255, 77, 79, 0.4);
     }
   }
 }

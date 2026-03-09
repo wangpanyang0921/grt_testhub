@@ -1,12 +1,22 @@
 <template>
   <div class="page-container">
-    <div class="page-header">
-      <div class="header-left">
-        <h1 class="page-title">{{ $t('uiAutomation.script.title') }}</h1>
-        <el-select v-model="selectedProject" :placeholder="$t('uiAutomation.common.selectProject')" class="project-select" @change="onProjectChange">
-          <el-option v-for="project in projects" :key="project.id" :label="project.name" :value="project.id" />
-        </el-select>
-      </div>
+    <div class="filter-bar">
+      <el-select v-model="selectedProject" :placeholder="$t('uiAutomation.common.selectProject')" class="project-select" @change="onProjectChange">
+        <el-option v-for="project in projects" :key="project.id" :label="project.name" :value="project.id" />
+      </el-select>
+      <el-input
+        v-model="searchQuery"
+        placeholder="搜索脚本名称"
+        clearable
+        @clear="handleSearch"
+        @keydown="($event) => { if ($event.key === 'Enter') handleSearch() }"
+        style="width: 300px;"
+      >
+        <template #prefix>
+          <el-icon><Search /></el-icon>
+        </template>
+      </el-input>
+      <div class="filter-bar-spacer"></div>
       <el-button type="primary" class="create-btn" @click="goToScriptEditor">
         <el-icon><Plus /></el-icon>
         {{ $t('uiAutomation.script.newScript') }}
@@ -14,26 +24,31 @@
     </div>
 
     <div class="card-container">
-      <el-table :data="scripts" stripe style="width: 100%">
-        <el-table-column type="index" :label="$t('uiAutomation.script.index')" width="80" header-align="center" align="center" />
-        <el-table-column :label="$t('uiAutomation.script.projectColumn')" width="160" header-align="center" align="center">
-          <template #default="{ row }">
-            {{ row.project?.name || $t('uiAutomation.script.unknownProject') }}
+      <el-table :data="scripts" v-loading="loading" stripe style="width: 100%" class="script-table">
+        <el-table-column type="index" label="序号" width="60" header-align="center" align="center">
+          <template #default="{ $index }">
+            {{ $index + 1 + (currentPage - 1) * pageSize }}
           </template>
         </el-table-column>
-        <el-table-column prop="name" :label="$t('uiAutomation.script.nameColumn')" min-width="160" show-overflow-tooltip header-align="center" align="center" />
+        <el-table-column prop="name" :label="$t('uiAutomation.script.nameColumn')" min-width="280" show-overflow-tooltip header-align="center" align="left">
+          <template #default="{ row }">
+            <span class="script-name-cell" @click="viewScript(row)">
+              {{ row.name }}
+            </span>
+          </template>
+        </el-table-column>
         <el-table-column :label="$t('uiAutomation.script.languageColumn')" width="110" header-align="center" align="center">
           <template #default="{ row }">
-            <el-tag size="small" :type="row.language === 'python' ? 'success' : 'primary'" show-overflow-tooltip>
+            <span class="lang-badge" :class="row.language === 'python' ? 'python-badge' : 'js-badge'">
               {{ getLanguageText(row.language) }}
-            </el-tag>
+            </span>
           </template>
         </el-table-column>
         <el-table-column :label="$t('uiAutomation.script.frameworkColumn')" width="140" header-align="center" align="center">
           <template #default="{ row }">
-            <el-tag size="small" :type="row.framework === 'playwright' ? 'warning' : 'info'" show-overflow-tooltip>
+            <span class="framework-badge" :class="row.framework === 'playwright' ? 'playwright-badge' : 'selenium-badge'">
               {{ getFrameworkText(row.framework) }}
-            </el-tag>
+            </span>
           </template>
         </el-table-column>
         <el-table-column prop="created_at" :label="$t('uiAutomation.script.createTimeColumn')" width="180" header-align="center" align="center">
@@ -41,20 +56,16 @@
             {{ formatTime(row.created_at) }}
           </template>
         </el-table-column>
-        <el-table-column :label="$t('uiAutomation.script.operationColumn')" width="340" fixed="right" header-align="center" align="center">
+        <el-table-column :label="$t('uiAutomation.script.operationColumn')" width="260" fixed="right" header-align="center" align="center">
           <template #default="{ row }">
             <div class="action-buttons">
-              <el-button size="small" class="action-btn view-btn" @click="viewScript(row)">
+              <el-button size="small" type="success" class="action-btn view-btn" @click="viewScript(row)">
                 <el-icon><View /></el-icon>
-                <span>{{ $t('uiAutomation.script.viewDetail') }}</span>
+                <span>详情</span>
               </el-button>
               <el-button size="small" class="action-btn edit-btn" @click="editScript(row)">
                 <el-icon><Edit /></el-icon>
                 <span>{{ $t('uiAutomation.script.edit') }}</span>
-              </el-button>
-              <el-button size="small" class="action-btn rename-btn" @click="renameScript(row)">
-                <el-icon><EditPen /></el-icon>
-                <span>{{ $t('uiAutomation.script.rename') }}</span>
               </el-button>
               <el-button size="small" type="danger" class="action-btn delete-btn" @click="deleteScript(row)">
                 <el-icon><Delete /></el-icon>
@@ -152,45 +163,35 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
-import { Plus, View, Edit, Delete, EditPen } from '@element-plus/icons-vue'
+import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import { Plus, View, Edit, EditPen, Delete, Search } from '@element-plus/icons-vue'
+import { getUiProjects, getTestScripts, updateTestScript, deleteTestScript } from '@/api/ui_automation'
 
-import {
-  getUiProjects,
-  getTestScripts,
-  updateTestScript,
-  deleteTestScript
-} from '@/api/ui_automation'
-
-const router = useRouter()
 const { t } = useI18n()
+const router = useRouter()
 
-// 响应式数据
+// 数据
 const projects = ref([])
 const selectedProject = ref('')
 const scripts = ref([])
+const loading = ref(false)
 const currentPage = ref(1)
-const pageSize = ref(20)
+const pageSize = ref(10)
 const total = ref(0)
+const searchQuery = ref('')
+const selectedIds = ref([])
 
 // 对话框控制
 const showDetailDialog = ref(false)
 const showRenameDialog = ref(false)
 const showEditDialog = ref(false)
-
-// 当前操作的脚本
 const currentScript = ref(null)
+const renameForm = ref({ newName: '' })
 const editingScript = ref(null)
 const saving = ref(false)
-
-// 重命名表单
-const renameForm = reactive({
-  scriptId: null,
-  newName: ''
-})
 
 // 加载项目列表
 const loadProjects = async () => {
@@ -198,8 +199,8 @@ const loadProjects = async () => {
     const response = await getUiProjects({ page_size: 100 })
     projects.value = response.data.results || response.data
   } catch (error) {
-    ElMessage.error(t('uiAutomation.script.messages.loadProjectsFailed'))
-    console.error('获取项目列表失败:', error)
+    console.error('Failed to load projects:', error)
+    ElMessage.error(t('uiAutomation.script.loadProjectsFailed'))
   }
 }
 
@@ -207,164 +208,168 @@ const loadProjects = async () => {
 const loadScripts = async () => {
   if (!selectedProject.value) {
     scripts.value = []
-    total.value = 0
     return
   }
 
+  loading.value = true
   try {
-    const response = await getTestScripts({
+    const params = {
       project: selectedProject.value,
       page: currentPage.value,
       page_size: pageSize.value
-    })
-
-    // 处理分页响应
-    if (response.data.results) {
-      scripts.value = response.data.results
-      total.value = response.data.count || 0
-    } else {
-      scripts.value = response.data
-      total.value = response.data.length
     }
+    
+    if (searchQuery.value) {
+      params.search = searchQuery.value
+    }
+    
+    const response = await getTestScripts(params)
+    scripts.value = response.data.results || []
+    total.value = response.data.count || 0
   } catch (error) {
-    ElMessage.error(t('uiAutomation.script.messages.loadScriptsFailed'))
-    console.error('获取脚本列表失败:', error)
+    console.error('Failed to load scripts:', error)
+    ElMessage.error(t('uiAutomation.script.loadScriptsFailed'))
+  } finally {
+    loading.value = false
   }
 }
 
 // 项目切换
-const onProjectChange = async () => {
+const onProjectChange = () => {
   currentPage.value = 1
-  await loadScripts()
+  loadScripts()
 }
 
-// 页面大小改变
-const handleSizeChange = async () => {
+// 搜索
+const handleSearch = () => {
   currentPage.value = 1
-  await loadScripts()
+  loadScripts()
 }
 
-// 当前页改变
-const handleCurrentChange = async () => {
-  await loadScripts()
+// 重置查询
+const resetQuery = () => {
+  searchQuery.value = ''
+  currentPage.value = 1
+  loadScripts()
+}
+
+// 多选变化
+const handleSelectionChange = (selection) => {
+  selectedIds.value = selection.map(item => item.id)
+}
+
+// 分页
+const handleSizeChange = (val) => {
+  pageSize.value = val
+  loadScripts()
+}
+
+const handleCurrentChange = (val) => {
+  currentPage.value = val
+  loadScripts()
 }
 
 // 跳转到脚本编辑器
 const goToScriptEditor = () => {
-  router.push('/ui-automation/scripts-enhanced')
+  router.push({ name: 'ScriptEditor' })
 }
 
 // 查看脚本详情
-const viewScript = (script) => {
-  currentScript.value = script
+const viewScript = (row) => {
+  currentScript.value = row
   showDetailDialog.value = true
 }
 
 // 编辑脚本
-const editScript = (script) => {
-  editingScript.value = { ...script }
-  showDetailDialog.value = false
+const editScript = (row) => {
+  editingScript.value = JSON.parse(JSON.stringify(row))
   showEditDialog.value = true
 }
 
 // 保存编辑的脚本
 const saveEditedScript = async () => {
-  if (!editingScript.value) return
+  if (!editingScript.value.content.trim()) {
+    ElMessage.warning('脚本内容不能为空')
+    return
+  }
 
+  saving.value = true
   try {
-    saving.value = true
-
     await updateTestScript(editingScript.value.id, {
       content: editingScript.value.content
     })
-
-    ElMessage.success(t('uiAutomation.script.messages.saveSuccess'))
+    ElMessage.success('脚本保存成功')
     showEditDialog.value = false
-
-    // 重新加载脚本列表
-    await loadScripts()
+    loadScripts()
   } catch (error) {
-    ElMessage.error(t('uiAutomation.script.messages.saveFailed'))
-    console.error('脚本保存失败:', error)
+    console.error('Failed to save script:', error)
+    ElMessage.error('脚本保存失败')
   } finally {
     saving.value = false
   }
 }
 
 // 重命名脚本
-const renameScript = (script) => {
-  renameForm.scriptId = script.id
-  renameForm.newName = script.name
+const renameScript = (row) => {
+  renameForm.value.newName = row.name
+  currentScript.value = row
   showRenameDialog.value = true
 }
 
 // 确认重命名
 const confirmRename = async () => {
-  if (!renameForm.newName.trim()) {
-    ElMessage.warning(t('uiAutomation.script.messages.enterNewName'))
+  if (!renameForm.value.newName.trim()) {
+    ElMessage.warning(t('uiAutomation.script.emptyName'))
     return
   }
 
   try {
-    await updateTestScript(renameForm.scriptId, {
-      name: renameForm.newName
+    await updateTestScript(currentScript.value.id, {
+      name: renameForm.value.newName.trim()
     })
-
-    ElMessage.success(t('uiAutomation.script.messages.renameSuccess'))
+    ElMessage.success(t('uiAutomation.script.renameSuccess'))
     showRenameDialog.value = false
-
-    // 重新加载脚本列表
-    await loadScripts()
+    loadScripts()
   } catch (error) {
-    ElMessage.error(t('uiAutomation.script.messages.renameFailed'))
-    console.error('重命名失败:', error)
+    console.error('Failed to rename script:', error)
+    ElMessage.error(t('uiAutomation.script.renameFailed'))
   }
 }
 
 // 删除脚本
-const deleteScript = async (script) => {
+const deleteScript = async (row) => {
   try {
     await ElMessageBox.confirm(
-      t('uiAutomation.script.messages.deleteConfirm', { name: script.name }),
-      t('uiAutomation.script.messages.confirmDelete'),
+      `确定要删除脚本 "${row.name}" 吗？删除后无法恢复。`,
+      '删除确认',
       {
-        confirmButtonText: t('uiAutomation.common.confirm'),
-        cancelButtonText: t('uiAutomation.common.cancel'),
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
         type: 'warning'
       }
     )
 
-    await deleteTestScript(script.id)
-    ElMessage.success(t('uiAutomation.script.messages.deleteSuccess'))
-
-    // 重新加载脚本列表
-    await loadScripts()
+    await deleteTestScript(row.id)
+    ElMessage.success('脚本删除成功')
+    loadScripts()
   } catch (error) {
     if (error !== 'cancel') {
-      ElMessage.error(t('uiAutomation.script.messages.deleteFailed'))
-      console.error('删除失败:', error)
+      console.error('Failed to delete script:', error)
+      ElMessage.error('脚本删除失败')
     }
   }
 }
 
-// 辅助方法
-const getScriptTypeText = (type) => {
-  const typeMap = {
-    'CODE': t('uiAutomation.script.scriptTypes.CODE'),
-    'VISUAL': t('uiAutomation.script.scriptTypes.VISUAL'),
-    'KEYWORD': t('uiAutomation.script.scriptTypes.KEYWORD')
-  }
-  return typeMap[type] || type
-}
-
+// 获取语言文本
 const getLanguageText = (language) => {
   const languageMap = {
-    'python': 'Python',
-    'javascript': 'JavaScript'
+    'javascript': 'JavaScript',
+    'python': 'Python'
   }
   return languageMap[language] || language || t('uiAutomation.status.unknown')
 }
 
+// 获取框架文本
 const getFrameworkText = (framework) => {
   const frameworkMap = {
     'playwright': 'Playwright',
@@ -373,6 +378,16 @@ const getFrameworkText = (framework) => {
   return frameworkMap[framework] || framework || t('uiAutomation.status.unknown')
 }
 
+// 获取脚本类型文本
+const getScriptTypeText = (scriptType) => {
+  const typeMap = {
+    'CODE': t('uiAutomation.script.codeScript'),
+    'RECORD': t('uiAutomation.script.recordScript')
+  }
+  return typeMap[scriptType] || scriptType || t('uiAutomation.status.unknown')
+}
+
+// 格式化时间
 const formatTime = (timestamp) => {
   if (!timestamp) return ''
   return new Date(timestamp).toLocaleString()
@@ -396,86 +411,106 @@ onMounted(async () => {
   background: linear-gradient(135deg, #f5f3ff 0%, #ede9fe 100%);
   display: flex;
   flex-direction: column;
-  line-height: 24px;
   gap: 20px;
 }
 
-.page-header {
+.filter-bar {
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  padding: 24px 28px;
+  gap: 16px;
+  padding: 20px 24px;
   background: linear-gradient(135deg, #ffffff 0%, #f8f7ff 100%);
   border-radius: 12px;
   box-shadow: 0 4px 16px rgba(147, 112, 219, 0.1);
   border: 1px solid rgba(147, 112, 219, 0.1);
-}
 
-.header-left {
-  display: flex;
-  align-items: center;
-  gap: 20px;
-}
+  .project-select {
+    width: 220px;
 
-.page-title {
-  font-size: 24px;
-  font-weight: 700;
-  color: #5a32a3;
-  margin: 0;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  background: linear-gradient(135deg, #7b42f6 0%, #5a32a3 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-}
+    :deep(.el-input__wrapper) {
+      border-radius: 8px;
+      border: 1px solid rgba(147, 112, 219, 0.3);
+      box-shadow: none;
 
-.project-select {
-  width: 240px;
+      &:hover, &.is-focus {
+        border-color: #7b42f6;
+        box-shadow: 0 0 0 3px rgba(123, 66, 246, 0.1);
+      }
+    }
+
+    :deep(.el-input__inner) {
+      color: #5a32a3;
+      font-weight: 500;
+    }
+  }
 
   :deep(.el-input__wrapper) {
     border-radius: 8px;
-    border: 1px solid rgba(147, 112, 219, 0.2);
-    background: #ffffff;
+    border: 1px solid rgba(147, 112, 219, 0.3);
     box-shadow: none;
 
-    &:hover {
+    &:hover, &.is-focus {
       border-color: #7b42f6;
       box-shadow: 0 0 0 3px rgba(123, 66, 246, 0.1);
     }
+  }
 
-    &.is-focus {
+  .filter-bar-spacer {
+    flex: 1;
+  }
+
+  .reset-btn {
+    border-radius: 8px;
+    padding: 10px 20px;
+    font-weight: 600;
+    transition: all 0.3s ease;
+    background: #ffffff;
+    border: 1px solid rgba(147, 112, 219, 0.4);
+    color: #5a32a3;
+
+    &:hover {
+      background: #f8f7ff;
       border-color: #7b42f6;
-      box-shadow: 0 0 0 3px rgba(123, 66, 246, 0.15);
+      color: #7b42f6;
     }
   }
 
-  :deep(.el-input__inner) {
-    color: #5a32a3;
-    font-weight: 500;
-  }
-}
+  .query-btn {
+    border-radius: 8px;
+    padding: 10px 20px;
+    font-weight: 600;
+    transition: all 0.3s ease;
+    background: linear-gradient(135deg, #7b42f6 0%, #5a32a3 100%);
+    border: none;
+    box-shadow: 0 4px 12px rgba(123, 66, 246, 0.3);
 
-.create-btn {
-  background: linear-gradient(135deg, #7b42f6 0%, #5a32a3 100%) !important;
-  border: none !important;
-  color: #ffffff !important;
-  font-weight: 600 !important;
-  padding: 10px 20px !important;
-  border-radius: 8px !important;
-  box-shadow: 0 4px 12px rgba(123, 66, 246, 0.3) !important;
-  transition: all 0.3s ease !important;
+    &:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(123, 66, 246, 0.4);
+    }
 
-  &:hover {
-    background: linear-gradient(135deg, #6d33e6 0%, #4a249c 100%) !important;
-    transform: translateY(-2px) !important;
-    box-shadow: 0 6px 16px rgba(123, 66, 246, 0.4) !important;
+    .el-icon {
+      margin-right: 6px;
+    }
   }
 
-  .el-icon {
-    color: #ffffff !important;
-    margin-right: 6px;
+  .create-btn {
+    border-radius: 8px;
+    padding: 10px 20px;
+    font-weight: 600;
+    transition: all 0.3s ease;
+    background: linear-gradient(135deg, #7b42f6 0%, #5a32a3 100%);
+    border: none;
+    box-shadow: 0 4px 12px rgba(123, 66, 246, 0.3);
+
+    &:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(123, 66, 246, 0.4);
+    }
+
+    .el-icon {
+      margin-right: 6px;
+    }
   }
 }
 
@@ -489,34 +524,10 @@ onMounted(async () => {
   overflow: hidden;
   padding-top: 16px;
 
-  .el-table {
-    border: none;
-    border-radius: 8px 8px 0 0;
+  .script-table {
+    border-radius: 8px;
     overflow: hidden;
-    min-height: 200px;
-    box-shadow: none;
-    transition: all 0.3s ease;
-    background-color: transparent !important;
-
-    /* 覆盖 Element Plus 默认主题变量 */
-    --el-color-primary: var(--primary-color);
-    --el-color-primary-light-3: #9370db;
-    --el-color-primary-light-5: #a888e0;
-    --el-color-primary-light-7: #c2a9f3;
-    --el-color-primary-light-9: #f8f7ff;
-    --el-border-color: #e9ecef;
-    --el-border-color-light: #e9ecef;
-    --el-border-color-lighter: #e9ecef;
-    --el-fill-color-light: #ffffff;
-    --el-fill-color-lighter: #ffffff;
-    --el-fill-color-blank: #ffffff;
-    --el-text-color-primary: #333;
-    --el-text-color-regular: #333;
-    --el-text-color-secondary: #666;
-    --el-text-color-placeholder: #999;
-    --el-table-header-bg-color: #ffffff;
-    --el-table-row-hover-bg-color: #f8f7ff;
-    --el-table-stripe-bg-color: #fafaff;
+    box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.04);
 
     &::before {
       display: none;
@@ -538,379 +549,413 @@ onMounted(async () => {
           font-size: 14px;
           border-bottom: 1px solid #e9ecef;
           padding: 16px;
-          text-align: left;
+          text-align: center;
           line-height: 24px;
           transition: all 0.3s ease;
 
           &:hover {
-            background-color: #ffffff !important;
+            background-color: #f8f7ff !important;
           }
 
-          // 表头单元格内部
-          :deep(.cell) {
+          .cell {
             background-color: #ffffff !important;
-            color: #5a32a3 !important;
-            font-weight: 600 !important;
+            color: #5a32a3;
+            font-weight: 600;
           }
         }
       }
     }
 
-    // 表格体包装器
-    :deep(.el-table__body-wrapper) {
+    // 直接覆盖表头单元格样式
+    :deep(.el-table__header th) {
       background-color: #ffffff !important;
+      color: #5a32a3 !important;
+      font-weight: 600 !important;
+    }
 
-      // 表格行
-      :deep(.el-table__row) {
-        transition: all 0.3s ease;
-        background-color: #ffffff !important;
+    // 覆盖表头单元格内容样式
+    :deep(.el-table__header th .cell) {
+      background-color: #ffffff !important;
+      color: #5a32a3 !important;
+      font-weight: 600 !important;
+    }
 
-        &:hover {
-          background-color: #f8f7ff !important;
-          transform: translateY(-1px);
-          box-shadow: 0 4px 12px rgba(147, 112, 219, 0.1);
-        }
+    // 表格主体
+    :deep(.el-table__body-wrapper) {
+      background-color: #ffffff;
 
-        // 表格单元格
-        :deep(td) {
-          background-color: #ffffff !important;
-          border-bottom: 1px solid #e9ecef;
-          padding: 16px;
-          text-align: left;
-          line-height: 24px;
+      :deep(.el-table__body) {
+        background-color: #ffffff;
+
+        :deep(tr) {
+          background-color: #ffffff;
           transition: all 0.3s ease;
-        }
-
-        &:hover :deep(td) {
-          background-color: #f8f7ff !important;
-        }
-      }
-    }
-  }
-}
-
-.action-buttons {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  gap: 1px;
-  flex-wrap: nowrap;
-}
-
-.action-btn {
-  padding: 3px 6px !important;
-  font-size: 11px;
-  min-width: auto !important;
-  
-  &.view-btn {
-    background: linear-gradient(135deg, #7b42f6 0%, #5a32a3 100%) !important;
-    border: none !important;
-    color: #ffffff !important;
-    font-weight: 600 !important;
-    padding: 3px 6px !important;
-    border-radius: 6px !important;
-    box-shadow: 0 2px 8px rgba(123, 66, 246, 0.3) !important;
-    transition: all 0.3s ease !important;
-    white-space: nowrap;
-
-    &:hover {
-      background: linear-gradient(135deg, #6d33e6 0%, #4a249c 100%) !important;
-      transform: translateY(-2px) !important;
-      box-shadow: 0 4px 12px rgba(123, 66, 246, 0.4) !important;
-    }
-
-    .el-icon {
-      color: #ffffff !important;
-      margin-right: 3px;
-      font-size: 12px;
-    }
-
-    span {
-      font-size: 12px;
-    }
-  }
-
-  &.edit-btn {
-    background: linear-gradient(135deg, #409eff 0%, #2c7bd0 100%) !important;
-    border: none !important;
-    color: #ffffff !important;
-    font-weight: 600 !important;
-    padding: 4px 10px !important;
-    border-radius: 6px !important;
-    box-shadow: 0 2px 8px rgba(64, 158, 255, 0.3) !important;
-    transition: all 0.3s ease !important;
-    white-space: nowrap;
-
-    &:hover {
-      background: linear-gradient(135deg, #3a8ee6 0%, #266cb5 100%) !important;
-      transform: translateY(-2px) !important;
-      box-shadow: 0 4px 12px rgba(64, 158, 255, 0.4) !important;
-    }
-
-    .el-icon {
-      color: #ffffff !important;
-      margin-right: 3px;
-      font-size: 12px;
-    }
-
-    span {
-      font-size: 12px;
-    }
-  }
-
-  &.rename-btn {
-    background: linear-gradient(135deg, #e6a23c 0%, #c77f1a 100%) !important;
-    border: none !important;
-    color: #ffffff !important;
-    font-weight: 600 !important;
-    padding: 4px 10px !important;
-    border-radius: 6px !important;
-    box-shadow: 0 2px 8px rgba(230, 162, 60, 0.3) !important;
-    transition: all 0.3s ease !important;
-    white-space: nowrap;
-
-    &:hover {
-      background: linear-gradient(135deg, #d4942a 0%, #b36f15 100%) !important;
-      transform: translateY(-2px) !important;
-      box-shadow: 0 4px 12px rgba(230, 162, 60, 0.4) !important;
-    }
-
-    .el-icon {
-      color: #ffffff !important;
-      margin-right: 3px;
-      font-size: 12px;
-    }
-
-    span {
-      font-size: 12px;
-    }
-  }
-
-  &.delete-btn {
-    background: linear-gradient(135deg, #f56c6c 0%, #c45656 100%) !important;
-    border: none !important;
-    color: #ffffff !important;
-    font-weight: 600 !important;
-    padding: 4px 10px !important;
-    border-radius: 6px !important;
-    box-shadow: 0 2px 8px rgba(245, 108, 108, 0.3) !important;
-    transition: all 0.3s ease !important;
-    white-space: nowrap;
-
-    &:hover {
-      background: linear-gradient(135deg, #e64c4c 0%, #b34545 100%) !important;
-      transform: translateY(-2px) !important;
-      box-shadow: 0 4px 12px rgba(245, 108, 108, 0.4) !important;
-    }
-
-    .el-icon {
-      color: #ffffff !important;
-      margin-right: 3px;
-      font-size: 12px;
-    }
-
-    span {
-      font-size: 12px;
-    }
-  }
-}
-
-.pagination-container {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  padding: 8px 24px;
-  background: transparent;
-  border-top: 1px solid rgba(147, 112, 219, 0.1);
-  transition: all 0.3s ease;
-  margin-top: 0;
-
-  /* 覆盖 Element Plus 默认主题变量 */
-  --el-color-primary: var(--primary-color);
-  --el-color-primary-light-3: #9370db;
-  --el-color-primary-light-5: #a888e0;
-  --el-color-primary-light-7: #c2a9f3;
-  --el-color-primary-light-9: #f8f7ff;
-  --el-border-color: rgba(147, 112, 219, 0.2);
-  --el-border-color-light: rgba(147, 112, 219, 0.15);
-  --el-border-color-lighter: rgba(147, 112, 219, 0.1);
-  --el-fill-color-light: #f8f7ff;
-  --el-fill-color-lighter: #f8f7ff;
-  --el-fill-color-blank: #f8f7ff;
-  --el-text-color-primary: var(--text-primary);
-  --el-text-color-regular: var(--text-secondary);
-  --el-text-color-secondary: var(--text-tertiary);
-
-  :deep(.el-pagination) {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    font-weight: 500;
-
-    // 总条数
-    .el-pagination__total {
-      color: #5a32a3;
-      font-size: 14px;
-      font-weight: 500;
-      margin-right: 12px;
-    }
-
-    // 每页条数选择器
-    .el-pagination__sizes {
-      margin-right: 12px;
-
-      .el-select {
-        .el-input__wrapper {
-          border-radius: 8px;
-          border: 1px solid rgba(147, 112, 219, 0.2);
-          background: #ffffff;
-          box-shadow: none;
 
           &:hover {
-            border-color: #7b42f6;
-            box-shadow: 0 0 0 3px rgba(123, 66, 246, 0.1);
+            background-color: #f8f7ff !important;
           }
 
-          &.is-focus {
-            border-color: #7b42f6;
-            box-shadow: 0 0 0 3px rgba(123, 66, 246, 0.15);
-          }
-        }
+          // 斑马纹
+          &.el-table__row--striped {
+            background-color: #fafafa;
 
-        .el-input__inner {
-          color: #5a32a3;
-          font-weight: 500;
+            &:hover {
+              background-color: #f8f7ff !important;
+            }
+          }
+
+          :deep(td) {
+            background-color: transparent;
+            border-bottom: 1px solid #f0f0f0;
+            padding: 12px 16px;
+            color: #595959;
+            font-size: 14px;
+            text-align: center;
+          }
         }
       }
     }
 
-    // 上一页/下一页按钮
-    .btn-prev,
-    .btn-next {
-      width: 32px;
-      height: 32px;
-      border-radius: 8px;
-      border: 1px solid rgba(147, 112, 219, 0.2);
-      background: #ffffff;
-      color: #5a32a3;
+    // 行悬停效果
+    :deep(.el-table__row:hover) {
+      background-color: #f8f7ff !important;
+    }
+
+    // 脚本名称样式
+    .script-name-cell {
+      padding: 4px 8px;
+      line-height: 1.6;
+      color: #595959;
+      cursor: pointer;
+      transition: color 0.3s ease;
+
+      &:hover {
+        color: #7b42f6;
+      }
+    }
+
+    // 语言徽章样式
+    .lang-badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 6px 16px;
+      border-radius: 4px;
+      font-size: 13px;
+      font-weight: 500;
       transition: all 0.3s ease;
+      white-space: nowrap;
 
-      &:hover:not(:disabled) {
-        background: linear-gradient(135deg, #7b42f6 0%, #5a32a3 100%);
-        border-color: transparent;
-        color: white;
-        transform: translateY(-1px);
-        box-shadow: 0 4px 12px rgba(123, 66, 246, 0.3);
+      &.python-badge {
+        background: #e6f7ff;
+        color: #1890ff;
       }
 
-      &:disabled {
-        opacity: 0.5;
-        cursor: not-allowed;
+      &.js-badge {
+        background: #fff7e6;
+        color: #fa8c16;
       }
     }
 
-    // 页码
-    .el-pager {
-      display: flex;
-      gap: 4px;
+    // 框架徽章样式
+    .framework-badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 6px 16px;
+      border-radius: 4px;
+      font-size: 13px;
+      font-weight: 500;
+      transition: all 0.3s ease;
+      white-space: nowrap;
 
-      li {
-        min-width: 32px;
-        height: 32px;
-        padding: 0 8px;
-        border-radius: 8px;
-        border: 1px solid rgba(147, 112, 219, 0.2);
-        background: #ffffff;
-        color: #5a32a3;
-        font-size: 14px;
-        font-weight: 500;
-        transition: all 0.3s ease;
+      &.playwright-badge {
+        background: #f6ffed;
+        color: #52c41a;
+      }
+
+      &.selenium-badge {
+        background: #fff2f0;
+        color: #ff4d4f;
+      }
+    }
+
+    // 操作按钮组
+    .action-buttons {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 4px;
+      flex-wrap: nowrap;
+
+      .action-btn {
         display: flex;
         align-items: center;
-        justify-content: center;
+        gap: 4px;
+        font-size: 12px;
+        font-weight: 500;
+        padding: 4px 10px !important;
+        border-radius: 6px;
+        transition: all 0.3s ease;
 
-        &:hover:not(.is-active) {
-          background: rgba(123, 66, 246, 0.1);
-          border-color: #7b42f6;
-          color: #7b42f6;
-          transform: translateY(-1px);
+        .el-icon {
+          font-size: 14px;
         }
 
-        &.is-active {
-          background: linear-gradient(135deg, #7b42f6 0%, #5a32a3 100%);
-          border-color: transparent;
-          color: white;
-          box-shadow: 0 4px 12px rgba(123, 66, 246, 0.3);
-          font-weight: 600;
+        span {
+          font-size: 12px;
         }
 
-        &.btn-quicknext,
-        &.btn-quickprev {
-          color: #9370db;
+        &.view-btn {
+          background: linear-gradient(135deg, #67c23a 0%, #529b2d 100%) !important;
+          border: none !important;
+          color: #ffffff !important;
+          font-weight: 600 !important;
 
           &:hover {
-            color: #7b42f6;
+            background: linear-gradient(135deg, #85ce61 0%, #6eb34e 100%) !important;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(103, 194, 58, 0.4);
+          }
+        }
+
+        &.edit-btn {
+          background: linear-gradient(135deg, #7b42f6 0%, #5a32a3 100%) !important;
+          border: none !important;
+          color: #ffffff !important;
+          font-weight: 600 !important;
+
+          &:hover {
+            background: linear-gradient(135deg, #6d33e6 0%, #4a249c 100%) !important;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(123, 66, 246, 0.4);
+          }
+        }
+
+        &.rename-btn {
+          background: linear-gradient(135deg, #e6a23c 0%, #c77f1a 100%) !important;
+          border: none !important;
+          color: #ffffff !important;
+          font-weight: 600 !important;
+
+          &:hover {
+            background: linear-gradient(135deg, #d4942a 0%, #b36f15 100%) !important;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(230, 162, 60, 0.4);
+          }
+        }
+
+        &.delete-btn {
+          background: linear-gradient(135deg, #ff4d4f 0%, #cf1322 100%) !important;
+          border: none !important;
+          color: #ffffff !important;
+          font-weight: 600 !important;
+
+          &:hover {
+            background: linear-gradient(135deg, #ff7875 0%, #ff4d4f 100%) !important;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(255, 77, 79, 0.4);
           }
         }
       }
     }
+  }
 
-    // 跳转页
-    .el-pagination__jump {
-      margin-left: 12px;
-      color: #5a32a3;
+  .pagination-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 16px 0;
+    margin-top: 8px;
+    background: transparent;
+    border: none;
+    transition: all 0.3s ease;
+
+    /* 定义主题变量 - 浅紫色风格 */
+    --primary-color: #a78bfa;
+    --primary-dark: #8b5cf6;
+    --primary-light: #f3f0ff;
+    --text-primary: #262626;
+    --text-secondary: #595959;
+    --text-tertiary: #8c8c8c;
+
+    /* 覆盖 Element Plus 默认主题变量 */
+    --el-color-primary: var(--primary-color);
+    --el-color-primary-light-3: #c4b5fd;
+    --el-color-primary-light-5: #ddd6fe;
+    --el-color-primary-light-7: #ede9fe;
+    --el-color-primary-light-9: #f5f3ff;
+    --el-border-color: rgba(167, 139, 250, 0.3);
+    --el-border-color-light: rgba(167, 139, 250, 0.2);
+    --el-border-color-lighter: rgba(167, 139, 250, 0.1);
+    --el-fill-color-light: #f5f3ff;
+    --el-fill-color-lighter: #f5f3ff;
+    --el-fill-color-blank: #f5f3ff;
+    --el-text-color-primary: var(--text-primary);
+    --el-text-color-regular: var(--text-secondary);
+    --el-text-color-secondary: var(--text-tertiary);
+
+    :deep(.el-pagination) {
+      display: flex;
+      align-items: center;
+      gap: 4px;
       font-weight: 500;
 
-      .el-input {
-        width: 48px;
-        margin: 0 8px;
+      // 总条数
+      .el-pagination__total {
+        color: #6b7280;
+        font-size: 14px;
+        font-weight: 500;
+        margin-right: 12px;
+      }
 
-        .el-input__wrapper {
-          border-radius: 8px;
-          border: 1px solid rgba(147, 112, 219, 0.2);
-          background: #ffffff;
-          box-shadow: none;
-          padding: 0 8px;
+      // 每页条数选择器
+      .el-pagination__sizes {
+        margin-right: 12px;
 
-          &:hover {
-            border-color: #7b42f6;
-            box-shadow: 0 0 0 3px rgba(123, 66, 246, 0.1);
+        .el-select {
+          .el-input__wrapper {
+            border-radius: 8px;
+            border: 1px solid #e5e7eb;
+            background: #ffffff;
+            box-shadow: none;
+
+            &:hover {
+              border-color: #a78bfa;
+              box-shadow: 0 0 0 3px rgba(167, 139, 250, 0.1);
+            }
+
+            &.is-focus {
+              border-color: #a78bfa;
+              box-shadow: 0 0 0 3px rgba(167, 139, 250, 0.15);
+            }
           }
 
-          &.is-focus {
-            border-color: #7b42f6;
-            box-shadow: 0 0 0 3px rgba(123, 66, 246, 0.15);
+          .el-input__inner {
+            color: #6b7280;
+            font-weight: 500;
           }
         }
+      }
 
-        .el-input__inner {
-          color: #5a32a3;
+      // 上一页/下一页按钮
+      .btn-prev,
+      .btn-next {
+        width: 32px;
+        height: 32px;
+        border-radius: 8px;
+        border: 1px solid #e5e7eb;
+        background: #ffffff;
+        color: #6b7280;
+        transition: all 0.3s ease;
+
+        &:hover:not(:disabled) {
+          background: linear-gradient(135deg, #a78bfa 0%, #8b5cf6 100%);
+          border-color: transparent;
+          color: white;
+          transform: translateY(-1px);
+          box-shadow: 0 4px 12px rgba(167, 139, 250, 0.3);
+        }
+
+        &:disabled {
+          opacity: 0.5;
+          cursor: not-allowed;
+        }
+      }
+
+      // 页码
+      .el-pager {
+        display: flex;
+        gap: 4px;
+
+        li {
+          min-width: 32px;
+          height: 32px;
+          padding: 0 8px;
+          border-radius: 8px;
+          border: 1px solid #e5e7eb;
+          background: #ffffff;
+          color: #6b7280;
+          font-size: 14px;
           font-weight: 500;
-          text-align: center;
+          transition: all 0.3s ease;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+
+          &:hover:not(.is-active) {
+            background: rgba(167, 139, 250, 0.1);
+            border-color: #a78bfa;
+            color: #a78bfa;
+            transform: translateY(-1px);
+          }
+
+          &.is-active {
+            background: linear-gradient(135deg, #a78bfa 0%, #8b5cf6 100%);
+            border-color: transparent;
+            color: white;
+            box-shadow: 0 4px 12px rgba(167, 139, 250, 0.3);
+          }
+        }
+      }
+
+      // 跳转输入框
+      .el-pagination__jump {
+        color: #6b7280;
+        font-weight: 500;
+        margin-left: 12px;
+
+        .el-input {
+          width: 50px;
+
+          .el-input__wrapper {
+            border-radius: 8px;
+            border: 1px solid #e5e7eb;
+            background: #ffffff;
+            box-shadow: none;
+
+            &:hover {
+              border-color: #a78bfa;
+              box-shadow: 0 0 0 3px rgba(167, 139, 250, 0.1);
+            }
+
+            &.is-focus {
+              border-color: #a78bfa;
+              box-shadow: 0 0 0 3px rgba(167, 139, 250, 0.15);
+            }
+          }
+
+          .el-input__inner {
+            color: #6b7280;
+            font-weight: 500;
+            text-align: center;
+          }
         }
       }
     }
   }
 }
 
+// 脚本详情
 .script-detail {
   padding: 10px;
 }
 
 .script-content {
   margin-top: 20px;
-}
 
-.script-content h4 {
-  margin: 0 0 10px 0;
-  color: #333;
+  h4 {
+    margin: 0 0 10px 0;
+    color: #5a32a3;
+    font-weight: 600;
+  }
 }
 
 .code-view {
   background-color: #1e1e1e;
   color: #d4d4d4;
   padding: 15px;
-  border-radius: 4px;
+  border-radius: 8px;
   font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
   font-size: 13px;
   line-height: 1.5;
@@ -930,14 +975,16 @@ onMounted(async () => {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 10px 15px;
-  background-color: #fafafa;
-  border-bottom: 1px solid #e6e6e6;
+  padding: 12px 16px;
+  background: linear-gradient(135deg, #faf8ff 0%, #f5f3ff 100%);
+  border-bottom: 1px solid rgba(147, 112, 219, 0.15);
+  border-radius: 8px 8px 0 0;
 }
 
 .script-name {
-  font-weight: bold;
+  font-weight: 600;
   font-size: 16px;
+  color: #5a32a3;
 }
 
 .editor-info {
@@ -948,6 +995,8 @@ onMounted(async () => {
 .editor-container {
   flex: 1;
   position: relative;
+  border-radius: 0 0 8px 8px;
+  overflow: hidden;
 }
 
 .code-editor {
@@ -958,8 +1007,8 @@ onMounted(async () => {
   resize: none;
   font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
   font-size: 14px;
-  line-height: 1.5;
-  padding: 15px;
+  line-height: 1.6;
+  padding: 16px;
   background-color: #1e1e1e;
   color: #d4d4d4;
   tab-size: 2;

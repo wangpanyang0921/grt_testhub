@@ -1054,7 +1054,7 @@ onUnmounted(() => {
   font-size: 12px;
   font-weight: 500;
   padding: 4px 10px !important;
-  border-radius: 6px;
+  border-radius: 8px;
   transition: all 0.3s ease;
 
   .el-icon {

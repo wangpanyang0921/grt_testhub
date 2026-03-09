@@ -385,7 +385,7 @@ const resetData = () => {
 .code-container {
   position: relative;
   background-color: #1e1e1e;
-  border-radius: 6px;
+  border-radius: 8px;
   padding: 16px;
   overflow-x: auto;
 }

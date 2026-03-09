@@ -1,39 +1,38 @@
 <template>
   <div class="script-editor-enhanced">
     <div class="page-header">
-      <h1 class="page-title">{{ $t('uiAutomation.scriptEditor.title') }}</h1>
       <div class="header-actions">
-        <el-select v-model="projectId" :placeholder="$t('uiAutomation.common.selectProject')" style="width: 200px; margin-right: 15px" @change="onProjectChange">
+        <el-select v-model="projectId" :placeholder="$t('uiAutomation.common.selectProject')" style="width: 180px" @change="onProjectChange">
           <el-option v-for="project in projects" :key="project.id" :label="project.name" :value="project.id" />
         </el-select>
       </div>
     </div>
 
     <div class="main-content">
-      <!-- 左侧:���素库(页面树形式) -->
+      <!-- 左侧:元素库(页面树形式) -->
       <div class="left-panel">
-        <div class="panel-header">
-          <h3>{{ $t('uiAutomation.scriptEditor.elementLibrary') }}</h3>
-          <el-input
-            v-model="elementFilter"
-            :placeholder="$t('uiAutomation.scriptEditor.searchElement')"
-            clearable
-            size="small"
-            style="margin-top: 10px"
-          >
-            <template #prefix>
-              <el-icon><Search /></el-icon>
-            </template>
-          </el-input>
-        </div>
-
         <div class="panel-content">
+          <div class="tree-search">
+            <el-input
+              v-model="elementFilter"
+              :placeholder="$t('uiAutomation.scriptEditor.searchElement')"
+              clearable
+              size="default"
+            >
+              <template #prefix>
+                <el-icon><Search /></el-icon>
+              </template>
+            </el-input>
+          </div>
           <el-tree
+            :key="treeKey"
+            ref="elementTreeRef"
             :data="elementTree"
             :filter-node-method="filterElementNode"
             :props="{ children: 'children', label: 'name' }"
             node-key="id"
             default-expand-all
+            :expand-on-click-node="false"
             @node-click="handleElementClick"
           >
             <template #default="{ data }">
@@ -42,14 +41,6 @@
                   <component :is="getTreeNodeIcon(data.type)" />
                 </el-icon>
                 <span class="node-label">{{ data.name }}</span>
-                <div class="node-actions" v-if="data.type === 'element'">
-                  <el-button size="small" text @click.stop="insertElementCode(data)" :title="$t('uiAutomation.scriptEditor.clickToInsert')">
-                    <el-icon><Plus /></el-icon>
-                  </el-button>
-                  <el-button size="small" text @click.stop="showElementDetail(data)">
-                    <el-icon><View /></el-icon>
-                  </el-button>
-                </div>
               </div>
             </template>
           </el-tree>
@@ -58,133 +49,110 @@
 
       <!-- 中间:代码编辑器 -->
       <div class="center-panel">
-        <div class="editor-toolbar">
-          <div class="toolbar-left">
-            <el-select v-model="scriptLanguage" size="small" style="width: 120px">
-              <el-option label="JavaScript" value="javascript" />
-              <el-option label="Python" value="python" />
-            </el-select>
-            <el-select v-model="scriptFramework" size="small" style="width: 120px; margin-left: 10px">
-              <el-option label="Playwright" value="playwright" />
-              <el-option label="Selenium" value="selenium" />
-            </el-select>
-          </div>
-          <div class="toolbar-right">
-            <el-button size="small" @click="formatCode">
-              <el-icon><Operation /></el-icon>
-              {{ $t('uiAutomation.scriptEditor.format') }}
-            </el-button>
-            <el-button size="small" @click="clearCode">
-              <el-icon><Delete /></el-icon>
-              {{ $t('uiAutomation.scriptEditor.clear') }}
-            </el-button>
-            <el-button size="small" type="primary" @click="saveScript" :loading="saving">
-              <el-icon><Check /></el-icon>
-              {{ $t('uiAutomation.scriptEditor.saveScript') }}
-            </el-button>
-          </div>
-        </div>
-
         <div class="code-editor-container">
-          <textarea
-            ref="codeEditor"
-            v-model="scriptContent"
-            class="code-editor"
-            :placeholder="$t('uiAutomation.scriptEditor.editorPlaceholder')"
-            @focus="handleEditorFocus"
-            @blur="handleEditorBlur"
-            @input="handleContentChange"
-          />
-        </div>
-
-        <div class="editor-status">
-          <span>{{ $t('uiAutomation.scriptEditor.line') }}: {{ cursorPosition.line }}, {{ $t('uiAutomation.scriptEditor.column') }}: {{ cursorPosition.column }}</span>
-          <span>{{ $t('uiAutomation.scriptEditor.characters') }}: {{ scriptContent.length }}</span>
-          <span>{{ $t('uiAutomation.scriptEditor.language') }}: {{ scriptLanguage }}</span>
+          <div ref="monacoEditor" class="monaco-editor"></div>
         </div>
       </div>
 
-      <!-- 右侧:执行日志和元素详情 -->
+      <!-- 右侧:元素详情 -->
       <div class="right-panel">
-        <el-tabs v-model="rightActiveTab" type="border-card">
-          <!-- 执行日志 -->
-          <el-tab-pane :label="$t('uiAutomation.scriptEditor.executionLogs')" name="logs">
-            <div class="panel-content">
-              <div class="log-controls">
-                <el-button size="small" @click="clearLogs">
-                  <el-icon><Delete /></el-icon>
-                  {{ $t('uiAutomation.scriptEditor.clearLogs') }}
-                </el-button>
-              </div>
-              <div class="log-output">
-                <div
-                  v-for="(log, index) in executionLogs"
-                  :key="index"
-                  class="log-entry"
-                  :class="log.level"
-                >
-                  <span class="log-time">{{ formatTime(log.timestamp) }}</span>
-                  <span class="log-level">{{ log.level.toUpperCase() }}</span>
-                  <span class="log-message">{{ log.message }}</span>
-                </div>
-              </div>
-            </div>
-          </el-tab-pane>
-
+        <el-tabs v-model="rightActiveTab" v-if="selectedElementDetail">
           <!-- 元素详情 -->
           <el-tab-pane :label="$t('uiAutomation.scriptEditor.elementDetail')" name="elementDetail" v-if="selectedElementDetail">
             <div class="panel-content">
               <div class="element-detail">
-                <h4>{{ selectedElementDetail.name }}</h4>
-                <el-descriptions :column="1" border size="small">
-                  <el-descriptions-item :label="$t('uiAutomation.scriptEditor.type')">
-                    {{ getElementTypeText(selectedElementDetail.element_type) }}
-                  </el-descriptions-item>
-                  <el-descriptions-item :label="$t('uiAutomation.scriptEditor.page')">
-                    {{ selectedElementDetail.page || $t('uiAutomation.element.notSpecified') }}
-                  </el-descriptions-item>
-                  <el-descriptions-item :label="$t('uiAutomation.scriptEditor.locatorStrategy')">
-                    {{ selectedElementDetail.locator_strategy?.name || selectedElementDetail.locator_strategy }}
-                  </el-descriptions-item>
-                  <el-descriptions-item :label="$t('uiAutomation.scriptEditor.locatorExpression')">
-                    <code>{{ selectedElementDetail.locator_value }}</code>
-                  </el-descriptions-item>
-                  <el-descriptions-item :label="$t('uiAutomation.scriptEditor.usageCount')">
-                    {{ selectedElementDetail.usage_count || 0 }}
-                  </el-descriptions-item>
-                </el-descriptions>
+                <div class="element-header">
+                  <div class="element-icon">
+                    <el-icon><Document /></el-icon>
+                  </div>
+                  <div class="element-title">
+                    <h4>{{ selectedElementDetail.name }}</h4>
+                    <span class="element-subtitle">{{ selectedElementDetail.page || $t('uiAutomation.element.notSpecified') }} · {{ getElementTypeText(selectedElementDetail.element_type) }}</span>
+                  </div>
+                </div>
 
-                <div class="element-actions" style="margin-top: 15px">
-                  <el-button size="small" type="primary" @click="insertElementCode(selectedElementDetail)">
+                <div class="element-info-list">
+                  <div class="info-item">
+                    <span class="info-label">{{ $t('uiAutomation.scriptEditor.locatorStrategy') }}</span>
+                    <span class="info-value strategy-tag">{{ selectedElementDetail.locator_strategy?.name || selectedElementDetail.locator_strategy }}</span>
+                  </div>
+                  <div class="info-item">
+                    <span class="info-label">{{ $t('uiAutomation.scriptEditor.locatorExpression') }}</span>
+                    <code class="info-code">{{ selectedElementDetail.locator_value }}</code>
+                  </div>
+                  <div class="info-item">
+                    <span class="info-label">编程语言</span>
+                    <el-select v-model="scriptLanguage" size="small" style="width: 110px">
+                      <el-option label="JavaScript" value="javascript" />
+                      <el-option label="Python" value="python" />
+                    </el-select>
+                  </div>
+                  <div class="info-item">
+                    <span class="info-label">测试框架</span>
+                    <el-select v-model="scriptFramework" size="small" style="width: 110px">
+                      <el-option label="Playwright" value="playwright" />
+                      <el-option label="Selenium" value="selenium" />
+                    </el-select>
+                  </div>
+                </div>
+
+                <div class="element-actions">
+                  <el-button @click="insertElementCode(selectedElementDetail)">
+                    <el-icon><Plus /></el-icon>
                     {{ $t('uiAutomation.scriptEditor.insertCode') }}
                   </el-button>
-                  <el-button size="small" @click="validateElement(selectedElementDetail)">
+                  <el-button @click="validateElement(selectedElementDetail)">
+                    <el-icon><Check /></el-icon>
                     {{ $t('uiAutomation.scriptEditor.validateElement') }}
+                  </el-button>
+                </div>
+
+                <div class="code-actions">
+                  <el-button size="default" @click="formatCode">
+                    <el-icon><Operation /></el-icon>
+                    {{ $t('uiAutomation.scriptEditor.format') }}
+                  </el-button>
+                  <el-button size="default" @click="clearCode">
+                    <el-icon><Delete /></el-icon>
+                    {{ $t('uiAutomation.scriptEditor.clear') }}
+                  </el-button>
+                </div>
+
+                <div class="save-action">
+                  <el-button size="default" @click="saveScript" :loading="saving" class="save-script-btn">
+                    <el-icon><Check /></el-icon>
+                    {{ $t('uiAutomation.scriptEditor.saveScript') }}
                   </el-button>
                 </div>
               </div>
             </div>
           </el-tab-pane>
         </el-tabs>
+        <div v-else class="right-panel-empty">
+          <el-icon><Document /></el-icon>
+          <span>选择元素查看详情</span>
+        </div>
       </div>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted, watch } from 'vue'
+import { ref, reactive, computed, onMounted, watch, onBeforeUnmount, shallowRef } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   Search, Plus, View, Document, Check, Delete, Operation, Folder
 } from '@element-plus/icons-vue'
+import loader from '@monaco-editor/loader'
 
 import {
   getUiProjects,
-  createTestScript,
-  getElementTree,
+  getTestScripts,
+  getElements,
   getElementGroupTree,
-  validateElementLocator
+  validateElementLocator,
+  createTestScript
 } from '@/api/ui_automation'
 
 // i18n
@@ -198,9 +166,11 @@ const scriptLanguage = ref('python')
 const scriptFramework = ref('playwright')
 
 const elementTree = ref([])
+const elementTreeRef = ref(null)
 const elementFilter = ref('')
 const selectedElementDetail = ref(null)
 const executionLogs = ref([])
+const treeKey = ref(0)
 
 const cursorPosition = reactive({ line: 1, column: 1 })
 const saving = ref(false)
@@ -209,7 +179,9 @@ const saving = ref(false)
 const rightActiveTab = ref('logs')
 
 // Monaco编辑器实例
-const codeEditor = ref(null)
+const monacoEditor = ref(null)
+const editor = shallowRef(null)
+const monacoRef = shallowRef(null)
 
 // 方法定义
 const loadProjects = async () => {
@@ -229,12 +201,9 @@ const loadElementTree = async () => {
   }
 
   try {
-    // 并行加载页面树和元素
-    const [pageGroupResponse, elementsResponse] = await Promise.all([
-      getElementGroupTree({ project: projectId.value }),
-      getElementTree({ project: projectId.value })
-    ])
-
+    // 加载页面树
+    const pageGroupResponse = await getElementGroupTree({ project: projectId.value })
+    
     // 构建页面节点
     const buildTree = (groups) => {
       return groups.map(group => ({
@@ -246,42 +215,53 @@ const loadElementTree = async () => {
 
     const pageNodes = buildTree(pageGroupResponse.data || [])
 
-    // 获取所有元素
-    const elements = elementsResponse.data?.results || elementsResponse.data || []
-
     console.log('=== Smart Script Generator - Loading Element Tree ===')
     console.log('Page nodes count:', pageNodes.length)
-    console.log('Total elements:', elements.length)
 
-    // 将元素添加到对应页面下
-    const attachElementsToPages = (pages) => {
-      pages.forEach(page => {
-        // 找到属于当前页面的元素
-        const pageElements = elements.filter(element => element.group_id === page.id)
-        console.log(`Page ${page.name} (ID: ${page.id}) found ${pageElements.length} elements`)
-
-        const elementNodes = pageElements.map(element => ({
-          ...element,
-          type: 'element'
-        }))
-
-        // 将元素添加到页面的子节点中
-        page.children = page.children ? [...page.children, ...elementNodes] : [...elementNodes]
-
-        // 递归处理子页面
-        if (page.children) {
-          attachElementsToPages(page.children.filter(child => child.type === 'page'))
+    // 递归查找页面节点的辅助函数
+    const findPageNode = (nodes, pageName) => {
+      for (const node of nodes) {
+        if (node.type === 'page' && node.name === pageName) {
+          return node
         }
-      })
+        if (node.children) {
+          const found = findPageNode(node.children, pageName)
+          if (found) return found
+        }
+      }
+      return null
     }
 
-    attachElementsToPages(pageNodes)
-    elementTree.value = pageNodes
+    // 加载元素列表
+    const elementsResponse = await getElements({ project: projectId.value, page_size: 1000 })
+    const elements = elementsResponse.data?.results || elementsResponse.data || []
+    console.log('Elements count:', elements.length)
 
-    addLog('info', t('uiAutomation.scriptEditor.messages.elementsLoaded', { count: countElements(elementTree.value) }))
+    // 将元素添加到对应页面下
+    elements.forEach(element => {
+      const pageNode = findPageNode(pageNodes, element.page)
+      if (pageNode) {
+        if (!pageNode.children) {
+          pageNode.children = []
+        }
+        // 检查是否已存在
+        const exists = pageNode.children.some(child => child.id === element.id && child.type === 'element')
+        if (!exists) {
+          pageNode.children.push({
+            ...element,
+            type: 'element',
+            name: element.name
+          })
+        }
+      }
+    })
+
+    elementTree.value = pageNodes
+    treeKey.value++ // 强制刷新树组件
+    console.log('Final element tree:', JSON.parse(JSON.stringify(pageNodes)))
+    console.log('Total elements in tree:', countElements(pageNodes))
   } catch (error) {
     console.error('Failed to load element tree:', error)
-    addLog('error', t('uiAutomation.scriptEditor.messages.loadElementTreeFailed'))
   }
 }
 
@@ -298,6 +278,75 @@ const countElements = (tree) => {
   return count
 }
 
+// 初始化 Monaco Editor
+const initMonacoEditor = async () => {
+  if (!monacoEditor.value) return
+
+  try {
+    // 配置 loader 使用 CDN
+    loader.config({
+      paths: {
+        vs: 'https://cdn.jsdelivr.net/npm/monaco-editor@0.53.0/min/vs'
+      }
+    })
+
+    const monaco = await loader.init()
+    monacoRef.value = monaco
+
+    editor.value = monaco.editor.create(monacoEditor.value, {
+      value: scriptContent.value,
+      language: scriptLanguage.value === 'javascript' ? 'javascript' : 'python',
+      theme: 'vs-dark',
+      fontSize: 15,
+      lineHeight: 24,
+      minimap: { enabled: false },
+      scrollBeyondLastLine: false,
+      automaticLayout: true,
+      padding: { top: 16, bottom: 16 },
+      lineNumbers: 'on',
+      renderLineHighlight: 'line',
+      selectOnLineNumbers: true,
+      cursorStyle: 'line',
+      cursorBlinking: 'blink',
+      smoothScrolling: true,
+      contextmenu: true,
+      quickSuggestions: true,
+      wordBasedSuggestions: true,
+      suggestOnTriggerCharacters: true,
+      acceptSuggestionOnEnter: 'on',
+      tabCompletion: 'on',
+      wordWrap: 'on',
+      folding: true,
+      renderWhitespace: 'selection',
+      bracketPairColorization: { enabled: true }
+    })
+
+    // 监听内容变化
+    editor.value.onDidChangeModelContent(() => {
+      scriptContent.value = editor.value.getValue()
+      updateCursorPosition()
+    })
+
+    // 监听光标位置变化
+    editor.value.onDidChangeCursorPosition((e) => {
+      cursorPosition.line = e.position.lineNumber
+      cursorPosition.column = e.position.column
+    })
+  } catch (error) {
+    console.error('Failed to initialize Monaco Editor:', error)
+  }
+}
+
+// 更新编辑器语言
+const updateEditorLanguage = () => {
+  if (editor.value && monacoRef.value) {
+    const model = editor.value.getModel()
+    if (model) {
+      monacoRef.value.editor.setModelLanguage(model, scriptLanguage.value === 'javascript' ? 'javascript' : 'python')
+    }
+  }
+}
+
 const handleEditorFocus = () => {
   // 编辑器获得焦点时的处理
 }
@@ -312,15 +361,12 @@ const handleContentChange = () => {
 }
 
 const updateCursorPosition = () => {
-  if (codeEditor.value) {
-    const textarea = codeEditor.value
-    const text = textarea.value
-    const selectionStart = textarea.selectionStart
-
-    // 计算行号和列号
-    const lines = text.substring(0, selectionStart).split('\n')
-    cursorPosition.line = lines.length
-    cursorPosition.column = lines[lines.length - 1].length + 1
+  if (editor.value) {
+    const position = editor.value.getPosition()
+    if (position) {
+      cursorPosition.line = position.lineNumber
+      cursorPosition.column = position.column
+    }
   }
 }
 
@@ -357,27 +403,45 @@ const insertElementCode = (element) => {
   const code = generateElementCode(element)
   insertCodeAtCursor(code + '\n')  // 自动换行
 
-  addLog('info', `${t('uiAutomation.scriptEditor.messages.insertCode')}: ${element.name}`)
+  ElMessage.success(`${t('uiAutomation.scriptEditor.messages.insertCode')}: ${element.name}`)
 }
 
 const insertCodeAtCursor = (code) => {
-  if (!codeEditor.value) return
+  if (!editor.value || !monacoRef.value) return
 
-  const textarea = codeEditor.value
-  const start = textarea.selectionStart
-  const end = textarea.selectionEnd
-  const text = textarea.value
+  // 获取当前光标位置，如果没有则默认在第一行第一列
+  let position = editor.value.getPosition()
+  if (!position) {
+    position = { lineNumber: 1, column: 1 }
+  }
 
-  // 在光标位置插入代码
-  const newText = text.substring(0, start) + code + text.substring(end)
-  scriptContent.value = newText
+  // 如果编辑器为空，从第一行开始插入
+  const model = editor.value.getModel()
+  const isEmpty = model && model.getLineCount() === 1 && model.getLineContent(1) === ''
 
-  // 更新光标位置
-  setTimeout(() => {
-    textarea.focus()
-    textarea.setSelectionRange(start + code.length, start + code.length)
-    updateCursorPosition()
-  }, 0)
+  if (isEmpty) {
+    // 空编辑器时直接设置值
+    editor.value.setValue(code)
+  } else {
+    // 非空时在光标位置插入
+    editor.value.executeEdits('insert-element', [{
+      range: new monacoRef.value.Range(position.lineNumber, position.column, position.lineNumber, position.column),
+      text: code
+    }])
+  }
+
+  // 移动光标到插入代码之后
+  const lines = code.split('\n')
+  const newLineNumber = position.lineNumber + lines.length - 1
+  const newColumn = lines.length === 1
+    ? (isEmpty ? code.length + 1 : position.column + code.length)
+    : lines[lines.length - 1].length + 1
+
+  editor.value.setPosition({ lineNumber: newLineNumber, column: newColumn })
+  editor.value.focus()
+
+  // 同步更新 scriptContent
+  scriptContent.value = editor.value.getValue()
 }
 
 const generateElementCode = (element) => {
@@ -434,12 +498,32 @@ const saveScript = async () => {
   }
 
   try {
+    const { value: scriptName, action } = await ElMessageBox.prompt(
+      '',
+      '保存脚本',
+      {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+        inputPlaceholder: '请输入脚本名称',
+        customClass: 'script-save-message-box',
+        width: 420,
+        inputValidator: (value) => {
+          if (!value || !value.trim()) {
+            return '脚本名称不能为空'
+          }
+          return true
+        }
+      }
+    )
+
+    if (action !== 'confirm') {
+      return
+    }
+
     saving.value = true
 
-    const scriptName = generateScriptName()
-
     await createTestScript({
-      name: scriptName,
+      name: scriptName.trim(),
       project: projectId.value,
       script_type: 'CODE',
       content: scriptContent.value,
@@ -448,11 +532,11 @@ const saveScript = async () => {
     })
 
     ElMessage.success(`${t('uiAutomation.scriptEditor.messages.saveSuccess')}: ${scriptName}`)
-    addLog('success', `${t('uiAutomation.scriptEditor.messages.saveSuccess')}: ${scriptName}`)
   } catch (error) {
-    console.error('Failed to save script:', error)
-    ElMessage.error(t('uiAutomation.scriptEditor.messages.saveFailed'))
-    addLog('error', t('uiAutomation.scriptEditor.messages.saveFailed'))
+    if (error !== 'cancel') {
+      console.error('Failed to save script:', error)
+      ElMessage.error(t('uiAutomation.scriptEditor.messages.saveFailed'))
+    }
   } finally {
     saving.value = false
   }
@@ -465,58 +549,33 @@ const validateElement = async (element) => {
 
     if (result.is_valid) {
       ElMessage.success(t('uiAutomation.scriptEditor.messages.validatePassed'))
-      addLog('info', `${t('uiAutomation.scriptEditor.messages.validatePassed')}: ${element.name}`)
     } else {
       ElMessage.error(`${t('uiAutomation.scriptEditor.messages.validateFailed')}: ${result.validation_message}`)
-      addLog('error', `${t('uiAutomation.scriptEditor.messages.validateFailed')}: ${element.name} - ${result.validation_message}`)
     }
   } catch (error) {
     console.error('Failed to validate element:', error)
     ElMessage.error(t('uiAutomation.scriptEditor.messages.validateFailed'))
-    addLog('error', `${t('uiAutomation.scriptEditor.messages.validateFailed')}: ${element.name}`)
   }
 }
 
 const formatCode = () => {
-  // 简单的代码格式化
+  // 使用 Monaco Editor 的格式化功能
   try {
-    if (scriptLanguage.value === 'javascript') {
-      let formatted = scriptContent.value
-        .replace(/;/g, ';\n')
-        .replace(/\{/g, ' {\n')
-        .replace(/\}/g, '\n}')
-        .replace(/\n\s*\n/g, '\n')
-
-      scriptContent.value = formatted
-      addLog('info', t('uiAutomation.scriptEditor.messages.codeFormatted'))
-    } else {
-      addLog('info', t('uiAutomation.scriptEditor.messages.formatInProgress'))
+    if (editor.value) {
+      editor.value.getAction('editor.action.formatDocument').run()
+      ElMessage.success(t('uiAutomation.scriptEditor.messages.codeFormatted'))
     }
   } catch (error) {
-    addLog('error', t('uiAutomation.scriptEditor.messages.formatFailed'))
+    ElMessage.error(t('uiAutomation.scriptEditor.messages.formatFailed'))
   }
 }
 
 const clearCode = () => {
   scriptContent.value = ''
-  addLog('info', t('uiAutomation.scriptEditor.messages.codeCleared'))
-}
-
-const clearLogs = () => {
-  executionLogs.value = []
-}
-
-const addLog = (level, message) => {
-  executionLogs.value.push({
-    level,
-    message,
-    timestamp: new Date()
-  })
-
-  // 保持最多100条日志
-  if (executionLogs.value.length > 100) {
-    executionLogs.value = executionLogs.value.slice(-100)
+  if (editor.value) {
+    editor.value.setValue('')
   }
+  ElMessage.success(t('uiAutomation.scriptEditor.messages.codeCleared'))
 }
 
 // 辅助方法
@@ -548,11 +607,13 @@ const formatTime = (timestamp) => {
 
 // 监听器
 watch(elementFilter, (val) => {
-  // 树形筛选会自动处理
+  if (elementTreeRef.value) {
+    elementTreeRef.value.filter(val)
+  }
 })
 
 watch(scriptLanguage, (newLang) => {
-  addLog('info', t('uiAutomation.scriptEditor.messages.switchLanguage', { lang: newLang }))
+  updateEditorLanguage()
 })
 
 // 组件挂载
@@ -564,10 +625,15 @@ onMounted(async () => {
     await onProjectChange()
   }
 
-  // 为textarea添加事件监听
-  if (codeEditor.value) {
-    codeEditor.value.addEventListener('click', updateCursorPosition)
-    codeEditor.value.addEventListener('keyup', updateCursorPosition)
+  // 初始化 Monaco Editor
+  initMonacoEditor()
+})
+
+// 组件卸载前清理
+onBeforeUnmount(() => {
+  if (editor.value) {
+    editor.value.dispose()
+    editor.value = null
   }
 })
 </script>
@@ -606,15 +672,41 @@ onMounted(async () => {
   .header-actions {
     display: flex;
     align-items: center;
+    gap: 8px;
+
+    .toolbar-divider {
+      width: 1px;
+      height: 24px;
+      background: rgba(147, 112, 219, 0.2);
+      margin: 0 4px;
+    }
+
+    .flex-spacer {
+      flex: 1;
+    }
 
     :deep(.el-input__wrapper) {
-      border-radius: 8px;
-      border: 1px solid rgba(147, 112, 219, 0.3);
+      border-radius: 6px;
+      border: 1px solid rgba(147, 112, 219, 0.25);
       box-shadow: none;
 
       &:hover, &.is-focus {
         border-color: #7b42f6;
-        box-shadow: 0 0 0 3px rgba(123, 66, 246, 0.1);
+        box-shadow: 0 0 0 2px rgba(123, 66, 246, 0.08);
+      }
+    }
+
+    :deep(.el-button) {
+      border-radius: 6px;
+    }
+
+    :deep(.el-button--primary) {
+      background: #7b42f6;
+      border-color: #7b42f6;
+
+      &:hover {
+        background: #6d33e6;
+        border-color: #6d33e6;
       }
     }
   }
@@ -625,38 +717,72 @@ onMounted(async () => {
   display: flex;
   overflow: hidden;
   background: #ffffff;
-  border-radius: 12px;
-  box-shadow: 0 4px 20px rgba(147, 112, 219, 0.1);
-  border: 1px solid rgba(147, 112, 219, 0.1);
+  border-radius: 16px;
+  margin-top: 16px;
+  box-shadow: 0 4px 20px rgba(147, 112, 219, 0.08);
 }
 
 .left-panel {
-  width: 300px;
-  border-right: 1px solid rgba(147, 112, 219, 0.15);
+  width: 320px;
   display: flex;
   flex-direction: column;
-  background: linear-gradient(180deg, #faf8ff 0%, #f5f3ff 100%);
+  background: #ffffff;
+  border-right: 1px solid rgba(147, 112, 219, 0.1);
+  overflow: hidden;
 
-  .panel-header {
-    padding: 20px;
-    border-bottom: 1px solid rgba(147, 112, 219, 0.15);
-    background: #ffffff;
+  .panel-content {
+    padding: 16px;
+    flex: 1;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
 
-    h3 {
-      margin: 0 0 10px 0;
-      font-size: 16px;
-      font-weight: 600;
-      color: #5a32a3;
+    .tree-search {
+      margin-bottom: 12px;
+      flex-shrink: 0;
+
+      :deep(.el-input__wrapper) {
+        border-radius: 6px;
+        box-shadow: 0 0 0 1px rgba(147, 112, 219, 0.15) inset;
+
+        &:hover {
+          box-shadow: 0 0 0 1px rgba(123, 66, 246, 0.3) inset;
+        }
+
+        &.is-focus {
+          box-shadow: 0 0 0 1px #7b42f6 inset;
+        }
+      }
     }
 
-    :deep(.el-input__wrapper) {
-      border-radius: 8px;
-      border: 1px solid rgba(147, 112, 219, 0.3);
-      box-shadow: none;
+    :deep(.el-tree) {
+      background: transparent;
+      flex: 1;
+      overflow-y: auto;
 
-      &:hover, &.is-focus {
-        border-color: #7b42f6;
-        box-shadow: 0 0 0 3px rgba(123, 66, 246, 0.1);
+      .el-tree-node__content {
+        border-radius: 8px;
+        margin-bottom: 4px;
+        padding: 10px 12px;
+        transition: all 0.2s ease;
+        min-height: 40px;
+
+        &:hover {
+          background: rgba(123, 66, 246, 0.06);
+        }
+      }
+
+      .el-tree-node.is-current > .el-tree-node__content {
+        background: rgba(123, 66, 246, 0.1);
+      }
+
+      .el-tree-node__expand-icon {
+        font-size: 14px;
+        margin-right: 6px;
+      }
+
+      .el-tree-node__children {
+        padding-left: 16px;
       }
     }
   }
@@ -666,12 +792,42 @@ onMounted(async () => {
   flex: 1;
   display: flex;
   flex-direction: column;
-  border-right: 1px solid rgba(147, 112, 219, 0.15);
+  min-width: 0;
+  background: #1e1e1e;
+  border-right: 1px solid transparent;
+  overflow: hidden;
 }
 
 .right-panel {
-  width: 350px;
-  background: linear-gradient(180deg, #faf8ff 0%, #f5f3ff 100%);
+  width: 300px;
+  display: flex;
+  flex-direction: column;
+  background: #ffffff;
+  overflow: hidden;
+
+  :deep(.el-tabs) {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    border: none;
+    background: #ffffff;
+    overflow: hidden;
+
+    .el-tabs__header {
+      display: none;
+    }
+
+    .el-tabs__content {
+      flex: 1;
+      overflow: hidden;
+      padding: 0;
+
+      .el-tab-pane {
+        height: 100%;
+        overflow: hidden;
+      }
+    }
+  }
 }
 
 .panel-content {
@@ -680,80 +836,22 @@ onMounted(async () => {
   overflow-y: auto;
 }
 
-.editor-toolbar {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 15px 20px;
-  border-bottom: 1px solid rgba(147, 112, 219, 0.15);
-  background: #ffffff;
 
-  .toolbar-left,
-  .toolbar-right {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-
-    :deep(.el-select) {
-      .el-input__wrapper {
-        border-radius: 8px;
-        border: 1px solid rgba(147, 112, 219, 0.3);
-        box-shadow: none;
-
-        &:hover, &.is-focus {
-          border-color: #7b42f6;
-          box-shadow: 0 0 0 3px rgba(123, 66, 246, 0.1);
-        }
-      }
-    }
-
-    .el-button {
-      border-radius: 8px;
-      transition: all 0.3s ease;
-
-      &.el-button--primary {
-        background: linear-gradient(135deg, #7b42f6 0%, #5a32a3 100%);
-        border: none;
-        box-shadow: 0 4px 12px rgba(123, 66, 246, 0.3);
-
-        &:hover {
-          transform: translateY(-2px);
-          box-shadow: 0 6px 16px rgba(123, 66, 246, 0.4);
-        }
-      }
-    }
-  }
-}
 
 .code-editor-container {
   flex: 1;
   position: relative;
-}
+  background: #1e1e1e;
+  overflow: hidden;
 
-.code-editor {
-  width: 100%;
-  height: 100%;
-  border: none;
-  outline: none;
-  resize: none;
-  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
-  font-size: 14px;
-  line-height: 1.5;
-  padding: 15px;
-  background-color: #1e1e1e;
-  color: #d4d4d4;
-  tab-size: 2;
+  .monaco-editor {
+    width: 100%;
+    height: 100%;
+  }
 }
 
 .editor-status {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 10px 20px;
-  border-top: 1px solid rgba(147, 112, 219, 0.15);
-  background: #ffffff;
-  font-size: 12px;
-  color: #666;
+  display: none;
 }
 
 .tree-node {
@@ -762,99 +860,325 @@ onMounted(async () => {
   flex: 1;
   justify-content: space-between;
   font-size: 14px;
-  padding-right: 8px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  transition: all 0.2s ease;
+  min-height: 32px;
 }
 
 .node-icon {
-  margin-right: 5px;
+  margin-right: 10px;
   font-size: 16px;
   color: #7b42f6;
 }
 
 .node-label {
   flex: 1;
-  color: #5a32a3;
+  color: #444;
+  font-weight: 500;
+  line-height: 1.4;
 }
 
 .node-actions {
   display: flex;
-  gap: 5px;
+  gap: 6px;
+  margin-left: 8px;
+
+  .el-button {
+    padding: 4px 8px;
+    height: 28px;
+    border-radius: 6px;
+
+    &:hover {
+      background: rgba(123, 66, 246, 0.1);
+      color: #7b42f6;
+    }
+
+    .el-icon {
+      font-size: 14px;
+    }
+  }
 }
 
-.log-controls {
-  margin-bottom: 10px;
-}
-
-.log-output {
-  height: 400px;
-  overflow-y: auto;
-  border: 1px solid rgba(147, 112, 219, 0.15);
-  border-radius: 8px;
-  padding: 10px;
-  background-color: #1e1e1e;
-  color: #fff;
-  font-family: monospace;
-  font-size: 12px;
-}
-
-.log-entry {
-  margin-bottom: 5px;
+.right-panel-empty {
+  flex: 1;
   display: flex;
-  gap: 10px;
-}
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 20px;
+  color: #aaa;
+  gap: 12px;
+  background: #ffffff;
 
-.log-time {
-  color: #888;
-}
+  .el-icon {
+    font-size: 40px;
+    opacity: 0.4;
+  }
 
-.log-level {
-  font-weight: bold;
-  min-width: 60px;
-}
-
-.log-entry.info .log-level {
-  color: #67c23a;
-}
-
-.log-entry.error .log-level {
-  color: #f56c6c;
-}
-
-.log-entry.success .log-level {
-  color: #67c23a;
+  span {
+    font-size: 13px;
+  }
 }
 
 .element-detail {
-  padding: 20px;
+  padding: 16px;
   background: #ffffff;
-  border-radius: 8px;
-  margin: 15px;
+  height: 100%;
+  overflow-y: auto;
 
-  h4 {
-    margin: 0 0 15px 0;
-    color: #5a32a3;
-    font-weight: 600;
+  .element-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 16px;
+    padding: 12px;
+    background: #f8f7fc;
+    border-radius: 8px;
+
+    .element-icon {
+      width: 36px;
+      height: 36px;
+      border-radius: 6px;
+      background: linear-gradient(135deg, #7b42f6 0%, #9a6df7 100%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #fff;
+      font-size: 16px;
+    }
+
+    .element-title {
+      flex: 1;
+
+      h4 {
+        margin: 0 0 2px 0;
+        color: #333;
+        font-weight: 600;
+        font-size: 14px;
+        line-height: 1.4;
+      }
+
+      .element-subtitle {
+        color: #888;
+        font-size: 11px;
+      }
+    }
+  }
+
+  .element-info-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+
+    .info-item {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      padding: 10px 12px;
+      background: #f8f7fc;
+      border-radius: 6px;
+
+      .info-label {
+        color: #999;
+        font-size: 11px;
+        font-weight: 500;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+      }
+
+      .info-value {
+        color: #333;
+        font-size: 13px;
+        font-weight: 500;
+
+        &.strategy-tag {
+          display: inline-block;
+          background: rgba(123, 66, 246, 0.1);
+          color: #7b42f6;
+          padding: 4px 10px;
+          border-radius: 4px;
+          font-size: 11px;
+          font-weight: 600;
+          width: fit-content;
+        }
+
+        &.usage-count {
+          color: #7b42f6;
+          font-weight: 600;
+          font-size: 15px;
+        }
+      }
+
+      .info-code {
+        background: linear-gradient(135deg, #f8f5ff 0%, #f0e6ff 100%);
+        color: #5a2db0;
+        padding: 10px 12px;
+        border-radius: 8px;
+        font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+        font-size: 12px;
+        word-break: break-all;
+        line-height: 1.5;
+        border: 1px solid rgba(123, 66, 246, 0.2);
+        box-shadow: 0 2px 4px rgba(123, 66, 246, 0.05);
+        display: block;
+        margin-top: 6px;
+      }
+    }
   }
 }
 
 .element-actions {
   display: flex;
-  gap: 10px;
+  gap: 8px;
+  margin-top: 16px;
 
   .el-button {
-    border-radius: 8px;
-    transition: all 0.3s ease;
+    flex: 1;
+    border-radius: 6px;
+    transition: all 0.2s ease;
+    font-size: 12px;
+    padding: 8px 12px;
+    height: 36px;
+    border: 1px solid rgba(147, 112, 219, 0.25);
+    color: #666;
+    background: #ffffff;
 
-    &.el-button--primary {
-      background: linear-gradient(135deg, #7b42f6 0%, #5a32a3 100%);
-      border: none;
-      box-shadow: 0 4px 12px rgba(123, 66, 246, 0.3);
+    .el-icon {
+      font-size: 13px;
+      margin-right: 6px;
+    }
 
-      &:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 6px 16px rgba(123, 66, 246, 0.4);
-      }
+    &:hover {
+      border-color: #7b42f6;
+      color: #7b42f6;
+      background: #ffffff;
+    }
+
+    &:active {
+      background: #7b42f6;
+      border-color: #7b42f6;
+      color: #ffffff;
     }
   }
+}
+
+.code-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(147, 112, 219, 0.1);
+
+  .el-button {
+    flex: 1;
+    border-radius: 6px;
+    transition: all 0.2s ease;
+    font-size: 12px;
+    padding: 8px 12px;
+    height: 36px;
+    border: 1px solid rgba(147, 112, 219, 0.25);
+    color: #666;
+    background: #ffffff;
+
+    .el-icon {
+      font-size: 13px;
+      margin-right: 6px;
+    }
+
+    &:hover {
+      border-color: #7b42f6;
+      color: #7b42f6;
+      background: #ffffff;
+    }
+
+    &:active {
+      background: #7b42f6;
+      border-color: #7b42f6;
+      color: #ffffff;
+    }
+  }
+}
+
+.save-action {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid rgba(147, 112, 219, 0.15);
+
+  .save-script-btn {
+    width: 100%;
+    height: 40px;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 500;
+    background: linear-gradient(135deg, #7b42f6 0%, #9d5cf6 100%);
+    border: none;
+    color: #ffffff;
+    box-shadow: 0 4px 12px rgba(123, 66, 246, 0.25);
+    transition: all 0.3s ease;
+
+    &:hover {
+      background: linear-gradient(135deg, #6d33e6 0%, #8d4de6 100%);
+      box-shadow: 0 6px 16px rgba(123, 66, 246, 0.35);
+      transform: translateY(-1px);
+    }
+
+    &:active {
+      transform: translateY(0);
+      box-shadow: 0 2px 8px rgba(123, 66, 246, 0.25);
+    }
+
+    .el-icon {
+      font-size: 16px;
+      margin-right: 6px;
+    }
+  }
+}
+
+:deep(.el-message-box) {
+  width: 420px !important;
+
+  .el-message-box__content {
+    padding-top: 20px;
+    padding-bottom: 20px;
+  }
+
+  .el-message-box__input {
+    padding-top: 0;
+
+    .el-input {
+      width: 100% !important;
+    }
+
+    .el-input__inner {
+      width: 100% !important;
+    }
+
+    .el-input__wrapper {
+      padding: 8px 15px;
+    }
+  }
+
+  .el-message-box__status {
+    display: none;
+  }
+}
+</style>
+
+<style>
+.script-save-message-box {
+  width: 420px !important;
+}
+
+.script-save-message-box .el-message-box__input {
+  width: 100% !important;
+}
+
+.script-save-message-box .el-message-box__input .el-input {
+  width: 100% !important;
+}
+
+.script-save-message-box .el-message-box__input .el-input__wrapper {
+  padding: 8px 15px !important;
 }
 </style>

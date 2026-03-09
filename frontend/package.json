@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@element-plus/icons-vue": "^2.1.0",
+    "@monaco-editor/loader": "^1.7.0",
     "axios": "^1.5.0",
     "curlconverter": "^4.12.0",
     "dayjs": "^1.11.9",

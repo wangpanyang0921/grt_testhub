@@ -800,7 +800,7 @@ onMounted(async () => {
 
 .page-object-item {
   border: 1px solid #e6e6e6;
-  border-radius: 6px;
+  border-radius: 8px;
   padding: 15px;
   margin-bottom: 10px;
   cursor: pointer;
@@ -935,7 +935,7 @@ onMounted(async () => {
 .canvas-drop-zone {
   min-height: 300px;
   border: 2px dashed #ccc;
-  border-radius: 6px;
+  border-radius: 8px;
   padding: 20px;
 }
 
@@ -954,7 +954,7 @@ onMounted(async () => {
 
 .canvas-element {
   border: 1px solid #e6e6e6;
-  border-radius: 6px;
+  border-radius: 8px;
   padding: 12px;
   cursor: pointer;
   transition: all 0.3s;

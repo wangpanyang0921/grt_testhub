@@ -1,46 +1,43 @@
 <template>
   <div class="page-container">
-    <div class="page-header">
-      <div class="header-left">
-        <h1 class="page-title">{{ $t('uiAutomation.suite.title') }}</h1>
-        <el-select v-model="projectId" :placeholder="$t('uiAutomation.common.selectProject')" class="project-select" @change="onProjectChange">
-          <el-option v-for="project in projects" :key="project.id" :label="project.name" :value="project.id" />
-        </el-select>
-      </div>
+    <div class="filter-bar">
+      <el-select v-model="projectId" :placeholder="$t('uiAutomation.common.selectProject')" class="project-select" @change="onProjectChange">
+        <el-option v-for="project in projects" :key="project.id" :label="project.name" :value="project.id" />
+      </el-select>
+      <el-input
+        v-model="searchText"
+        placeholder="搜索套件名称"
+        clearable
+        @clear="handleSearch"
+        @keyup.enter="handleSearch"
+        style="width: 300px;"
+      >
+        <template #prefix>
+          <el-icon><Search /></el-icon>
+        </template>
+      </el-input>
+      <div class="filter-bar-spacer"></div>
       <el-button type="primary" class="create-btn" @click="handleNewSuite">
         <el-icon><Plus /></el-icon>
         {{ $t('uiAutomation.suite.newSuite') }}
       </el-button>
     </div>
 
-    <div class="filter-bar">
-      <el-row :gutter="20">
-        <el-col :span="6">
-          <el-input
-            v-model="searchText"
-            :placeholder="$t('uiAutomation.suite.searchPlaceholder')"
-            clearable
-            @input="handleSearch"
-          >
-            <template #prefix>
-              <el-icon><Search /></el-icon>
-            </template>
-          </el-input>
-        </el-col>
-      </el-row>
-    </div>
-
     <div class="card-container">
-      <el-table :data="suites" v-loading="loading" stripe style="width: 100%">
-        <el-table-column type="selection" width="60" header-align="center" align="center" />
-        <el-table-column prop="name" :label="$t('uiAutomation.suite.suiteName')" min-width="200" header-align="center" align="center">
-          <template #default="{ row }">
-            <el-link @click="editSuite(row.id)" type="primary">
-              {{ row.name }}
-            </el-link>
+      <el-table :data="suites" v-loading="loading" stripe style="width: 100%" class="suite-table">
+        <el-table-column type="index" label="序号" width="60" header-align="center" align="center">
+          <template #default="{ $index }">
+            {{ $index + 1 + (pagination.currentPage - 1) * pagination.pageSize }}
           </template>
         </el-table-column>
-        <el-table-column prop="description" :label="$t('uiAutomation.common.description')" min-width="200" show-overflow-tooltip header-align="center" align="center" />
+        <el-table-column prop="name" :label="$t('uiAutomation.suite.suiteName')" min-width="200" header-align="center" align="left">
+          <template #default="{ row }">
+            <span class="suite-name-cell" @click="editSuite(row.id)">
+              {{ row.name }}
+            </span>
+          </template>
+        </el-table-column>
+
         <el-table-column label="包含用例/脚本" width="150" header-align="center" align="center" show-overflow-tooltip>
           <template #default="{ row }">
             {{ (row.test_case_count || 0) + (row.script_count || 0) }}
@@ -48,9 +45,9 @@
         </el-table-column>
         <el-table-column :label="$t('uiAutomation.suite.executionStatus')" width="110" header-align="center" align="center">
           <template #default="{ row }">
-            <el-tag :type="getExecutionStatusTag(row.execution_status)">
+            <span :class="['status-badge', getExecutionStatusClass(row.execution_status)]">
               {{ getExecutionStatusText(row.execution_status) }}
-            </el-tag>
+            </span>
           </template>
         </el-table-column>
         <el-table-column :label="$t('uiAutomation.suite.passedCount')" width="90" header-align="center" align="center">
@@ -65,20 +62,20 @@
         </el-table-column>
         <el-table-column prop="created_at" :label="$t('uiAutomation.common.createTime')" width="180" :formatter="formatDate" header-align="center" align="center" />
         <el-table-column prop="updated_at" :label="$t('uiAutomation.common.updateTime')" width="180" :formatter="formatDate" header-align="center" align="center" />
-        <el-table-column :label="$t('uiAutomation.common.operation')" width="280" fixed="right" header-align="center" align="center">
+        <el-table-column :label="$t('uiAutomation.common.operation')" width="260" fixed="right" header-align="center" align="center">
           <template #default="{ row }">
             <div class="action-buttons">
-              <el-button size="small" type="primary" class="action-btn edit-btn" @click="editSuite(row.id)">
+              <el-button size="small" class="action-btn edit-btn" @click="editSuite(row.id)">
                 <el-icon><Edit /></el-icon>
-                <span>{{ $t('uiAutomation.common.edit') }}</span>
+                <span>编辑</span>
               </el-button>
-              <el-button size="small" class="action-btn run-btn" @click="runSuite(row)">
+              <el-button size="small" type="success" class="action-btn run-btn" @click="runSuite(row)">
                 <el-icon><RefreshRight /></el-icon>
-                <span>{{ $t('uiAutomation.common.run') }}</span>
+                <span>执行</span>
               </el-button>
               <el-button size="small" type="danger" class="action-btn delete-btn" @click="deleteSuite(row.id)">
                 <el-icon><Delete /></el-icon>
-                <span>{{ $t('uiAutomation.common.delete') }}</span>
+                <span>删除</span>
               </el-button>
             </div>
           </template>
@@ -871,14 +868,14 @@ const formatDate = (row, column, cellValue) => {
   return new Date(cellValue).toLocaleString()
 }
 
-const getExecutionStatusTag = (status) => {
+const getExecutionStatusClass = (status) => {
   const statusMap = {
-    'not_run': 'info',
-    'passed': 'success',
-    'failed': 'danger',
-    'running': 'warning'
+    'not_run': 'status-not-run',
+    'passed': 'status-passed',
+    'failed': 'status-failed',
+    'running': 'status-running'
   }
-  return statusMap[status] || 'info'
+  return statusMap[status] || 'status-not-run'
 }
 
 const getExecutionStatusText = (status) => {
@@ -970,53 +967,33 @@ const handleNewSuite = async () => {
   gap: 20px;
 }
 
-.page-header {
+
+
+.filter-bar {
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  padding: 24px 28px;
+  gap: 16px;
+  padding: 20px 24px;
   background: linear-gradient(135deg, #ffffff 0%, #f8f7ff 100%);
   border-radius: 12px;
   box-shadow: 0 4px 16px rgba(147, 112, 219, 0.1);
   border: 1px solid rgba(147, 112, 219, 0.1);
 
-  .header-left {
-    display: flex;
-    align-items: center;
-    gap: 20px;
-  }
-
-  .page-title {
-    font-size: 24px;
-    font-weight: 700;
-    color: #5a32a3;
-    margin: 0;
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    background: linear-gradient(135deg, #7b42f6 0%, #5a32a3 100%);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
+  .filter-bar-spacer {
+    flex: 1;
   }
 
   .project-select {
-    width: 240px;
+    width: 220px;
 
     :deep(.el-input__wrapper) {
       border-radius: 8px;
-      border: 1px solid rgba(147, 112, 219, 0.2);
-      background: #ffffff;
+      border: 1px solid rgba(147, 112, 219, 0.3);
       box-shadow: none;
 
-      &:hover {
+      &:hover, &.is-focus {
         border-color: #7b42f6;
         box-shadow: 0 0 0 3px rgba(123, 66, 246, 0.1);
-      }
-
-      &.is-focus {
-        border-color: #7b42f6;
-        box-shadow: 0 0 0 3px rgba(123, 66, 246, 0.15);
       }
     }
 
@@ -1025,57 +1002,75 @@ const handleNewSuite = async () => {
       font-weight: 500;
     }
   }
-}
-
-.create-btn {
-  background: linear-gradient(135deg, #7b42f6 0%, #5a32a3 100%) !important;
-  border: none !important;
-  color: #ffffff !important;
-  font-weight: 600 !important;
-  padding: 10px 20px !important;
-  border-radius: 8px !important;
-  box-shadow: 0 4px 12px rgba(123, 66, 246, 0.3) !important;
-  transition: all 0.3s ease !important;
-
-  &:hover {
-    background: linear-gradient(135deg, #6d33e6 0%, #4a249c 100%) !important;
-    transform: translateY(-2px) !important;
-    box-shadow: 0 6px 16px rgba(123, 66, 246, 0.4) !important;
-  }
-
-  .el-icon {
-    color: #ffffff !important;
-    margin-right: 6px;
-  }
-}
-
-.filter-bar {
-  padding: 20px 24px;
-  background: #ffffff;
-  border: 1px solid rgba(147, 112, 219, 0.12);
-  border-radius: 12px;
-  box-shadow: 0 4px 16px rgba(147, 112, 219, 0.08);
 
   :deep(.el-input__wrapper) {
     border-radius: 8px;
-    border: 1px solid rgba(147, 112, 219, 0.2);
-    background: #ffffff;
+    border: 1px solid rgba(147, 112, 219, 0.3);
     box-shadow: none;
 
-    &:hover {
+    &:hover, &.is-focus {
       border-color: #7b42f6;
       box-shadow: 0 0 0 3px rgba(123, 66, 246, 0.1);
-    }
-
-    &.is-focus {
-      border-color: #7b42f6;
-      box-shadow: 0 0 0 3px rgba(123, 66, 246, 0.15);
     }
   }
 
   :deep(.el-input__inner) {
     color: #5a32a3;
     font-weight: 500;
+  }
+
+  .reset-btn {
+    border-radius: 8px;
+    padding: 10px 20px;
+    font-weight: 600;
+    transition: all 0.3s ease;
+    background: #ffffff;
+    border: 1px solid rgba(147, 112, 219, 0.4);
+    color: #5a32a3;
+
+    &:hover {
+      background: #f8f7ff;
+      border-color: #7b42f6;
+      color: #7b42f6;
+    }
+  }
+
+  .query-btn {
+    border-radius: 8px;
+    padding: 10px 20px;
+    font-weight: 600;
+    transition: all 0.3s ease;
+    background: linear-gradient(135deg, #7b42f6 0%, #5a32a3 100%);
+    border: none;
+    box-shadow: 0 4px 12px rgba(123, 66, 246, 0.3);
+
+    &:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(123, 66, 246, 0.4);
+    }
+
+    .el-icon {
+      margin-right: 6px;
+    }
+  }
+
+  .create-btn {
+    border-radius: 8px;
+    padding: 10px 20px;
+    font-weight: 600;
+    transition: all 0.3s ease;
+    background: linear-gradient(135deg, #7b42f6 0%, #5a32a3 100%);
+    border: none;
+    box-shadow: 0 4px 12px rgba(123, 66, 246, 0.3);
+
+    &:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(123, 66, 246, 0.4);
+    }
+
+    .el-icon {
+      margin-right: 6px;
+    }
   }
 }
 
@@ -1090,33 +1085,9 @@ const handleNewSuite = async () => {
   padding-top: 16px;
 
   .el-table {
-    border: none;
-    border-radius: 8px 8px 0 0;
+    border-radius: 8px;
     overflow: hidden;
-    min-height: 200px;
-    box-shadow: none;
-    transition: all 0.3s ease;
-    background-color: transparent !important;
-
-    /* 覆盖 Element Plus 默认主题变量 */
-    --el-color-primary: var(--primary-color);
-    --el-color-primary-light-3: #9370db;
-    --el-color-primary-light-5: #a888e0;
-    --el-color-primary-light-7: #c2a9f3;
-    --el-color-primary-light-9: #f8f7ff;
-    --el-border-color: #e9ecef;
-    --el-border-color-light: #e9ecef;
-    --el-border-color-lighter: #e9ecef;
-    --el-fill-color-light: #ffffff;
-    --el-fill-color-lighter: #ffffff;
-    --el-fill-color-blank: #ffffff;
-    --el-text-color-primary: #333;
-    --el-text-color-regular: #333;
-    --el-text-color-secondary: #666;
-    --el-text-color-placeholder: #999;
-    --el-table-header-bg-color: #ffffff;
-    --el-table-row-hover-bg-color: #f8f7ff;
-    --el-table-stripe-bg-color: #fafaff;
+    box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.04);
 
     &::before {
       display: none;
@@ -1138,53 +1109,104 @@ const handleNewSuite = async () => {
           font-size: 14px;
           border-bottom: 1px solid #e9ecef;
           padding: 16px;
-          text-align: left;
+          text-align: center;
           line-height: 24px;
           transition: all 0.3s ease;
 
           &:hover {
-            background-color: #ffffff !important;
+            background-color: #f8f7ff !important;
           }
 
-          // 表头单元格内部
-          :deep(.cell) {
+          .cell {
             background-color: #ffffff !important;
-            color: #5a32a3 !important;
-            font-weight: 600 !important;
+            color: #5a32a3;
+            font-weight: 600;
           }
         }
       }
     }
 
-    // 表格体包装器
+    // 表格主体
     :deep(.el-table__body-wrapper) {
-      background-color: #ffffff !important;
+      background-color: #ffffff;
 
-      // 表格行
-      :deep(.el-table__row) {
-        transition: all 0.3s ease;
-        background-color: #ffffff !important;
+      :deep(.el-table__body) {
+        background-color: #ffffff;
 
-        &:hover {
-          background-color: #f8f7ff !important;
-          transform: translateY(-1px);
-          box-shadow: 0 4px 12px rgba(147, 112, 219, 0.1);
-        }
-
-        // 表格单元格
-        :deep(td) {
-          background-color: #ffffff !important;
-          border-bottom: 1px solid #e9ecef;
-          padding: 16px;
-          text-align: left;
-          line-height: 24px;
+        :deep(tr) {
+          background-color: #ffffff;
           transition: all 0.3s ease;
-        }
 
-        &:hover :deep(td) {
-          background-color: #f8f7ff !important;
+          &:hover {
+            background-color: #f8f7ff !important;
+          }
+
+          // 斑马纹
+          &.el-table__row--striped {
+            background-color: #fafafa;
+
+            &:hover {
+              background-color: #f8f7ff !important;
+            }
+          }
+
+          :deep(td) {
+            background-color: transparent;
+            border-bottom: 1px solid #f0f0f0;
+            padding: 12px 16px;
+            color: #595959;
+            font-size: 14px;
+            text-align: center;
+          }
         }
       }
+    }
+
+    // 直接覆盖表头单元格样式
+    :deep(.el-table__header th) {
+      background-color: #ffffff !important;
+      color: #5a32a3 !important;
+      font-weight: 600 !important;
+    }
+
+    // 覆盖表头单元格内容样式
+    :deep(.el-table__header th .cell) {
+      background-color: #ffffff !important;
+      color: #5a32a3 !important;
+      font-weight: 600 !important;
+    }
+
+    // 行悬停效果
+    :deep(.el-table__row:hover) {
+      background-color: #f8f7ff !important;
+    }
+
+    // 套件名称样式
+    .suite-name-cell {
+      padding: 4px 8px;
+      line-height: 1.6;
+      color: #595959;
+      cursor: pointer;
+      transition: color 0.3s ease;
+
+      &:hover {
+        color: #7b42f6;
+      }
+    }
+
+    // 步骤计数样式
+    .step-count {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 6px 16px;
+      border-radius: 4px;
+      font-size: 13px;
+      font-weight: 500;
+      transition: all 0.3s ease;
+      white-space: nowrap;
+      background: #f5f5f5;
+      color: #8c8c8c;
     }
   }
 }
@@ -1195,90 +1217,62 @@ const handleNewSuite = async () => {
   align-items: center;
   gap: 4px;
   flex-wrap: nowrap;
-}
 
-.action-btn {
-  &.edit-btn {
-    background: linear-gradient(135deg, #7b42f6 0%, #5a32a3 100%) !important;
-    border: none !important;
-    color: #ffffff !important;
-    font-weight: 600 !important;
+  .action-btn {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 12px;
+    font-weight: 500;
     padding: 4px 10px !important;
-    border-radius: 6px !important;
-    box-shadow: 0 2px 8px rgba(123, 66, 246, 0.3) !important;
-    transition: all 0.3s ease !important;
-    white-space: nowrap;
-
-    &:hover {
-      background: linear-gradient(135deg, #6d33e6 0%, #4a249c 100%) !important;
-      transform: translateY(-2px) !important;
-      box-shadow: 0 4px 12px rgba(123, 66, 246, 0.4) !important;
-    }
+    border-radius: 6px;
+    transition: all 0.3s ease;
 
     .el-icon {
-      color: #ffffff !important;
-      margin-right: 3px;
-      font-size: 12px;
+      font-size: 14px;
     }
 
     span {
       font-size: 12px;
     }
-  }
 
-  &.run-btn {
-    background: linear-gradient(135deg, #67c23a 0%, #529b2e 100%) !important;
-    border: none !important;
-    color: #ffffff !important;
-    font-weight: 600 !important;
-    padding: 4px 10px !important;
-    border-radius: 6px !important;
-    box-shadow: 0 2px 8px rgba(103, 194, 58, 0.3) !important;
-    transition: all 0.3s ease !important;
-    white-space: nowrap;
-
-    &:hover {
-      background: linear-gradient(135deg, #5daf34 0%, #458a28 100%) !important;
-      transform: translateY(-2px) !important;
-      box-shadow: 0 4px 12px rgba(103, 194, 58, 0.4) !important;
-    }
-
-    .el-icon {
+    &.run-btn {
+      background: linear-gradient(135deg, #52c41a 0%, #389e0d 100%) !important;
+      border: none !important;
       color: #ffffff !important;
-      margin-right: 3px;
-      font-size: 12px;
+      font-weight: 600 !important;
+
+      &:hover {
+        background: linear-gradient(135deg, #73d13d 0%, #52c41a 100%) !important;
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(82, 196, 26, 0.4);
+      }
     }
 
-    span {
-      font-size: 12px;
-    }
-  }
-
-  &.delete-btn {
-    background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%) !important;
-    border: none !important;
-    color: #ffffff !important;
-    font-weight: 600 !important;
-    padding: 4px 10px !important;
-    border-radius: 6px !important;
-    box-shadow: 0 2px 8px rgba(239, 68, 68, 0.3) !important;
-    transition: all 0.3s ease !important;
-    white-space: nowrap;
-
-    &:hover {
-      background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%) !important;
-      transform: translateY(-2px) !important;
-      box-shadow: 0 4px 12px rgba(239, 68, 68, 0.4) !important;
-    }
-
-    .el-icon {
+    &.edit-btn {
+      background: linear-gradient(135deg, #7b42f6 0%, #5a32a3 100%) !important;
+      border: none !important;
       color: #ffffff !important;
-      margin-right: 3px;
-      font-size: 12px;
+      font-weight: 600 !important;
+
+      &:hover {
+        background: linear-gradient(135deg, #6d33e6 0%, #4a249c 100%) !important;
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(123, 66, 246, 0.4);
+      }
     }
 
-    span {
-      font-size: 12px;
+    &.delete-btn {
+      background: linear-gradient(135deg, #ff4d4f 0%, #cf1322 100%) !important;
+      border: none !important;
+      color: #ffffff !important;
+      font-weight: 600 !important;
+
+      &:hover {
+        background: linear-gradient(135deg, #ff7875 0%, #ff4d4f 100%) !important;
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(255, 77, 79, 0.4);
+      }
     }
   }
 }
@@ -1287,24 +1281,32 @@ const handleNewSuite = async () => {
   display: flex;
   justify-content: center;
   align-items: center;
-  padding: 8px 24px;
+  padding: 16px 0;
+  margin-top: 8px;
   background: transparent;
-  border-top: 1px solid rgba(147, 112, 219, 0.1);
+  border: none;
   transition: all 0.3s ease;
-  margin-top: 0;
+
+  /* 定义主题变量 - 浅紫色风格 */
+  --primary-color: #a78bfa;
+  --primary-dark: #8b5cf6;
+  --primary-light: #f3f0ff;
+  --text-primary: #262626;
+  --text-secondary: #595959;
+  --text-tertiary: #8c8c8c;
 
   /* 覆盖 Element Plus 默认主题变量 */
   --el-color-primary: var(--primary-color);
-  --el-color-primary-light-3: #9370db;
-  --el-color-primary-light-5: #a888e0;
-  --el-color-primary-light-7: #c2a9f3;
-  --el-color-primary-light-9: #f8f7ff;
-  --el-border-color: rgba(147, 112, 219, 0.2);
-  --el-border-color-light: rgba(147, 112, 219, 0.15);
-  --el-border-color-lighter: rgba(147, 112, 219, 0.1);
-  --el-fill-color-light: #f8f7ff;
-  --el-fill-color-lighter: #f8f7ff;
-  --el-fill-color-blank: #f8f7ff;
+  --el-color-primary-light-3: #c4b5fd;
+  --el-color-primary-light-5: #ddd6fe;
+  --el-color-primary-light-7: #ede9fe;
+  --el-color-primary-light-9: #f5f3ff;
+  --el-border-color: rgba(167, 139, 250, 0.3);
+  --el-border-color-light: rgba(167, 139, 250, 0.2);
+  --el-border-color-lighter: rgba(167, 139, 250, 0.1);
+  --el-fill-color-light: #f5f3ff;
+  --el-fill-color-lighter: #f5f3ff;
+  --el-fill-color-blank: #f5f3ff;
   --el-text-color-primary: var(--text-primary);
   --el-text-color-regular: var(--text-secondary);
   --el-text-color-secondary: var(--text-tertiary);
@@ -1317,7 +1319,7 @@ const handleNewSuite = async () => {
 
     // 总条数
     .el-pagination__total {
-      color: #5a32a3;
+      color: #6b7280;
       font-size: 14px;
       font-weight: 500;
       margin-right: 12px;
@@ -1330,23 +1332,23 @@ const handleNewSuite = async () => {
       .el-select {
         .el-input__wrapper {
           border-radius: 8px;
-          border: 1px solid rgba(147, 112, 219, 0.2);
+          border: 1px solid #e5e7eb;
           background: #ffffff;
           box-shadow: none;
 
           &:hover {
-            border-color: #7b42f6;
-            box-shadow: 0 0 0 3px rgba(123, 66, 246, 0.1);
+            border-color: #a78bfa;
+            box-shadow: 0 0 0 3px rgba(167, 139, 250, 0.1);
           }
 
           &.is-focus {
-            border-color: #7b42f6;
-            box-shadow: 0 0 0 3px rgba(123, 66, 246, 0.15);
+            border-color: #a78bfa;
+            box-shadow: 0 0 0 3px rgba(167, 139, 250, 0.15);
           }
         }
 
         .el-input__inner {
-          color: #5a32a3;
+          color: #374151;
           font-weight: 500;
         }
       }
@@ -1358,38 +1360,44 @@ const handleNewSuite = async () => {
       width: 32px;
       height: 32px;
       border-radius: 8px;
-      border: 1px solid rgba(147, 112, 219, 0.2);
+      border: 1px solid #e5e7eb;
       background: #ffffff;
-      color: #5a32a3;
+      color: #6b7280;
       transition: all 0.3s ease;
 
       &:hover:not(:disabled) {
-        background: linear-gradient(135deg, #7b42f6 0%, #5a32a3 100%);
-        border-color: transparent;
-        color: white;
+        background: #f5f3ff;
+        border-color: #a78bfa;
+        color: #8b5cf6;
         transform: translateY(-1px);
-        box-shadow: 0 4px 12px rgba(123, 66, 246, 0.3);
+        box-shadow: 0 2px 8px rgba(167, 139, 250, 0.2);
       }
 
       &:disabled {
-        opacity: 0.5;
-        cursor: not-allowed;
+        background: #f5f5f5;
+        border-color: #e0e0e0;
+        color: #c0c0c0;
+      }
+
+      .el-icon {
+        font-size: 14px;
+        font-weight: bold;
       }
     }
 
-    // 页码
+    // 页码按钮
     .el-pager {
       display: flex;
-      gap: 4px;
+      gap: 8px;
 
       li {
         min-width: 32px;
         height: 32px;
         padding: 0 8px;
         border-radius: 8px;
-        border: 1px solid rgba(147, 112, 219, 0.2);
+        border: 1px solid #d1d5db;
         background: #ffffff;
-        color: #5a32a3;
+        color: #6b7280;
         font-size: 14px;
         font-weight: 500;
         transition: all 0.3s ease;
@@ -1398,61 +1406,55 @@ const handleNewSuite = async () => {
         justify-content: center;
 
         &:hover:not(.is-active) {
-          background: rgba(123, 66, 246, 0.1);
-          border-color: #7b42f6;
-          color: #7b42f6;
+          background: #f5f3ff;
+          border-color: #a78bfa;
+          color: #8b5cf6;
           transform: translateY(-1px);
         }
 
         &.is-active {
-          background: linear-gradient(135deg, #7b42f6 0%, #5a32a3 100%);
-          border-color: transparent;
-          color: white;
-          box-shadow: 0 4px 12px rgba(123, 66, 246, 0.3);
-          font-weight: 600;
+          background: #f5f3ff;
+          border-color: #a78bfa;
+          color: #8b5cf6;
+          box-shadow: 0 2px 8px rgba(167, 139, 250, 0.2);
         }
 
-        &.btn-quicknext,
-        &.btn-quickprev {
-          color: #9370db;
-
-          &:hover {
-            color: #7b42f6;
-          }
+        &.is-active:hover {
+          background: #ede9fe;
+          border-color: #8b5cf6;
         }
       }
     }
 
-    // 跳转页
+    // 跳转输入框
     .el-pagination__jump {
-      margin-left: 12px;
-      color: #5a32a3;
+      color: #6b7280;
       font-weight: 500;
+      margin-left: 12px;
 
       .el-input {
-        width: 48px;
-        margin: 0 8px;
+        width: 50px;
+        margin: 0 4px;
 
         .el-input__wrapper {
           border-radius: 8px;
-          border: 1px solid rgba(147, 112, 219, 0.2);
+          border: 1px solid #e5e7eb;
           background: #ffffff;
           box-shadow: none;
-          padding: 0 8px;
 
           &:hover {
-            border-color: #7b42f6;
-            box-shadow: 0 0 0 3px rgba(123, 66, 246, 0.1);
+            border-color: #a78bfa;
+            box-shadow: 0 0 0 3px rgba(167, 139, 250, 0.1);
           }
 
           &.is-focus {
-            border-color: #7b42f6;
-            box-shadow: 0 0 0 3px rgba(123, 66, 246, 0.15);
+            border-color: #a78bfa;
+            box-shadow: 0 0 0 3px rgba(167, 139, 250, 0.15);
           }
         }
 
         .el-input__inner {
-          color: #5a32a3;
+          color: #374151;
           font-weight: 500;
           text-align: center;
         }
@@ -1667,6 +1669,53 @@ const handleNewSuite = async () => {
         }
       }
     }
+  }
+}
+
+// 状态徽章样式
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 12px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 600;
+  min-width: 60px;
+  transition: all 0.3s ease;
+
+  &.status-not-run {
+    background: linear-gradient(135deg, #f3f4f6 0%, #e5e7eb 100%);
+    color: #6b7280;
+    border: 1px solid rgba(107, 114, 128, 0.2);
+  }
+
+  &.status-passed {
+    background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%);
+    color: #059669;
+    border: 1px solid rgba(5, 150, 105, 0.2);
+  }
+
+  &.status-failed {
+    background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%);
+    color: #dc2626;
+    border: 1px solid rgba(220, 38, 38, 0.2);
+  }
+
+  &.status-running {
+    background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+    color: #d97706;
+    border: 1px solid rgba(217, 119, 6, 0.2);
+    animation: pulse 2s infinite;
+  }
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
   }
 }
 </style>

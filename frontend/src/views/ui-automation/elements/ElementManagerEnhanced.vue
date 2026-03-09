@@ -1,33 +1,28 @@
 <template>
   <div class="page-container">
-    <div class="page-header">
-      <h1 class="page-title">{{ $t('uiAutomation.element.title') }}</h1>
-      <div class="header-actions">
-        <el-button type="primary" @click="showCreatePageDialog = true">
-          <el-icon><Folder /></el-icon>
-          {{ $t('uiAutomation.element.createPage') }}
-        </el-button>
-        <el-button class="btn-secondary" @click="createEmptyElement">
-          <el-icon><Plus /></el-icon>
-          {{ $t('uiAutomation.element.addElement') }}
-        </el-button>
-      </div>
+    <div class="filter-bar">
+      <el-select v-model="selectedProject" :placeholder="$t('common.selectProject')" @change="onProjectChange" class="project-select" style="width: 200px;">
+        <el-option
+          v-for="project in projects"
+          :key="project.id"
+          :label="project.name"
+          :value="project.id"
+        />
+      </el-select>
+      <div class="filter-bar-spacer"></div>
+      <el-button type="primary" class="create-btn" @click="showCreatePageDialog = true">
+        <el-icon><Folder /></el-icon>
+        {{ $t('uiAutomation.element.createPage') }}
+      </el-button>
+      <el-button class="btn-secondary add-element-btn" @click="createEmptyElement">
+        <el-icon><Plus /></el-icon>
+        {{ $t('uiAutomation.element.addElement') }}
+      </el-button>
     </div>
 
     <div class="card-container element-layout">
       <!-- 左侧页面树 -->
       <div class="sidebar">
-        <div class="sidebar-header">
-          <el-select v-model="selectedProject" :placeholder="$t('common.selectProject')" @change="onProjectChange" class="project-select">
-            <el-option
-              v-for="project in projects"
-              :key="project.id"
-              :label="project.name"
-              :value="project.id"
-            />
-          </el-select>
-        </div>
-
         <div class="page-tree">
           <el-tree
             ref="treeRef"
@@ -44,7 +39,7 @@
             class="custom-tree"
           >
             <template #default="{ node, data }">
-              <div class="tree-node">
+              <div class="tree-node" @mouseenter="hoveredNode = data" @mouseleave="hoveredNode = null">
                 <el-icon v-if="data.type === 'page'" class="node-icon folder-icon">
                   <Folder />
                 </el-icon>
@@ -67,9 +62,45 @@
                 <!-- 普通显示模式 -->
                 <span v-else class="node-label">{{ node.label }}</span>
 
-                <span v-if="data.type === 'element'" class="element-type-tag" :class="data.element_type?.toLowerCase()">
-                  {{ getElementTypeLabel(data.element_type) }}
-                </span>
+
+
+                <!-- 页面操作图标 -->
+                <div v-if="data.type === 'page' && hoveredNode?.id === data.id && editingNodeId !== data.id" class="node-actions">
+                  <el-tooltip :content="$t('uiAutomation.element.contextMenu.addElement')" placement="top">
+                    <el-icon class="action-icon" @click.stop="addElementToPage(data)">
+                      <Plus />
+                    </el-icon>
+                  </el-tooltip>
+                  <el-tooltip :content="$t('uiAutomation.element.contextMenu.addSubPage')" placement="top">
+                    <el-icon class="action-icon" @click.stop="addSubPageToNode(data)">
+                      <FolderAdd />
+                    </el-icon>
+                  </el-tooltip>
+                  <el-tooltip :content="$t('uiAutomation.element.contextMenu.edit')" placement="top">
+                    <el-icon class="action-icon" @click.stop="editPageNode(data)">
+                      <Edit />
+                    </el-icon>
+                  </el-tooltip>
+                  <el-tooltip :content="$t('uiAutomation.element.contextMenu.delete')" placement="top">
+                    <el-icon class="action-icon delete" @click.stop="deletePageNode(data)">
+                      <Delete />
+                    </el-icon>
+                  </el-tooltip>
+                </div>
+
+                <!-- 元素操作图标 -->
+                <div v-if="data.type === 'element' && hoveredNode?.id === data.id" class="node-actions">
+                  <el-tooltip :content="$t('uiAutomation.common.edit')" placement="top">
+                    <el-icon class="action-icon" @click.stop="editElementNode(data)">
+                      <Edit />
+                    </el-icon>
+                  </el-tooltip>
+                  <el-tooltip :content="$t('uiAutomation.common.delete')" placement="top">
+                    <el-icon class="action-icon delete" @click.stop="deleteElementNode(data)">
+                      <Delete />
+                    </el-icon>
+                  </el-tooltip>
+                </div>
               </div>
             </template>
           </el-tree>
@@ -79,127 +110,115 @@
       <!-- 右侧元素详情 -->
       <div class="main-content">
         <div v-if="!selectedElement" class="empty-state">
-          <el-empty :description="$t('uiAutomation.element.emptyElementTip')">
-            <el-button type="primary" @click="createEmptyElement">{{ $t('uiAutomation.element.createNewElement') }}</el-button>
-          </el-empty>
+          <el-empty :description="$t('uiAutomation.element.emptyElementTip')" />
         </div>
 
         <div v-else class="element-detail">
           <!-- 元素基本信息 -->
           <div class="detail-header">
             <h3 class="detail-title">{{ $t('uiAutomation.element.elementDetail') }}</h3>
-            <div class="element-info">
-              <div class="required-field-wrapper">
-                <span class="required-star">*</span>
-                <el-input
-                  v-model="selectedElement.name"
-                  :placeholder="$t('uiAutomation.element.elementNamePlaceholder')"
-                  size="small"
-                  style="width: 300px; margin-right: 10px"
-                />
-              </div>
-              <div class="required-field-wrapper">
-                <span class="required-star">*</span>
-                <el-select v-model="selectedElement.element_type" :placeholder="$t('uiAutomation.element.elementType')" size="small" style="width: 120px;">
-                <el-option :label="$t('uiAutomation.element.elementTypes.button')" value="BUTTON" />
-                <el-option :label="$t('uiAutomation.element.elementTypes.input')" value="INPUT" />
-                <el-option :label="$t('uiAutomation.element.elementTypes.link')" value="LINK" />
-                <el-option :label="$t('uiAutomation.element.elementTypes.dropdown')" value="DROPDOWN" />
-                <el-option :label="$t('uiAutomation.element.elementTypes.checkbox')" value="CHECKBOX" />
-                <el-option :label="$t('uiAutomation.element.elementTypes.radio')" value="RADIO" />
-                <el-option :label="$t('uiAutomation.element.elementTypes.text')" value="TEXT" />
-                <el-option :label="$t('uiAutomation.element.elementTypes.image')" value="IMAGE" />
-                <el-option :label="$t('uiAutomation.element.elementTypes.table')" value="TABLE" />
-                <el-option :label="$t('uiAutomation.element.elementTypes.form')" value="FORM" />
-                <el-option :label="$t('uiAutomation.element.elementTypes.modal')" value="MODAL" />
-              </el-select>
-              </div>
-              <el-button size="small" type="primary" @click="saveElement" :loading="saving" ref="saveButtonRef">
-                {{ $t('uiAutomation.common.save') }}
-              </el-button>
-            </div>
+            <el-button size="default" type="primary" @click="saveElement" :loading="saving" ref="saveButtonRef">
+              {{ $t('uiAutomation.common.save') }}
+            </el-button>
           </div>
 
           <!-- 元素配置 -->
           <div class="element-form">
-            <el-form :key="formKey" :model="selectedElement" label-width="100px" size="small">
-              <el-row :gutter="20">
-                <el-col :span="12">
-                  <el-form-item :label="$t('uiAutomation.element.page')" class="is-required">
-                    <el-select v-model="selectedElement.page" :placeholder="$t('uiAutomation.element.selectPage')">
-                      <el-option
-                        v-for="page in pages"
-                        :key="page.id"
-                        :label="page.name"
-                        :value="page.name"
-                      />
-                    </el-select>
-                  </el-form-item>
-                </el-col>
-                <el-col :span="12">
-                  <el-form-item :label="$t('uiAutomation.element.componentName')">
-                    <el-input v-model="selectedElement.component_name" :placeholder="$t('uiAutomation.element.componentNamePlaceholder')" />
-                  </el-form-item>
-                </el-col>
-              </el-row>
+            <el-form :key="formKey" :model="selectedElement" label-width="120px" size="default">
+              <el-form-item :label="$t('uiAutomation.element.page')" class="is-required">
+                <el-select v-model="selectedElement.page" :placeholder="$t('uiAutomation.element.selectPage')" style="width: 100%;">
+                  <el-option
+                    v-for="page in pages"
+                    :key="page.id"
+                    :label="page.name"
+                    :value="page.name"
+                  />
+                </el-select>
+              </el-form-item>
 
-              <el-row :gutter="20">
-                <el-col :span="12">
-                  <el-form-item :label="$t('uiAutomation.element.locatorStrategy')" prop="locator_strategy_id" class="is-required">
-                    <el-select
-                      v-model="selectedElement.locator_strategy_id"
-                      :key="`strategy-${formKey}-${selectedElement.locator_strategy_id || 'null'}`"
-                      :placeholder="$t('uiAutomation.element.rules.strategyRequired')"
-                      value-key="id"
-                    >
-                      <el-option
-                        v-for="strategy in locatorStrategies"
-                        :key="strategy.id"
-                        :label="strategy.name"
-                        :value="strategy.id"
-                      />
-                    </el-select>
-                    <!-- 调试信息 -->
-                    <div style="font-size: 10px; color: #666; margin-top: 2px;">
-                      {{ $t('uiAutomation.element.debugInfo') }}: {{ $t('uiAutomation.element.currentValue') }}={{selectedElement.locator_strategy_id}} ({{typeof selectedElement.locator_strategy_id}})
-                    </div>
-                  </el-form-item>
-                </el-col>
-                <el-col :span="12">
-                  <el-form-item :label="$t('uiAutomation.element.waitTimeout') + '(' + $t('uiAutomation.element.waitTimeoutUnit') + ')'">
-                    <el-input-number v-model="selectedElement.wait_timeout" :min="1" :max="60" style="width: 100%" />
-                  </el-form-item>
-                </el-col>
-              </el-row>
+              <el-form-item :label="$t('uiAutomation.element.elementName')" class="is-required">
+                <el-input v-model="selectedElement.name" :placeholder="$t('uiAutomation.element.elementNamePlaceholder')" />
+              </el-form-item>
 
-              <el-row :gutter="20">
-                <el-col :span="12">
-                  <el-form-item :label="$t('uiAutomation.element.forceAction')">
-                    <el-switch
-                      v-model="selectedElement.force_action"
-                      :active-text="$t('uiAutomation.element.forceActionEnabled')"
-                      :inactive-text="$t('uiAutomation.element.forceActionDisabled')"
-                    />
-                    <div class="form-help-text" style="margin-top: 5px;">
-                      {{ $t('uiAutomation.element.forceActionTip') }}
-                    </div>
-                  </el-form-item>
-                </el-col>
-              </el-row>
+              <el-form-item :label="$t('uiAutomation.element.elementType')" class="is-required">
+                <el-select v-model="selectedElement.element_type" :placeholder="$t('uiAutomation.element.elementType')" style="width: 100%;">
+                  <el-option :label="$t('uiAutomation.element.elementTypes.button')" value="BUTTON" />
+                  <el-option :label="$t('uiAutomation.element.elementTypes.input')" value="INPUT" />
+                  <el-option :label="$t('uiAutomation.element.elementTypes.link')" value="LINK" />
+                  <el-option :label="$t('uiAutomation.element.elementTypes.dropdown')" value="DROPDOWN" />
+                  <el-option :label="$t('uiAutomation.element.elementTypes.checkbox')" value="CHECKBOX" />
+                  <el-option :label="$t('uiAutomation.element.elementTypes.radio')" value="RADIO" />
+                  <el-option :label="$t('uiAutomation.element.elementTypes.text')" value="TEXT" />
+                  <el-option :label="$t('uiAutomation.element.elementTypes.image')" value="IMAGE" />
+                  <el-option :label="$t('uiAutomation.element.elementTypes.table')" value="TABLE" />
+                  <el-option :label="$t('uiAutomation.element.elementTypes.form')" value="FORM" />
+                  <el-option :label="$t('uiAutomation.element.elementTypes.modal')" value="MODAL" />
+                </el-select>
+              </el-form-item>
 
-              <el-form-item :label="$t('uiAutomation.element.locatorExpression')" prop="locator_value" class="is-required">
+              <el-form-item :label="$t('uiAutomation.element.locatorStrategy')" prop="locator_strategy_id" class="is-required">
+                <el-select
+                  v-model="selectedElement.locator_strategy_id"
+                  :key="`strategy-${formKey}-${selectedElement.locator_strategy_id || 'null'}`"
+                  :placeholder="$t('uiAutomation.element.rules.strategyRequired')"
+                  value-key="id"
+                  style="width: 100%;"
+                >
+                  <el-option
+                    v-for="strategy in locatorStrategies"
+                    :key="strategy.id"
+                    :label="strategy.name"
+                    :value="strategy.id"
+                  />
+                </el-select>
+              </el-form-item>
+
+              <el-form-item prop="locator_value" class="is-required">
+                <template #label>
+                  <span>{{ $t('uiAutomation.element.locatorExpression') }}</span>
+                  <el-tooltip
+              placement="top"
+              :content="$t('uiAutomation.element.locatorTip.id') + '；' + $t('uiAutomation.element.locatorTip.css') + '；' + $t('uiAutomation.element.locatorTip.xpath') + '；' + $t('uiAutomation.element.locatorTip.other')"
+              :show-after="200"
+              popper-class="custom-tooltip"
+            >
+              <el-icon class="tooltip-icon"><Warning /></el-icon>
+            </el-tooltip>
+                </template>
                 <el-input v-model="selectedElement.locator_value" :placeholder="$t('uiAutomation.element.locatorExpressionPlaceholder')" />
-                <div class="form-help-text">
-                  {{ $t('uiAutomation.element.locatorTip.title') }}<br>
-                  - {{ $t('uiAutomation.element.locatorTip.id') }}<br>
-                  - {{ $t('uiAutomation.element.locatorTip.css') }}<br>
-                  - {{ $t('uiAutomation.element.locatorTip.xpath') }}<br>
-                  - {{ $t('uiAutomation.element.locatorTip.other') }}
+              </el-form-item>
+
+              <el-form-item :label="$t('uiAutomation.element.waitTimeout') + '(' + $t('uiAutomation.element.waitTimeoutUnit') + ')'">
+                <el-input-number v-model="selectedElement.wait_timeout" :min="1" :max="60" style="width: 200px" />
+              </el-form-item>
+
+              <el-form-item>
+                <template #label>
+                  <span>{{ $t('uiAutomation.element.forceAction') }}</span>
+                  <el-tooltip
+                    placement="top"
+                    :content="$t('uiAutomation.element.forceActionTip')"
+                    :show-after="200"
+                    popper-class="custom-tooltip"
+                  >
+                    <el-icon class="tooltip-icon"><Warning /></el-icon>
+                  </el-tooltip>
+                </template>
+                <div class="force-action-row">
+                  <el-switch
+                    v-model="selectedElement.force_action"
+                    :active-text="$t('uiAutomation.element.forceActionEnabled')"
+                    :inactive-text="$t('uiAutomation.element.forceActionDisabled')"
+                  />
                 </div>
               </el-form-item>
 
+              <el-form-item :label="$t('uiAutomation.element.componentName')">
+                <el-input v-model="selectedElement.component_name" :placeholder="$t('uiAutomation.element.componentNamePlaceholder')" />
+              </el-form-item>
+
               <el-form-item :label="$t('uiAutomation.common.description')">
-                <el-input v-model="selectedElement.description" type="textarea" :rows="3" :placeholder="$t('uiAutomation.element.descriptionPlaceholder')" />
+                <el-input v-model="selectedElement.description" type="textarea" :rows="2" :placeholder="$t('uiAutomation.element.descriptionPlaceholder')" />
               </el-form-item>
             </el-form>
           </div>
@@ -277,7 +296,7 @@ import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   Plus, FolderAdd, Document, Search, Edit, Delete,
-  Folder, Document as DocumentIcon, Operation, DocumentCopy, ArrowDown
+  Folder, Document as DocumentIcon, Operation, DocumentCopy, ArrowDown, Warning
 } from '@element-plus/icons-vue'
 import {
   getUiProjects,
@@ -325,6 +344,9 @@ const showContextMenu = ref(false)
 const contextMenuX = ref(0)
 const contextMenuY = ref(0)
 const rightClickedNode = ref(null)
+
+// 悬停节点
+const hoveredNode = ref(null)
 
 // 表单数据
 const pageForm = reactive({
@@ -905,6 +927,42 @@ const deleteNode = async () => {
   }
 }
 
+// 添加元素到指定页面
+const addElementToPage = (node) => {
+  rightClickedNode.value = node
+  addContextElement()
+}
+
+// 添加子页面到指定节点
+const addSubPageToNode = (node) => {
+  rightClickedNode.value = node
+  addSubPage()
+}
+
+// 编辑页面节点
+const editPageNode = (node) => {
+  rightClickedNode.value = node
+  editNode()
+}
+
+// 删除页面节点
+const deletePageNode = (node) => {
+  rightClickedNode.value = node
+  deleteNode()
+}
+
+// 编辑元素节点
+const editElementNode = (node) => {
+  rightClickedNode.value = node
+  onNodeClick(node)
+}
+
+// 删除元素节点
+const deleteElementNode = (node) => {
+  rightClickedNode.value = node
+  deleteNode()
+}
+
 // 创建页面
 const createPage = async () => {
   if (!pageForm.name) {
@@ -1020,77 +1078,86 @@ onMounted(() => {
   gap: 20px;
 }
 
-.page-header {
+.filter-bar {
+  padding: 16px 20px;
   background: #ffffff;
-  border-radius: 12px;
-  padding: 24px;
-  box-shadow: 0 4px 20px rgba(147, 112, 219, 0.1);
+  border: 1px solid rgba(147, 112, 219, 0.12);
+  border-radius: 10px;
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  border: 1px solid rgba(147, 112, 219, 0.1);
+  gap: 12px;
 
-  .page-title {
-    font-size: 24px;
-    font-weight: 600;
-    color: #5a32a3;
-    margin: 0;
-    background: linear-gradient(135deg, #5a32a3 0%, #7b42f6 100%);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
+  :deep(.el-input__wrapper),
+  :deep(.el-select .el-input__wrapper) {
+    box-shadow: 0 2px 8px rgba(147, 112, 219, 0.08);
+    border-radius: 8px;
+    border: 1px solid rgba(147, 112, 219, 0.2);
+    background: #ffffff;
+
+    &:hover,
+    &:focus {
+      box-shadow: 0 2px 8px rgba(147, 112, 219, 0.15);
+      border-color: #7b42f6;
+    }
   }
 
-  .header-actions {
-    display: flex;
-    gap: 12px;
+  :deep(.el-input__inner) {
+    color: #5a32a3;
+    font-weight: 500;
+  }
 
-    .el-button {
-      border-radius: 8px;
-      padding: 10px 20px;
-      font-weight: 500;
-      transition: all 0.3s ease;
+  .filter-bar-spacer {
+    flex: 1;
+  }
 
-      &.el-button--primary {
-        background: linear-gradient(135deg, #7b42f6 0%, #5a32a3 100%);
-        border: none;
-        box-shadow: 0 4px 12px rgba(123, 66, 246, 0.3);
+  .create-btn {
+    background: linear-gradient(135deg, #7b42f6 0%, #5a32a3 100%) !important;
+    border: none !important;
+    color: white !important;
+    font-weight: 600 !important;
+    padding: 10px 20px !important;
+    border-radius: 8px !important;
+    transition: all 0.3s ease !important;
+    box-shadow: 0 4px 12px rgba(123, 66, 246, 0.3) !important;
 
-        &:hover {
-          transform: translateY(-2px);
-          box-shadow: 0 6px 16px rgba(123, 66, 246, 0.4);
-        }
+    .el-icon {
+      margin-right: 6px;
+    }
 
-        .el-icon {
-          margin-right: 6px;
-        }
-      }
+    &:hover {
+      background: linear-gradient(135deg, #6d33e6 0%, #4a249c 100%) !important;
+      transform: translateY(-2px) !important;
+      box-shadow: 0 6px 20px rgba(123, 66, 246, 0.4) !important;
+    }
+  }
 
-      &.btn-secondary {
-        background: #ffffff;
-        border: 1px solid rgba(147, 112, 219, 0.4);
-        color: #5a32a3;
+  .add-element-btn {
+    background: #ffffff !important;
+    border: 1px solid rgba(147, 112, 219, 0.4) !important;
+    color: #5a32a3 !important;
+    font-weight: 500 !important;
+    padding: 10px 20px !important;
+    border-radius: 8px !important;
+    transition: all 0.3s ease !important;
 
-        &:hover {
-          background: #f8f7ff;
-          border-color: #7b42f6;
-          color: #7b42f6;
-          transform: translateY(-1px);
-        }
+    .el-icon {
+      margin-right: 6px;
+    }
 
-        .el-icon {
-          margin-right: 6px;
-        }
-      }
+    &:hover {
+      background: #f8f7ff !important;
+      border-color: #7b42f6 !important;
+      color: #7b42f6 !important;
+      transform: translateY(-1px) !important;
+      box-shadow: 0 2px 8px rgba(147, 112, 219, 0.2) !important;
     }
   }
 }
 
 .card-container {
   background: #ffffff;
-  border-radius: 12px;
-  box-shadow: 0 4px 20px rgba(147, 112, 219, 0.1);
-  border: 1px solid rgba(147, 112, 219, 0.1);
+  border-radius: 10px;
+  border: 1px solid rgba(147, 112, 219, 0.12);
   flex: 1;
   overflow: hidden;
   display: flex;
@@ -1103,38 +1170,17 @@ onMounted(() => {
 }
 
 .sidebar {
-  width: 320px;
+  width: 260px;
   border-right: 1px solid rgba(147, 112, 219, 0.15);
   display: flex;
   flex-direction: column;
-  background: linear-gradient(180deg, #faf8ff 0%, #f5f3ff 100%);
-}
-
-.sidebar-header {
-  padding: 20px;
-  border-bottom: 1px solid rgba(147, 112, 219, 0.15);
-  background: #ffffff;
-
-  .project-select {
-    width: 100%;
-
-    :deep(.el-input__wrapper) {
-      border-radius: 8px;
-      border: 1px solid rgba(147, 112, 219, 0.2);
-      box-shadow: none;
-
-      &:hover, &.is-focus {
-        border-color: #7b42f6;
-        box-shadow: 0 0 0 3px rgba(123, 66, 246, 0.1);
-      }
-    }
-  }
+  background: transparent;
 }
 
 .page-tree {
   flex: 1;
   overflow-y: auto;
-  padding: 16px;
+  padding: 16px 4px;
 
   .custom-tree {
     background: transparent;
@@ -1143,6 +1189,7 @@ onMounted(() => {
       height: 40px;
       border-radius: 8px;
       margin-bottom: 4px;
+      padding-left: 4px !important;
       transition: all 0.3s ease;
 
       &:hover {
@@ -1184,6 +1231,33 @@ onMounted(() => {
     color: #5a32a3;
     font-weight: 500;
   }
+
+  .node-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-left: auto;
+
+    .action-icon {
+      font-size: 25px;
+      padding: 6px;
+      border-radius: 6px;
+      color: #9370db;
+      cursor: pointer;
+      transition: all 0.2s ease;
+
+      &:hover {
+        background: rgba(123, 66, 246, 0.1);
+        color: #7b42f6;
+        transform: scale(1.1);
+      }
+
+      &.delete:hover {
+        background: rgba(255, 77, 79, 0.1);
+        color: #ff4d4f;
+      }
+    }
+  }
 }
 
 .element-type-tag {
@@ -1207,8 +1281,8 @@ onMounted(() => {
 .main-content {
   flex: 1;
   overflow: auto;
-  padding: 24px;
-  background: #ffffff;
+  padding: 20px;
+  background: transparent;
 }
 
 .empty-state {
@@ -1216,7 +1290,7 @@ onMounted(() => {
   align-items: center;
   justify-content: center;
   height: 100%;
-  background: linear-gradient(135deg, #faf8ff 0%, #f5f3ff 100%);
+  background: #ffffff;
   border-radius: 12px;
 
   :deep(.el-empty__description) {
@@ -1238,58 +1312,34 @@ onMounted(() => {
 }
 
 .element-detail {
+  background: transparent;
+  border-radius: 0;
+  padding: 20px;
+  border: none;
+
   .detail-header {
-    margin-bottom: 24px;
-    padding-bottom: 20px;
+    margin-bottom: 20px;
+    padding-bottom: 16px;
     border-bottom: 1px solid rgba(147, 112, 219, 0.15);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
 
     .detail-title {
-      font-size: 18px;
+      font-size: 16px;
       font-weight: 600;
       color: #5a32a3;
-      margin: 0 0 16px 0;
+      margin: 0;
     }
 
-    .element-info {
-      display: flex;
-      align-items: center;
-      gap: 12px;
+    .el-button--primary {
+      background: linear-gradient(135deg, #7b42f6 0%, #5a32a3 100%);
+      border: none;
 
-      .required-field-wrapper {
-        display: flex;
-        align-items: center;
-        gap: 4px;
-
-        .required-star {
-          color: #f56c6c;
-          font-weight: bold;
-          font-size: 14px;
-        }
-      }
-
-      .el-input, .el-select {
-        :deep(.el-input__wrapper) {
-          border-radius: 8px;
-          border: 1px solid rgba(147, 112, 219, 0.2);
-          box-shadow: none;
-
-          &:hover, &.is-focus {
-            border-color: #7b42f6;
-            box-shadow: 0 0 0 3px rgba(123, 66, 246, 0.1);
-          }
-        }
-      }
-
-      .el-button {
-        border-radius: 8px;
-        background: linear-gradient(135deg, #7b42f6 0%, #5a32a3 100%);
-        border: none;
-        padding: 8px 20px;
-
-        &:hover {
-          transform: translateY(-1px);
-          box-shadow: 0 4px 12px rgba(123, 66, 246, 0.3);
-        }
+      &:hover {
+        background: linear-gradient(135deg, #6d33e6 0%, #4a249c 100%);
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(123, 66, 246, 0.3);
       }
     }
   }
@@ -1334,6 +1384,104 @@ onMounted(() => {
   color: #9370db;
   margin-top: 8px;
   line-height: 1.6;
+
+  &.compact {
+    margin-top: 4px;
+    line-height: 1.4;
+  }
+}
+
+.element-form {
+  :deep(.el-form-item) {
+    margin-bottom: 16px;
+
+    &:last-child {
+      margin-bottom: 0;
+    }
+  }
+
+  :deep(.el-form-item__label) {
+    color: #5a32a3;
+    font-weight: 500;
+    padding-right: 8px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+
+    .tooltip-icon {
+      color: #9370db;
+      font-size: 14px;
+      cursor: help;
+      transition: color 0.3s ease;
+
+      &:hover {
+        color: #7b42f6;
+      }
+    }
+  }
+
+  // Tooltip 样式覆盖
+  :deep(.el-tooltip__popper) {
+    background: linear-gradient(135deg, #7b42f6 0%, #5a32a3 100%) !important;
+    border: none !important;
+    border-radius: 8px !important;
+    padding: 12px 16px !important;
+    box-shadow: 0 4px 16px rgba(123, 66, 246, 0.3) !important;
+
+    .el-tooltip__content {
+      color: #ffffff !important;
+      font-size: 13px !important;
+      line-height: 1.6 !important;
+      max-width: 400px;
+      word-break: break-all;
+    }
+
+    // 箭头样式
+    &[data-popper-placement^="top"] .el-popper__arrow::before {
+      background: #7b42f6 !important;
+      border-color: #7b42f6 !important;
+    }
+
+    &[data-popper-placement^="bottom"] .el-popper__arrow::before {
+      background: #5a32a3 !important;
+      border-color: #5a32a3 !important;
+    }
+  }
+
+  :deep(.el-input__wrapper),
+  :deep(.el-select .el-input__wrapper) {
+    border-radius: 8px;
+    border: 1px solid rgba(147, 112, 219, 0.2);
+    box-shadow: none;
+
+    &:hover,
+    &.is-focus {
+      border-color: #7b42f6;
+      box-shadow: 0 0 0 3px rgba(123, 66, 246, 0.1);
+    }
+  }
+
+  :deep(.el-textarea__inner) {
+    border-radius: 8px;
+    border: 1px solid rgba(147, 112, 219, 0.2);
+
+    &:hover,
+    &:focus {
+      border-color: #7b42f6;
+    }
+  }
+}
+
+.force-action-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+
+  .force-action-tip {
+    font-size: 12px;
+    color: #9370db;
+    white-space: nowrap;
+  }
 }
 
 /* 右键菜单样式 */

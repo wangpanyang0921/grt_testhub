@@ -1,57 +1,49 @@
 <template>
   <div class="page-container">
-    <div class="page-header">
-      <div class="header-left">
-        <h1 class="page-title">{{ $t('uiAutomation.execution.title') }}</h1>
-        <el-select v-model="projectId" :placeholder="$t('uiAutomation.common.selectProject')" class="project-select" @change="onProjectChange">
-          <el-option v-for="project in projects" :key="project.id" :label="project.name" :value="project.id" />
-        </el-select>
-      </div>
-    </div>
-
     <div class="filter-bar">
-      <el-form :inline="true" :model="queryParams" class="demo-form-inline">
-        <el-form-item :label="$t('uiAutomation.common.search')">
-          <el-input
-            v-model="queryParams.search"
-            :placeholder="$t('uiAutomation.execution.searchPlaceholder')"
-            clearable
-          >
-            <template #prefix>
-              <el-icon><Search /></el-icon>
-            </template>
-          </el-input>
-        </el-form-item>
-        <el-form-item :label="$t('uiAutomation.common.status')">
-          <el-select v-model="queryParams.status" :placeholder="$t('uiAutomation.execution.statusFilter')" clearable>
-            <el-option :label="$t('uiAutomation.status.pending')" value="pending" />
-            <el-option :label="$t('uiAutomation.status.running')" value="running" />
-            <el-option :label="$t('uiAutomation.status.passed')" value="passed" />
-            <el-option :label="$t('uiAutomation.status.failed')" value="failed" />
-            <el-option :label="$t('uiAutomation.status.error')" value="error" />
-          </el-select>
-        </el-form-item>
-        <el-form-item :label="$t('uiAutomation.execution.browserFilter')">
-          <el-select v-model="queryParams.browser" :placeholder="$t('uiAutomation.execution.browserFilter')" clearable>
-            <el-option label="Chrome" value="chrome" />
-            <el-option label="Firefox" value="firefox" />
-            <el-option label="Safari" value="safari" />
-            <el-option label="Edge" value="edge" />
-          </el-select>
-        </el-form-item>
-        <el-form-item>
-          <el-button type="primary" class="query-btn" @click="handleSearch">{{ $t('uiAutomation.common.query') }}</el-button>
-          <el-button class="reset-btn" @click="resetQuery">{{ $t('uiAutomation.common.reset') }}</el-button>
-          <el-button
-            type="danger"
-            class="batch-delete-btn"
-            :disabled="selectedIds.length === 0"
-            @click="handleBatchDelete"
-          >
-            {{ $t('uiAutomation.common.batchDelete') }}
-          </el-button>
-        </el-form-item>
-      </el-form>
+      <el-select v-model="projectId" :placeholder="$t('uiAutomation.common.selectProject')" style="width: 220px" @change="onProjectChange" class="project-select">
+        <el-option v-for="project in projects" :key="project.id" :label="project.name" :value="project.id" />
+      </el-select>
+      <el-input
+        v-model="queryParams.search"
+        :placeholder="$t('uiAutomation.execution.searchPlaceholder')"
+        clearable
+        @clear="handleSearch"
+        @keydown="($event) => { if ($event.key === 'Enter') handleSearch() }"
+        style="width: 300px;"
+      >
+        <template #prefix>
+          <el-icon><Search /></el-icon>
+        </template>
+      </el-input>
+      <el-select v-model="queryParams.status" :placeholder="$t('uiAutomation.execution.statusFilter')" clearable style="width: 160px;">
+        <el-option :label="$t('uiAutomation.status.pending')" value="pending" />
+        <el-option :label="$t('uiAutomation.status.running')" value="running" />
+        <el-option :label="$t('uiAutomation.status.passed')" value="passed" />
+        <el-option :label="$t('uiAutomation.status.failed')" value="failed" />
+        <el-option :label="$t('uiAutomation.status.error')" value="error" />
+      </el-select>
+      <el-select v-model="queryParams.browser" :placeholder="$t('uiAutomation.execution.browserFilter')" clearable style="width: 160px;">
+        <el-option label="Chrome" value="chrome" />
+        <el-option label="Firefox" value="firefox" />
+        <el-option label="Safari" value="safari" />
+        <el-option label="Edge" value="edge" />
+      </el-select>
+      <el-button class="reset-btn" @click="resetQuery">{{ $t('uiAutomation.common.reset') }}</el-button>
+      <el-button type="primary" class="query-btn" @click="handleSearch">
+        <el-icon><Search /></el-icon>
+        {{ $t('uiAutomation.common.search') }}
+      </el-button>
+      <div class="filter-bar-spacer"></div>
+      <el-button
+        type="danger"
+        class="batch-delete-btn"
+        :disabled="selectedIds.length === 0"
+        @click="handleBatchDelete"
+      >
+        <el-icon><Delete /></el-icon>
+        {{ $t('uiAutomation.common.batchDelete') }}
+      </el-button>
     </div>
 
     <div class="card-container">
@@ -60,35 +52,23 @@
         <el-table-column prop="id" label="ID" width="80" header-align="center" align="center" />
         <el-table-column prop="test_case_name" :label="$t('uiAutomation.execution.caseName')" min-width="200" header-align="center" align="center">
           <template #default="{ row }">
-            <el-link @click="viewExecutionDetail(row)" type="primary">
+            <span class="case-name-cell" @click="viewExecutionDetail(row)">
               {{ row.test_case_name }}
-            </el-link>
+            </span>
           </template>
         </el-table-column>
         <el-table-column :label="$t('uiAutomation.execution.relatedObject')" width="100" header-align="center" align="center">
           <template #default="{ row }">
-            <el-tag v-if="!row.test_suite" type="info" size="small">{{ $t('uiAutomation.execution.case') }}</el-tag>
-            <el-tag v-else type="warning" size="small">{{ $t('uiAutomation.execution.suiteTag') }}</el-tag>
+            <span class="related-badge" :class="!row.test_suite ? 'case-badge' : 'suite-badge'">
+              {{ !row.test_suite ? $t('uiAutomation.execution.case') : $t('uiAutomation.execution.suiteTag') }}
+            </span>
           </template>
         </el-table-column>
         <el-table-column prop="status" :label="$t('uiAutomation.execution.statusFilter')" width="100" header-align="center" align="center">
           <template #default="{ row }">
-            <el-tag :type="getStatusType(row.status)" size="small">{{ getStatusText(row.status) }}</el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column prop="engine" :label="$t('uiAutomation.execution.testEngine')" width="120" header-align="center" align="center">
-          <template #default="{ row }">
-            {{ getEngineText(row.engine) }}
-          </template>
-        </el-table-column>
-        <el-table-column prop="headless" :label="$t('uiAutomation.execution.executionMode')" width="100" header-align="center" align="center">
-          <template #default="{ row }">
-            {{ row.headless ? $t('uiAutomation.execution.headlessMode') : $t('uiAutomation.execution.headedMode') }}
-          </template>
-        </el-table-column>
-        <el-table-column prop="browser" :label="$t('uiAutomation.execution.browserFilter')" width="100" header-align="center" align="center">
-          <template #default="{ row }">
-            {{ getBrowserText(row.browser) }}
+            <span class="status-badge" :class="getStatusClass(row.status)">
+              {{ getStatusText(row.status) }}
+            </span>
           </template>
         </el-table-column>
         <el-table-column prop="created_by_name" :label="$t('uiAutomation.execution.executor')" width="120" header-align="center" align="center" />
@@ -110,18 +90,9 @@
         <el-table-column :label="$t('uiAutomation.common.operation')" width="240" fixed="right" header-align="center" align="center">
           <template #default="{ row }">
             <div class="action-buttons">
-              <el-button size="small" type="primary" class="action-btn view-btn" @click="viewExecutionDetail(row)">
+              <el-button size="small" class="action-btn view-btn" @click="viewExecutionDetail(row)">
                 <el-icon><View /></el-icon>
                 <span>{{ $t('uiAutomation.common.details') }}</span>
-              </el-button>
-              <el-button
-                v-if="row.status === 'failed' || row.status === 'error'"
-                size="small"
-                class="action-btn rerun-btn"
-                @click="showRerunDialog(row)"
-              >
-                <el-icon><Refresh /></el-icon>
-                <span>{{ $t('uiAutomation.common.rerun') }}</span>
               </el-button>
               <el-button
                 size="small"
@@ -131,6 +102,15 @@
               >
                 <el-icon><Delete /></el-icon>
                 <span>{{ $t('uiAutomation.common.delete') }}</span>
+              </el-button>
+              <el-button
+                v-if="row.status === 'failed' || row.status === 'error'"
+                size="small"
+                class="action-btn rerun-btn"
+                @click="showRerunDialog(row)"
+              >
+                <el-icon><Refresh /></el-icon>
+                <span>{{ $t('uiAutomation.common.rerun') }}</span>
               </el-button>
             </div>
           </template>
@@ -230,7 +210,7 @@
         </el-tabs>
       </div>
       <template #footer>
-        <el-button @click="showDetailDialog = false">{{ $t('uiAutomation.common.close') }}</el-button>
+        <el-button class="close-btn" @click="showDetailDialog = false">{{ $t('uiAutomation.common.close') }}</el-button>
       </template>
     </el-dialog>
 
@@ -259,8 +239,10 @@
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="showRerunDialogVisible = false">{{ $t('uiAutomation.common.cancel') }}</el-button>
-        <el-button type="primary" @click="handleRerun" :loading="rerunning">{{ $t('uiAutomation.execution.confirmRerun') }}</el-button>
+        <div class="dialog-footer">
+          <el-button class="cancel-btn" @click="showRerunDialogVisible = false">{{ $t('uiAutomation.common.cancel') }}</el-button>
+          <el-button class="confirm-btn" @click="handleRerun" :loading="rerunning">{{ $t('uiAutomation.execution.confirmRerun') }}</el-button>
+        </div>
       </template>
     </el-dialog>
   </div>
@@ -367,7 +349,7 @@ const formatDuration = (seconds) => {
   }
 }
 
-// 获取状态样式
+// 获取状态样式（用于 el-tag）
 const getStatusType = (status) => {
   const statusMap = {
     'pending': 'info',
@@ -377,6 +359,18 @@ const getStatusType = (status) => {
     'error': 'danger'
   }
   return statusMap[status] || 'info'
+}
+
+// 获取状态徽章样式类
+const getStatusClass = (status) => {
+  const statusMap = {
+    'pending': 'pending',
+    'running': 'running',
+    'passed': 'passed',
+    'failed': 'failed',
+    'error': 'error'
+  }
+  return statusMap[status] || 'pending'
 }
 
 // 获取状态文本
@@ -493,7 +487,19 @@ const onProjectChange = () => {
 }
 
 // 搜索处理
+const handleSearch = () => {
+  pagination.currentPage = 1
+  loadExecutions()
+}
 
+// 重置查询
+const resetQuery = () => {
+  queryParams.search = ''
+  queryParams.status = undefined
+  queryParams.browser = undefined
+  pagination.currentPage = 1
+  loadExecutions()
+}
 
 // 分页处理
 const handleSizeChange = (val) => {
@@ -620,6 +626,24 @@ onMounted(async () => {
 </script>
 
 <style scoped lang="scss">
+// 全局变量
+:root {
+  --primary-color: #667eea;
+  --primary-dark: #764ba2;
+  --primary-light: #f8f7ff;
+  --primary-lighter: #fafbff;
+  --border-color: #e8e8e8;
+  --text-primary: #262626;
+  --text-secondary: #595959;
+  --text-tertiary: #8c8c8c;
+  --bg-light: #ffffff;
+  --bg-gray: #fafafa;
+  --success-color: #52c41a;
+  --warning-color: #faad14;
+  --danger-color: #ff4d4f;
+  --info-color: #1890ff;
+}
+
 // 页面容器
 .page-container {
   padding: 24px;
@@ -631,74 +655,66 @@ onMounted(async () => {
   gap: 20px;
 }
 
-// 页面头部
-.page-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 24px 28px;
-  background: linear-gradient(135deg, #ffffff 0%, #f8f7ff 100%);
-  border-radius: 12px;
-  box-shadow: 0 4px 16px rgba(147, 112, 219, 0.1);
-  border: 1px solid rgba(147, 112, 219, 0.1);
-
-  .header-left {
-    display: flex;
-    align-items: center;
-    gap: 20px;
-  }
-
-  .page-title {
-    font-size: 24px;
-    font-weight: 700;
-    color: #5a32a3;
-    margin: 0;
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    background: linear-gradient(135deg, #7b42f6 0%, #5a32a3 100%);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
-  }
-
-  .project-select {
-    width: 200px;
-
-    :deep(.el-input__wrapper) {
-      box-shadow: 0 2px 8px rgba(147, 112, 219, 0.08);
-      border-radius: 8px;
-
-      &:hover,
-      &:focus {
-        box-shadow: 0 2px 8px rgba(147, 112, 219, 0.15);
-      }
-    }
-  }
-}
-
 // 筛选栏
 .filter-bar {
   padding: 20px 24px;
-  background: linear-gradient(135deg, #ffffff 0%, #f8f7ff 100%);
+  background: #ffffff;
+  border: 1px solid rgba(147, 112, 219, 0.12);
   border-radius: 12px;
   box-shadow: 0 4px 16px rgba(147, 112, 219, 0.08);
-  border: 1px solid rgba(147, 112, 219, 0.1);
-
-  :deep(.el-form-item) {
-    margin-bottom: 0;
-    margin-right: 16px;
-  }
+  display: flex;
+  align-items: center;
+  gap: 12px;
 
   :deep(.el-input__wrapper),
   :deep(.el-select .el-input__wrapper) {
-    box-shadow: 0 2px 8px rgba(147, 112, 219, 0.08);
     border-radius: 8px;
+    border: 1px solid rgba(147, 112, 219, 0.2);
+    background: #ffffff;
+    box-shadow: none;
 
-    &:hover,
-    &:focus {
-      box-shadow: 0 2px 8px rgba(147, 112, 219, 0.15);
+    &:hover {
+      border-color: #7b42f6;
+      box-shadow: 0 0 0 3px rgba(123, 66, 246, 0.1);
     }
+
+    &.is-focus {
+      border-color: #7b42f6;
+      box-shadow: 0 0 0 3px rgba(123, 66, 246, 0.15);
+    }
+  }
+
+  :deep(.el-input__inner) {
+    color: #5a32a3;
+    font-weight: 500;
+  }
+
+  .project-select {
+    :deep(.el-input__wrapper) {
+      border-radius: 8px;
+      border: 1px solid rgba(147, 112, 219, 0.2);
+      background: #ffffff;
+      box-shadow: none;
+
+      &:hover {
+        border-color: #7b42f6;
+        box-shadow: 0 0 0 3px rgba(123, 66, 246, 0.1);
+      }
+
+      &.is-focus {
+        border-color: #7b42f6;
+        box-shadow: 0 0 0 3px rgba(123, 66, 246, 0.15);
+      }
+    }
+
+    :deep(.el-input__inner) {
+      color: #5a32a3;
+      font-weight: 500;
+    }
+  }
+
+  .filter-bar-spacer {
+    flex: 1;
   }
 
   .query-btn {
@@ -707,52 +723,76 @@ onMounted(async () => {
     color: white !important;
     font-weight: 600 !important;
     padding: 8px 16px !important;
-    border-radius: 6px !important;
+    border-radius: 8px !important;
     transition: all 0.3s ease !important;
     box-shadow: 0 2px 8px rgba(123, 66, 246, 0.3) !important;
+    display: flex;
+    align-items: center;
+    gap: 6px;
 
     &:hover {
       background: linear-gradient(135deg, #6d33e6 0%, #4a249c 100%) !important;
       transform: translateY(-2px) !important;
       box-shadow: 0 4px 12px rgba(123, 66, 246, 0.4) !important;
     }
+
+    .el-icon {
+      font-size: 14px;
+    }
   }
 
   .reset-btn {
     background: #ffffff !important;
-    border: 1px solid #dcdfe6 !important;
-    color: #606266 !important;
+    border: 1px solid rgba(147, 112, 219, 0.2) !important;
+    color: #5a32a3 !important;
     font-weight: 500 !important;
     padding: 8px 16px !important;
-    border-radius: 6px !important;
+    border-radius: 8px !important;
     transition: all 0.3s ease !important;
 
     &:hover {
       color: #7b42f6 !important;
       border-color: #7b42f6 !important;
+      background: rgba(123, 66, 246, 0.05) !important;
       transform: translateY(-2px) !important;
     }
   }
 
   .batch-delete-btn {
-    background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%) !important;
+    background: linear-gradient(135deg, #ff4d4f 0%, #ff7875 100%) !important;
     border: none !important;
     color: white !important;
     font-weight: 600 !important;
-    padding: 8px 16px !important;
-    border-radius: 6px !important;
+    padding: 10px 20px !important;
+    border-radius: 8px !important;
     transition: all 0.3s ease !important;
-    box-shadow: 0 2px 8px rgba(239, 68, 68, 0.3) !important;
+    box-shadow: 0 4px 12px rgba(255, 77, 79, 0.3) !important;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+
+    .el-icon {
+      margin-right: 6px;
+    }
 
     &:hover:not(:disabled) {
-      background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%) !important;
+      background: linear-gradient(135deg, #ff7875 0%, #ffa39e 100%) !important;
       transform: translateY(-2px) !important;
-      box-shadow: 0 4px 12px rgba(239, 68, 68, 0.4) !important;
+      box-shadow: 0 6px 20px rgba(255, 77, 79, 0.4) !important;
+    }
+
+    &:active:not(:disabled) {
+      transform: translateY(0) !important;
     }
 
     &:disabled {
-      opacity: 0.5;
-      cursor: not-allowed;
+      background: linear-gradient(135deg, #d9d9d9 0%, #bfbfbf 100%) !important;
+      box-shadow: none !important;
+      cursor: not-allowed !important;
+    }
+
+    .el-icon {
+      font-size: 14px;
     }
   }
 }
@@ -766,17 +806,17 @@ onMounted(async () => {
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  padding-top: 16px;
+  padding: 16px;
 
   // 表格样式
   .el-table {
     border: none;
-    border-radius: 8px 8px 0 0;
+    border-radius: 8px;
     overflow: hidden;
     min-height: 200px;
     box-shadow: none;
     transition: all 0.3s ease;
-    background-color: transparent !important;
+    background-color: #ffffff !important;
 
     /* 覆盖 Element Plus 默认主题变量 */
     --el-color-primary: var(--primary-color);
@@ -784,19 +824,16 @@ onMounted(async () => {
     --el-color-primary-light-5: #a888e0;
     --el-color-primary-light-7: #c2a9f3;
     --el-color-primary-light-9: #f8f7ff;
-    --el-border-color: #e9ecef;
-    --el-border-color-light: #e9ecef;
-    --el-border-color-lighter: #e9ecef;
-    --el-fill-color-light: #ffffff;
-    --el-fill-color-lighter: #ffffff;
+    --el-border-color: rgba(147, 112, 219, 0.1);
+    --el-border-color-light: rgba(147, 112, 219, 0.08);
+    --el-border-color-lighter: rgba(147, 112, 219, 0.05);
+    --el-fill-color-light: #f8f7ff;
+    --el-fill-color-lighter: #fafaff;
     --el-fill-color-blank: #ffffff;
-    --el-text-color-primary: #333;
-    --el-text-color-regular: #333;
-    --el-text-color-secondary: #666;
-    --el-text-color-placeholder: #999;
-    --el-table-header-bg-color: #ffffff;
-    --el-table-row-hover-bg-color: #f8f7ff;
-    --el-table-stripe-bg-color: #fafaff;
+    --el-text-color-primary: #262626;
+    --el-text-color-regular: #595959;
+    --el-text-color-secondary: #8c8c8c;
+    --el-text-color-placeholder: #bfbfbf;
 
     &::before {
       display: none;
@@ -818,61 +855,210 @@ onMounted(async () => {
           font-size: 14px;
           border-bottom: 1px solid #e9ecef;
           padding: 16px;
-          text-align: left;
+          text-align: center;
           line-height: 24px;
           transition: all 0.3s ease;
 
           &:hover {
-            background-color: #ffffff !important;
+            background-color: #f8f7ff !important;
           }
 
-          // 表头单元格内部
-          :deep(.cell) {
+          .cell {
             background-color: #ffffff !important;
-            color: #5a32a3 !important;
-            font-weight: 600 !important;
+            color: #5a32a3;
+            font-weight: 600;
           }
         }
       }
     }
 
-    // 表格体包装器
-    :deep(.el-table__body-wrapper) {
+    // 直接覆盖表头单元格样式
+    :deep(.el-table__header th) {
       background-color: #ffffff !important;
+      color: #5a32a3 !important;
+      font-weight: 600 !important;
+    }
 
-      // 表格行
-      :deep(.el-table__row) {
-        transition: all 0.3s ease;
-        background-color: #ffffff !important;
+    // 覆盖表头单元格内容样式
+    :deep(.el-table__header th .cell) {
+      background-color: #ffffff !important;
+      color: #5a32a3 !important;
+      font-weight: 600 !important;
+    }
 
-        &:hover {
-          background-color: #f8f7ff !important;
-          transform: translateY(-1px);
-          box-shadow: 0 4px 12px rgba(147, 112, 219, 0.1);
-        }
+    // 表格主体
+    :deep(.el-table__body-wrapper) {
+      background-color: #ffffff;
 
-        // 表格单元格
-        :deep(td) {
-          background-color: #ffffff !important;
-          border-bottom: 1px solid #e9ecef;
-          padding: 16px;
-          text-align: left;
-          line-height: 24px;
+      :deep(.el-table__body) {
+        background-color: #ffffff;
+
+        :deep(tr) {
+          background-color: #ffffff;
           transition: all 0.3s ease;
-        }
 
-        &:hover :deep(td) {
-          background-color: #f8f7ff !important;
+          &:hover {
+            background-color: #f8f7ff !important;
+          }
+
+          // 斑马纹
+          &.el-table__row--striped {
+            background-color: #fafafa;
+
+            &:hover {
+              background-color: #f8f7ff !important;
+            }
+          }
+
+          :deep(td) {
+            background-color: transparent;
+            border-bottom: 1px solid #f0f0f0;
+            padding: 12px 16px;
+            color: #595959;
+            font-size: 14px;
+            text-align: center;
+          }
         }
       }
     }
+
+    // 行悬停效果
+    :deep(.el-table__row:hover) {
+      background-color: #f8f7ff !important;
+    }
+
+    // 空状态
+    :deep(.el-table__empty-block) {
+      padding: 60px 0;
+      background: #ffffff !important;
+
+      :deep(.el-table__empty-text) {
+        color: #666;
+        font-size: 14px;
+        line-height: 24px;
+      }
+    }
+
+    // 确保整个表格容器都使用正确的背景色
+    &.el-table--enable-row-hover {
+      background-color: #ffffff !important;
+    }
+
+    // 覆盖表格行的默认样式
+    :deep(.el-table__row) {
+      background-color: #ffffff !important;
+    }
+
+    // 覆盖表格行的条纹样式
+    :deep(.el-table__row.el-table__row--striped) {
+      background-color: #fafaff !important;
+    }
+
+    // 覆盖表格行的 hover 样式
+    :deep(.el-table__row:hover) {
+      background-color: #f8f7ff !important;
+    }
+
+    // 直接覆盖表头单元格样式
+    :deep(.el-table__header th) {
+      background-color: #ffffff !important;
+      color: #5a32a3 !important;
+      font-weight: 600 !important;
+    }
+
+    // 覆盖表头单元格内容样式
+    :deep(.el-table__header th .cell) {
+      background-color: #ffffff !important;
+      color: #5a32a3 !important;
+      font-weight: 600 !important;
+    }
+  }
+}
+
+// 用例名称样式
+.case-name-cell {
+  padding: 4px 8px;
+  line-height: 1.6;
+  color: #595959;
+  cursor: pointer;
+  transition: color 0.3s ease;
+  font-size: 14px;
+
+  &:hover {
+    color: #7b42f6;
+  }
+}
+
+// 关联对象徽章样式
+.related-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 16px;
+  border-radius: 4px;
+  font-size: 13px;
+  font-weight: 500;
+  transition: all 0.3s ease;
+  white-space: nowrap;
+
+  &.case-badge {
+    background: #e6f7ff;
+    color: #1890ff;
+  }
+
+  &.suite-badge {
+    background: #fff7e6;
+    color: #fa8c16;
+  }
+}
+
+// 执行状态徽章样式
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 16px;
+  border-radius: 4px;
+  font-size: 13px;
+  font-weight: 500;
+  transition: all 0.3s ease;
+  white-space: nowrap;
+
+  // 待执行 - 灰色
+  &.pending {
+    background: #f5f5f5;
+    color: #8c8c8c;
+  }
+
+  // 执行中 - 蓝色
+  &.running {
+    background: #e6f7ff;
+    color: #1890ff;
+  }
+
+  // 通过 - 绿色
+  &.passed {
+    background: #f6ffed;
+    color: #52c41a;
+  }
+
+  // 失败 - 红色
+  &.failed {
+    background: #fff1f0;
+    color: #ff4d4f;
+  }
+
+  // 错误 - 深红色
+  &.error {
+    background: #fff1f0;
+    color: #cf1322;
   }
 }
 
 // 操作按钮容器
 .action-buttons {
   display: flex;
-  justify-content: center;
+  justify-content: flex-start;
   align-items: center;
   gap: 4px;
   flex-wrap: nowrap;
@@ -880,87 +1066,119 @@ onMounted(async () => {
 
 // 操作按钮样式
 .action-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 500;
+  padding: 4px 10px !important;
+  border-radius: 6px;
+  transition: all 0.3s ease;
+
+  .el-icon {
+    font-size: 14px;
+  }
+
+  span {
+    font-size: 12px;
+  }
+
   &.view-btn {
     background: linear-gradient(135deg, #7b42f6 0%, #5a32a3 100%) !important;
     border: none !important;
     color: #ffffff !important;
     font-weight: 600 !important;
-    padding: 4px 10px !important;
-    border-radius: 6px !important;
-    box-shadow: 0 2px 8px rgba(123, 66, 246, 0.3) !important;
-    transition: all 0.3s ease !important;
-    white-space: nowrap;
 
     &:hover {
       background: linear-gradient(135deg, #6d33e6 0%, #4a249c 100%) !important;
-      transform: translateY(-2px) !important;
-      box-shadow: 0 4px 12px rgba(123, 66, 246, 0.4) !important;
-    }
-
-    .el-icon {
-      color: #ffffff !important;
-      margin-right: 3px;
-      font-size: 12px;
-    }
-
-    span {
-      font-size: 12px;
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(123, 66, 246, 0.4);
     }
   }
 
   &.rerun-btn {
-    background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%) !important;
+    background: linear-gradient(135deg, #52c41a 0%, #389e0d 100%) !important;
     border: none !important;
     color: #ffffff !important;
     font-weight: 600 !important;
-    padding: 4px 10px !important;
-    border-radius: 6px !important;
-    box-shadow: 0 2px 8px rgba(245, 158, 11, 0.3) !important;
-    transition: all 0.3s ease !important;
-    white-space: nowrap;
 
     &:hover {
-      background: linear-gradient(135deg, #d97706 0%, #b45309 100%) !important;
-      transform: translateY(-2px) !important;
-      box-shadow: 0 4px 12px rgba(245, 158, 11, 0.4) !important;
-    }
-
-    .el-icon {
-      color: #ffffff !important;
-      margin-right: 3px;
-      font-size: 12px;
-    }
-
-    span {
-      font-size: 12px;
+      background: linear-gradient(135deg, #73d13d 0%, #52c41a 100%) !important;
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(82, 196, 26, 0.4);
     }
   }
 
   &.delete-btn {
-    background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%) !important;
+    background: linear-gradient(135deg, #ff4d4f 0%, #cf1322 100%) !important;
     border: none !important;
     color: #ffffff !important;
     font-weight: 600 !important;
-    padding: 4px 10px !important;
-    border-radius: 6px !important;
-    box-shadow: 0 2px 8px rgba(239, 68, 68, 0.3) !important;
-    transition: all 0.3s ease !important;
-    white-space: nowrap;
 
     &:hover {
-      background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%) !important;
+      background: linear-gradient(135deg, #ff7875 0%, #ff4d4f 100%) !important;
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(255, 77, 79, 0.4);
+    }
+  }
+}
+
+// 关闭按钮样式
+.close-btn {
+  background: #ffffff !important;
+  border-color: #d1d5db !important;
+  color: #6b7280 !important;
+  border-radius: 8px !important;
+
+  &:hover {
+    background: #f5f3ff !important;
+    border-color: #a78bfa !important;
+    color: #8b5cf6 !important;
+  }
+
+  &:active {
+    background: #ede9fe !important;
+    border-color: #8b5cf6 !important;
+    color: #7c3aed !important;
+  }
+}
+
+// 对话框底部按钮样式
+.dialog-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+
+  .cancel-btn {
+    background: #ffffff !important;
+    border: 1px solid #d1d5db !important;
+    color: #6b7280 !important;
+    font-weight: 500 !important;
+    padding: 8px 16px !important;
+    border-radius: 8px !important;
+    transition: all 0.3s ease !important;
+
+    &:hover {
+      background: #f5f3ff !important;
+      border-color: #a78bfa !important;
+      color: #8b5cf6 !important;
+    }
+  }
+
+  .confirm-btn {
+    background: linear-gradient(135deg, #7b42f6 0%, #5a32a3 100%) !important;
+    border: none !important;
+    color: #ffffff !important;
+    font-weight: 600 !important;
+    padding: 8px 16px !important;
+    border-radius: 8px !important;
+    transition: all 0.3s ease !important;
+    box-shadow: 0 4px 12px rgba(123, 66, 246, 0.3) !important;
+
+    &:hover {
+      background: linear-gradient(135deg, #6d33e6 0%, #4a249c 100%) !important;
       transform: translateY(-2px) !important;
-      box-shadow: 0 4px 12px rgba(239, 68, 68, 0.4) !important;
-    }
-
-    .el-icon {
-      color: #ffffff !important;
-      margin-right: 3px;
-      font-size: 12px;
-    }
-
-    span {
-      font-size: 12px;
+      box-shadow: 0 6px 16px rgba(123, 66, 246, 0.4) !important;
     }
   }
 }
@@ -970,24 +1188,32 @@ onMounted(async () => {
   display: flex;
   justify-content: center;
   align-items: center;
-  padding: 8px 24px;
+  padding: 16px 0;
+  margin-top: 8px;
   background: transparent;
-  border-top: 1px solid rgba(147, 112, 219, 0.1);
+  border: none;
   transition: all 0.3s ease;
-  margin-top: 0;
+
+  /* 定义主题变量 - 浅紫色风格 */
+  --primary-color: #a78bfa;
+  --primary-dark: #8b5cf6;
+  --primary-light: #f3f0ff;
+  --text-primary: #262626;
+  --text-secondary: #595959;
+  --text-tertiary: #8c8c8c;
 
   /* 覆盖 Element Plus 默认主题变量 */
   --el-color-primary: var(--primary-color);
-  --el-color-primary-light-3: #9370db;
-  --el-color-primary-light-5: #a888e0;
-  --el-color-primary-light-7: #c2a9f3;
-  --el-color-primary-light-9: #f8f7ff;
-  --el-border-color: rgba(147, 112, 219, 0.2);
-  --el-border-color-light: rgba(147, 112, 219, 0.15);
-  --el-border-color-lighter: rgba(147, 112, 219, 0.1);
-  --el-fill-color-light: #f8f7ff;
-  --el-fill-color-lighter: #f8f7ff;
-  --el-fill-color-blank: #f8f7ff;
+  --el-color-primary-light-3: #c4b5fd;
+  --el-color-primary-light-5: #ddd6fe;
+  --el-color-primary-light-7: #ede9fe;
+  --el-color-primary-light-9: #f5f3ff;
+  --el-border-color: rgba(167, 139, 250, 0.3);
+  --el-border-color-light: rgba(167, 139, 250, 0.2);
+  --el-border-color-lighter: rgba(167, 139, 250, 0.1);
+  --el-fill-color-light: #f5f3ff;
+  --el-fill-color-lighter: #f5f3ff;
+  --el-fill-color-blank: #f5f3ff;
   --el-text-color-primary: var(--text-primary);
   --el-text-color-regular: var(--text-secondary);
   --el-text-color-secondary: var(--text-tertiary);
@@ -1000,7 +1226,7 @@ onMounted(async () => {
 
     // 总条数
     .el-pagination__total {
-      color: #5a32a3;
+      color: #6b7280;
       font-size: 14px;
       font-weight: 500;
       margin-right: 12px;
@@ -1013,23 +1239,23 @@ onMounted(async () => {
       .el-select {
         .el-input__wrapper {
           border-radius: 8px;
-          border: 1px solid rgba(147, 112, 219, 0.2);
+          border: 1px solid #e5e7eb;
           background: #ffffff;
           box-shadow: none;
 
           &:hover {
-            border-color: #7b42f6;
-            box-shadow: 0 0 0 3px rgba(123, 66, 246, 0.1);
+            border-color: #a78bfa;
+            box-shadow: 0 0 0 3px rgba(167, 139, 250, 0.1);
           }
 
           &.is-focus {
-            border-color: #7b42f6;
-            box-shadow: 0 0 0 3px rgba(123, 66, 246, 0.15);
+            border-color: #a78bfa;
+            box-shadow: 0 0 0 3px rgba(167, 139, 250, 0.15);
           }
         }
 
         .el-input__inner {
-          color: #5a32a3;
+          color: #374151;
           font-weight: 500;
         }
       }
@@ -1041,17 +1267,17 @@ onMounted(async () => {
       width: 32px;
       height: 32px;
       border-radius: 8px;
-      border: 1px solid rgba(147, 112, 219, 0.2);
+      border: 1px solid #e5e7eb;
       background: #ffffff;
-      color: #5a32a3;
+      color: #6b7280;
       transition: all 0.3s ease;
 
       &:hover:not(:disabled) {
-        background: linear-gradient(135deg, #7b42f6 0%, #5a32a3 100%);
-        border-color: transparent;
-        color: white;
+        background: #f5f3ff;
+        border-color: #a78bfa;
+        color: #8b5cf6;
         transform: translateY(-1px);
-        box-shadow: 0 4px 12px rgba(123, 66, 246, 0.3);
+        box-shadow: 0 2px 8px rgba(167, 139, 250, 0.2);
       }
 
       &:disabled {
@@ -1066,19 +1292,19 @@ onMounted(async () => {
       }
     }
 
-    // 页码
+    // 页码按钮
     .el-pager {
       display: flex;
-      gap: 4px;
+      gap: 8px;
 
       li {
         min-width: 32px;
         height: 32px;
         padding: 0 8px;
         border-radius: 8px;
-        border: 1px solid rgba(147, 112, 219, 0.2);
+        border: 1px solid #d1d5db;
         background: #ffffff;
-        color: #5a32a3;
+        color: #6b7280;
         font-size: 14px;
         font-weight: 500;
         transition: all 0.3s ease;
@@ -1087,61 +1313,58 @@ onMounted(async () => {
         justify-content: center;
 
         &:hover:not(.is-active) {
-          background: rgba(123, 66, 246, 0.1);
-          border-color: #7b42f6;
-          color: #7b42f6;
+          background: #f5f3ff;
+          border-color: #a78bfa;
+          color: #8b5cf6;
           transform: translateY(-1px);
         }
 
         &.is-active {
-          background: linear-gradient(135deg, #7b42f6 0%, #5a32a3 100%);
-          border-color: transparent;
-          color: white;
-          box-shadow: 0 4px 12px rgba(123, 66, 246, 0.3);
-          font-weight: 600;
+          background: #f5f3ff;
+          border-color: #a78bfa;
+          color: #8b5cf6;
+          box-shadow: 0 2px 8px rgba(167, 139, 250, 0.2);
         }
 
-        &.btn-quicknext,
-        &.btn-quickprev {
-          border: 1px solid rgba(147, 112, 219, 0.2);
-          color: #9370db;
-
-          &:hover {
-            background: rgba(123, 66, 246, 0.1);
-            color: #7b42f6;
-          }
+        &.is-active:hover {
+          background: #ede9fe;
+          border-color: #8b5cf6;
         }
       }
     }
 
-    // 跳转页
+    // 跳转输入框
     .el-pagination__jump {
-      margin-left: 12px;
-      color: #5a32a3;
+      color: #6b7280;
       font-weight: 500;
+      margin-left: 12px;
 
-      .el-input__wrapper {
-        width: 48px;
-        border-radius: 8px;
-        border: 1px solid rgba(147, 112, 219, 0.2);
-        background: #ffffff;
-        box-shadow: none;
+      .el-input {
+        width: 50px;
+        margin: 0 4px;
 
-        &:hover {
-          border-color: #7b42f6;
-          box-shadow: 0 0 0 3px rgba(123, 66, 246, 0.1);
+        .el-input__wrapper {
+          border-radius: 8px;
+          border: 1px solid #e5e7eb;
+          background: #ffffff;
+          box-shadow: none;
+
+          &:hover {
+            border-color: #a78bfa;
+            box-shadow: 0 0 0 3px rgba(167, 139, 250, 0.1);
+          }
+
+          &.is-focus {
+            border-color: #a78bfa;
+            box-shadow: 0 0 0 3px rgba(167, 139, 250, 0.15);
+          }
         }
 
-        &.is-focus {
-          border-color: #7b42f6;
-          box-shadow: 0 0 0 3px rgba(123, 66, 246, 0.15);
+        .el-input__inner {
+          color: #374151;
+          font-weight: 500;
+          text-align: center;
         }
-      }
-
-      .el-input__inner {
-        color: #5a32a3;
-        font-weight: 500;
-        text-align: center;
       }
     }
   }
@@ -1164,7 +1387,7 @@ onMounted(async () => {
       padding: 12px;
       background: white;
       border-radius: 4px;
-      border-left: 3px solid #409eff;
+      border-left: 3px solid #a78bfa;
 
       &:last-child {
         margin-bottom: 0;

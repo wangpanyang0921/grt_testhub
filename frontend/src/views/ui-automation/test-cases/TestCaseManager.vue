@@ -1,77 +1,116 @@
 <template>
   <div class="page-container">
-    <div class="page-header">
-      <h1 class="page-title">{{ $t('uiAutomation.testCase.title') }}</h1>
-      <div class="header-actions">
-        <el-select v-model="projectId" :placeholder="$t('uiAutomation.common.selectProject')" style="width: 220px; margin-right: 12px" @change="onProjectChange" class="project-select">
-          <el-option v-for="project in projects" :key="project.id" :label="project.name" :value="project.id" />
-        </el-select>
-        <el-button type="primary" @click="showCreateDialog = true">
-          <el-icon><Plus /></el-icon>
-          {{ $t('uiAutomation.testCase.newTestCase') }}
-        </el-button>
-      </div>
+    <div class="filter-bar">
+      <el-select v-model="projectId" :placeholder="$t('uiAutomation.common.selectProject')" style="width: 220px" @change="onProjectChange" class="project-select">
+        <el-option v-for="project in projects" :key="project.id" :label="project.name" :value="project.id" />
+      </el-select>
+      <el-input
+        v-model="searchKeyword"
+        :placeholder="$t('uiAutomation.testCase.searchPlaceholder')"
+        clearable
+        @clear="handleSearch"
+        @keyup.enter="handleSearch"
+        style="width: 300px;"
+      >
+        <template #prefix>
+          <el-icon><Search /></el-icon>
+        </template>
+      </el-input>
+      <el-button class="reset-btn" @click="handleReset">{{ $t('uiAutomation.common.reset') }}</el-button>
+      <el-button type="primary" class="query-btn" @click="handleSearch">
+        <el-icon><Search /></el-icon>
+        {{ $t('uiAutomation.common.search') }}
+      </el-button>
+      <div class="filter-bar-spacer"></div>
+      <el-button type="primary" class="create-btn" @click="showCreateDialog = true">
+        <el-icon><Plus /></el-icon>
+        {{ $t('uiAutomation.testCase.newTestCase') }}
+      </el-button>
     </div>
 
     <div class="card-container test-case-layout">
-      <!-- 左侧：用例列表 -->
-      <div class="left-panel">
-        <div class="panel-header">
-          <h3 class="panel-title">{{ $t('uiAutomation.testCase.testCaseList') }}</h3>
-          <el-input
-            v-model="searchKeyword"
-            :placeholder="$t('uiAutomation.testCase.searchPlaceholder')"
-            clearable
-            size="small"
-            style="width: 180px"
-          >
-            <template #prefix>
-              <el-icon><Search /></el-icon>
+      <!-- 用例列表 -->
+      <div v-if="!selectedTestCase" class="list-panel">
+        <el-table
+          :data="paginatedTestCases"
+          v-loading="loading"
+          stripe
+          style="width: 100%"
+          class="test-case-table"
+        >
+          <el-table-column label="序号" width="80" header-align="center" align="center">
+            <template #default="{ $index }">
+              {{ (pagination.currentPage - 1) * pagination.pageSize + $index + 1 }}
             </template>
-          </el-input>
-        </div>
-
-        <div class="test-case-list">
-          <div
-            v-for="testCase in filteredTestCases"
-            :key="testCase.id"
-            class="test-case-item"
-            :class="{ active: selectedTestCase?.id === testCase.id }"
-            @click="selectTestCase(testCase)"
-          >
-            <div class="case-header">
-              <div class="case-info">
-                <h4 class="case-name">{{ testCase.name }}</h4>
-                <p class="case-description">{{ testCase.description || $t('uiAutomation.testCase.noDescription') }}</p>
-              </div>
-              <div class="case-actions">
-                <el-button size="small" class="action-icon-btn run-btn" @click.stop="runTestCase(testCase)">
+          </el-table-column>
+          <el-table-column :label="$t('uiAutomation.testCase.caseName')" min-width="200" header-align="center" align="left">
+            <template #default="{ row }">
+              <div class="case-name-cell" @click="selectTestCase(row)">{{ row.name }}</div>
+            </template>
+          </el-table-column>
+          <el-table-column :label="$t('uiAutomation.testCase.caseDescription')" min-width="250" header-align="center" align="center" show-overflow-tooltip>
+            <template #default="{ row }">
+              {{ row.description || '' }}
+            </template>
+          </el-table-column>
+          <el-table-column :label="$t('uiAutomation.testCase.stepsCount')" width="120" header-align="center" align="center">
+            <template #default="{ row }">
+              <span class="step-count">{{ row.steps?.length || 0 }} {{ $t('uiAutomation.testCase.stepsCountUnit') }}</span>
+            </template>
+          </el-table-column>
+          <el-table-column :label="$t('uiAutomation.common.updateTime')" width="180" header-align="center" align="center">
+            <template #default="{ row }">
+              {{ formatTime(row.updated_at) }}
+            </template>
+          </el-table-column>
+          <el-table-column :label="$t('uiAutomation.common.operation')" width="320" fixed="right" header-align="center" align="center">
+            <template #default="{ row }">
+              <div class="action-buttons">
+                <el-button size="small" type="success" class="action-btn run-btn" @click.stop="runTestCase(row)">
                   <el-icon><CaretRight /></el-icon>
+                  <span>{{ $t('uiAutomation.testCase.run') }}</span>
                 </el-button>
-                <el-button size="small" class="action-icon-btn edit-btn" @click.stop="editTestCase(testCase)">
+                <el-button size="small" class="action-btn edit-btn" @click.stop="editTestCase(row)">
                   <el-icon><Edit /></el-icon>
+                  <span>{{ $t('uiAutomation.common.edit') }}</span>
                 </el-button>
-                <el-button size="small" class="action-icon-btn copy-btn" @click.stop="copyTestCase(testCase)">
+                <el-button size="small" class="action-btn copy-btn" @click.stop="copyTestCase(row)">
                   <el-icon><CopyDocument /></el-icon>
+                  <span>{{ $t('uiAutomation.common.copy') }}</span>
                 </el-button>
-                <el-button size="small" class="action-icon-btn delete-btn" @click.stop="deleteTestCase(testCase)">
+                <el-button size="small" type="danger" class="action-btn delete-btn" @click.stop="deleteTestCase(row)">
                   <el-icon><Delete /></el-icon>
+                  <span>{{ $t('uiAutomation.common.delete') }}</span>
                 </el-button>
               </div>
-            </div>
-            <div class="case-meta">
-              <span class="step-count">{{ testCase.steps?.length || 0 }} {{ $t('uiAutomation.testCase.stepsCount') }}</span>
-              <span class="update-time">{{ formatTime(testCase.updated_at) }}</span>
-            </div>
-          </div>
+            </template>
+          </el-table-column>
+        </el-table>
+
+        <div class="pagination-container">
+          <el-pagination
+            v-model:current-page="pagination.currentPage"
+            v-model:page-size="pagination.pageSize"
+            :page-sizes="[10, 20, 50, 100]"
+            layout="total, sizes, prev, pager, next, jumper"
+            :total="filteredTestCases.length"
+            @size-change="handleSizeChange"
+            @current-change="handleCurrentChange"
+          />
         </div>
       </div>
 
-      <!-- 右侧：测试用例详情和步骤编辑 -->
-      <div class="right-panel">
-        <div v-if="selectedTestCase" class="test-case-detail">
+      <!-- 测试用例详情和步骤编辑 -->
+      <div v-if="selectedTestCase" class="detail-panel">
+        <div class="test-case-detail">
           <div class="detail-header">
-            <h3 class="detail-title">{{ selectedTestCase.name }}</h3>
+            <div class="detail-title-wrapper">
+              <el-button size="small" class="back-btn" @click="backToList">
+                <el-icon><ArrowLeft /></el-icon>
+                {{ $t('uiAutomation.common.back') }}
+              </el-button>
+              <h3 class="detail-title">{{ selectedTestCase.name }}</h3>
+            </div>
             <div class="detail-actions">
               <el-button size="small" class="btn-secondary" @click="addStep">
                 <el-icon><Plus /></el-icon>
@@ -399,9 +438,6 @@
           </div>
         </div>
 
-        <div v-else class="no-selection">
-          <el-empty :description="$t('uiAutomation.testCase.selectTestCase')" />
-        </div>
       </div>
     </div>
 
@@ -509,7 +545,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   Plus, Search, CaretRight, Edit, CopyDocument, Delete, Check,
   Rank, ArrowUp, ArrowDown, WarningFilled, Picture, Warning,
-  ZoomIn, View, Refresh, MagicStick
+  ZoomIn, View, Refresh, MagicStick, ArrowLeft
 } from '@element-plus/icons-vue'
 import draggable from 'vuedraggable'
 import {
@@ -535,6 +571,12 @@ const testCases = ref([])
 const selectedTestCase = ref(null)
 const searchKeyword = ref('')
 const loading = ref(false)
+
+// 分页
+const pagination = reactive({
+  currentPage: 1,
+  pageSize: 10
+})
 
 // 当前步骤
 const currentSteps = ref([])
@@ -583,6 +625,13 @@ const filteredTestCases = computed(() => {
     tc.name.toLowerCase().includes(keyword) ||
     (tc.description && tc.description.toLowerCase().includes(keyword))
   )
+})
+
+// 分页后的测试用例
+const paginatedTestCases = computed(() => {
+  const start = (pagination.currentPage - 1) * pagination.pageSize
+  const end = start + pagination.pageSize
+  return filteredTestCases.value.slice(start, end)
 })
 
 // 解析执行日志
@@ -764,6 +813,27 @@ const loadTestCases = async () => {
   }
 }
 
+// 搜索
+const handleSearch = () => {
+  pagination.currentPage = 1
+}
+
+// 重置
+const handleReset = () => {
+  searchKeyword.value = ''
+  pagination.currentPage = 1
+}
+
+// 分页大小变化
+const handleSizeChange = () => {
+  pagination.currentPage = 1
+}
+
+// 页码变化
+const handleCurrentChange = () => {
+  // 页码变化时自动重新计算 paginatedTestCases
+}
+
 // 加载元素
 const loadElements = async () => {
   if (!projectId.value) return
@@ -790,6 +860,13 @@ const selectTestCase = async (testCase) => {
     console.error('加载测试用例详情失败:', error)
     ElMessage.error('加载测试用例详情失败')
   }
+}
+
+// 返回列表
+const backToList = () => {
+  selectedTestCase.value = null
+  currentSteps.value = []
+  executionResult.value = null
 }
 
 // 添加步骤
@@ -1063,68 +1140,100 @@ onMounted(() => {
   gap: 20px;
 }
 
-.page-header {
+.filter-bar {
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  padding: 24px 28px;
+  gap: 16px;
+  padding: 20px 24px;
   background: linear-gradient(135deg, #ffffff 0%, #f8f7ff 100%);
   border-radius: 12px;
   box-shadow: 0 4px 16px rgba(147, 112, 219, 0.1);
   border: 1px solid rgba(147, 112, 219, 0.1);
 
-  .page-title {
-    font-size: 24px;
-    font-weight: 700;
-    color: #5a32a3;
-    margin: 0;
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    background: linear-gradient(135deg, #7b42f6 0%, #5a32a3 100%);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
-  }
+  .project-select {
+    :deep(.el-input__wrapper) {
+      border-radius: 8px;
+      border: 1px solid rgba(147, 112, 219, 0.3);
+      box-shadow: none;
 
-  .header-actions {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-
-    .project-select {
-      :deep(.el-input__wrapper) {
-        border-radius: 8px;
-        border: 1px solid rgba(147, 112, 219, 0.3);
-        box-shadow: none;
-
-        &:hover, &.is-focus {
-          border-color: #7b42f6;
-          box-shadow: 0 0 0 3px rgba(123, 66, 246, 0.1);
-        }
+      &:hover, &.is-focus {
+        border-color: #7b42f6;
+        box-shadow: 0 0 0 3px rgba(123, 66, 246, 0.1);
       }
     }
 
-    .el-button {
-      border-radius: 8px;
-      padding: 10px 20px;
-      font-weight: 600;
-      transition: all 0.3s ease;
+    :deep(.el-input__inner) {
+      color: #5a32a3;
+      font-weight: 500;
+    }
+  }
 
-      &.el-button--primary {
-        background: linear-gradient(135deg, #7b42f6 0%, #5a32a3 100%);
-        border: none;
-        box-shadow: 0 4px 12px rgba(123, 66, 246, 0.3);
+  :deep(.el-input__wrapper) {
+    border-radius: 8px;
+    border: 1px solid rgba(147, 112, 219, 0.3);
+    box-shadow: none;
 
-        &:hover {
-          transform: translateY(-2px);
-          box-shadow: 0 6px 20px rgba(123, 66, 246, 0.4);
-        }
+    &:hover, &.is-focus {
+      border-color: #7b42f6;
+      box-shadow: 0 0 0 3px rgba(123, 66, 246, 0.1);
+    }
+  }
 
-        .el-icon {
-          margin-right: 6px;
-        }
-      }
+  .filter-bar-spacer {
+    flex: 1;
+  }
+
+  .reset-btn {
+    border-radius: 8px;
+    padding: 10px 20px;
+    font-weight: 600;
+    transition: all 0.3s ease;
+    background: #ffffff;
+    border: 1px solid rgba(147, 112, 219, 0.4);
+    color: #5a32a3;
+
+    &:hover {
+      background: #f8f7ff;
+      border-color: #7b42f6;
+      color: #7b42f6;
+    }
+  }
+
+  .query-btn {
+    border-radius: 8px;
+    padding: 10px 20px;
+    font-weight: 600;
+    transition: all 0.3s ease;
+    background: linear-gradient(135deg, #7b42f6 0%, #5a32a3 100%);
+    border: none;
+    box-shadow: 0 4px 12px rgba(123, 66, 246, 0.3);
+
+    &:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(123, 66, 246, 0.4);
+    }
+
+    .el-icon {
+      margin-right: 6px;
+    }
+  }
+
+  .create-btn {
+    border-radius: 8px;
+    padding: 10px 20px;
+    font-weight: 600;
+    transition: all 0.3s ease;
+    background: linear-gradient(135deg, #7b42f6 0%, #5a32a3 100%);
+    border: none;
+    box-shadow: 0 4px 12px rgba(123, 66, 246, 0.3);
+
+    &:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(123, 66, 246, 0.4);
+    }
+
+    .el-icon {
+      margin-right: 6px;
     }
   }
 }
@@ -1145,165 +1254,405 @@ onMounted(() => {
   flex-direction: row;
 }
 
-.left-panel {
-  width: 380px;
-  min-width: 380px;
-  border-right: 1px solid rgba(147, 112, 219, 0.15);
+.list-panel {
+  flex: 1;
   display: flex;
   flex-direction: column;
-  background: linear-gradient(180deg, #faf8ff 0%, #f5f3ff 100%);
+  background: #ffffff;
+  padding: 16px;
 
-  .panel-header {
-    padding: 20px;
-    border-bottom: 1px solid rgba(147, 112, 219, 0.15);
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    background: #ffffff;
+  .test-case-table {
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.04);
 
-    .panel-title {
-      margin: 0;
-      font-size: 16px;
-      font-weight: 600;
-      color: #5a32a3;
+    &::before {
+      display: none;
     }
 
-    :deep(.el-input__wrapper) {
-      border-radius: 8px;
-      border: 1px solid rgba(147, 112, 219, 0.3);
-      box-shadow: none;
+    // 表头包装器
+    :deep(.el-table__header-wrapper) {
+      background-color: #ffffff !important;
 
-      &:hover, &.is-focus {
-        border-color: #7b42f6;
-        box-shadow: 0 0 0 3px rgba(123, 66, 246, 0.1);
+      // 表头
+      :deep(.el-table__header) {
+        background-color: #ffffff !important;
+
+        // 表头单元格
+        :deep(th) {
+          background-color: #ffffff !important;
+          color: #5a32a3;
+          font-weight: 600;
+          font-size: 14px;
+          border-bottom: 1px solid #e9ecef;
+          padding: 16px;
+          text-align: center;
+          line-height: 24px;
+          transition: all 0.3s ease;
+
+          &:hover {
+            background-color: #f8f7ff !important;
+          }
+
+          .cell {
+            background-color: #ffffff !important;
+            color: #5a32a3;
+            font-weight: 600;
+          }
+        }
+      }
+    }
+
+    // 表格主体
+    :deep(.el-table__body-wrapper) {
+      background-color: #ffffff;
+
+      :deep(.el-table__body) {
+        background-color: #ffffff;
+
+        :deep(tr) {
+          background-color: #ffffff;
+          transition: all 0.3s ease;
+
+          &:hover {
+            background-color: #f8f7ff !important;
+          }
+
+          // 斑马纹
+          &.el-table__row--striped {
+            background-color: #fafafa;
+
+            &:hover {
+              background-color: #f8f7ff !important;
+            }
+          }
+
+          :deep(td) {
+            background-color: transparent;
+            border-bottom: 1px solid #f0f0f0;
+            padding: 12px 16px;
+            color: #595959;
+            font-size: 14px;
+            text-align: center;
+          }
+        }
+      }
+    }
+
+    // 直接覆盖表头单元格样式
+    :deep(.el-table__header th) {
+      background-color: #ffffff !important;
+      color: #5a32a3 !important;
+      font-weight: 600 !important;
+    }
+
+    // 覆盖表头单元格内容样式
+    :deep(.el-table__header th .cell) {
+      background-color: #ffffff !important;
+      color: #5a32a3 !important;
+      font-weight: 600 !important;
+    }
+
+    // 行悬停效果
+    :deep(.el-table__row:hover) {
+      background-color: #f8f7ff !important;
+    }
+
+    // 用例名称样式 - 与 AISuiteList.vue 保持一致
+    .case-name-cell {
+      padding: 4px 8px;
+      line-height: 1.6;
+      color: #595959;
+      cursor: pointer;
+      transition: color 0.3s ease;
+
+      &:hover {
+        color: #7b42f6;
+      }
+    }
+
+    .step-count {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 6px 16px;
+      border-radius: 4px;
+      font-size: 13px;
+      font-weight: 500;
+      transition: all 0.3s ease;
+      white-space: nowrap;
+      background: #f5f5f5;
+      color: #8c8c8c;
+    }
+
+    .action-buttons {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 4px;
+      flex-wrap: nowrap;
+
+      .action-btn {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        font-size: 12px;
+        font-weight: 500;
+        padding: 4px 10px !important;
+        border-radius: 6px;
+        transition: all 0.3s ease;
+
+        .el-icon {
+          font-size: 14px;
+        }
+
+        span {
+          font-size: 12px;
+        }
+
+        &.run-btn {
+          background: linear-gradient(135deg, #52c41a 0%, #389e0d 100%) !important;
+          border: none !important;
+          color: #ffffff !important;
+          font-weight: 600 !important;
+
+          &:hover {
+            background: linear-gradient(135deg, #73d13d 0%, #52c41a 100%) !important;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(82, 196, 26, 0.4);
+          }
+        }
+
+        &.edit-btn {
+          background: linear-gradient(135deg, #7b42f6 0%, #5a32a3 100%) !important;
+          border: none !important;
+          color: #ffffff !important;
+          font-weight: 600 !important;
+
+          &:hover {
+            background: linear-gradient(135deg, #6d33e6 0%, #4a249c 100%) !important;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(123, 66, 246, 0.4);
+          }
+        }
+
+        &.copy-btn {
+          background: linear-gradient(135deg, #909399 0%, #606266 100%) !important;
+          border: none !important;
+          color: #ffffff !important;
+          font-weight: 600 !important;
+
+          &:hover {
+            background: linear-gradient(135deg, #a6a9ad 0%, #909399 100%) !important;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(144, 147, 153, 0.4);
+          }
+        }
+
+        &.delete-btn {
+          background: linear-gradient(135deg, #ff4d4f 0%, #cf1322 100%) !important;
+          border: none !important;
+          color: #ffffff !important;
+          font-weight: 600 !important;
+
+          &:hover {
+            background: linear-gradient(135deg, #ff7875 0%, #ff4d4f 100%) !important;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(255, 77, 79, 0.4);
+          }
+        }
       }
     }
   }
 
-  .test-case-list {
-    flex: 1;
-    overflow-y: auto;
-    padding: 16px;
+  .pagination-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 16px 0;
+    margin-top: 8px;
+    background: transparent;
+    border: none;
+    transition: all 0.3s ease;
 
-    .test-case-item {
-      background: #ffffff;
-      border: 1px solid rgba(147, 112, 219, 0.15);
-      border-radius: 10px;
-      margin-bottom: 12px;
-      padding: 16px;
-      cursor: pointer;
-      transition: all 0.3s ease;
-      box-shadow: 0 2px 8px rgba(147, 112, 219, 0.05);
+    /* 定义主题变量 - 浅紫色风格 */
+    --primary-color: #a78bfa;
+    --primary-dark: #8b5cf6;
+    --primary-light: #f3f0ff;
+    --text-primary: #262626;
+    --text-secondary: #595959;
+    --text-tertiary: #8c8c8c;
 
-      &:hover {
-        border-color: #7b42f6;
-        box-shadow: 0 4px 16px rgba(123, 66, 246, 0.15);
-        transform: translateY(-2px);
+    /* 覆盖 Element Plus 默认主题变量 */
+    --el-color-primary: var(--primary-color);
+    --el-color-primary-light-3: #c4b5fd;
+    --el-color-primary-light-5: #ddd6fe;
+    --el-color-primary-light-7: #ede9fe;
+    --el-color-primary-light-9: #f5f3ff;
+    --el-border-color: rgba(167, 139, 250, 0.3);
+    --el-border-color-light: rgba(167, 139, 250, 0.2);
+    --el-border-color-lighter: rgba(167, 139, 250, 0.1);
+    --el-fill-color-light: #f5f3ff;
+    --el-fill-color-lighter: #f5f3ff;
+    --el-fill-color-blank: #f5f3ff;
+    --el-text-color-primary: var(--text-primary);
+    --el-text-color-regular: var(--text-secondary);
+    --el-text-color-secondary: var(--text-tertiary);
+
+    :deep(.el-pagination) {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      font-weight: 500;
+
+      // 总条数
+      .el-pagination__total {
+        color: #6b7280;
+        font-size: 14px;
+        font-weight: 500;
+        margin-right: 12px;
       }
 
-      &.active {
-        border-color: #7b42f6;
-        background: linear-gradient(135deg, #f8f7ff 0%, #f0edff 100%);
-        box-shadow: 0 4px 16px rgba(123, 66, 246, 0.2);
-      }
+      // 每页条数选择器
+      .el-pagination__sizes {
+        margin-right: 12px;
 
-      .case-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: flex-start;
-        margin-bottom: 12px;
+        .el-select {
+          .el-input__wrapper {
+            border-radius: 8px;
+            border: 1px solid #e5e7eb;
+            background: #ffffff;
+            box-shadow: none;
 
-        .case-info {
-          flex: 1;
+            &:hover {
+              border-color: #a78bfa;
+              box-shadow: 0 0 0 3px rgba(167, 139, 250, 0.1);
+            }
 
-          .case-name {
-            margin: 0 0 6px 0;
-            font-size: 15px;
-            font-weight: 600;
-            color: #5a32a3;
+            &.is-focus {
+              border-color: #a78bfa;
+              box-shadow: 0 0 0 3px rgba(167, 139, 250, 0.15);
+            }
           }
 
-          .case-description {
-            margin: 0;
-            color: #666;
-            font-size: 13px;
-            line-height: 1.4;
+          .el-input__inner {
+            color: #374151;
+            font-weight: 500;
           }
         }
+      }
 
-        .case-actions {
+      // 上一页/下一页按钮
+      .btn-prev,
+      .btn-next {
+        width: 32px;
+        height: 32px;
+        border-radius: 8px;
+        border: 1px solid #e5e7eb;
+        background: #ffffff;
+        color: #6b7280;
+        transition: all 0.3s ease;
+
+        &:hover:not(:disabled) {
+          background: #f5f3ff;
+          border-color: #a78bfa;
+          color: #8b5cf6;
+          transform: translateY(-1px);
+          box-shadow: 0 2px 8px rgba(167, 139, 250, 0.2);
+        }
+
+        &:disabled {
+          background: #f5f5f5;
+          border-color: #e0e0e0;
+          color: #c0c0c0;
+        }
+
+        .el-icon {
+          font-size: 14px;
+          font-weight: bold;
+        }
+      }
+
+      // 页码按钮
+      .el-pager {
+        display: flex;
+        gap: 8px;
+
+        li {
+          min-width: 32px;
+          height: 32px;
+          padding: 0 8px;
+          border-radius: 8px;
+          border: 1px solid #d1d5db;
+          background: #ffffff;
+          color: #6b7280;
+          font-size: 14px;
+          font-weight: 500;
+          transition: all 0.3s ease;
           display: flex;
-          gap: 4px;
+          align-items: center;
+          justify-content: center;
 
-          .action-icon-btn {
-            padding: 6px;
-            border-radius: 6px;
-            transition: all 0.3s ease;
+          &:hover:not(.is-active) {
+            background: #f5f3ff;
+            border-color: #a78bfa;
+            color: #8b5cf6;
+            transform: translateY(-1px);
+          }
 
-            &.run-btn {
-              background: linear-gradient(135deg, #67c23a 0%, #529b2e 100%);
-              border: none;
-              color: white;
+          &.is-active {
+            background: #f5f3ff;
+            border-color: #a78bfa;
+            color: #8b5cf6;
+            box-shadow: 0 2px 8px rgba(167, 139, 250, 0.2);
+          }
 
-              &:hover {
-                transform: translateY(-1px);
-                box-shadow: 0 2px 8px rgba(103, 194, 58, 0.3);
-              }
-            }
-
-            &.edit-btn {
-              background: rgba(123, 66, 246, 0.1);
-              border: 1px solid rgba(123, 66, 246, 0.3);
-              color: #7b42f6;
-
-              &:hover {
-                background: rgba(123, 66, 246, 0.2);
-              }
-            }
-
-            &.copy-btn {
-              background: rgba(144, 147, 153, 0.1);
-              border: 1px solid rgba(144, 147, 153, 0.3);
-              color: #606266;
-
-              &:hover {
-                background: rgba(144, 147, 153, 0.2);
-              }
-            }
-
-            &.delete-btn {
-              background: rgba(245, 108, 108, 0.1);
-              border: 1px solid rgba(245, 108, 108, 0.3);
-              color: #f56c6c;
-
-              &:hover {
-                background: rgba(245, 108, 108, 0.2);
-              }
-            }
+          &.is-active:hover {
+            background: #ede9fe;
+            border-color: #8b5cf6;
           }
         }
       }
 
-      .case-meta {
-        display: flex;
-        align-items: center;
-        gap: 12px;
-        font-size: 12px;
-        color: #888;
+      // 跳转输入框
+      .el-pagination__jump {
+        color: #6b7280;
+        font-weight: 500;
+        margin-left: 12px;
 
-        .step-count {
-          color: #7b42f6;
-          font-weight: 600;
-          background: rgba(123, 66, 246, 0.1);
-          padding: 2px 8px;
-          border-radius: 10px;
+        .el-input {
+          width: 50px;
+          margin: 0 4px;
+
+          .el-input__wrapper {
+            border-radius: 8px;
+            border: 1px solid #e5e7eb;
+            background: #ffffff;
+            box-shadow: none;
+
+            &:hover {
+              border-color: #a78bfa;
+              box-shadow: 0 0 0 3px rgba(167, 139, 250, 0.1);
+            }
+
+            &.is-focus {
+              border-color: #a78bfa;
+              box-shadow: 0 0 0 3px rgba(167, 139, 250, 0.15);
+            }
+          }
+
+          .el-input__inner {
+            color: #374151;
+            font-weight: 500;
+            text-align: center;
+          }
         }
       }
     }
   }
 }
 
-.right-panel {
+.detail-panel {
   flex: 1;
   background: #ffffff;
   display: flex;
@@ -1325,14 +1674,41 @@ onMounted(() => {
       margin-bottom: 20px;
       padding-bottom: 16px;
       border-bottom: 1px solid rgba(147, 112, 219, 0.15);
-      flex-wrap: wrap;
       gap: 12px;
+      min-height: 40px;
 
-      .detail-title {
-        margin: 0;
-        font-size: 18px;
-        font-weight: 600;
-        color: #5a32a3;
+      .detail-title-wrapper {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        flex-shrink: 0;
+
+        .back-btn {
+          display: inline-flex !important;
+          align-items: center;
+          gap: 4px;
+          background: #f5f3ff !important;
+          border: 1px solid #7b42f6 !important;
+          color: #5a32a3 !important;
+          border-radius: 6px;
+          padding: 6px 12px;
+          font-size: 13px;
+          visibility: visible !important;
+          opacity: 1 !important;
+
+          &:hover {
+            background: #e8e4ff !important;
+            border-color: #5a32a3 !important;
+            color: #5a32a3 !important;
+          }
+        }
+
+        .detail-title {
+          margin: 0;
+          font-size: 18px;
+          font-weight: 600;
+          color: #5a32a3;
+        }
       }
 
       .detail-actions {
@@ -1340,6 +1716,8 @@ onMounted(() => {
         gap: 8px;
         flex-wrap: wrap;
         align-items: center;
+        margin-left: auto;
+        flex-shrink: 0;
 
         .btn-secondary {
           background: #ffffff;
@@ -1996,7 +2374,7 @@ onMounted(() => {
     }
   }
 
-  .left-panel {
+  .list-panel {
     width: 320px;
     min-width: 320px;
 
@@ -2014,7 +2392,7 @@ onMounted(() => {
     }
   }
 
-  .right-panel {
+  .detail-panel {
     .test-case-detail {
       padding: 16px;
 
@@ -2057,7 +2435,7 @@ onMounted(() => {
     flex-direction: column;
   }
 
-  .left-panel {
+  .list-panel {
     width: 100%;
     min-width: auto;
     border-right: none;
@@ -2100,7 +2478,7 @@ onMounted(() => {
     }
   }
 
-  .right-panel {
+  .detail-panel {
     .test-case-detail {
       padding: 16px;
 
@@ -2150,11 +2528,11 @@ onMounted(() => {
     }
   }
 
-  .left-panel {
+  .list-panel {
     max-height: 250px;
   }
 
-  .right-panel {
+  .detail-panel {
     .test-case-detail {
       .detail-header {
         .detail-actions {
@@ -2214,7 +2592,7 @@ onMounted(() => {
     border-radius: 8px;
   }
 
-  .left-panel {
+  .list-panel {
     max-height: 200px;
 
     .panel-header {
@@ -2244,7 +2622,7 @@ onMounted(() => {
     }
   }
 
-  .right-panel {
+  .detail-panel {
     .test-case-detail {
       padding: 12px;
 
@@ -2317,7 +2695,7 @@ onMounted(() => {
     }
   }
 
-  .left-panel {
+  .list-panel {
     max-height: 180px;
 
     .test-case-list {
@@ -2333,7 +2711,7 @@ onMounted(() => {
     }
   }
 
-  .right-panel {
+  .detail-panel {
     .test-case-detail {
       .detail-header {
         .detail-title {

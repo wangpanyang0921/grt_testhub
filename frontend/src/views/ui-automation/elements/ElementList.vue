@@ -933,7 +933,7 @@ onMounted(async () => {
     --el-pagination-hover-color: #7b42f6;
 
     .el-pager li {
-      border-radius: 6px;
+      border-radius: 8px;
       transition: all 0.3s ease;
 
       &.is-active {
@@ -948,7 +948,7 @@ onMounted(async () => {
 
     .btn-prev,
     .btn-next {
-      border-radius: 6px;
+      border-radius: 8px;
 
       &:hover {
         color: #7b42f6;
