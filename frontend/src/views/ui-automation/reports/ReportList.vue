@@ -14,7 +14,11 @@
 
     <div class="card-container">
       <el-table :data="reports" v-loading="loading" stripe style="width: 100%">
-        <el-table-column prop="id" label="ID" width="80" header-align="center" align="center" />
+        <el-table-column label="序号" width="80" header-align="center" align="center">
+          <template #default="{ $index }">
+            {{ (pagination.currentPage - 1) * pagination.pageSize + $index + 1 }}
+          </template>
+        </el-table-column>
         <el-table-column prop="test_suite_name" :label="$t('uiAutomation.report.testSuite')" min-width="200" header-align="center" align="center" />
         <el-table-column prop="status" :label="$t('uiAutomation.common.status')" width="120" header-align="center" align="center">
           <template #default="{ row }">

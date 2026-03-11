@@ -770,6 +770,19 @@ class BaseBrowserAgent:
             return "执行操作"
 
     async def analyze_task(self, task_description: str):
+        """分析任务，带缓存机制"""
+        # 导入缓存模块
+        try:
+            from .ai_cache import TaskAnalysisCache
+            
+            # 尝试从缓存获取
+            cached_result = TaskAnalysisCache.get(task_description)
+            if cached_result is not None:
+                logger.info(f"[analyze_task] Cache hit, skipping LLM call")
+                return cached_result
+        except Exception as e:
+            logger.warning(f"[analyze_task] Cache check failed: {e}")
+        
         try:
             prompt = f"Break down this task into steps: {task_description}. Return JSON list of strings."
             response = await self.llm.ainvoke(prompt)
@@ -797,7 +810,16 @@ class BaseBrowserAgent:
                 if desc:
                     cleaned_steps.append(desc)
 
-            return [{'id': i + 1, 'description': s, 'status': 'pending'} for i, s in enumerate(cleaned_steps)]
+            result = [{'id': i + 1, 'description': s, 'status': 'pending'} for i, s in enumerate(cleaned_steps)]
+            
+            # 缓存结果
+            try:
+                TaskAnalysisCache.set(task_description, result, ttl_hours=24)
+                logger.info(f"[analyze_task] Cached result for future use")
+            except Exception as e:
+                logger.warning(f"[analyze_task] Cache save failed: {e}")
+            
+            return result
         except:
             return [{'id': 1, 'description': task_description, 'status': 'pending'}]
 

@@ -12,6 +12,7 @@
 
     <div class="card-container">
       <el-table :data="configs" v-loading="loading" stripe style="width: 100%">
+        <el-table-column type="index" label="序号" width="60" header-align="center" align="center" />
         <el-table-column :label="$t('configuration.aiMode.configName')" min-width="180" show-overflow-tooltip header-align="center" align="center">
           <template #default="{ row }">
             <div class="config-name-cell">{{ row.name || $t('configuration.common.unnamed') }}</div>
@@ -587,8 +588,7 @@ onMounted(() => {
 }
 
 .config-name-cell {
-  font-weight: 500;
-  color: #262626;
+  color: #595959;
 }
 
 .provider-badge {
@@ -611,8 +611,7 @@ onMounted(() => {
 }
 
 .model-name {
-  color: #262626;
-  font-weight: 500;
+  color: #595959;
 }
 
 .base-url {

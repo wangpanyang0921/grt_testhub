@@ -30,7 +30,7 @@
             {{ $index + 1 + (currentPage - 1) * pageSize }}
           </template>
         </el-table-column>
-        <el-table-column prop="name" :label="$t('uiAutomation.script.nameColumn')" min-width="280" show-overflow-tooltip header-align="center" align="left">
+        <el-table-column prop="name" :label="$t('uiAutomation.script.nameColumn')" min-width="280" show-overflow-tooltip header-align="center" align="center">
           <template #default="{ row }">
             <span class="script-name-cell" @click="viewScript(row)">
               {{ row.name }}
@@ -271,7 +271,7 @@ const handleCurrentChange = (val) => {
 
 // 跳转到脚本编辑器
 const goToScriptEditor = () => {
-  router.push({ name: 'ScriptEditor' })
+  router.push({ name: 'UiScriptEditor' })
 }
 
 // 查看脚本详情
@@ -832,7 +832,7 @@ onMounted(async () => {
           }
 
           .el-input__inner {
-            color: #6b7280;
+            color: #374151;
             font-weight: 500;
           }
         }
@@ -850,30 +850,36 @@ onMounted(async () => {
         transition: all 0.3s ease;
 
         &:hover:not(:disabled) {
-          background: linear-gradient(135deg, #a78bfa 0%, #8b5cf6 100%);
-          border-color: transparent;
-          color: white;
+          background: #f5f3ff;
+          border-color: #a78bfa;
+          color: #8b5cf6;
           transform: translateY(-1px);
-          box-shadow: 0 4px 12px rgba(167, 139, 250, 0.3);
+          box-shadow: 0 2px 8px rgba(167, 139, 250, 0.2);
         }
 
         &:disabled {
-          opacity: 0.5;
-          cursor: not-allowed;
+          background: #f5f5f5;
+          border-color: #e0e0e0;
+          color: #c0c0c0;
+        }
+
+        .el-icon {
+          font-size: 14px;
+          font-weight: bold;
         }
       }
 
-      // 页码
+      // 页码按钮
       .el-pager {
         display: flex;
-        gap: 4px;
+        gap: 8px;
 
         li {
           min-width: 32px;
           height: 32px;
           padding: 0 8px;
           border-radius: 8px;
-          border: 1px solid #e5e7eb;
+          border: 1px solid #d1d5db;
           background: #ffffff;
           color: #6b7280;
           font-size: 14px;
@@ -884,17 +890,22 @@ onMounted(async () => {
           justify-content: center;
 
           &:hover:not(.is-active) {
-            background: rgba(167, 139, 250, 0.1);
+            background: #f5f3ff;
             border-color: #a78bfa;
-            color: #a78bfa;
+            color: #8b5cf6;
             transform: translateY(-1px);
           }
 
           &.is-active {
-            background: linear-gradient(135deg, #a78bfa 0%, #8b5cf6 100%);
-            border-color: transparent;
-            color: white;
-            box-shadow: 0 4px 12px rgba(167, 139, 250, 0.3);
+            background: #f5f3ff;
+            border-color: #a78bfa;
+            color: #8b5cf6;
+            box-shadow: 0 2px 8px rgba(167, 139, 250, 0.2);
+          }
+
+          &.is-active:hover {
+            background: #ede9fe;
+            border-color: #8b5cf6;
           }
         }
       }
@@ -907,6 +918,7 @@ onMounted(async () => {
 
         .el-input {
           width: 50px;
+          margin: 0 4px;
 
           .el-input__wrapper {
             border-radius: 8px;
@@ -926,7 +938,7 @@ onMounted(async () => {
           }
 
           .el-input__inner {
-            color: #6b7280;
+            color: #374151;
             font-weight: 500;
             text-align: center;
           }

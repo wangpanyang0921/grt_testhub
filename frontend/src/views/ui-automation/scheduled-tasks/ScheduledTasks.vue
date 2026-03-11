@@ -1,122 +1,98 @@
 <template>
   <div class="page-container">
-    <div class="page-header-card">
-      <div class="page-header-content">
-        <h1>{{ $t('uiAutomation.scheduledTask.title') }}</h1>
-      </div>
+    <!-- 筛选栏 -->
+    <div class="filter-bar">
+      <el-select v-model="filters.task_type" :placeholder="$t('uiAutomation.scheduledTask.taskType')" clearable style="width: 160px;" @change="handleFilterChange">
+        <el-option :label="$t('uiAutomation.scheduledTask.taskTypes.testSuite')" value="TEST_SUITE" />
+        <el-option :label="$t('uiAutomation.scheduledTask.taskTypes.testCase')" value="TEST_CASE" />
+      </el-select>
+      <el-select v-model="filters.trigger_type" :placeholder="$t('uiAutomation.scheduledTask.triggerType')" clearable style="width: 160px;" @change="handleFilterChange">
+        <el-option :label="$t('uiAutomation.scheduledTask.triggerTypes.cron')" value="CRON" />
+        <el-option :label="$t('uiAutomation.scheduledTask.triggerTypes.interval')" value="INTERVAL" />
+        <el-option :label="$t('uiAutomation.scheduledTask.triggerTypes.once')" value="ONCE" />
+      </el-select>
+      <el-select v-model="filters.status" :placeholder="$t('uiAutomation.scheduledTask.status')" clearable style="width: 160px;" @change="handleFilterChange">
+        <el-option :label="$t('uiAutomation.scheduledTask.statusTypes.active')" value="ACTIVE" />
+        <el-option :label="$t('uiAutomation.scheduledTask.statusTypes.paused')" value="PAUSED" />
+        <el-option :label="$t('uiAutomation.scheduledTask.statusTypes.completed')" value="COMPLETED" />
+        <el-option :label="$t('uiAutomation.scheduledTask.statusTypes.failed')" value="FAILED" />
+      </el-select>
+      <div class="filter-bar-spacer"></div>
       <el-button type="primary" class="create-btn" @click="handleCreateClick">
         <el-icon><Plus /></el-icon>
         {{ $t('uiAutomation.scheduledTask.newTask') }}
       </el-button>
     </div>
 
-    <!-- 筛选条件 -->
-    <div class="filter-bar card-container">
-      <el-row :gutter="20">
-        <el-col :span="6">
-          <el-select v-model="filters.task_type" :placeholder="$t('uiAutomation.scheduledTask.taskType')" clearable>
-            <el-option :label="$t('uiAutomation.scheduledTask.taskTypes.testSuite')" value="TEST_SUITE" />
-            <el-option :label="$t('uiAutomation.scheduledTask.taskTypes.testCase')" value="TEST_CASE" />
-          </el-select>
-        </el-col>
-        <el-col :span="6">
-          <el-select v-model="filters.trigger_type" :placeholder="$t('uiAutomation.scheduledTask.triggerType')" clearable>
-            <el-option :label="$t('uiAutomation.scheduledTask.triggerTypes.cron')" value="CRON" />
-            <el-option :label="$t('uiAutomation.scheduledTask.triggerTypes.interval')" value="INTERVAL" />
-            <el-option :label="$t('uiAutomation.scheduledTask.triggerTypes.once')" value="ONCE" />
-          </el-select>
-        </el-col>
-        <el-col :span="6">
-          <el-select v-model="filters.status" :placeholder="$t('uiAutomation.scheduledTask.status')" clearable>
-            <el-option :label="$t('uiAutomation.scheduledTask.statusTypes.active')" value="ACTIVE" />
-            <el-option :label="$t('uiAutomation.scheduledTask.statusTypes.paused')" value="PAUSED" />
-            <el-option :label="$t('uiAutomation.scheduledTask.statusTypes.completed')" value="COMPLETED" />
-            <el-option :label="$t('uiAutomation.scheduledTask.statusTypes.failed')" value="FAILED" />
-          </el-select>
-        </el-col>
-        <el-col :span="6">
-          <el-button class="reset-btn" @click="resetFilters">{{ $t('uiAutomation.common.reset') }}</el-button>
-          <el-button type="primary" class="query-btn" @click="loadTasks">{{ $t('uiAutomation.common.search') }}</el-button>
-        </el-col>
-      </el-row>
-    </div>
-
     <!-- 任务列表 -->
     <div class="card-container">
       <el-table :data="tasks" v-loading="loading" stripe>
-        <el-table-column prop="name" :label="$t('uiAutomation.scheduledTask.taskName')" min-width="160" header-align="center" align="center" />
-        <el-table-column prop="task_type" :label="$t('uiAutomation.scheduledTask.taskType')" width="100" header-align="center" align="center">
-          <template #default="scope">
-            <el-tag :type="scope.row.task_type === 'TEST_SUITE' ? 'success' : 'primary'">
-              {{ scope.row.task_type === 'TEST_SUITE' ? $t('uiAutomation.scheduledTask.taskTypes.testSuiteShort') : $t('uiAutomation.scheduledTask.taskTypes.testCaseShort') }}
-            </el-tag>
+        <el-table-column label="序号" width="80" header-align="center" align="center">
+          <template #default="{ $index }">
+            {{ (pagination.current - 1) * pagination.size + $index + 1 }}
           </template>
         </el-table-column>
-        <el-table-column prop="notification_type_display" :label="$t('uiAutomation.scheduledTask.notificationType')" width="110" header-align="center" align="center">
+        <el-table-column prop="name" :label="$t('uiAutomation.scheduledTask.taskName')" min-width="180" header-align="center" align="center" show-overflow-tooltip />
+        <el-table-column prop="task_type" :label="$t('uiAutomation.scheduledTask.taskType')" width="120" header-align="center" align="center">
           <template #default="scope">
-            <el-tag v-if="scope.row.notification_type_display && scope.row.notification_type_display !== '-'"
-                    :type="getNotificationTypeTagType(scope.row.notification_type_display)"
-                    size="small">
-              {{ getNotificationTypeText(scope.row.notification_type) }}
-            </el-tag>
+            <span class="task-type-badge" :class="scope.row.task_type === 'TEST_SUITE' ? 'test-suite' : 'test-case'">
+              {{ scope.row.task_type === 'TEST_SUITE' ? $t('uiAutomation.scheduledTask.taskTypes.testSuiteShort') : $t('uiAutomation.scheduledTask.taskTypes.testCaseShort') }}
+            </span>
+          </template>
+        </el-table-column>
+        <el-table-column prop="notification_type_display" :label="$t('uiAutomation.scheduledTask.notificationType')" min-width="140" header-align="center" align="center">
+          <template #default="scope">
+            <span v-if="scope.row.notification_type_display && scope.row.notification_type_display !== '-'"
+                  class="notification-type-badge"
+                  :class="getNotificationTypeClass(scope.row.notification_type_display)">
+              {{ scope.row.notification_type_display }}
+            </span>
             <span v-else>-</span>
           </template>
         </el-table-column>
-        <el-table-column prop="trigger_type" :label="$t('uiAutomation.scheduledTask.triggerType')" width="100" header-align="center" align="center">
+        <el-table-column prop="trigger_type" :label="$t('uiAutomation.scheduledTask.triggerType')" width="120" header-align="center" align="center">
           <template #default="scope">
-            <el-tag>
+            <span class="trigger-type-badge">
               {{ getTriggerTypeText(scope.row.trigger_type) }}
-            </el-tag>
+            </span>
           </template>
         </el-table-column>
-        <el-table-column prop="status" :label="$t('uiAutomation.scheduledTask.status')" width="90" header-align="center" align="center">
+        <el-table-column prop="status" :label="$t('uiAutomation.scheduledTask.status')" width="100" header-align="center" align="center">
           <template #default="scope">
-            <el-tag :type="scope.row.status === 'ACTIVE' ? 'success' : scope.row.status === 'PAUSED' ? 'warning' : 'info'">
+            <span class="status-badge" :class="getStatusClass(scope.row.status)">
               {{ getStatusText(scope.row.status) }}
-            </el-tag>
+            </span>
           </template>
         </el-table-column>
-        <el-table-column prop="engine" :label="$t('uiAutomation.scheduledTask.executionEngine')" width="110" header-align="center" align="center">
-          <template #default="scope">
-            <el-tag size="small" type="info">
-              {{ scope.row.engine === 'playwright' ? 'Playwright' : 'Selenium' }}
-            </el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column prop="browser" :label="$t('uiAutomation.scheduledTask.browser')" width="90" header-align="center" align="center">
-          <template #default="scope">
-            {{ scope.row.browser || 'chrome' }}
-          </template>
-        </el-table-column>
-        <el-table-column prop="next_run_time" :label="$t('uiAutomation.scheduledTask.nextRunTime')" width="170" header-align="center" align="center">
+
+        <el-table-column prop="next_run_time" :label="$t('uiAutomation.scheduledTask.nextRunTime')" width="180" header-align="center" align="center">
           <template #default="scope">
             {{ formatDateTime(scope.row.next_run_time) }}
           </template>
         </el-table-column>
-        <el-table-column prop="last_run_time" :label="$t('uiAutomation.scheduledTask.lastRunTime')" width="170" header-align="center" align="center">
+        <el-table-column prop="last_run_time" :label="$t('uiAutomation.scheduledTask.lastRunTime')" width="180" header-align="center" align="center">
           <template #default="scope">
             {{ formatDateTime(scope.row.last_run_time) }}
           </template>
         </el-table-column>
-        <el-table-column :label="$t('uiAutomation.common.operation')" width="180" fixed="right" header-align="center" align="center">
+        <el-table-column :label="$t('uiAutomation.common.operation')" width="310" fixed="right" header-align="center" align="center">
           <template #default="scope">
             <div class="action-buttons">
               <el-button size="small" class="action-btn run-btn" @click="runTaskNow(scope.row)" :loading="scope.row.running">
                 <span>{{ $t('uiAutomation.scheduledTask.runNow') }}</span>
               </el-button>
-              <el-dropdown @command="(command) => handleTaskAction(command, scope.row)">
-                <el-button size="small" class="action-btn more-btn">
-                  <span>{{ $t('uiAutomation.scheduledTask.more') }}</span><el-icon><arrow-down /></el-icon>
-                </el-button>
-                <template #dropdown>
-                  <el-dropdown-menu>
-                    <el-dropdown-item command="edit">{{ $t('uiAutomation.scheduledTask.actions.edit') }}</el-dropdown-item>
-                    <el-dropdown-item command="pause" v-if="scope.row.status === 'ACTIVE'">{{ $t('uiAutomation.scheduledTask.actions.pause') }}</el-dropdown-item>
-                    <el-dropdown-item command="resume" v-if="scope.row.status === 'PAUSED'">{{ $t('uiAutomation.scheduledTask.actions.resume') }}</el-dropdown-item>
-                    <el-dropdown-item command="delete" divided>{{ $t('uiAutomation.scheduledTask.actions.delete') }}</el-dropdown-item>
-                  </el-dropdown-menu>
-                </template>
-              </el-dropdown>
+              <el-button size="small" class="action-btn edit-btn" @click="editTask(scope.row)">
+                <span>{{ $t('uiAutomation.scheduledTask.actions.edit') }}</span>
+              </el-button>
+              <el-button size="small" class="action-btn pause-btn" v-if="scope.row.status === 'ACTIVE'" @click="pauseTask(scope.row)">
+                <span>{{ $t('uiAutomation.scheduledTask.actions.pause') }}</span>
+              </el-button>
+              <el-button size="small" class="action-btn resume-btn" v-if="scope.row.status === 'PAUSED'" @click="resumeTask(scope.row)">
+                <span>{{ $t('uiAutomation.scheduledTask.actions.resume') }}</span>
+              </el-button>
+              <el-button size="small" class="action-btn delete-btn" @click="deleteTask(scope.row)">
+                <span>{{ $t('uiAutomation.scheduledTask.actions.delete') }}</span>
+              </el-button>
             </div>
           </template>
         </el-table-column>
@@ -308,7 +284,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted, computed } from 'vue'
+import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, ArrowDown } from '@element-plus/icons-vue'
 import { useI18n } from 'vue-i18n'
@@ -431,6 +407,12 @@ const loadTasks = async () => {
   }
 }
 
+// 处理筛选变化
+const handleFilterChange = () => {
+  pagination.current = 1
+  loadTasks()
+}
+
 // 加载项目列表
 const loadProjects = async () => {
   try {
@@ -470,16 +452,17 @@ const onProjectChange = async (projectId) => {
     testCases.value = casesResponse.data.results
   } catch (error) {
     console.error('Load project data failed:', error)
+    ElMessage.error(t('uiAutomation.scheduledTask.messages.loadProjectDataFailed'))
   }
 }
 
-// 任务类型变化
+// 任务类型变化时清空已选数据
 const onTaskTypeChange = () => {
   taskForm.test_suite = ''
   taskForm.test_cases = []
 }
 
-// 新建按钮点击
+// 处理创建按钮点击
 const handleCreateClick = () => {
   editingTask.value = null
   resetTaskForm()
@@ -507,22 +490,30 @@ const resetTaskForm = () => {
     notification_type: '',
     notify_emails: []
   })
+  testSuites.value = []
+  testCases.value = []
 }
 
-// 重置筛选
-const resetFilters = () => {
-  Object.assign(filters, {
-    task_type: '',
-    trigger_type: '',
-    status: ''
-  })
-  loadTasks()
-}
-
-// 提交任务表单
+// 提交表单
 const submitTaskForm = async () => {
+  if (!taskForm.name || !taskForm.project) {
+    ElMessage.warning(t('uiAutomation.scheduledTask.messages.requiredFields'))
+    return
+  }
+
+  if (taskForm.task_type === 'TEST_SUITE' && !taskForm.test_suite) {
+    ElMessage.warning(t('uiAutomation.scheduledTask.messages.selectTestSuite'))
+    return
+  }
+
+  if (taskForm.task_type === 'TEST_CASE' && taskForm.test_cases.length === 0) {
+    ElMessage.warning(t('uiAutomation.scheduledTask.messages.selectTestCases'))
+    return
+  }
+
   submitting.value = true
   try {
+    // 构建提交数据
     const submitData = {
       name: taskForm.name,
       description: taskForm.description,
@@ -625,6 +616,30 @@ const getNotificationTypeTagType = (typeDisplay) => {
   return typeMap[typeDisplay] || 'info'
 }
 
+// 获取通知类型样式类
+const getNotificationTypeClass = (typeDisplay) => {
+  const typeMap = {
+    '邮箱通知': 'email',
+    'Email Notification': 'email',
+    'Webhook机器人': 'webhook',
+    'Webhook Robot': 'webhook',
+    '两者都发送': 'both',
+    'Both': 'both'
+  }
+  return typeMap[typeDisplay] || ''
+}
+
+// 获取状态样式类
+const getStatusClass = (status) => {
+  const classMap = {
+    'ACTIVE': 'active',
+    'PAUSED': 'paused',
+    'COMPLETED': 'completed',
+    'FAILED': 'failed'
+  }
+  return classMap[status] || 'default'
+}
+
 // 处理任务操作
 const handleTaskAction = (command, task) => {
   switch (command) {
@@ -716,11 +731,13 @@ const deleteTask = async (task) => {
 }
 </script>
 
-<style scoped lang="scss">
+<style lang="scss" scoped>
+// 全局变量
 :root {
-  --primary-color: #7b42f6;
-  --primary-dark: #5a32a3;
+  --primary-color: #667eea;
+  --primary-dark: #764ba2;
   --primary-light: #f8f7ff;
+  --primary-lighter: #fafbff;
   --border-color: #e8e8e8;
   --text-primary: #262626;
   --text-secondary: #595959;
@@ -733,100 +750,74 @@ const deleteTask = async (task) => {
   --info-color: #1890ff;
 }
 
+// 页面容器
 .page-container {
-  margin: -20px;
-  min-height: calc(100% + 40px);
+  padding: 24px;
+  min-height: calc(100vh - 60px);
   background: linear-gradient(135deg, #f5f3ff 0%, #ede9fe 100%);
   display: flex;
   flex-direction: column;
   line-height: 24px;
   gap: 20px;
-  width: calc(100% + 40px);
-  box-sizing: border-box;
-  padding: 24px;
 }
 
-.page-header-card {
-  padding: 24px 28px;
+// 筛选栏
+.filter-bar {
+  padding: 20px 24px;
   background: #ffffff;
-  border-radius: 16px;
-  box-shadow: 0 4px 20px rgba(147, 112, 219, 0.1);
+  border: 1px solid rgba(147, 112, 219, 0.12);
+  border-radius: 12px;
+  box-shadow: 0 4px 16px rgba(147, 112, 219, 0.08);
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  gap: 16px;
+  gap: 12px;
 
-  .page-header-content {
-    display: flex;
-    align-items: center;
+  :deep(.el-input__wrapper),
+  :deep(.el-select .el-input__wrapper) {
+    box-shadow: 0 2px 8px rgba(147, 112, 219, 0.08);
+    border-radius: 8px;
+    border: 1px solid rgba(147, 112, 219, 0.2);
+    background: #ffffff;
 
-    h1 {
-      font-size: 20px;
-      font-weight: 600;
-      color: #262626;
-      margin: 0;
+    &:hover,
+    &:focus {
+      box-shadow: 0 2px 8px rgba(147, 112, 219, 0.15);
+      border-color: #7b42f6;
+    }
+  }
+
+  :deep(.el-input__inner) {
+    color: #5a32a3;
+    font-weight: 500;
+  }
+
+  .filter-bar-spacer {
+    flex: 1;
+  }
+
+  .create-btn {
+    background: linear-gradient(135deg, #7b42f6 0%, #5a32a3 100%) !important;
+    border: none !important;
+    color: white !important;
+    font-weight: 600 !important;
+    padding: 10px 20px !important;
+    border-radius: 8px !important;
+    transition: all 0.3s ease !important;
+    box-shadow: 0 4px 12px rgba(123, 66, 246, 0.3) !important;
+
+    .el-icon {
+      margin-right: 6px;
+    }
+
+    &:hover {
+      background: linear-gradient(135deg, #6d33e6 0%, #4a249c 100%) !important;
+      transform: translateY(-2px) !important;
+      box-shadow: 0 6px 20px rgba(123, 66, 246, 0.4) !important;
     }
   }
 }
 
-.create-btn {
-  background: linear-gradient(135deg, #7b42f6 0%, #5a32a3 100%) !important;
-  border: none !important;
-  color: white !important;
-  font-weight: 600 !important;
-  padding: 10px 20px !important;
-  border-radius: 8px !important;
-  transition: all 0.3s ease !important;
-  box-shadow: 0 4px 12px rgba(123, 66, 246, 0.3) !important;
-
-  .el-icon {
-    margin-right: 6px;
-  }
-
-  &:hover {
-    background: linear-gradient(135deg, #6d33e6 0%, #4a249c 100%) !important;
-    transform: translateY(-2px) !important;
-    box-shadow: 0 6px 20px rgba(123, 66, 246, 0.4) !important;
-  }
-}
-
-.filter-bar {
-  padding: 20px 24px;
-
-  :deep(.el-select) {
-    width: 100%;
-  }
-}
-
-.reset-btn {
-  padding: 10px 24px !important;
-  border-radius: 8px !important;
-  font-weight: 500 !important;
-
-  &:hover {
-    color: #7b42f6;
-    border-color: #7b42f6;
-    background: #f8f7ff;
-  }
-}
-
-.query-btn {
-  background: linear-gradient(135deg, #7b42f6 0%, #5a32a3 100%) !important;
-  border: none !important;
-  color: white !important;
-  font-weight: 600 !important;
-  padding: 10px 24px !important;
-  border-radius: 8px !important;
-  box-shadow: 0 4px 12px rgba(123, 66, 246, 0.3) !important;
-  transition: all 0.3s ease !important;
-
-  &:hover {
-    background: linear-gradient(135deg, #6d33e6 0%, #4a249c 100%) !important;
-    transform: translateY(-2px) !important;
-    box-shadow: 0 6px 20px rgba(123, 66, 246, 0.4) !important;
-  }
-}
-
+// 表格容器
 .card-container {
   background: #ffffff;
   border: 1px solid rgba(147, 112, 219, 0.12);
@@ -837,6 +828,134 @@ const deleteTask = async (task) => {
   overflow: hidden;
   padding-top: 16px;
 
+  // 任务类型徽章样式
+  .task-type-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 4px 10px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 500;
+    transition: all 0.3s ease;
+    white-space: nowrap;
+
+    &.test-suite {
+      background: #f6ffed;
+      color: #52c41a;
+    }
+
+    &.test-case {
+      background: #e6f7ff;
+      color: #1890ff;
+    }
+  }
+
+  // 通知类型徽章样式
+  .notification-type-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 4px 10px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 500;
+    transition: all 0.3s ease;
+    white-space: nowrap;
+
+    &.email {
+      background: #f5f5f5;
+      color: #8c8c8c;
+    }
+
+    &.webhook {
+      background: #e6f7ff;
+      color: #1890ff;
+    }
+
+    &.both {
+      background: #fff7e6;
+      color: #fa8c16;
+    }
+  }
+
+  // 触发器类型徽章样式
+  .trigger-type-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 4px 10px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 500;
+    transition: all 0.3s ease;
+    white-space: nowrap;
+    background: #f5f5f5;
+    color: #8c8c8c;
+  }
+
+  // 状态徽章样式
+  .status-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 4px 10px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 500;
+    transition: all 0.3s ease;
+    white-space: nowrap;
+
+    &.active {
+      background: #f6ffed;
+      color: #52c41a;
+    }
+
+    &.paused {
+      background: #fff7e6;
+      color: #fa8c16;
+    }
+
+    &.completed {
+      background: #e6f7ff;
+      color: #1890ff;
+    }
+
+    &.failed {
+      background: #fff1f0;
+      color: #ff4d4f;
+    }
+
+    &.default {
+      background: #f5f5f5;
+      color: #8c8c8c;
+    }
+  }
+
+  // 引擎类型徽章样式
+  .engine-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 4px 10px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 500;
+    transition: all 0.3s ease;
+    white-space: nowrap;
+
+    &.playwright {
+      background: #f0f9ff;
+      color: #52c41a;
+    }
+
+    &.selenium {
+      background: #e6f7ff;
+      color: #1890ff;
+    }
+  }
+
+  // 表格样式
   .el-table {
     border: none;
     border-radius: 8px 8px 0 0;
@@ -846,7 +965,8 @@ const deleteTask = async (task) => {
     transition: all 0.3s ease;
     background-color: transparent !important;
 
-    --el-color-primary: #7b42f6;
+    /* 覆盖 Element Plus 默认主题变量 */
+    --el-color-primary: var(--primary-color);
     --el-color-primary-light-3: #9370db;
     --el-color-primary-light-5: #a888e0;
     --el-color-primary-light-7: #c2a9f3;
@@ -869,12 +989,15 @@ const deleteTask = async (task) => {
       display: none;
     }
 
+    // 表头包装器
     :deep(.el-table__header-wrapper) {
       background-color: #ffffff !important;
 
+      // 表头
       :deep(.el-table__header) {
         background-color: #ffffff !important;
 
+        // 表头单元格
         :deep(th) {
           background-color: #ffffff !important;
           color: #5a32a3;
@@ -890,6 +1013,7 @@ const deleteTask = async (task) => {
             background-color: #ffffff !important;
           }
 
+          // 表头单元格内部
           :deep(.cell) {
             background-color: #ffffff !important;
             color: #5a32a3 !important;
@@ -899,207 +1023,342 @@ const deleteTask = async (task) => {
       }
     }
 
+    // 表格体包装器
     :deep(.el-table__body-wrapper) {
-      :deep(.el-table__body) {
-        :deep(tr) {
-          transition: all 0.3s ease;
+      background-color: #ffffff !important;
 
-          &:hover {
-            background-color: #f8f7ff !important;
-          }
+      // 表格行
+      :deep(.el-table__row) {
+        transition: all 0.3s ease;
+        background-color: #ffffff !important;
+        line-height: 24px;
 
-          &.el-table__row--striped {
-            background-color: #fafaff !important;
-          }
+        &:hover {
+          background-color: #f8f7ff !important;
+          transform: translateY(-1px);
+          box-shadow: 0 4px 12px rgba(147, 112, 219, 0.1);
         }
 
+        &.el-table__row--striped {
+          background-color: #fafaff !important;
+        }
+
+        // 表格单元格
         :deep(td) {
+          padding: 14px 8px;
           border-bottom: 1px solid #e9ecef;
-          padding: 16px;
-          color: #333;
-          text-align: center;
+          color: #595959;
+          font-size: 14px;
+          font-weight: normal;
+          line-height: 24px;
           transition: all 0.3s ease;
+
+          // 单元格内部容器样式统一
+          :deep(.cell) {
+            font-size: 14px;
+            font-weight: normal;
+            color: #595959;
+            line-height: 24px;
+            white-space: nowrap;
+            overflow: visible;
+          }
         }
+      }
+    }
+
+    // 空状态
+    :deep(.el-table__empty-block) {
+      padding: 60px 0;
+      background: #ffffff !important;
+
+      :deep(.el-table__empty-text) {
+        color: #666;
+        font-size: 14px;
+        line-height: 24px;
       }
     }
   }
 }
 
+// 操作按钮容器
 .action-buttons {
   display: flex;
-  gap: 6px;
   justify-content: center;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: nowrap;
 }
 
+// 操作按钮样式
 .action-btn {
   display: flex;
   align-items: center;
-  justify-content: center;
-  padding: 6px 10px !important;
-  min-width: 32px;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 500;
+  padding: 4px 10px !important;
+  border-radius: 6px;
+  transition: all 0.3s ease;
 
   .el-icon {
     font-size: 14px;
   }
 
+  span {
+    font-size: 12px;
+  }
+
   &.run-btn {
-    background: #52c41a;
-    border-color: #52c41a;
-    color: white !important;
+    background: linear-gradient(135deg, #52c41a 0%, #389e0d 100%) !important;
+    border: none !important;
+    color: #ffffff !important;
+    font-weight: 600 !important;
 
     &:hover {
-      background: #73d13d !important;
-      border-color: #73d13d !important;
-    }
-
-    span {
-      font-size: 12px;
+      background: linear-gradient(135deg, #73d13d 0%, #52c41a 100%) !important;
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(82, 196, 26, 0.4);
     }
   }
 
-  &.more-btn {
-    background: #7c3aed;
-    border-color: #7c3aed;
-    color: white !important;
+  &.edit-btn {
+    background: linear-gradient(135deg, #1890ff 0%, #096dd9 100%) !important;
+    border: none !important;
+    color: #ffffff !important;
+    font-weight: 600 !important;
 
     &:hover {
-      background: #8b5cf6 !important;
-      border-color: #8b5cf6 !important;
+      background: linear-gradient(135deg, #40a9ff 0%, #1890ff 100%) !important;
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(24, 144, 255, 0.4);
     }
+  }
 
-    span {
-      font-size: 12px;
+  &.pause-btn {
+    background: linear-gradient(135deg, #faad14 0%, #d48806 100%) !important;
+    border: none !important;
+    color: #ffffff !important;
+    font-weight: 600 !important;
+
+    &:hover {
+      background: linear-gradient(135deg, #ffc53d 0%, #faad14 100%) !important;
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(250, 173, 20, 0.4);
     }
+  }
 
-    .el-icon {
-      margin-left: 3px;
-      font-size: 12px;
+  &.resume-btn {
+    background: linear-gradient(135deg, #52c41a 0%, #389e0d 100%) !important;
+    border: none !important;
+    color: #ffffff !important;
+    font-weight: 600 !important;
+
+    &:hover {
+      background: linear-gradient(135deg, #73d13d 0%, #52c41a 100%) !important;
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(82, 196, 26, 0.4);
+    }
+  }
+
+  &.delete-btn {
+    background: linear-gradient(135deg, #ff4d4f 0%, #cf1322 100%) !important;
+    border: none !important;
+    color: #ffffff !important;
+    font-weight: 600 !important;
+
+    &:hover {
+      background: linear-gradient(135deg, #ff7875 0%, #ff4d4f 100%) !important;
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(255, 77, 79, 0.4);
     }
   }
 }
 
+// 分页容器
 .pagination-container {
   display: flex;
   justify-content: center;
   align-items: center;
-  padding: 16px 24px;
+  padding: 16px 0;
+  margin-top: 8px;
   background: transparent;
-  border-top: 1px solid rgba(147, 112, 219, 0.1);
+  border: none;
+  transition: all 0.3s ease;
+
+  /* 定义主题变量 - 浅紫色风格 */
+  --primary-color: #a78bfa;
+  --primary-dark: #8b5cf6;
+  --primary-light: #f3f0ff;
+  --text-primary: #262626;
+  --text-secondary: #595959;
+  --text-tertiary: #8c8c8c;
+
+  /* 覆盖 Element Plus 默认主题变量 */
+  --el-color-primary: var(--primary-color);
+  --el-color-primary-light-3: #c4b5fd;
+  --el-color-primary-light-5: #ddd6fe;
+  --el-color-primary-light-7: #ede9fe;
+  --el-color-primary-light-9: #f5f3ff;
+  --el-border-color: rgba(167, 139, 250, 0.3);
+  --el-border-color-light: rgba(167, 139, 250, 0.2);
+  --el-border-color-lighter: rgba(167, 139, 250, 0.1);
+  --el-fill-color-light: #f5f3ff;
+  --el-fill-color-lighter: #f5f3ff;
+  --el-fill-color-blank: #f5f3ff;
+  --el-text-color-primary: var(--text-primary);
+  --el-text-color-regular: var(--text-secondary);
+  --el-text-color-secondary: var(--text-tertiary);
 
   :deep(.el-pagination) {
-    --el-color-primary: #7b42f6;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-weight: 500;
 
+    // 总条数
     .el-pagination__total {
-      color: #5a32a3;
+      color: #6b7280;
+      font-size: 14px;
       font-weight: 500;
+      margin-right: 12px;
     }
 
+    // 每页条数选择器
+    .el-pagination__sizes {
+      margin-right: 12px;
+
+      .el-select {
+        .el-input__wrapper {
+          border-radius: 8px;
+          border: 1px solid #e5e7eb;
+          background: #ffffff;
+          box-shadow: none;
+
+          &:hover {
+            border-color: #a78bfa;
+            box-shadow: 0 0 0 3px rgba(167, 139, 250, 0.1);
+          }
+
+          &.is-focus {
+            border-color: #a78bfa;
+            box-shadow: 0 0 0 3px rgba(167, 139, 250, 0.15);
+          }
+        }
+
+        .el-input__inner {
+          color: #374151;
+          font-weight: 500;
+        }
+      }
+    }
+
+    // 上一页/下一页按钮
     .btn-prev,
     .btn-next {
+      width: 32px;
+      height: 32px;
       border-radius: 8px;
-      border: 1px solid rgba(147, 112, 219, 0.2);
+      border: 1px solid #e5e7eb;
       background: #ffffff;
-      color: #5a32a3;
+      color: #6b7280;
+      transition: all 0.3s ease;
 
       &:hover:not(:disabled) {
-        background: linear-gradient(135deg, #7b42f6 0%, #5a32a3 100%);
-        border-color: transparent;
-        color: white;
+        background: #f5f3ff;
+        border-color: #a78bfa;
+        color: #8b5cf6;
         transform: translateY(-1px);
-        box-shadow: 0 4px 12px rgba(123, 66, 246, 0.3);
+        box-shadow: 0 2px 8px rgba(167, 139, 250, 0.2);
       }
 
       &:disabled {
-        opacity: 0.5;
-        cursor: not-allowed;
+        background: #f5f5f5;
+        border-color: #e0e0e0;
+        color: #c0c0c0;
+      }
+
+      .el-icon {
+        font-size: 14px;
+        font-weight: bold;
       }
     }
 
-    .el-pager li {
-      border-radius: 8px;
-      border: 1px solid rgba(147, 112, 219, 0.2);
-      background: #ffffff;
-      color: #5a32a3;
-      font-weight: 500;
+    // 页码按钮
+    .el-pager {
+      display: flex;
+      gap: 8px;
 
-      &.is-active {
-        background: linear-gradient(135deg, #7b42f6 0%, #5a32a3 100%);
-        border-color: transparent;
-        color: white;
+      li {
+        min-width: 32px;
+        height: 32px;
+        padding: 0 8px;
+        border-radius: 8px;
+        border: 1px solid #d1d5db;
+        background: #ffffff;
+        color: #6b7280;
+        font-size: 14px;
+        font-weight: 500;
+        transition: all 0.3s ease;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+
+        &:hover:not(.is-active) {
+          background: #f5f3ff;
+          border-color: #a78bfa;
+          color: #8b5cf6;
+          transform: translateY(-1px);
+        }
+
+        &.is-active {
+          background: #f5f3ff;
+          border-color: #a78bfa;
+          color: #8b5cf6;
+          box-shadow: 0 2px 8px rgba(167, 139, 250, 0.2);
+        }
+
+        &.is-active:hover {
+          background: #ede9fe;
+          border-color: #8b5cf6;
+        }
       }
     }
 
+    // 跳转输入框
     .el-pagination__jump {
-      color: #5a32a3;
+      color: #6b7280;
       font-weight: 500;
-    }
-  }
-}
+      margin-left: 12px;
 
-// 对话框样式
-:deep(.task-dialog) {
-  .el-dialog__header {
-    padding: 20px 24px;
-    margin: 0;
-    border-bottom: 1px solid #f0f0f0;
+      .el-input {
+        width: 50px;
+        margin: 0 4px;
 
-    .el-dialog__title {
-      font-size: 16px;
-      font-weight: 600;
-      color: #333;
-    }
-  }
+        .el-input__wrapper {
+          border-radius: 8px;
+          border: 1px solid #e5e7eb;
+          background: #ffffff;
+          box-shadow: none;
 
-  .el-dialog__body {
-    padding: 24px;
-  }
+          &:hover {
+            border-color: #a78bfa;
+            box-shadow: 0 0 0 3px rgba(167, 139, 250, 0.1);
+          }
 
-  .el-form-item__label {
-    font-weight: 500;
-    color: #333;
-  }
+          &.is-focus {
+            border-color: #a78bfa;
+            box-shadow: 0 0 0 3px rgba(167, 139, 250, 0.15);
+          }
+        }
 
-  .dialog-footer {
-    display: flex;
-    justify-content: flex-end;
-    gap: 12px;
-    padding: 16px 24px 0;
-
-    .cancel-btn {
-      padding: 10px 24px;
-      border-radius: 8px;
-      font-weight: 500;
-
-      &:hover {
-        color: #7b42f6;
-        border-color: #7b42f6;
-        background: #f8f7ff;
-      }
-    }
-
-    .save-btn {
-      padding: 10px 24px;
-      border-radius: 8px;
-      font-weight: 500;
-      background: linear-gradient(135deg, #7b42f6 0%, #5a32a3 100%);
-      border: none;
-      box-shadow: 0 4px 12px rgba(123, 66, 246, 0.3);
-
-      &:hover {
-        background: linear-gradient(135deg, #6d33e6 0%, #4a249c 100%);
-        box-shadow: 0 6px 16px rgba(123, 66, 246, 0.4);
+        .el-input__inner {
+          color: #374151;
+          font-weight: 500;
+          text-align: center;
+        }
       }
     }
   }
-}
-
-.cron-help {
-  margin-top: 8px;
-  font-size: 12px;
-}
-
-.unit {
-  margin-left: 8px;
-  color: #606266;
 }
 </style>
+  --el-color-primary-light-9: #f8f

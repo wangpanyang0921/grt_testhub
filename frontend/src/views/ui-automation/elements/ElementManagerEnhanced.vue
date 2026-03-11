@@ -18,6 +18,10 @@
         <el-icon><Plus /></el-icon>
         {{ $t('uiAutomation.element.addElement') }}
       </el-button>
+      <el-button class="btn-secondary import-btn" @click="showImportDialog = true">
+        <el-icon><Upload /></el-icon>
+        批量导入
+      </el-button>
     </div>
 
     <div class="card-container element-layout">
@@ -287,6 +291,104 @@
         <el-button type="primary" @click="updatePage">{{ $t('uiAutomation.common.save') }}</el-button>
       </template>
     </el-dialog>
+
+    <!-- 批量导入对话框 -->
+    <el-dialog v-model="showImportDialog" width="800px" @close="resetImportDialog">
+      <template #header>
+        <div class="dialog-header-with-tooltip">
+          <span class="dialog-title">批量导入元素</span>
+          <el-tooltip
+            effect="dark"
+            placement="bottom-start"
+            :show-arrow="true"
+            popper-class="import-tips-tooltip"
+          >
+            <template #content>
+              <div class="tooltip-content">
+                <div class="tooltip-title">导入说明</div>
+                <div class="tooltip-item">
+                  <span class="tooltip-dot">1.</span>
+                  <span>支持 Excel 文件格式（.xlsx, .xls）</span>
+                </div>
+                <div class="tooltip-item">
+                  <span class="tooltip-dot">2.</span>
+                  <span><strong>必填字段</strong>：所属页面、元素名称、元素类型、定位策略、定位表达式</span>
+                </div>
+                <div class="tooltip-item">
+                  <span class="tooltip-dot">3.</span>
+                  <span>所属页面支持父子页面格式，用 <code>/</code> 分隔（如：首页/登录页）</span>
+                </div>
+                <div class="tooltip-item">
+                  <span class="tooltip-dot">4.</span>
+                  <span>如果页面不存在，系统会<strong>自动创建</strong></span>
+                </div>
+                <div class="tooltip-item">
+                  <span class="tooltip-dot">5.</span>
+                  <span>元素类型可选值：按钮、输入框、链接、下拉框、复选框、单选框、文本、图片、表格、表单、弹窗</span>
+                </div>
+              </div>
+            </template>
+            <el-icon class="header-info-icon"><Warning /></el-icon>
+          </el-tooltip>
+        </div>
+      </template>
+      <div class="import-dialog-content">
+        <div class="import-actions">
+          <el-button class="btn-secondary" @click="downloadTemplate">
+            <el-icon><Download /></el-icon>
+            下载模板
+          </el-button>
+          <el-upload
+            ref="uploadRef"
+            :auto-upload="false"
+            :show-file-list="false"
+            accept=".xlsx,.xls"
+            :on-change="handleFileChange"
+          >
+            <el-button class="btn-secondary">
+              <el-icon><Upload /></el-icon>
+              选择文件
+            </el-button>
+          </el-upload>
+        </div>
+
+        <div v-if="importFileName" class="import-file-info">
+          <el-tag type="info" closable @close="clearImportFile">
+            {{ importFileName }}
+          </el-tag>
+        </div>
+
+        <div v-if="importData.length > 0" class="import-preview">
+          <h4>数据预览（共 {{ importData.length }} 条）</h4>
+          <el-table :data="importData.slice(0, 10)" border style="width: 100%;">
+            <el-table-column prop="page" label="所属页面" width="150" show-overflow-tooltip />
+            <el-table-column prop="name" label="元素名称" width="150" show-overflow-tooltip />
+            <el-table-column prop="element_type" label="元素类型" width="100" />
+            <el-table-column prop="locator_strategy" label="定位策略" width="120" show-overflow-tooltip />
+            <el-table-column prop="locator_value" label="定位表达式" show-overflow-tooltip />
+          </el-table>
+          <div v-if="importData.length > 10" style="text-align: center; margin-top: 8px; color: #9370db; font-size: 13px;">
+            仅显示前 10 条数据
+          </div>
+        </div>
+
+        <div v-if="importErrors.length > 0" class="import-errors">
+          <h4>数据验证错误</h4>
+          <el-alert type="error">
+            <ul>
+              <li v-for="(error, index) in importErrors" :key="index">{{ error }}</li>
+            </ul>
+          </el-alert>
+        </div>
+      </div>
+
+      <template #footer>
+        <el-button class="btn-cancel" @click="showImportDialog = false">取消</el-button>
+        <el-button type="primary" @click="executeImport" :loading="importing" :disabled="importData.length === 0 || importErrors.length > 0">
+          开始导入
+        </el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -296,8 +398,10 @@ import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   Plus, FolderAdd, Document, Search, Edit, Delete,
-  Folder, Document as DocumentIcon, Operation, DocumentCopy, ArrowDown, Warning
+  Folder, Document as DocumentIcon, Operation, DocumentCopy, ArrowDown, Warning,
+  Upload, Download
 } from '@element-plus/icons-vue'
+import * as XLSX from 'xlsx'
 import {
   getUiProjects,
   getElements,
@@ -338,6 +442,14 @@ const editPageFormRef = ref(null)
 // 对话框控制
 const showCreatePageDialog = ref(false)
 const showEditPageDialog = ref(false)
+const showImportDialog = ref(false)
+
+// 批量导入相关
+const uploadRef = ref(null)
+const importFileName = ref('')
+const importData = ref([])
+const importErrors = ref([])
+const importing = ref(false)
 
 // 右键菜单
 const showContextMenu = ref(false)
@@ -1060,6 +1172,270 @@ const cancelEdit = () => {
   editingNodeName.value = ''
 }
 
+// 批量导入相关函数
+const resetImportDialog = () => {
+  importFileName.value = ''
+  importData.value = []
+  importErrors.value = []
+  importing.value = false
+}
+
+const clearImportFile = () => {
+  importFileName.value = ''
+  importData.value = []
+  importErrors.value = []
+}
+
+const downloadTemplate = () => {
+  const templateData = [
+    {
+      '所属页面': '首页/登录页',
+      '元素名称': '登录按钮',
+      '元素类型': '按钮',
+      '定位策略': 'ID',
+      '定位表达式': 'login-btn',
+      '等待超时(秒)': 10,
+      '强制操作': false,
+      '组件名称': '',
+      '描述': '登录页面的登录按钮'
+    },
+    {
+      '所属页面': '首页',
+      '元素名称': '用户名输入框',
+      '元素类型': '输入框',
+      '定位策略': 'CSS',
+      '定位表达式': '#username',
+      '等待超时(秒)': 10,
+      '强制操作': false,
+      '组件名称': '',
+      '描述': ''
+    }
+  ]
+
+  const ws = XLSX.utils.json_to_sheet(templateData)
+
+  // 设置列宽为原来的3倍（默认约10字符，设置为30字符）
+  const colWidths = [
+    { wch: 30 },  // 所属页面
+    { wch: 30 },  // 元素名称
+    { wch: 15 },  // 元素类型
+    { wch: 18 },  // 定位策略
+    { wch: 36 },  // 定位表达式
+    { wch: 18 },  // 等待超时(秒)
+    { wch: 15 },  // 强制操作
+    { wch: 24 },  // 组件名称
+    { wch: 45 }   // 描述
+  ]
+  ws['!cols'] = colWidths
+
+  const wb = XLSX.utils.book_new()
+  XLSX.utils.book_append_sheet(wb, ws, '元素导入模板')
+  XLSX.writeFile(wb, '元素导入模板.xlsx')
+}
+
+const handleFileChange = (file) => {
+  const reader = new FileReader()
+  reader.onload = (e) => {
+    try {
+      const data = new Uint8Array(e.target.result)
+      const workbook = XLSX.read(data, { type: 'array' })
+      const firstSheet = workbook.Sheets[workbook.SheetNames[0]]
+      const jsonData = XLSX.utils.sheet_to_json(firstSheet)
+
+      importFileName.value = file.name
+      parseImportData(jsonData)
+    } catch (error) {
+      console.error('解析Excel文件失败:', error)
+      ElMessage.error('解析Excel文件失败，请检查文件格式')
+    }
+  }
+  reader.readAsArrayBuffer(file.raw)
+}
+
+const parseImportData = (jsonData) => {
+  importData.value = []
+  importErrors.value = []
+
+  const validElementTypes = ['BUTTON', 'INPUT', 'LINK', 'DROPDOWN', 'CHECKBOX', 'RADIO', 'TEXT', 'IMAGE', 'TABLE', 'FORM', 'MODAL']
+
+  // 中文元素类型映射到英文
+  const elementTypeMapping = {
+    '按钮': 'BUTTON',
+    '输入框': 'INPUT',
+    '链接': 'LINK',
+    '下拉框': 'DROPDOWN',
+    '复选框': 'CHECKBOX',
+    '单选框': 'RADIO',
+    '文本': 'TEXT',
+    '图片': 'IMAGE',
+    '表格': 'TABLE',
+    '表单': 'FORM',
+    '弹窗': 'MODAL'
+  }
+
+  jsonData.forEach((row, index) => {
+    const rowNum = index + 2
+
+    const page = row['所属页面'] || row['page'] || ''
+    const name = row['元素名称'] || row['name'] || ''
+    let elementType = (row['元素类型'] || row['element_type'] || '').toUpperCase()
+    const locatorStrategy = row['定位策略'] || row['locator_strategy'] || ''
+    const locatorValue = row['定位表达式'] || row['locator_value'] || ''
+    const waitTimeout = row['等待超时(秒)'] || row['wait_timeout'] || 10
+    const forceAction = row['强制操作'] || row['force_action'] || false
+    const componentName = row['组件名称'] || row['component_name'] || ''
+    const description = row['描述'] || row['description'] || ''
+
+    // 如果是中文元素类型，转换为英文
+    const originalElementType = elementType
+    if (elementTypeMapping[elementType]) {
+      elementType = elementTypeMapping[elementType]
+    }
+
+    if (!page) {
+      importErrors.value.push(`第 ${rowNum} 行：所属页面不能为空`)
+    }
+    if (!name) {
+      importErrors.value.push(`第 ${rowNum} 行：元素名称不能为空`)
+    }
+    if (!elementType) {
+      importErrors.value.push(`第 ${rowNum} 行：元素类型不能为空`)
+    } else if (!validElementTypes.includes(elementType)) {
+      importErrors.value.push(`第 ${rowNum} 行：元素类型 "${originalElementType}" 无效，有效值为：${validElementTypes.join(', ')} 或中文：${Object.keys(elementTypeMapping).join(', ')}`)
+    }
+    if (!locatorStrategy) {
+      importErrors.value.push(`第 ${rowNum} 行：定位策略不能为空`)
+    }
+    if (!locatorValue) {
+      importErrors.value.push(`第 ${rowNum} 行：定位表达式不能为空`)
+    }
+
+    importData.value.push({
+      page,
+      name,
+      element_type: elementType,
+      locator_strategy: locatorStrategy,
+      locator_value: locatorValue,
+      wait_timeout: parseInt(waitTimeout) || 10,
+      force_action: !!forceAction,
+      component_name: componentName,
+      description: description
+    })
+  })
+}
+
+const findOrCreatePage = async (pagePath) => {
+  const pageNames = pagePath.split('/').filter(p => p.trim())
+  let parentId = null
+  let currentFullPageName = ''
+
+  for (let i = 0; i < pageNames.length; i++) {
+    const pageName = pageNames[i]
+    currentFullPageName = pageNames.slice(0, i + 1).join('/')
+
+    let existingPage = null
+    
+    const findPageByParentAndName = (nodes, targetParentId, targetName) => {
+      for (const node of nodes) {
+        if (node.type === 'page' && node.name === targetName) {
+          const nodeParent = node.parent_group || null
+          if (nodeParent === targetParentId) {
+            return node
+          }
+        }
+        if (node.children) {
+          const found = findPageByParentAndName(node.children, targetParentId, targetName)
+          if (found) return found
+        }
+      }
+      return null
+    }
+
+    existingPage = findPageByParentAndName(treeData.value, parentId, pageName)
+
+    if (existingPage) {
+      parentId = existingPage.id
+    } else {
+      const response = await createElementGroup({
+        name: pageName,
+        description: '',
+        parent_group: parentId,
+        project: selectedProject.value
+      })
+      parentId = response.data.id
+      await loadPageTree()
+    }
+  }
+
+  return currentFullPageName
+}
+
+const executeImport = async () => {
+  if (importData.value.length === 0 || importErrors.value.length > 0) {
+    return
+  }
+
+  importing.value = true
+  let successCount = 0
+  let failCount = 0
+
+  try {
+    for (const item of importData.value) {
+      try {
+        const pageName = await findOrCreatePage(item.page)
+
+        let strategyId = null
+        for (const strategy of locatorStrategies.value) {
+          if (strategy.name === item.locator_strategy) {
+            strategyId = strategy.id
+            break
+          }
+        }
+
+        if (!strategyId) {
+          importErrors.value.push(`元素 "${item.name}"：定位策略 "${item.locator_strategy}" 不存在`)
+          failCount++
+          continue
+        }
+
+        await createElement({
+          name: item.name,
+          element_type: item.element_type,
+          page: pageName,
+          component_name: item.component_name || '',
+          locator_value: item.locator_value,
+          locator_strategy_id: strategyId,
+          wait_timeout: item.wait_timeout || 10,
+          force_action: item.force_action || false,
+          description: item.description || '',
+          project_id: selectedProject.value
+        })
+
+        successCount++
+      } catch (error) {
+        console.error('导入元素失败:', error)
+        importErrors.value.push(`元素 "${item.name}"：导入失败 - ${error.response?.data?.detail || error.message}`)
+        failCount++
+      }
+    }
+
+    await loadPageTree()
+
+    if (failCount > 0) {
+      ElMessage.warning(`导入完成：成功 ${successCount} 条，失败 ${failCount} 条`)
+    } else {
+      ElMessage.success(`导入成功：共 ${successCount} 条`)
+      showImportDialog.value = false
+      resetImportDialog()
+    }
+  } catch (error) {
+    console.error('批量导入失败:', error)
+    ElMessage.error('批量导入失败')
+  } finally {
+    importing.value = false
+  }
+}
+
 // 点击其他地方关闭右键菜单
 onMounted(() => {
   document.addEventListener('click', () => {
@@ -1131,7 +1507,8 @@ onMounted(() => {
     }
   }
 
-  .add-element-btn {
+  .add-element-btn,
+  .import-btn {
     background: #ffffff !important;
     border: 1px solid rgba(147, 112, 219, 0.4) !important;
     color: #5a32a3 !important;
@@ -1150,6 +1527,300 @@ onMounted(() => {
       color: #7b42f6 !important;
       transform: translateY(-1px) !important;
       box-shadow: 0 2px 8px rgba(147, 112, 219, 0.2) !important;
+    }
+  }
+}
+
+// 对话框标题带提示图标样式
+.dialog-header-with-tooltip {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+
+  .dialog-title {
+    font-size: 18px;
+    font-weight: 600;
+    color: #5a32a3;
+  }
+
+  .header-info-icon {
+    font-size: 20px;
+    color: #7b42f6;
+    cursor: pointer;
+    padding: 4px;
+    border-radius: 50%;
+    transition: all 0.3s ease;
+
+    &:hover {
+      background: rgba(123, 66, 246, 0.1);
+      transform: scale(1.1);
+    }
+  }
+}
+
+// Tooltip 样式 - 紫色渐变风格
+:deep(.import-tips-tooltip) {
+  background: linear-gradient(135deg, #8B5CF6 0%, #6D28D9 100%) !important;
+  border: none !important;
+  border-radius: 12px !important;
+  padding: 20px 24px !important;
+  max-width: 520px !important;
+  box-shadow: 0 12px 32px rgba(109, 40, 217, 0.4) !important;
+
+  .el-popper__arrow::before {
+    background: #8B5CF6 !important;
+    border-color: #8B5CF6 !important;
+  }
+
+  .tooltip-content {
+    color: #ffffff;
+
+    .tooltip-title {
+      font-size: 16px;
+      font-weight: 600;
+      margin-bottom: 16px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.25);
+      color: #ffffff;
+    }
+
+    .tooltip-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      margin-bottom: 12px;
+      font-size: 14px;
+      line-height: 1.7;
+      color: rgba(255, 255, 255, 0.95);
+
+      &:last-child {
+        margin-bottom: 0;
+      }
+
+      .tooltip-dot {
+        color: #FCD34D;
+        font-weight: 700;
+        flex-shrink: 0;
+        font-size: 14px;
+      }
+
+      strong {
+        font-weight: 600;
+        color: #FCD34D;
+      }
+
+      code {
+        background: rgba(255, 255, 255, 0.25);
+        color: #FCD34D;
+        padding: 2px 8px;
+        border-radius: 4px;
+        font-family: 'Monaco', monospace;
+        font-size: 13px;
+        font-weight: 500;
+      }
+    }
+  }
+}
+
+.import-dialog-content {
+  .import-tips-collapse {
+    margin-bottom: 20px;
+    border: none;
+    background: transparent;
+
+    :deep(.el-collapse-item__header) {
+      background: linear-gradient(135deg, #f8f7ff 0%, #f0edff 100%);
+      border: 1px solid rgba(147, 112, 219, 0.15);
+      border-radius: 12px;
+      padding: 16px 20px;
+      height: auto;
+      line-height: normal;
+
+      &.is-active {
+        border-radius: 12px 12px 0 0;
+        border-bottom: none;
+      }
+
+      .el-collapse-item__arrow {
+        color: #7b42f6;
+        font-size: 16px;
+        font-weight: bold;
+      }
+    }
+
+    :deep(.el-collapse-item__wrap) {
+      background: linear-gradient(135deg, #f8f7ff 0%, #f0edff 100%);
+      border: 1px solid rgba(147, 112, 219, 0.15);
+      border-top: none;
+      border-radius: 0 0 12px 12px;
+      overflow: hidden;
+    }
+
+    :deep(.el-collapse-item__content) {
+      padding: 0 20px 20px;
+      background: transparent;
+    }
+
+    .tips-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 16px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid rgba(147, 112, 219, 0.1);
+
+      .tips-icon {
+        font-size: 20px;
+        color: #7b42f6;
+      }
+
+      .tips-title {
+        font-size: 16px;
+        font-weight: 600;
+        color: #5a32a3;
+      }
+    }
+
+    .tips-content {
+      .tip-item {
+        display: flex;
+        align-items: flex-start;
+        gap: 10px;
+        margin-bottom: 10px;
+
+        .tip-dot {
+          width: 20px;
+          height: 20px;
+          border-radius: 50%;
+          background: linear-gradient(135deg, #7b42f6 0%, #5a32a3 100%);
+          color: white;
+          font-size: 11px;
+          font-weight: 600;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          flex-shrink: 0;
+          margin-top: 1px;
+        }
+
+        .tip-text {
+          font-size: 13px;
+          color: #5a32a3;
+          line-height: 1.6;
+
+          strong {
+            color: #7b42f6;
+            font-weight: 600;
+          }
+
+          code {
+            background: rgba(123, 66, 246, 0.1);
+            color: #7b42f6;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: 'Monaco', monospace;
+            font-size: 12px;
+          }
+        }
+      }
+
+      .element-types {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-left: 30px;
+        margin-top: 8px;
+
+        .type-tag {
+          background: linear-gradient(135deg, #f0edff 0%, #e8e4ff 100%);
+          border: 1px solid rgba(123, 66, 246, 0.2);
+          color: #5a32a3;
+          font-weight: 500;
+          transition: all 0.2s ease;
+
+          &:hover {
+            background: linear-gradient(135deg, #e8e4ff 0%, #ddd8ff 100%);
+            transform: translateY(-1px);
+            box-shadow: 0 2px 6px rgba(123, 66, 246, 0.15);
+          }
+        }
+      }
+    }
+  }
+
+  .import-actions {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 16px;
+
+    .btn-secondary,
+    .btn-cancel {
+      background: #ffffff !important;
+      border: 1px solid rgba(147, 112, 219, 0.4) !important;
+      color: #5a32a3 !important;
+      font-weight: 500 !important;
+      padding: 10px 20px !important;
+      border-radius: 8px !important;
+      transition: all 0.3s ease !important;
+
+      .el-icon {
+        margin-right: 8px;
+        font-size: 16px;
+      }
+
+      &:hover {
+        background: linear-gradient(135deg, #f8f7ff 0%, #f0edff 100%) !important;
+        border-color: #7b42f6 !important;
+        color: #7b42f6 !important;
+        transform: translateY(-1px) !important;
+        box-shadow: 0 2px 8px rgba(147, 112, 219, 0.2) !important;
+      }
+    }
+  }
+
+  .import-file-info {
+    margin-bottom: 16px;
+  }
+
+  .import-preview {
+    margin-top: 20px;
+
+    h4 {
+      color: #5a32a3;
+      font-size: 14px;
+      font-weight: 600;
+      margin-bottom: 12px;
+    }
+
+    :deep(.el-table) {
+      font-size: 13px;
+
+      th {
+        background: linear-gradient(135deg, #f5f3ff 0%, #ede9fe 100%);
+        color: #5a32a3;
+        font-weight: 600;
+      }
+    }
+  }
+
+  .import-errors {
+    margin-top: 20px;
+
+    h4 {
+      color: #f56c6c;
+      font-size: 14px;
+      font-weight: 600;
+      margin-bottom: 12px;
+    }
+
+    ul {
+      margin: 0;
+      padding-left: 20px;
+    }
+
+    li {
+      margin-bottom: 6px;
+      color: #f56c6c;
     }
   }
 }

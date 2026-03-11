@@ -16,11 +16,6 @@
           <el-icon><Search /></el-icon>
         </template>
       </el-input>
-      <el-button class="reset-btn" @click="handleReset">{{ $t('uiAutomation.common.reset') }}</el-button>
-      <el-button type="primary" class="query-btn" @click="handleSearch">
-        <el-icon><Search /></el-icon>
-        {{ $t('uiAutomation.common.search') }}
-      </el-button>
       <div class="filter-bar-spacer"></div>
       <el-button type="primary" class="create-btn" @click="showCreateDialog = true">
         <el-icon><Plus /></el-icon>
@@ -43,7 +38,7 @@
               {{ (pagination.currentPage - 1) * pagination.pageSize + $index + 1 }}
             </template>
           </el-table-column>
-          <el-table-column :label="$t('uiAutomation.testCase.caseName')" min-width="200" header-align="center" align="left">
+          <el-table-column :label="$t('uiAutomation.testCase.caseName')" min-width="200" header-align="center" align="center">
             <template #default="{ row }">
               <div class="case-name-cell" @click="selectTestCase(row)">{{ row.name }}</div>
             </template>

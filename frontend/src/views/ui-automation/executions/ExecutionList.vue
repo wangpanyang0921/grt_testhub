@@ -16,24 +16,14 @@
           <el-icon><Search /></el-icon>
         </template>
       </el-input>
-      <el-select v-model="queryParams.status" :placeholder="$t('uiAutomation.execution.statusFilter')" clearable style="width: 160px;">
+      <el-select v-model="queryParams.status" :placeholder="$t('uiAutomation.execution.statusFilter')" clearable @change="handleSearch" style="width: 160px;">
         <el-option :label="$t('uiAutomation.status.pending')" value="pending" />
         <el-option :label="$t('uiAutomation.status.running')" value="running" />
         <el-option :label="$t('uiAutomation.status.passed')" value="passed" />
         <el-option :label="$t('uiAutomation.status.failed')" value="failed" />
         <el-option :label="$t('uiAutomation.status.error')" value="error" />
       </el-select>
-      <el-select v-model="queryParams.browser" :placeholder="$t('uiAutomation.execution.browserFilter')" clearable style="width: 160px;">
-        <el-option label="Chrome" value="chrome" />
-        <el-option label="Firefox" value="firefox" />
-        <el-option label="Safari" value="safari" />
-        <el-option label="Edge" value="edge" />
-      </el-select>
-      <el-button class="reset-btn" @click="resetQuery">{{ $t('uiAutomation.common.reset') }}</el-button>
-      <el-button type="primary" class="query-btn" @click="handleSearch">
-        <el-icon><Search /></el-icon>
-        {{ $t('uiAutomation.common.search') }}
-      </el-button>
+      <div class="filter-bar-spacer"></div>
       <div class="filter-bar-spacer"></div>
       <el-button
         type="danger"

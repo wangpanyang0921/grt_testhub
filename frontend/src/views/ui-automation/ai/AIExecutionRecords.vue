@@ -13,8 +13,8 @@
           <el-icon><Search /></el-icon>
         </template>
       </el-input>
-      <el-button class="reset-btn" @click="handleReset">{{ $t('uiAutomation.common.reset') }}</el-button>
-      <el-button type="primary" class="query-btn" @click="handleSearch">
+      <el-button v-if="false" class="reset-btn" @click="handleReset">{{ $t('uiAutomation.common.reset') }}</el-button>
+      <el-button v-if="false" type="primary" class="query-btn" @click="handleSearch">
         <el-icon><Search /></el-icon>
         {{ $t('uiAutomation.common.search') }}
       </el-button>
@@ -869,23 +869,31 @@ onUnmounted(() => {
     border: none;
     transition: all 0.3s ease;
 
+    /* 定义主题变量 - 浅紫色风格 */
+    --primary-color: #a78bfa;
+    --primary-dark: #8b5cf6;
+    --primary-light: #f3f0ff;
+    --text-primary: #262626;
+    --text-secondary: #595959;
+    --text-tertiary: #8c8c8c;
+
     /* 覆盖 Element Plus 默认主题变量 */
     --el-color-primary: var(--primary-color);
-    --el-color-primary-light-3: #9370db;
-    --el-color-primary-light-5: #a888e0;
-    --el-color-primary-light-7: #c2a9f3;
-    --el-color-primary-light-9: #f8f7ff;
-    --el-border-color: rgba(147, 112, 219, 0.2);
-    --el-border-color-light: rgba(147, 112, 219, 0.15);
-    --el-border-color-lighter: rgba(147, 112, 219, 0.1);
-    --el-fill-color-light: #f8f7ff;
-    --el-fill-color-lighter: #f8f7ff;
-    --el-fill-color-blank: #f8f7ff;
+    --el-color-primary-light-3: #c4b5fd;
+    --el-color-primary-light-5: #ddd6fe;
+    --el-color-primary-light-7: #ede9fe;
+    --el-color-primary-light-9: #f5f3ff;
+    --el-border-color: rgba(167, 139, 250, 0.3);
+    --el-border-color-light: rgba(167, 139, 250, 0.2);
+    --el-border-color-lighter: rgba(167, 139, 250, 0.1);
+    --el-fill-color-light: #f5f3ff;
+    --el-fill-color-lighter: #f5f3ff;
+    --el-fill-color-blank: #f5f3ff;
     --el-text-color-primary: var(--text-primary);
     --el-text-color-regular: var(--text-secondary);
     --el-text-color-secondary: var(--text-tertiary);
 
-    .el-pagination {
+    :deep(.el-pagination) {
       display: flex;
       align-items: center;
       gap: 4px;
@@ -893,7 +901,7 @@ onUnmounted(() => {
 
       // 总条数
       .el-pagination__total {
-        color: #5a32a3;
+        color: #6b7280;
         font-size: 14px;
         font-weight: 500;
         margin-right: 12px;
@@ -906,23 +914,23 @@ onUnmounted(() => {
         .el-select {
           .el-input__wrapper {
             border-radius: 8px;
-            border: 1px solid rgba(147, 112, 219, 0.2);
+            border: 1px solid #e5e7eb;
             background: #ffffff;
             box-shadow: none;
 
             &:hover {
-              border-color: #7b42f6;
-              box-shadow: 0 0 0 3px rgba(123, 66, 246, 0.1);
+              border-color: #a78bfa;
+              box-shadow: 0 0 0 3px rgba(167, 139, 250, 0.1);
             }
 
             &.is-focus {
-              border-color: #7b42f6;
-              box-shadow: 0 0 0 3px rgba(123, 66, 246, 0.15);
+              border-color: #a78bfa;
+              box-shadow: 0 0 0 3px rgba(167, 139, 250, 0.15);
             }
           }
 
           .el-input__inner {
-            color: #5a32a3;
+            color: #374151;
             font-weight: 500;
           }
         }
@@ -934,17 +942,17 @@ onUnmounted(() => {
         width: 32px;
         height: 32px;
         border-radius: 8px;
-        border: 1px solid rgba(147, 112, 219, 0.2);
+        border: 1px solid #e5e7eb;
         background: #ffffff;
-        color: #5a32a3;
+        color: #6b7280;
         transition: all 0.3s ease;
 
         &:hover:not(:disabled) {
-          background: linear-gradient(135deg, #7b42f6 0%, #5a32a3 100%);
-          border-color: transparent;
-          color: white;
+          background: #f5f3ff;
+          border-color: #a78bfa;
+          color: #8b5cf6;
           transform: translateY(-1px);
-          box-shadow: 0 4px 12px rgba(123, 66, 246, 0.3);
+          box-shadow: 0 2px 8px rgba(167, 139, 250, 0.2);
         }
 
         &:disabled {
@@ -959,19 +967,19 @@ onUnmounted(() => {
         }
       }
 
-      // 页码
+      // 页码按钮
       .el-pager {
         display: flex;
-        gap: 4px;
+        gap: 8px;
 
         li {
           min-width: 32px;
           height: 32px;
           padding: 0 8px;
           border-radius: 8px;
-          border: 1px solid rgba(147, 112, 219, 0.2);
+          border: 1px solid #d1d5db;
           background: #ffffff;
-          color: #5a32a3;
+          color: #6b7280;
           font-size: 14px;
           font-weight: 500;
           transition: all 0.3s ease;
@@ -980,28 +988,29 @@ onUnmounted(() => {
           justify-content: center;
 
           &:hover:not(.is-active) {
-            background: rgba(123, 66, 246, 0.1);
-            border-color: #7b42f6;
-            color: #7b42f6;
+            background: #f5f3ff;
+            border-color: #a78bfa;
+            color: #8b5cf6;
             transform: translateY(-1px);
           }
 
           &.is-active {
-            background: linear-gradient(135deg, #7b42f6 0%, #5a32a3 100%);
-            border-color: transparent;
-            color: white;
-            box-shadow: 0 4px 12px rgba(123, 66, 246, 0.3);
+            background: #f5f3ff;
+            border-color: #a78bfa;
+            color: #8b5cf6;
+            box-shadow: 0 2px 8px rgba(167, 139, 250, 0.2);
           }
 
           &.is-active:hover {
-            background: linear-gradient(135deg, #6d33e6 0%, #4a249c 100%);
+            background: #ede9fe;
+            border-color: #8b5cf6;
           }
         }
       }
 
       // 跳转输入框
       .el-pagination__jump {
-        color: #5a32a3;
+        color: #6b7280;
         font-weight: 500;
         margin-left: 12px;
 
@@ -1011,23 +1020,23 @@ onUnmounted(() => {
 
           .el-input__wrapper {
             border-radius: 8px;
-            border: 1px solid rgba(147, 112, 219, 0.2);
+            border: 1px solid #e5e7eb;
             background: #ffffff;
             box-shadow: none;
 
             &:hover {
-              border-color: #7b42f6;
-              box-shadow: 0 0 0 3px rgba(123, 66, 246, 0.1);
+              border-color: #a78bfa;
+              box-shadow: 0 0 0 3px rgba(167, 139, 250, 0.1);
             }
 
             &.is-focus {
-              border-color: #7b42f6;
-              box-shadow: 0 0 0 3px rgba(123, 66, 246, 0.15);
+              border-color: #a78bfa;
+              box-shadow: 0 0 0 3px rgba(167, 139, 250, 0.15);
             }
           }
 
           .el-input__inner {
-            color: #5a32a3;
+            color: #374151;
             font-weight: 500;
             text-align: center;
           }

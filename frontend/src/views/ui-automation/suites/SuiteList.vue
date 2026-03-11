@@ -30,7 +30,7 @@
             {{ $index + 1 + (pagination.currentPage - 1) * pagination.pageSize }}
           </template>
         </el-table-column>
-        <el-table-column prop="name" :label="$t('uiAutomation.suite.suiteName')" min-width="200" header-align="center" align="left">
+        <el-table-column prop="name" :label="$t('uiAutomation.suite.suiteName')" min-width="200" header-align="center" align="center">
           <template #default="{ row }">
             <span class="suite-name-cell" @click="editSuite(row.id)">
               {{ row.name }}
@@ -38,7 +38,7 @@
           </template>
         </el-table-column>
 
-        <el-table-column label="包含用例/脚本" width="150" header-align="center" align="center" show-overflow-tooltip>
+        <el-table-column label="包含数量" width="150" header-align="center" align="center" show-overflow-tooltip>
           <template #default="{ row }">
             {{ (row.test_case_count || 0) + (row.script_count || 0) }}
           </template>
@@ -1677,36 +1677,35 @@ const handleNewSuite = async () => {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 4px 12px;
-  border-radius: 12px;
-  font-size: 12px;
-  font-weight: 600;
-  min-width: 60px;
+  padding: 6px 16px;
+  border-radius: 4px;
+  font-size: 13px;
+  font-weight: 500;
   transition: all 0.3s ease;
+  white-space: nowrap;
 
+  // 未运行 - 灰色
   &.status-not-run {
-    background: linear-gradient(135deg, #f3f4f6 0%, #e5e7eb 100%);
-    color: #6b7280;
-    border: 1px solid rgba(107, 114, 128, 0.2);
+    background: #f5f5f5;
+    color: #8c8c8c;
   }
 
+  // 已通过 - 绿色
   &.status-passed {
-    background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%);
-    color: #059669;
-    border: 1px solid rgba(5, 150, 105, 0.2);
+    background: #f6ffed;
+    color: #52c41a;
   }
 
+  // 已失败 - 红色
   &.status-failed {
-    background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%);
-    color: #dc2626;
-    border: 1px solid rgba(220, 38, 38, 0.2);
+    background: #fff2f0;
+    color: #ff4d4f;
   }
 
+  // 运行中 - 蓝色
   &.status-running {
-    background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
-    color: #d97706;
-    border: 1px solid rgba(217, 119, 6, 0.2);
-    animation: pulse 2s infinite;
+    background: #e6f7ff;
+    color: #1890ff;
   }
 }
 

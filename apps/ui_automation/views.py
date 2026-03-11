@@ -9,6 +9,7 @@ from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import filters
 from django.db import models
 from django.utils import timezone
+from datetime import datetime, timedelta
 import logging
 import json
 import re
@@ -1975,7 +1976,8 @@ class UiScheduledTaskViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         """显示所有定时任务"""
-        return UiScheduledTask.objects.all()
+        queryset = UiScheduledTask.objects.all()
+        return self.filter_queryset(queryset)
 
     def perform_create(self, serializer):
         """创建定时任务"""
@@ -2443,30 +2445,65 @@ class UiScheduledTaskViewSet(viewsets.ModelViewSet):
         try:
             logger.info(f"准备发送任务 {task.id} 的通知，执行结果: {'成功' if success else '失败'}")
 
-            # 检查是否需要发送通知
-            if success and not task.notify_on_success:
-                logger.info("任务执行成功但未启用成功通知")
-                return
+            # 优先使用 UiTaskNotificationSetting 的配置
+            notification_setting = None
+            if hasattr(task, 'notification_settings'):
+                notification_setting = task.notification_settings.first()
 
-            if not success and not task.notify_on_failure:
-                logger.info("任务执行失败但未启用失败通知")
-                return
+            if notification_setting and notification_setting.is_enabled:
+                logger.info(f"使用 UiTaskNotificationSetting 配置 (ID: {notification_setting.id})")
 
-            # 检查通知类型
-            if not task.notification_type:
-                logger.info("未设置通知类型")
-                return
+                # 检查是否需要发送通知
+                if success and not notification_setting.notify_on_success:
+                    logger.info("任务执行成功但通知设置中未启用成功通知")
+                    return
 
-            logger.info(f"通知类型: {task.notification_type}")
+                if not success and not notification_setting.notify_on_failure:
+                    logger.info("任务执行失败但通知设置中未启用失败通知")
+                    return
 
-            # 根据通知类型发送不同的通知
-            if task.notification_type in ['webhook', 'both']:
-                logger.info("发送Webhook通知")
-                self._send_webhook_notification(task, success)
+                # 获取通知类型
+                notification_type = notification_setting.notification_type
+                if not notification_type:
+                    logger.info("通知设置中未设置通知类型")
+                    return
 
-            if task.notification_type in ['email', 'both']:
-                logger.info("发送邮件通知")
-                self._send_email_notification(task, success)
+                logger.info(f"通知类型 (来自 notification_setting): {notification_type}")
+
+                # 根据通知类型发送不同的通知
+                if notification_type in ['webhook', 'both']:
+                    logger.info("发送Webhook通知")
+                    self._send_webhook_notification(task, success)
+
+                if notification_type in ['email', 'both']:
+                    logger.info("发送邮件通知")
+                    self._send_email_notification(task, success, notification_setting)
+            else:
+                logger.info("未找到启用的 UiTaskNotificationSetting，回退到 task 字段")
+
+                # 回退到使用 task 字段
+                if success and not task.notify_on_success:
+                    logger.info("任务执行成功但未启用成功通知")
+                    return
+
+                if not success and not task.notify_on_failure:
+                    logger.info("任务执行失败但未启用失败通知")
+                    return
+
+                if not task.notification_type:
+                    logger.info("未设置通知类型")
+                    return
+
+                logger.info(f"通知类型 (来自 task): {task.notification_type}")
+
+                # 根据通知类型发送不同的通知
+                if task.notification_type in ['webhook', 'both']:
+                    logger.info("发送Webhook通知")
+                    self._send_webhook_notification(task, success)
+
+                if task.notification_type in ['email', 'both']:
+                    logger.info("发送邮件通知")
+                    self._send_email_notification(task, success)
 
         except Exception as e:
             logger.error(f"发送通知失败: {str(e)}", exc_info=True)
@@ -2695,8 +2732,14 @@ class UiScheduledTaskViewSet(viewsets.ModelViewSet):
         except Exception as e:
             logger.error(f"发送Webhook通知失败: {str(e)}", exc_info=True)
 
-    def _send_email_notification(self, task, success):
-        """发送邮件通知"""
+    def _send_email_notification(self, task, success, notification_setting=None):
+        """发送邮件通知
+        
+        Args:
+            task: 定时任务对象
+            success: 执行是否成功
+            notification_setting: 可选的 UiTaskNotificationSetting 对象，用于获取自定义收件人
+        """
         try:
             from django.core.mail import send_mail
             from django.conf import settings
@@ -2705,11 +2748,22 @@ class UiScheduledTaskViewSet(viewsets.ModelViewSet):
 
             # 获取收件人列表
             recipients = []
-            if task.notify_emails:
-                if isinstance(task.notify_emails, list):
-                    recipients = task.notify_emails
-                else:
-                    recipients = [task.notify_emails]
+
+            # 如果提供了 notification_setting，优先使用 custom_recipients
+            if notification_setting:
+                custom_recipients = notification_setting.custom_recipients.all()
+                if custom_recipients:
+                    recipients = list(custom_recipients.values_list('email', flat=True))
+                    logger.info(f"从 notification_setting.custom_recipients 获取到 {len(recipients)} 个收件人")
+
+            # 如果没有从 custom_recipients 获取到收件人，使用 task.notify_emails
+            if not recipients:
+                if task.notify_emails:
+                    if isinstance(task.notify_emails, list):
+                        recipients = task.notify_emails
+                    else:
+                        recipients = [task.notify_emails]
+                    logger.info(f"从 task.notify_emails 获取到 {len(recipients)} 个收件人")
 
             if not recipients:
                 logger.warning("没有找到任何邮件收件人")
@@ -2746,15 +2800,24 @@ class UiScheduledTaskViewSet(viewsets.ModelViewSet):
             # 发送邮件
             from_email = settings.DEFAULT_FROM_EMAIL
             logger.info(f"准备发送邮件，发件人: {from_email}, 收件人: {recipients}")
+            logger.info(f"邮件主题: {subject}")
+            logger.info(f"EMAIL_BACKEND: {settings.EMAIL_BACKEND}")
+            logger.info(f"EMAIL_HOST: {settings.EMAIL_HOST}")
+            logger.info(f"EMAIL_PORT: {settings.EMAIL_PORT}")
+            logger.info(f"EMAIL_HOST_USER: {settings.EMAIL_HOST_USER}")
 
-            send_mail(
-                subject=subject,
-                message=message,
-                from_email=from_email,
-                recipient_list=recipients,
-                fail_silently=False,
-            )
-            logger.info("邮件发送成功")
+            try:
+                result = send_mail(
+                    subject=subject,
+                    message=message,
+                    from_email=from_email,
+                    recipient_list=recipients,
+                    fail_silently=False,
+                )
+                logger.info(f"邮件发送成功，发送数量: {result}")
+            except Exception as mail_error:
+                logger.error(f"send_mail 抛出异常: {str(mail_error)}", exc_info=True)
+                raise
 
             # 记录通知日志
             UiNotificationLog.objects.create(
@@ -2801,6 +2864,31 @@ class UiNotificationLogViewSet(viewsets.ReadOnlyModelViewSet):
     search_fields = ['task_name', 'notification_content']
     ordering_fields = ['created_at', 'sent_at']
     ordering = ['-created_at']
+
+    def get_queryset(self):
+        queryset = UiNotificationLog.objects.all()
+
+        # 处理时间范围筛选
+        start_date = self.request.query_params.get('start_date')
+        end_date = self.request.query_params.get('end_date')
+
+        if start_date:
+            try:
+                start_datetime = datetime.strptime(start_date, '%Y-%m-%d')
+                queryset = queryset.filter(created_at__gte=start_datetime)
+            except ValueError:
+                pass
+
+        if end_date:
+            try:
+                end_datetime = datetime.strptime(end_date, '%Y-%m-%d')
+                # 结束日期需要包含当天，所以加一天
+                end_datetime = end_datetime + timedelta(days=1)
+                queryset = queryset.filter(created_at__lt=end_datetime)
+            except ValueError:
+                pass
+
+        return queryset
 
     @action(detail=True, methods=['post'])
     def retry(self, request, pk=None):

@@ -1,143 +1,137 @@
 <template>
-  <div class="notification-logs-container">
-    <!-- 页面操作栏 -->
-    <div class="page-actions">
-      <el-row :gutter="16" class="filter-row" align="middle">
-        <el-col :span="5">
-          <el-input
-              v-model="searchForm.taskName"
-              :placeholder="$t('uiAutomation.notification.logs.searchTaskName')"
-              clearable
-              @clear="handleSearch"
-              @keyup.enter="handleSearch"
-          >
-            <template #prefix>
-              <el-icon>
-                <Search/>
-              </el-icon>
-            </template>
-          </el-input>
-        </el-col>
-        <el-col :span="7">
-          <el-date-picker
-              v-model="searchForm.dateRange"
-              type="daterange"
-              :range-separator="$t('uiAutomation.notification.logs.dateRangeTo')"
-              :start-placeholder="$t('uiAutomation.notification.logs.startDate')"
-              :end-placeholder="$t('uiAutomation.notification.logs.endDate')"
-              value-format="YYYY-MM-DD"
-              @change="handleSearch"
-              style="width: 100%"
-          />
-        </el-col>
-        <el-col :span="5">
-          <el-select
-              v-model="searchForm.status"
-              :placeholder="$t('uiAutomation.notification.logs.notificationStatus')"
-              clearable
-              @change="handleSearch"
-          >
-            <el-option :label="$t('uiAutomation.notification.logs.allStatus')" value=""/>
-            <el-option :label="$t('uiAutomation.notification.logs.statusSuccess')" value="SUCCESS"/>
-            <el-option :label="$t('uiAutomation.notification.logs.statusFailed')" value="FAILED"/>
-            <el-option :label="$t('uiAutomation.notification.logs.statusRetrying')" value="RETRYING"/>
-          </el-select>
-        </el-col>
-        <el-col :span="7" class="button-col">
-          <el-button class="reset-btn" @click="handleReset">{{ $t('uiAutomation.common.reset') }}</el-button>
-          <el-button type="primary" class="query-btn" @click="handleSearch">
-            <el-icon>
-              <Search/>
-            </el-icon>
-            {{ $t('uiAutomation.common.search') }}
-          </el-button>
-        </el-col>
-      </el-row>
+  <div class="page-container">
+    <!-- 筛选栏 -->
+    <div class="filter-bar">
+      <el-input
+        v-model="searchForm.taskName"
+        :placeholder="$t('uiAutomation.notification.logs.searchTaskName')"
+        clearable
+        @clear="handleSearch"
+        @keyup.enter="handleSearch"
+        style="width: 260px;"
+      >
+        <template #prefix>
+          <el-icon><Search /></el-icon>
+        </template>
+      </el-input>
+      <el-date-picker
+        v-model="searchForm.dateRange"
+        type="daterange"
+        :range-separator="$t('uiAutomation.notification.logs.dateRangeTo')"
+        :start-placeholder="$t('uiAutomation.notification.logs.startDate')"
+        :end-placeholder="$t('uiAutomation.notification.logs.endDate')"
+        value-format="YYYY-MM-DD"
+        @change="handleSearch"
+        style="width: 680px;"
+      />
+      <el-select
+        v-model="searchForm.status"
+        :placeholder="$t('uiAutomation.notification.logs.notificationStatus')"
+        clearable
+        @change="handleSearch"
+        style="width: 160px;"
+      >
+        <el-option :label="$t('uiAutomation.notification.logs.allStatus')" value=""/>
+        <el-option :label="$t('uiAutomation.notification.logs.statusSuccess')" value="success"/>
+        <el-option :label="$t('uiAutomation.notification.logs.statusFailed')" value="failed"/>
+        <el-option :label="$t('uiAutomation.notification.logs.statusPending')" value="pending"/>
+        <el-option :label="$t('uiAutomation.notification.logs.statusSending')" value="sending"/>
+      </el-select>
     </div>
 
     <!-- 通知列表 -->
-    <div class="logs-table-container">
+    <div class="card-container">
       <el-table
-          :data="logsData"
-          v-loading="loading"
-          :element-loading-text="$t('uiAutomation.notification.logs.messages.loading')"
-          stripe
-          style="width: 100%"
-          @sort-change="handleSortChange"
+        :data="logsData"
+        v-loading="loading"
+        :element-loading-text="$t('uiAutomation.notification.logs.messages.loading')"
+        stripe
+        style="width: 100%"
+        @sort-change="handleSortChange"
       >
+        <el-table-column label="序号" width="80" header-align="center" align="center">
+          <template #default="{ $index }">
+            {{ (pagination.currentPage - 1) * pagination.pageSize + $index + 1 }}
+          </template>
+        </el-table-column>
         <el-table-column
-            prop="task_name"
-            :label="$t('uiAutomation.notification.logs.taskName')"
-            min-width="150"
-            sortable="custom"
+          prop="task_name"
+          :label="$t('uiAutomation.notification.logs.taskName')"
+          min-width="150"
+          sortable="custom"
+          header-align="center"
+          align="center"
         />
         <el-table-column
-            prop="task_type_display"
-            :label="$t('uiAutomation.notification.logs.taskType')"
-            min-width="100"
+          prop="task_type_display"
+          :label="$t('uiAutomation.notification.logs.taskType')"
+          min-width="100"
+          header-align="center"
+          align="center"
         >
           <template #default="{ row }">
-            <el-tag
-                type="info"
-                size="small"
-            >
+            <span class="task-type-badge" :class="getTaskTypeClass(row.task_type_display)">
               {{ row.task_type_display }}
-            </el-tag>
+            </span>
           </template>
         </el-table-column>
         <el-table-column
-            prop="actual_notification_type_display"
-            :label="$t('uiAutomation.notification.logs.notificationType')"
-            min-width="120"
+          prop="actual_notification_type_display"
+          :label="$t('uiAutomation.notification.logs.notificationType')"
+          min-width="120"
+          header-align="center"
+          align="center"
         >
           <template #default="{ row }">
-            <el-tag
-                :type="getNotificationTypeTagType(row.actual_notification_type_display)"
-                size="small"
-            >
+            <span class="notification-type-badge" :class="getNotificationTypeClass(row.actual_notification_type_display)">
               {{ row.actual_notification_type_display }}
-            </el-tag>
+            </span>
           </template>
         </el-table-column>
         <el-table-column
-            prop="created_at"
-            :label="$t('uiAutomation.notification.logs.notificationTime')"
-            min-width="180"
-            sortable="custom"
+          prop="created_at"
+          :label="$t('uiAutomation.notification.logs.notificationTime')"
+          min-width="180"
+          sortable="custom"
+          header-align="center"
+          align="center"
         >
           <template #default="{ row }">
             {{ formatDate(row.created_at) }}
           </template>
         </el-table-column>
         <el-table-column
-            prop="status_display"
-            :label="$t('uiAutomation.common.status')"
-            min-width="100"
-            sortable="custom"
+          prop="status_display"
+          :label="$t('uiAutomation.common.status')"
+          min-width="100"
+          sortable="custom"
+          header-align="center"
+          align="center"
         >
           <template #default="{ row }">
-            <el-tag
-                :type="getStatusTagType(row.status_display)"
-                size="small"
-            >
+            <span class="status-badge" :class="getStatusClass(row.status_display)">
               {{ row.status_display }}
-            </el-tag>
+            </span>
           </template>
         </el-table-column>
         <el-table-column
-            :label="$t('uiAutomation.common.operation')"
-            fixed="right"
-            width="120"
+          :label="$t('uiAutomation.common.operation')"
+          fixed="right"
+          width="120"
+          header-align="center"
+          align="center"
         >
           <template #default="{ row }">
-            <el-button
-                type="primary"
-                link
+            <div class="action-buttons">
+              <el-button
                 size="small"
+                class="action-btn view-btn"
                 @click="viewDetail(row)"
-            >
-              {{ $t('uiAutomation.notification.logs.viewDetail') }}
-            </el-button>
+              >
+                <el-icon><View /></el-icon>
+                <span>{{ $t('uiAutomation.notification.logs.viewDetail') }}</span>
+              </el-button>
+            </div>
           </template>
         </el-table-column>
       </el-table>
@@ -145,13 +139,13 @@
       <!-- 分页 -->
       <div class="pagination-container">
         <el-pagination
-            v-model:current-page="pagination.currentPage"
-            v-model:page-size="pagination.pageSize"
-            :page-sizes="[10, 20, 50, 100]"
-            :total="pagination.total"
-            layout="total, sizes, prev, pager, next, jumper"
-            @size-change="handleSizeChange"
-            @current-change="handleCurrentChange"
+          v-model:current-page="pagination.currentPage"
+          v-model:page-size="pagination.pageSize"
+          :page-sizes="[10, 20, 50, 100]"
+          :total="pagination.total"
+          layout="total, sizes, prev, pager, next, jumper"
+          @size-change="handleSizeChange"
+          @current-change="handleCurrentChange"
         />
       </div>
     </div>
@@ -255,7 +249,7 @@
 </template>
 
 <script>
-import {Search} from '@element-plus/icons-vue'
+import {Search, View} from '@element-plus/icons-vue'
 import {ref, reactive, onMounted, computed} from 'vue'
 import {ElMessage} from 'element-plus'
 import { getNotificationLogs } from '@/api/ui_automation.js'
@@ -264,7 +258,8 @@ import { useI18n } from 'vue-i18n'
 export default {
   name: 'NotificationLogs',
   components: {
-    Search
+    Search,
+    View
   },
   setup() {
     const { t, locale } = useI18n()
@@ -412,6 +407,7 @@ export default {
         // Chinese
         '邮箱通知': '',
         'Webhook机器人': 'primary',
+        '飞书机器人': 'primary',
         '两种都发送': 'warning',
         // English
         'Email': '',
@@ -419,6 +415,60 @@ export default {
         'Both': 'warning'
       }
       return typeMap[typeDisplay] || 'info'
+    }
+
+    // 获取通知类型样式类
+    const getNotificationTypeClass = (typeDisplay) => {
+      const typeMap = {
+        // Chinese
+        '邮箱通知': 'email',
+        'Webhook机器人': 'webhook',
+        '飞书机器人': 'webhook',
+        '两种都发送': 'both',
+        // English
+        'Email': 'email',
+        'Webhook Bot': 'webhook',
+        'Both': 'both'
+      }
+      return typeMap[typeDisplay] || ''
+    }
+
+    // 获取任务类型样式类
+    const getTaskTypeClass = (taskTypeDisplay) => {
+      const typeMap = {
+        // Chinese
+        '测试用例执行': 'test-case',
+        '测试套件执行': 'test-suite',
+        // English
+        'Test Case Execution': 'test-case',
+        'Test Suite Execution': 'test-suite'
+      }
+      return typeMap[taskTypeDisplay] || ''
+    }
+
+    // 获取状态样式类
+    const getStatusClass = (status) => {
+      const classMap = {
+        // Chinese
+        '发送成功': 'success',
+        '发送失败': 'failed',
+        '待发送': 'pending',
+        '发送中': 'sending',
+        '已取消': 'cancelled',
+        // English
+        'Success': 'success',
+        'Failed': 'failed',
+        'Pending': 'pending',
+        'Sending': 'sending',
+        'Cancelled': 'cancelled',
+        // Lowercase
+        'success': 'success',
+        'failed': 'failed',
+        'pending': 'pending',
+        'sending': 'sending',
+        'cancelled': 'cancelled'
+      }
+      return classMap[status] || 'default'
     }
 
     // 解析通知内容为结构化数据
@@ -544,14 +594,36 @@ export default {
       handleDetailDialogClose,
       formatDate,
       getStatusTagType,
-      getNotificationTypeTagType
+      getNotificationTypeTagType,
+      getNotificationTypeClass,
+      getTaskTypeClass,
+      getStatusClass
     }
   }
 }
 </script>
 
 <style scoped lang="scss">
-.notification-logs-container {
+// 全局变量
+:root {
+  --primary-color: #667eea;
+  --primary-dark: #764ba2;
+  --primary-light: #f8f7ff;
+  --primary-lighter: #fafbff;
+  --border-color: #e8e8e8;
+  --text-primary: #262626;
+  --text-secondary: #595959;
+  --text-tertiary: #8c8c8c;
+  --bg-light: #ffffff;
+  --bg-gray: #fafafa;
+  --success-color: #52c41a;
+  --warning-color: #faad14;
+  --danger-color: #ff4d4f;
+  --info-color: #1890ff;
+}
+
+// 页面容器
+.page-container {
   padding: 24px;
   min-height: calc(100vh - 60px);
   background: linear-gradient(135deg, #f5f3ff 0%, #ede9fe 100%);
@@ -561,27 +633,28 @@ export default {
   gap: 20px;
 }
 
-.page-actions {
+// 筛选栏
+.filter-bar {
   padding: 20px 24px;
   background: #ffffff;
   border: 1px solid rgba(147, 112, 219, 0.12);
   border-radius: 12px;
   box-shadow: 0 4px 16px rgba(147, 112, 219, 0.08);
+  display: flex;
+  align-items: center;
+  gap: 12px;
 
-  :deep(.el-input__wrapper) {
+  :deep(.el-input__wrapper),
+  :deep(.el-select .el-input__wrapper) {
+    box-shadow: 0 2px 8px rgba(147, 112, 219, 0.08);
     border-radius: 8px;
     border: 1px solid rgba(147, 112, 219, 0.2);
     background: #ffffff;
-    box-shadow: none;
 
-    &:hover {
+    &:hover,
+    &:focus {
+      box-shadow: 0 2px 8px rgba(147, 112, 219, 0.15);
       border-color: #7b42f6;
-      box-shadow: 0 0 0 3px rgba(123, 66, 246, 0.1);
-    }
-
-    &.is-focus {
-      border-color: #7b42f6;
-      box-shadow: 0 0 0 3px rgba(123, 66, 246, 0.15);
     }
   }
 
@@ -590,20 +663,8 @@ export default {
     font-weight: 500;
   }
 
-  :deep(.el-select) {
-    width: 100%;
-  }
-
-  :deep(.el-select .el-input__wrapper) {
-    border-radius: 8px;
-    border: 1px solid rgba(147, 112, 219, 0.2);
-    background: #ffffff;
-    box-shadow: none;
-
-    &:hover {
-      border-color: #7b42f6;
-      box-shadow: 0 0 0 3px rgba(123, 66, 246, 0.1);
-    }
+  .filter-bar-spacer {
+    flex: 1;
   }
 }
 
@@ -627,16 +688,15 @@ export default {
   background: linear-gradient(135deg, #7b42f6 0%, #5a32a3 100%) !important;
   border: none !important;
   color: #ffffff !important;
-  font-weight: 600 !important;
-  padding: 10px 24px !important;
+  font-weight: 500 !important;
+  padding: 9px 24px !important;
   border-radius: 8px !important;
-  box-shadow: 0 4px 12px rgba(123, 66, 246, 0.3) !important;
   transition: all 0.3s ease !important;
+  box-shadow: 0 4px 12px rgba(123, 66, 246, 0.25) !important;
 
   &:hover {
-    background: linear-gradient(135deg, #6d33e6 0%, #4a249c 100%) !important;
-    transform: translateY(-2px) !important;
-    box-shadow: 0 6px 16px rgba(123, 66, 246, 0.4) !important;
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(123, 66, 246, 0.35) !important;
   }
 }
 
@@ -652,7 +712,8 @@ export default {
   }
 }
 
-.logs-table-container {
+// 卡片容器
+.card-container {
   background: #ffffff;
   border: 1px solid rgba(147, 112, 219, 0.12);
   border-radius: 12px;
@@ -662,6 +723,7 @@ export default {
   overflow: hidden;
   padding-top: 16px;
 
+  // 表格样式
   .el-table {
     border: none;
     border-radius: 8px 8px 0 0;
@@ -711,7 +773,7 @@ export default {
           font-size: 14px;
           border-bottom: 1px solid #e9ecef;
           padding: 16px;
-          text-align: left;
+          text-align: center;
           line-height: 24px;
           transition: all 0.3s ease;
 
@@ -737,6 +799,7 @@ export default {
       :deep(.el-table__row) {
         transition: all 0.3s ease;
         background-color: #ffffff !important;
+        line-height: 24px;
 
         &:hover {
           background-color: #f8f7ff !important;
@@ -744,46 +807,120 @@ export default {
           box-shadow: 0 4px 12px rgba(147, 112, 219, 0.1);
         }
 
-        // 表格单元格
-        :deep(td) {
-          background-color: #ffffff !important;
-          border-bottom: 1px solid #e9ecef;
-          padding: 16px;
-          text-align: left;
-          line-height: 24px;
-          transition: all 0.3s ease;
+        &.el-table__row--striped {
+          background-color: #fafaff !important;
         }
 
-        &:hover :deep(td) {
-          background-color: #f8f7ff !important;
+        // 表格单元格
+        :deep(td) {
+          padding: 14px 8px;
+          border-bottom: 1px solid #e9ecef;
+          color: #595959;
+          font-size: 14px;
+          font-weight: normal;
+          line-height: 24px;
+          transition: all 0.3s ease;
+
+          // 单元格内部容器样式统一
+          :deep(.cell) {
+            font-size: 14px;
+            font-weight: normal;
+            color: #595959;
+            line-height: 24px;
+            white-space: nowrap;
+            overflow: visible;
+          }
         }
+      }
+    }
+
+    // 空状态
+    :deep(.el-table__empty-block) {
+      padding: 60px 0;
+      background: #ffffff !important;
+
+      :deep(.el-table__empty-text) {
+        color: #666;
+        font-size: 14px;
+        line-height: 24px;
       }
     }
   }
 }
 
+// 操作按钮容器
+.action-buttons {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: nowrap;
+}
+
+// 操作按钮样式
+.action-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 500;
+  padding: 4px 10px !important;
+  border-radius: 6px;
+  transition: all 0.3s ease;
+
+  .el-icon {
+    font-size: 14px;
+  }
+
+  span {
+    font-size: 12px;
+  }
+
+  &.view-btn {
+    background: linear-gradient(135deg, #7b42f6 0%, #5a32a3 100%) !important;
+    border: none !important;
+    color: #ffffff !important;
+    font-weight: 600 !important;
+
+    &:hover {
+      background: linear-gradient(135deg, #9a6af5 0%, #7b42f6 100%) !important;
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(123, 66, 246, 0.4);
+    }
+  }
+}
+
+// 分页容器
 .pagination-container {
   display: flex;
   justify-content: center;
   align-items: center;
-  padding: 8px 24px;
+  padding: 16px 0;
+  margin-top: 8px;
   background: transparent;
-  border-top: 1px solid rgba(147, 112, 219, 0.1);
+  border: none;
   transition: all 0.3s ease;
-  margin-top: 0;
+
+  /* 定义主题变量 - 浅紫色风格 */
+  --primary-color: #a78bfa;
+  --primary-dark: #8b5cf6;
+  --primary-light: #f3f0ff;
+  --text-primary: #262626;
+  --text-secondary: #595959;
+  --text-tertiary: #8c8c8c;
 
   /* 覆盖 Element Plus 默认主题变量 */
   --el-color-primary: var(--primary-color);
-  --el-color-primary-light-3: #9370db;
-  --el-color-primary-light-5: #a888e0;
-  --el-color-primary-light-7: #c2a9f3;
-  --el-color-primary-light-9: #f8f7ff;
-  --el-border-color: rgba(147, 112, 219, 0.2);
-  --el-border-color-light: rgba(147, 112, 219, 0.15);
-  --el-border-color-lighter: rgba(147, 112, 219, 0.1);
-  --el-fill-color-light: #f8f7ff;
-  --el-fill-color-lighter: #f8f7ff;
-  --el-fill-color-blank: #f8f7ff;
+  --el-color-primary-light-3: #c4b5fd;
+  --el-color-primary-light-5: #ddd6fe;
+  --el-color-primary-light-7: #ede9fe;
+  --el-color-primary-light-9: #f5f3ff;
+  --el-border-color: rgba(167, 139, 250, 0.3);
+  --el-border-color-light: rgba(167, 139, 250, 0.2);
+  --el-border-color-lighter: rgba(167, 139, 250, 0.1);
+  --el-fill-color-light: #f5f3ff;
+  --el-fill-color-lighter: #f5f3ff;
+  --el-fill-color-blank: #f5f3ff;
   --el-text-color-primary: var(--text-primary);
   --el-text-color-regular: var(--text-secondary);
   --el-text-color-secondary: var(--text-tertiary);
@@ -796,7 +933,7 @@ export default {
 
     // 总条数
     .el-pagination__total {
-      color: #5a32a3;
+      color: #6b7280;
       font-size: 14px;
       font-weight: 500;
       margin-right: 12px;
@@ -809,23 +946,23 @@ export default {
       .el-select {
         .el-input__wrapper {
           border-radius: 8px;
-          border: 1px solid rgba(147, 112, 219, 0.2);
+          border: 1px solid #e5e7eb;
           background: #ffffff;
           box-shadow: none;
 
           &:hover {
-            border-color: #7b42f6;
-            box-shadow: 0 0 0 3px rgba(123, 66, 246, 0.1);
+            border-color: #a78bfa;
+            box-shadow: 0 0 0 3px rgba(167, 139, 250, 0.1);
           }
 
           &.is-focus {
-            border-color: #7b42f6;
-            box-shadow: 0 0 0 3px rgba(123, 66, 246, 0.15);
+            border-color: #a78bfa;
+            box-shadow: 0 0 0 3px rgba(167, 139, 250, 0.15);
           }
         }
 
         .el-input__inner {
-          color: #5a32a3;
+          color: #374151;
           font-weight: 500;
         }
       }
@@ -837,38 +974,44 @@ export default {
       width: 32px;
       height: 32px;
       border-radius: 8px;
-      border: 1px solid rgba(147, 112, 219, 0.2);
+      border: 1px solid #e5e7eb;
       background: #ffffff;
-      color: #5a32a3;
+      color: #6b7280;
       transition: all 0.3s ease;
 
       &:hover:not(:disabled) {
-        background: linear-gradient(135deg, #7b42f6 0%, #5a32a3 100%);
-        border-color: transparent;
-        color: white;
+        background: #f5f3ff;
+        border-color: #a78bfa;
+        color: #8b5cf6;
         transform: translateY(-1px);
-        box-shadow: 0 4px 12px rgba(123, 66, 246, 0.3);
+        box-shadow: 0 2px 8px rgba(167, 139, 250, 0.2);
       }
 
       &:disabled {
-        opacity: 0.5;
-        cursor: not-allowed;
+        background: #f5f5f5;
+        border-color: #e0e0e0;
+        color: #c0c0c0;
+      }
+
+      .el-icon {
+        font-size: 14px;
+        font-weight: bold;
       }
     }
 
-    // 页码
+    // 页码按钮
     .el-pager {
       display: flex;
-      gap: 4px;
+      gap: 8px;
 
       li {
         min-width: 32px;
         height: 32px;
         padding: 0 8px;
         border-radius: 8px;
-        border: 1px solid rgba(147, 112, 219, 0.2);
+        border: 1px solid #d1d5db;
         background: #ffffff;
-        color: #5a32a3;
+        color: #6b7280;
         font-size: 14px;
         font-weight: 500;
         transition: all 0.3s ease;
@@ -877,66 +1020,154 @@ export default {
         justify-content: center;
 
         &:hover:not(.is-active) {
-          background: rgba(123, 66, 246, 0.1);
-          border-color: #7b42f6;
-          color: #7b42f6;
+          background: #f5f3ff;
+          border-color: #a78bfa;
+          color: #8b5cf6;
           transform: translateY(-1px);
         }
 
         &.is-active {
-          background: linear-gradient(135deg, #7b42f6 0%, #5a32a3 100%);
-          border-color: transparent;
-          color: white;
-          box-shadow: 0 4px 12px rgba(123, 66, 246, 0.3);
-          font-weight: 600;
+          background: #f5f3ff;
+          border-color: #a78bfa;
+          color: #8b5cf6;
+          box-shadow: 0 2px 8px rgba(167, 139, 250, 0.2);
         }
 
-        &.btn-quicknext,
-        &.btn-quickprev {
-          color: #9370db;
-
-          &:hover {
-            color: #7b42f6;
-          }
+        &.is-active:hover {
+          background: #ede9fe;
+          border-color: #8b5cf6;
         }
       }
     }
 
-    // 跳转页
+    // 跳转输入框
     .el-pagination__jump {
-      margin-left: 12px;
-      color: #5a32a3;
+      color: #6b7280;
       font-weight: 500;
+      margin-left: 12px;
 
       .el-input {
-        width: 48px;
-        margin: 0 8px;
+        width: 50px;
+        margin: 0 4px;
 
         .el-input__wrapper {
           border-radius: 8px;
-          border: 1px solid rgba(147, 112, 219, 0.2);
+          border: 1px solid #e5e7eb;
           background: #ffffff;
           box-shadow: none;
-          padding: 0 8px;
 
           &:hover {
-            border-color: #7b42f6;
-            box-shadow: 0 0 0 3px rgba(123, 66, 246, 0.1);
+            border-color: #a78bfa;
+            box-shadow: 0 0 0 3px rgba(167, 139, 250, 0.1);
           }
 
           &.is-focus {
-            border-color: #7b42f6;
-            box-shadow: 0 0 0 3px rgba(123, 66, 246, 0.15);
+            border-color: #a78bfa;
+            box-shadow: 0 0 0 3px rgba(167, 139, 250, 0.15);
           }
         }
 
         .el-input__inner {
-          color: #5a32a3;
+          color: #374151;
           font-weight: 500;
           text-align: center;
         }
       }
     }
+  }
+}
+
+// 任务类型徽章样式
+.task-type-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 10px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 500;
+  transition: all 0.3s ease;
+  white-space: nowrap;
+
+  &.test-case {
+    background: #e6fffb;
+    color: #13c2c2;
+  }
+
+  &.test-suite {
+    background: #f0f5ff;
+    color: #2f54eb;
+  }
+}
+
+// 通知类型徽章样式
+.notification-type-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 10px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 500;
+  transition: all 0.3s ease;
+  white-space: nowrap;
+
+  &.email {
+    background: #fff2e8;
+    color: #fa541c;
+  }
+
+  &.webhook {
+    background: #e6fffb;
+    color: #13c2c2;
+  }
+
+  &.both {
+    background: #f6ffed;
+    color: #52c41a;
+  }
+}
+
+// 状态徽章样式
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 10px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 500;
+  transition: all 0.3s ease;
+  white-space: nowrap;
+
+  &.success {
+    background: #f6ffed;
+    color: #52c41a;
+  }
+
+  &.failed {
+    background: #fff1f0;
+    color: #ff4d4f;
+  }
+
+  &.pending {
+    background: #f5f5f5;
+    color: #8c8c8c;
+  }
+
+  &.sending {
+    background: #e6f7ff;
+    color: #1890ff;
+  }
+
+  &.cancelled {
+    background: #fff7e6;
+    color: #fa8c16;
+  }
+
+  &.default {
+    background: #f5f5f5;
+    color: #8c8c8c;
   }
 }
 

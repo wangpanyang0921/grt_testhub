@@ -808,7 +808,8 @@ export default {
       allStatus: 'All Status',
       statusSuccess: 'Success',
       statusFailed: 'Failed',
-      statusRetrying: 'Retrying',
+      statusPending: 'Pending',
+      statusSending: 'Sending',
       notificationStatus: 'Notification Status',
       // Table columns
       taskName: 'Task Name',

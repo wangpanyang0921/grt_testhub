@@ -668,16 +668,16 @@ const handleCommand = async (command) => {
     padding-left: 20px !important;
     margin: 6px 12px !important;
     border-radius: 8px !important;
-    box-shadow: 0 2px 8px rgba(147, 112, 219, 0.08) !important;
+    box-shadow: 0 2px 8px rgba(147, 112, 219, 0.05), 0 0 0 1px rgba(147, 112, 219, 0.08) !important;
     backdrop-filter: blur(10px) !important;
     width: calc(100% - 24px) !important; /* Adjust for margins */
     box-sizing: border-box !important;
     outline: none !important;
-    border: 1px solid rgba(147, 112, 219, 0.08) !important;
-    
+    border: none !important;
+
     &:focus {
       outline: none !important;
-      box-shadow: 0 2px 8px rgba(147, 112, 219, 0.08) !important;
+      box-shadow: 0 2px 8px rgba(147, 112, 219, 0.05), 0 0 0 1px rgba(147, 112, 219, 0.08) !important;
     }
   }
   
@@ -689,16 +689,16 @@ const handleCommand = async (command) => {
     padding-left: 20px !important;
     margin: 6px 12px !important;
     border-radius: 8px !important;
-    box-shadow: 0 2px 8px rgba(147, 112, 219, 0.08) !important;
+    box-shadow: 0 2px 8px rgba(147, 112, 219, 0.05), 0 0 0 1px rgba(147, 112, 219, 0.08) !important;
     backdrop-filter: blur(10px) !important;
     width: calc(100% - 24px) !important; /* Adjust for margins */
     box-sizing: border-box !important;
     outline: none !important;
-    border: 1px solid rgba(147, 112, 219, 0.08) !important;
-    
+    border: none !important;
+
     &:focus {
       outline: none !important;
-      box-shadow: 0 2px 8px rgba(147, 112, 219, 0.08) !important;
+      box-shadow: 0 2px 8px rgba(147, 112, 219, 0.05), 0 0 0 1px rgba(147, 112, 219, 0.08) !important;
     }
   }
   
@@ -711,17 +711,17 @@ const handleCommand = async (command) => {
     padding-left: 20px !important;
     margin: 6px 12px !important;
     border-radius: 8px !important;
-    box-shadow: 0 4px 12px rgba(123, 66, 246, 0.4) !important;
+    box-shadow: 0 2px 8px rgba(147, 112, 219, 0.05) !important;
     backdrop-filter: blur(10px) !important;
     outline: none !important;
     border: none !important;
-    
+
     &:focus {
       outline: none !important;
-      box-shadow: 0 4px 12px rgba(123, 66, 246, 0.4) !important;
+      box-shadow: 0 2px 8px rgba(147, 112, 219, 0.05) !important;
     }
   }
-  
+
   :deep(.el-sub-menu__title.is-active) {
     background: linear-gradient(135deg, #7b42f6 0%, #5a32a3 100%) !important;
     color: #ffffff !important;
@@ -731,17 +731,17 @@ const handleCommand = async (command) => {
     padding-left: 20px !important;
     margin: 6px 12px !important;
     border-radius: 8px !important;
-    box-shadow: 0 4px 12px rgba(123, 66, 246, 0.4) !important;
+    box-shadow: 0 2px 8px rgba(147, 112, 219, 0.05) !important;
     backdrop-filter: blur(10px) !important;
     outline: none !important;
     border: none !important;
-    
+
     &:focus {
       outline: none !important;
-      box-shadow: 0 4px 12px rgba(123, 66, 246, 0.4) !important;
+      box-shadow: 0 2px 8px rgba(147, 112, 219, 0.05) !important;
     }
   }
-  
+
   :deep(.el-menu-item:hover) {
     background: rgba(255, 255, 255, 0.9) !important;
     color: #7b42f6 !important;
@@ -750,17 +750,17 @@ const handleCommand = async (command) => {
     padding-left: 20px !important;
     margin: 6px 12px !important;
     border-radius: 8px !important;
-    box-shadow: 0 4px 12px rgba(147, 112, 219, 0.15) !important;
+    box-shadow: 0 2px 8px rgba(147, 112, 219, 0.05), 0 0 0 1px rgba(147, 112, 219, 0.08) !important;
     backdrop-filter: blur(10px) !important;
     outline: none !important;
-    border: 1px solid rgba(147, 112, 219, 0.15) !important;
-    
+    border: none !important;
+
     &:focus {
       outline: none !important;
-      box-shadow: 0 4px 12px rgba(147, 112, 219, 0.15) !important;
+      box-shadow: 0 2px 8px rgba(147, 112, 219, 0.05), 0 0 0 1px rgba(147, 112, 219, 0.08) !important;
     }
   }
-  
+
   :deep(.el-sub-menu__title:hover) {
     background: rgba(255, 255, 255, 0.9) !important;
     color: #7b42f6 !important;
@@ -769,17 +769,17 @@ const handleCommand = async (command) => {
     padding-left: 20px !important;
     margin: 6px 12px !important;
     border-radius: 8px !important;
-    box-shadow: 0 4px 12px rgba(147, 112, 219, 0.15) !important;
+    box-shadow: 0 2px 8px rgba(147, 112, 219, 0.05), 0 0 0 1px rgba(147, 112, 219, 0.08) !important;
     backdrop-filter: blur(10px) !important;
     outline: none !important;
-    border: 1px solid rgba(147, 112, 219, 0.15) !important;
-    
+    border: none !important;
+
     &:focus {
       outline: none !important;
-      box-shadow: 0 4px 12px rgba(147, 112, 219, 0.15) !important;
+      box-shadow: 0 2px 8px rgba(147, 112, 219, 0.05), 0 0 0 1px rgba(147, 112, 219, 0.08) !important;
     }
   }
-  
+
   :deep(.el-menu-item.is-active:hover) {
     background: linear-gradient(135deg, #6d33e6 0%, #4a249c 100%) !important;
     color: #ffffff !important;
@@ -789,17 +789,17 @@ const handleCommand = async (command) => {
     padding-left: 20px !important;
     margin: 6px 12px !important;
     border-radius: 8px !important;
-    box-shadow: 0 6px 16px rgba(123, 66, 246, 0.5) !important;
+    box-shadow: 0 2px 8px rgba(147, 112, 219, 0.05) !important;
     backdrop-filter: blur(10px) !important;
     outline: none !important;
     border: none !important;
-    
+
     &:focus {
       outline: none !important;
-      box-shadow: 0 6px 16px rgba(123, 66, 246, 0.5) !important;
+      box-shadow: 0 2px 8px rgba(147, 112, 219, 0.05) !important;
     }
   }
-  
+
   :deep(.el-sub-menu__title.is-active:hover) {
     background: linear-gradient(135deg, #6d33e6 0%, #4a249c 100%) !important;
     color: #ffffff !important;
@@ -809,14 +809,14 @@ const handleCommand = async (command) => {
     padding-left: 20px !important;
     margin: 6px 12px !important;
     border-radius: 8px !important;
-    box-shadow: 0 6px 16px rgba(123, 66, 246, 0.5) !important;
+    box-shadow: 0 2px 8px rgba(147, 112, 219, 0.05) !important;
     backdrop-filter: blur(10px) !important;
     outline: none !important;
     border: none !important;
-    
+
     &:focus {
       outline: none !important;
-      box-shadow: 0 6px 16px rgba(123, 66, 246, 0.5) !important;
+      box-shadow: 0 2px 8px rgba(147, 112, 219, 0.05) !important;
     }
   }
   
@@ -865,6 +865,38 @@ const handleCommand = async (command) => {
   /* 子菜单样式 - 确保背景色一致 */
   :deep(.el-sub-menu) {
     background: transparent !important;
+  }
+
+  /* 彻底覆盖 Element Plus 菜单的所有默认边框和阴影 */
+  :deep(.el-menu .el-menu-item),
+  :deep(.el-menu .el-sub-menu__title),
+  :deep(.el-menu-item),
+  :deep(.el-sub-menu__title) {
+    &:focus,
+    &:focus-visible,
+    &:active,
+    &:hover:active,
+    &:focus:active {
+      outline: none !important;
+      outline-offset: 0 !important;
+      border: 1px solid rgba(147, 112, 219, 0.08) !important;
+      box-shadow: 0 2px 8px rgba(147, 112, 219, 0.05) !important;
+      background: rgba(255, 255, 255, 0.9) !important;
+      color: #7b42f6 !important;
+      transform: none !important;
+    }
+  }
+
+  /* 覆盖 Element Plus 内部的 focus 样式 */
+  :deep(.el-menu-item::after),
+  :deep(.el-sub-menu__title::after) {
+    display: none !important;
+  }
+
+  /* 覆盖 Element Plus 的 focus-ring 样式 */
+  :deep(.el-menu-item:focus-visible::after),
+  :deep(.el-sub-menu__title:focus-visible::after) {
+    display: none !important;
   }
 
   /* 旧的子菜单样式 - 保持兼容性 */

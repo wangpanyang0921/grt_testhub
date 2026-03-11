@@ -192,6 +192,32 @@ body {
   }
 }
 
+/* Element Plus 菜单全局样式覆盖 - 防止紫色边框闪烁 */
+.el-menu {
+  .el-menu-item,
+  .el-sub-menu__title {
+    &:focus,
+    &:focus-visible,
+    &:active {
+      outline: none !important;
+      outline-offset: 0 !important;
+      border: 1px solid rgba(147, 112, 219, 0.08) !important;
+      box-shadow: 0 2px 8px rgba(147, 112, 219, 0.05) !important;
+      background: rgba(255, 255, 255, 0.9) !important;
+      color: #7b42f6 !important;
+      transform: none !important;
+    }
+    
+    &::after {
+      display: none !important;
+    }
+    
+    &:focus-visible::after {
+      display: none !important;
+    }
+  }
+}
+
 /* Element Plus 下拉菜单样式覆盖 - 修复选中项蓝色问题 */
 /* 下拉菜单渲染在 body 上，需要全局样式 */
 .el-select-dropdown__item {

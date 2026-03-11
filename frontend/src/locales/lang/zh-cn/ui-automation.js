@@ -813,7 +813,8 @@ export default {
       allStatus: '全部状态',
       statusSuccess: '成功',
       statusFailed: '失败',
-      statusRetrying: '重试中',
+      statusPending: '待发送',
+      statusSending: '发送中',
       notificationStatus: '通知状态',
       // 表格列
       taskName: '任务名称',
@@ -1032,7 +1033,7 @@ export default {
     index: '序号',
     projectColumn: '项目',
     unknownProject: '未知项目',
-    nameColumn: '名称',
+    nameColumn: '脚本名称',
     languageColumn: '语言',
     frameworkColumn: '框架',
     createTimeColumn: '创建时间',

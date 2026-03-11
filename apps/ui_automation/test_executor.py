@@ -1026,8 +1026,25 @@ class TestExecutor:
                     selector = f'[name="{locator_value}"]'
                 elif locator_strategy == 'text':
                     selector = f'text={locator_value}'
+                elif locator_strategy == 'placeholder':
+                    selector = f'[placeholder="{locator_value}"]'
+                elif locator_strategy in ['class', 'class name']:
+                    selector = f'.{locator_value}'
+                elif locator_strategy in ['tag', 'tag name']:
+                    selector = locator_value
+                elif locator_strategy == 'link text':
+                    selector = f'text={locator_value}'
+                elif locator_strategy == 'partial link text':
+                    selector = f'text={locator_value}'
                 else:
                     selector = locator_value
+                
+                # 调试信息：打印当前页面状态
+                print(f"🔍 [调试] 当前页面: {page.url}")
+                print(f"🔍 [调试] 页面标题: {page.title()}")
+                print(f"🔍 [调试] 定位策略: {locator_strategy}")
+                print(f"🔍 [调试] 定位值: {locator_value}")
+                print(f"🔍 [调试] 构造的选择器: {selector}")
 
                 # 根据操作类型执行动作
                 if step_data['action_type'] == 'click':
@@ -1204,14 +1221,72 @@ class TestExecutor:
                     # 解析输入值中的变量表达式
                     resolved_value = resolve_variables(step_data['input_value'])
                     
-                    # 如果刚切换了标签页，增加超时时间
-                    if step_data.get('_just_switched_tab'):
-                        # 确保页面保持在前台
-                        page.bring_to_front()
-                        extended_timeout = max(step_data['wait_time'], 10000)
-                        page.fill(selector, resolved_value, timeout=extended_timeout)
-                    else:
-                        page.fill(selector, resolved_value, timeout=step_data['wait_time'])
+                    # 确保页面保持在前台
+                    page.bring_to_front()
+                    
+                    # 用 JavaScript 检查元素是否存在（避免字符串转义问题，使用参数传递）
+                    print(f"🔍 [调试-fill] 正在用 JavaScript 检查元素是否存在...")
+                    
+                    try:
+                        js_result = page.evaluate("""
+                            (strategy, value) => {
+                                let el = null;
+                                if (strategy === 'placeholder') {
+                                    el = document.querySelector('[placeholder="' + value + '"]');
+                                } else if (strategy === 'xpath') {
+                                    const result = document.evaluate(value, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null);
+                                    el = result.singleNodeValue;
+                                } else if (strategy === 'css' || strategy === 'css selector') {
+                                    el = document.querySelector(value);
+                                } else if (strategy === 'id') {
+                                    el = document.getElementById(value);
+                                } else if (strategy === 'name') {
+                                    el = document.querySelector('[name="' + value + '"]');
+                                } else if (strategy === 'class' || strategy === 'class name') {
+                                    el = document.querySelector('.' + value);
+                                } else if (strategy === 'tag' || strategy === 'tag name') {
+                                    el = document.querySelector(value);
+                                } else if (strategy === 'link text') {
+                                    // 查找包含精确文本的链接
+                                    const links = document.querySelectorAll('a');
+                                    for (let i = 0; i < links.length; i++) {
+                                        if (links[i].textContent.trim() === value) {
+                                            el = links[i];
+                                            break;
+                                        }
+                                    }
+                                } else if (strategy === 'partial link text') {
+                                    // 查找包含部分文本的链接
+                                    const links = document.querySelectorAll('a');
+                                    for (let i = 0; i < links.length; i++) {
+                                        if (links[i].textContent.includes(value)) {
+                                            el = links[i];
+                                            break;
+                                        }
+                                    }
+                                }
+                                
+                                if (el) {
+                                    return { 
+                                        exists: true, 
+                                        tagName: el.tagName, 
+                                        id: el.id, 
+                                        visible: !el.hidden && el.offsetParent !== null,
+                                        disabled: el.disabled
+                                    };
+                                }
+                                return { exists: false };
+                            }
+                        """, locator_strategy, locator_value)
+                        print(f"🔍 [调试-fill] JavaScript 检查结果: {js_result}")
+                    except Exception as js_err:
+                        print(f"⚠️  [调试-fill] JavaScript 检查出错: {str(js_err)}")
+                    
+                    # 使用更长的超时时间（至少10秒），确保元素有足够时间加载
+                    # 特别是在套件执行中，第二个用例可能需要等待页面状态稳定
+                    extended_timeout = max(step_data['wait_time'], 10000)
+                    print(f"🔍 [调试-fill] 准备填充元素，超时: {extended_timeout}ms")
+                    page.fill(selector, resolved_value, timeout=extended_timeout)
                     
                     step_result['success'] = True
                     # 记录解析后的值（用于调试）
@@ -1812,23 +1887,9 @@ class TestExecutor:
                     continue
 
             try:
-                # 在每个用例开始前清理浏览器状态（仅对复用浏览器的情况，且跳过第1个用例）
-                # 第1个用例浏览器刚启动，无需清理；从第2个用例开始才需要清理
-                if use_browser_reuse and i > 1:
-                    try:
-                        print(f"🧹 清理浏览器状态...")
-                        # 清除所有 Cookie
-                        driver.delete_all_cookies()
-                        # 清除 localStorage 和 sessionStorage
-                        driver.execute_script("window.localStorage.clear();")
-                        driver.execute_script("window.sessionStorage.clear();")
-                        print(f"✓ 浏览器状态已清理")
-                    except Exception as clean_error:
-                        print(f"⚠️  清理浏览器状态失败: {str(clean_error)}，继续执行...")
-                        pass  # 如果清理失败，继续执行
-                
-                # 导航到项目基础URL
-                if self.test_suite.project.base_url:
+                # 导航到项目基础URL（只在第一个用例时执行，后续用例复用页面状态）
+                # 注意：如果浏览器不复用（如Safari），每个用例都会重新启动浏览器，所以需要每次都导航
+                if self.test_suite.project.base_url and (not use_browser_reuse or i == 1):
                     try:
                         print(f"正在导航到: {self.test_suite.project.base_url}")
 

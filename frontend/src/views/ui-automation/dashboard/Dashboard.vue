@@ -625,12 +625,12 @@ onMounted(() => {
 
 // 功能区域
 .features-section {
-  margin-top: 32px;
+  margin-top: 16px;
   margin-bottom: 20px;
 }
 
 .features-section .features-row {
-  margin-bottom: 24px;
+  margin-bottom: 16px;
 }
 
 .features-section .features-row:last-child {
@@ -640,7 +640,7 @@ onMounted(() => {
 .section-title {
   font-size: 22px;
   font-weight: 600;
-  margin-bottom: 28px;
+  margin-bottom: 16px;
   color: #5a32a3;
   background: linear-gradient(135deg, #7b42f6 0%, #5a32a3 100%);
   -webkit-background-clip: text;
