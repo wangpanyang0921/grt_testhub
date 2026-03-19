@@ -46,6 +46,8 @@ export default {
     tagsPlaceholder: 'Enter tags, separated by commas',
     recordName: 'Record Name',
     recordNamePlaceholder: 'Please enter record name',
+    tag: 'Tag',
+    tagPlaceholder: 'Please enter tag information',
 
     // Test data tools
     carrier: 'Carrier',

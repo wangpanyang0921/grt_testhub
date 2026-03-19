@@ -1237,7 +1237,7 @@ const handleFileChange = (file) => {
   const reader = new FileReader()
   reader.onload = (e) => {
     try {
-      const data = new Uint8Array(e.target.result)
+      const data = new Uint8Array(/** @type {ArrayBuffer} */ (e.target.result))
       const workbook = XLSX.read(data, { type: 'array' })
       const firstSheet = workbook.Sheets[workbook.SheetNames[0]]
       const jsonData = XLSX.utils.sheet_to_json(firstSheet)
@@ -1461,7 +1461,7 @@ onMounted(() => {
   border-radius: 10px;
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 2px;
 
   :deep(.el-input__wrapper),
   :deep(.el-select .el-input__wrapper) {

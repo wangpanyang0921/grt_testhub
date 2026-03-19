@@ -109,25 +109,26 @@
       v-model="showVariableHelper"
       :title="$t('apiTesting.component.keyValueEditor.variableHelper')"
       :close-on-click-modal="false"
-      width="900px"
+      width="1100px"
+      class="variable-helper-dialog"
     >
-      <el-tabs tab-position="left" style="height: 450px">
+      <el-tabs style="height: 500px" class="variable-tabs">
         <el-tab-pane
           v-for="(category, index) in variableCategories"
           :key="index"
           :label="category.label"
         >
-          <div style="height: 450px; overflow-y: auto; padding: 10px;">
+          <div style="height: 460px; overflow-y: auto; padding: 10px;">
             <el-table :data="category.variables" style="width: 100%" @row-click="insertVariable" highlight-current-row>
-              <el-table-column prop="name" :label="$t('apiTesting.component.keyValueEditor.functionName')" width="150" show-overflow-tooltip>
+              <el-table-column prop="name" :label="$t('apiTesting.component.keyValueEditor.functionName')" min-width="180" show-overflow-tooltip>
                 <template #default="{ row }">
                   <el-tag size="small">{{ row.name }}</el-tag>
                 </template>
               </el-table-column>
-              <el-table-column prop="desc" :label="$t('apiTesting.component.keyValueEditor.desc')" min-width="150" />
-              <el-table-column prop="syntax" :label="$t('apiTesting.component.keyValueEditor.syntax')" min-width="200" show-overflow-tooltip />
+              <el-table-column prop="desc" :label="$t('apiTesting.component.keyValueEditor.desc')" min-width="100" show-overflow-tooltip />
+              <el-table-column prop="syntax" :label="$t('apiTesting.component.keyValueEditor.syntax')" min-width="280" show-overflow-tooltip />
               <el-table-column prop="example" :label="$t('apiTesting.component.keyValueEditor.example')" min-width="200" show-overflow-tooltip />
-              <el-table-column :label="$t('apiTesting.component.keyValueEditor.operation')" width="80" fixed="right">
+              <el-table-column :label="$t('apiTesting.component.keyValueEditor.operation')" width="60">
                 <template #default="{ row }">
                   <el-button link type="primary" size="small">{{ $t('apiTesting.component.keyValueEditor.insert') }}</el-button>
                 </template>
@@ -538,16 +539,36 @@ defineExpose({
 }
 
 /* 变量助手弹窗样式优化 */
-:deep(.el-dialog__body) {
-  padding: 0;
-}
+.variable-helper-dialog {
+  :deep(.el-dialog__body) {
+    padding: 0 20px 20px 20px;
+  }
 
-:deep(.el-tabs__content) {
-  height: 100%;
-}
+  .variable-tabs {
+    :deep(.el-tabs__header) {
+      margin-bottom: 10px;
+    }
 
-:deep(.el-tab-pane) {
-  height: 100%;
+    :deep(.el-tabs__nav-wrap) {
+      padding: 0 10px;
+    }
+
+    :deep(.el-tabs__item) {
+      padding: 0 16px;
+      font-size: 14px;
+      height: 40px;
+      line-height: 40px;
+    }
+
+    :deep(.el-tabs__content) {
+      overflow: hidden;
+      height: 100%;
+    }
+
+    :deep(.el-tab-pane) {
+      height: 100%;
+    }
+  }
 }
 
 :deep(.el-table) {

@@ -1056,6 +1056,7 @@ export default {
     save: 'Save',
     scriptTypes: {
       CODE: 'Code Script',
+      RECORD: 'Recorded Script',
       VISUAL: 'Visual Script',
       KEYWORD: 'Keyword Script'
     },
@@ -1159,10 +1160,14 @@ export default {
     stepDesc: 'Step Description:',
     detailErrorInfo: 'Detailed Error Info:',
     variableCategories: {
+      string: 'String',
       randomNumber: 'Random Number',
       randomString: 'Random String',
       businessData: 'Business Data',
       dateTime: 'Date Time',
+      encoding: 'Encoding',
+      encryption: 'Encryption',
+      crontab: 'Crontab',
       other: 'Other'
     },
     variables: {

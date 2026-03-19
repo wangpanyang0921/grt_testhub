@@ -854,6 +854,12 @@
               :placeholder="$t('dataFactory.form.recordNamePlaceholder')"
             />
           </el-form-item>
+          <el-form-item v-if="toolForm.isSaved" :label="$t('dataFactory.form.tag')">
+            <el-input
+              v-model="toolForm.tag"
+              :placeholder="$t('dataFactory.form.tagPlaceholder')"
+            />
+          </el-form-item>
         </el-form>
 
         <div v-if="toolResult && currentTool?.name !== 'jsonpath_query' && currentTool?.name !== 'format_json'" class="tool-result">
@@ -1083,6 +1089,7 @@ const toolForm = ref({
   text: '',
   isSaved: false,
   tags: '',
+  tag: '',
   gender: 'random',
   region: 'all',
   domain: 'random',
@@ -1506,7 +1513,8 @@ const executeTool = async () => {
       tool_scenario: currentTool.value.scenario || 'other',
       input_data: input_data,
       is_saved: toolForm.value.isSaved,
-      custom_name: toolForm.value.tags || null
+      custom_name: toolForm.value.tags || null,
+      tags: toolForm.value.tag ? [toolForm.value.tag] : null
     })
 
     toolResult.value = response.data
@@ -1524,6 +1532,7 @@ const resetToolForm = () => {
     text: '',
     isSaved: false,
     tags: '',
+    tag: '',
     gender: 'random',
     region: 'all',
     domain: 'random',

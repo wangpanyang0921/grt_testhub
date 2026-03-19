@@ -80,7 +80,7 @@ export default {
     },
 
     // Title
-    title: 'AI 赋能测试平台',
+    title: 'TestMatrix 进阶 TestHub',
     subtitle: '',
 
     // Cards

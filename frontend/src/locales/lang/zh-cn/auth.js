@@ -12,7 +12,7 @@ export default {
   loginFailed: '登录失败',
 
   // Register page
-  registerTitle: '国人通 TestHub 注册',
+  registerTitle: '国人通 测试平台 注册',
   registerSubtitle: '创建您的测试账号',
   username: '用户名',
   email: '邮箱',

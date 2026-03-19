@@ -3,7 +3,7 @@
     <div class="filter-bar">
       <el-input
         v-model="searchText"
-        placeholder="搜索套件"
+        placeholder="搜索套件名称"
         clearable
         @clear="handleSearch"
         @keyup.enter="handleSearch"

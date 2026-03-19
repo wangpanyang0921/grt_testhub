@@ -46,6 +46,8 @@ export default {
     tagsPlaceholder: '输入标签，多个标签用逗号分隔',
     recordName: '记录名称',
     recordNamePlaceholder: '请输入记录名称',
+    tag: '标签',
+    tagPlaceholder: '请输入标签信息',
 
     // 测试数据工具
     carrier: '运营商',

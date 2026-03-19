@@ -1,16 +1,18 @@
 <template>
   <div class="page-container">
-    <div class="filter-bar">
+    <!-- 列表页面顶部：筛选和新建 -->
+    <div v-if="!selectedTestCase" class="filter-bar">
       <el-select v-model="projectId" :placeholder="$t('uiAutomation.common.selectProject')" style="width: 220px" @change="onProjectChange" class="project-select">
         <el-option v-for="project in projects" :key="project.id" :label="project.name" :value="project.id" />
       </el-select>
       <el-input
         v-model="searchKeyword"
-        :placeholder="$t('uiAutomation.testCase.searchPlaceholder')"
+        placeholder="搜索用例名称"
         clearable
         @clear="handleSearch"
         @keyup.enter="handleSearch"
         style="width: 300px;"
+        class="search-input"
       >
         <template #prefix>
           <el-icon><Search /></el-icon>
@@ -21,6 +23,56 @@
         <el-icon><Plus /></el-icon>
         {{ $t('uiAutomation.testCase.newTestCase') }}
       </el-button>
+    </div>
+
+    <!-- 详情页面顶部：返回和操作按钮 -->
+    <div v-else class="detail-top-bar">
+      <div class="detail-title-wrapper">
+        <!-- 返回按钮已隐藏，保存后自动返回 -->
+        <el-button v-show="false" class="back-btn" @click="backToList">
+          {{ $t('uiAutomation.common.back') }}
+        </el-button>
+        <h3 class="detail-top-title">{{ selectedTestCase.name }}</h3>
+      </div>
+      <div class="detail-top-actions">
+        <el-button type="primary" @click="saveTestCase">
+          <el-icon><Check /></el-icon>
+          {{ $t('uiAutomation.testCase.saveTestCase') }}
+        </el-button>
+        <!-- 隐藏框架、浏览器、模式下拉框 -->
+        <el-select v-if="false" v-model="selectedEngine" :placeholder="$t('uiAutomation.testCase.selectEngine')" style="width: 130px; margin-right: 10px" class="config-select">
+          <el-option label="Playwright" value="playwright" />
+          <el-option label="Selenium" value="selenium" />
+        </el-select>
+        <el-select v-if="false" v-model="selectedBrowser" :placeholder="$t('uiAutomation.testCase.selectBrowser')" style="width: 120px; margin-right: 10px" class="config-select">
+          <el-option label="Chrome" value="chrome" />
+          <el-option label="Firefox" value="firefox" />
+          <el-option label="Safari" value="safari" />
+          <el-option label="Edge" value="edge" />
+        </el-select>
+        <el-select v-if="false" v-model="headlessMode" :placeholder="$t('uiAutomation.testCase.runMode')" style="width: 110px; margin-right: 10px" class="config-select">
+          <el-option :label="$t('uiAutomation.testCase.headedMode')" :value="false" />
+          <el-option :label="$t('uiAutomation.testCase.headlessMode')" :value="true" />
+        </el-select>
+        <el-button type="success" @click="runTestCase(selectedTestCase)" :loading="isRunning" class="run-btn">
+          <el-icon v-if="!isRunning"><CaretRight /></el-icon>
+          {{ isRunning ? $t('uiAutomation.testCase.running') : $t('uiAutomation.testCase.run') }}
+        </el-button>
+        <el-button class="btn-secondary" v-if="executionResult" @click="toggleView">
+          <el-icon><component :is="showSteps ? 'View' : 'Edit'" /></el-icon>
+          {{ showSteps ? $t('uiAutomation.testCase.viewResult') : $t('uiAutomation.testCase.editSteps') }}
+        </el-button>
+        <el-button
+          v-if="executionResult && !showSteps"
+          type="success"
+          @click="runTestCase(selectedTestCase)"
+          :loading="isRunning"
+          class="run-btn"
+        >
+          <el-icon v-if="!isRunning"><Refresh /></el-icon>
+          {{ $t('uiAutomation.testCase.rerun') }}
+        </el-button>
+      </div>
     </div>
 
     <div class="card-container test-case-layout">
@@ -98,64 +150,18 @@
       <!-- 测试用例详情和步骤编辑 -->
       <div v-if="selectedTestCase" class="detail-panel">
         <div class="test-case-detail">
-          <div class="detail-header">
-            <div class="detail-title-wrapper">
-              <el-button size="small" class="back-btn" @click="backToList">
-                <el-icon><ArrowLeft /></el-icon>
-                {{ $t('uiAutomation.common.back') }}
-              </el-button>
-              <h3 class="detail-title">{{ selectedTestCase.name }}</h3>
-            </div>
-            <div class="detail-actions">
-              <el-button size="small" class="btn-secondary" @click="addStep">
-                <el-icon><Plus /></el-icon>
-                {{ $t('uiAutomation.testCase.addStep') }}
-              </el-button>
-              <el-button size="small" type="primary" @click="saveTestCase">
-                <el-icon><Check /></el-icon>
-                {{ $t('uiAutomation.testCase.saveTestCase') }}
-              </el-button>
-              <el-select v-model="selectedEngine" :placeholder="$t('uiAutomation.testCase.selectEngine')" size="small" style="width: 130px; margin-right: 10px" class="config-select">
-                <el-option label="Playwright" value="playwright" />
-                <el-option label="Selenium" value="selenium" />
-              </el-select>
-              <el-select v-model="selectedBrowser" :placeholder="$t('uiAutomation.testCase.selectBrowser')" size="small" style="width: 120px; margin-right: 10px" class="config-select">
-                <el-option label="Chrome" value="chrome" />
-                <el-option label="Firefox" value="firefox" />
-                <el-option label="Safari" value="safari" />
-                <el-option label="Edge" value="edge" />
-              </el-select>
-              <el-select v-model="headlessMode" :placeholder="$t('uiAutomation.testCase.runMode')" size="small" style="width: 110px; margin-right: 10px" class="config-select">
-                <el-option :label="$t('uiAutomation.testCase.headedMode')" :value="false" />
-                <el-option :label="$t('uiAutomation.testCase.headlessMode')" :value="true" />
-              </el-select>
-              <el-button size="small" type="success" @click="runTestCase(selectedTestCase)" :loading="isRunning" class="run-btn">
-                <el-icon v-if="!isRunning"><CaretRight /></el-icon>
-                {{ isRunning ? $t('uiAutomation.testCase.running') : $t('uiAutomation.testCase.run') }}
-              </el-button>
-              <el-button size="small" class="btn-secondary" v-if="executionResult" @click="toggleView">
-                <el-icon><component :is="showSteps ? 'View' : 'Edit'" /></el-icon>
-                {{ showSteps ? $t('uiAutomation.testCase.viewResult') : $t('uiAutomation.testCase.editSteps') }}
-              </el-button>
-              <el-button
-                size="small"
-                v-if="executionResult && !showSteps"
-                type="success"
-                @click="runTestCase(selectedTestCase)"
-                :loading="isRunning"
-                class="run-btn"
-              >
-                <el-icon v-if="!isRunning"><Refresh /></el-icon>
-                {{ $t('uiAutomation.testCase.rerun') }}
-              </el-button>
-            </div>
-          </div>
-
           <!-- 测试步骤编辑 -->
           <div class="steps-container" v-show="showSteps">
             <div class="steps-header">
-              <h4 class="steps-title">{{ $t('uiAutomation.testCase.testSteps') }}</h4>
-              <el-button size="small" class="btn-text" @click="expandAllSteps">
+              <div class="steps-title-wrapper">
+                <!-- 隐藏测试步骤文案 -->
+                <h4 v-show="false" class="steps-title">{{ $t('uiAutomation.testCase.testSteps') }}</h4>
+                <el-button class="btn-solid add-step-btn" @click="addStep">
+                  <el-icon><Plus /></el-icon>
+                  {{ $t('uiAutomation.testCase.addStep') }}
+                </el-button>
+              </div>
+              <el-button class="btn-solid expand-btn" @click="expandAllSteps">
                 {{ allStepsExpanded ? $t('uiAutomation.testCase.foldAll') : $t('uiAutomation.testCase.expandAll') }}
               </el-button>
             </div>
@@ -231,25 +237,23 @@
                         <!-- 输入参数 -->
                         <div v-if="needsInputValue(element.action_type)" class="step-param">
                           <label>{{ $t('uiAutomation.testCase.inputValue') }}</label>
-                          <div style="display: flex; gap: 5px; flex: 1">
+                          <div class="input-with-buttons">
                             <el-input
                               v-model="element.input_value"
                               :placeholder="element.action_type === 'switchTab' ? $t('uiAutomation.testCase.switchTabPlaceholder') : $t('uiAutomation.testCase.inputPlaceholder')"
                               size="small"
                               class="param-input"
+                            />
+                            <el-button
+                              size="small"
+                              @click="openDataFactorySelector(element, 'input_value')"
+                              title="引用数据工厂"
+                              class="action-btn"
                             >
-                              <template #append>
-                                <el-button
-                                  size="small"
-                                  :icon="MagicStick"
-                                  @click="openDataFactorySelector(element, 'input_value')"
-                                  title="引用数据工厂"
-                                  class="data-factory-btn"
-                                />
-                              </template>
-                            </el-input>
+                              <el-icon><DataLine /></el-icon>
+                            </el-button>
                             <el-tooltip content="插入动态变量" placement="top" v-if="element.action_type !== 'switchTab'">
-                              <el-button size="small" @click="openVariableHelper(element, 'input_value')" class="variable-helper-btn">
+                              <el-button size="small" @click="openVariableHelper(element, 'input_value')" class="action-btn">
                                 <el-icon><MagicStick /></el-icon>
                               </el-button>
                             </el-tooltip>
@@ -272,33 +276,30 @@
                         <!-- 断言参数 -->
                         <div v-if="element.action_type === 'assert'" class="step-param">
                           <label>{{ $t('uiAutomation.testCase.assertType') }}</label>
-                          <el-select v-model="element.assert_type" size="small" style="width: 150px" class="param-select">
+                          <el-select v-model="element.assert_type" size="small" class="param-select">
                             <el-option :label="$t('uiAutomation.testCase.assertTextContains')" value="textContains" />
                             <el-option :label="$t('uiAutomation.testCase.assertTextEquals')" value="textEquals" />
                             <el-option :label="$t('uiAutomation.testCase.assertIsVisible')" value="isVisible" />
                             <el-option :label="$t('uiAutomation.testCase.assertExists')" value="exists" />
                             <el-option :label="$t('uiAutomation.testCase.assertHasAttribute')" value="hasAttribute" />
                           </el-select>
-                          <div style="display: flex; align-items: center; margin-left: 10px; width: 240px">
+                          <div class="input-with-buttons">
                             <el-input
                               v-model="element.assert_value"
                               :placeholder="$t('uiAutomation.testCase.expectedValue')"
                               size="small"
-                              style="flex: 1"
                               class="param-input"
+                            />
+                            <el-button
+                              size="small"
+                              @click="openDataFactorySelector(element, 'assert_value')"
+                              title="引用数据工厂"
+                              class="action-btn"
                             >
-                              <template #append>
-                                <el-button
-                                  size="small"
-                                  :icon="MagicStick"
-                                  @click="openDataFactorySelector(element, 'assert_value')"
-                                  title="引用数据工厂"
-                                  class="data-factory-btn"
-                                />
-                              </template>
-                            </el-input>
+                              <el-icon><DataLine /></el-icon>
+                            </el-button>
                             <el-tooltip content="插入动态变量" placement="top">
-                              <el-button size="small" style="margin-left: 5px" @click="openVariableHelper(element, 'assert_value')" class="variable-helper-btn">
+                              <el-button size="small" @click="openVariableHelper(element, 'assert_value')" class="action-btn">
                                 <el-icon><MagicStick /></el-icon>
                               </el-button>
                             </el-tooltip>
@@ -364,7 +365,7 @@
                       <div class="screenshot-wrapper">
                         <img
                           :src="screenshot.url"
-                          :alt="`${$t('uiAutomation.testCase.screenshot')} ${index + 1}`"
+                          :alt="`${$t('uiAutomation.testCase.screenshot')} ${Number(index) + 1}`"
                           :data-index="index"
                           @error="handleImageError"
                           @load="handleImageLoad"
@@ -382,7 +383,7 @@
                         </div>
                       </div>
                       <div class="screenshot-info">
-                        <p class="screenshot-description">{{ screenshot.description || `${$t('uiAutomation.testCase.screenshot')} ${index + 1}` }}</p>
+                        <p class="screenshot-description">{{ screenshot.description || `${$t('uiAutomation.testCase.screenshot')} ${Number(index) + 1}` }}</p>
                         <p class="screenshot-meta" v-if="screenshot.step_number">{{ $t('uiAutomation.testCase.step') }} {{ screenshot.step_number }}</p>
                         <p class="screenshot-time" v-if="screenshot.timestamp">{{ formatTime(screenshot.timestamp) }}</p>
                       </div>
@@ -496,26 +497,26 @@
       v-model="showVariableHelper"
       :title="$t('uiAutomation.testCase.variableHelper')"
       :close-on-click-modal="false"
-      width="900px"
-      class="custom-dialog"
+      width="1100px"
+      class="custom-dialog variable-helper-dialog"
     >
-      <el-tabs tab-position="left" style="height: 450px" class="variable-tabs">
+      <el-tabs style="height: 500px" class="variable-tabs">
         <el-tab-pane
           v-for="(category, index) in variableCategoriesComputed"
           :key="index"
           :label="category.label"
         >
-          <div style="height: 450px; overflow-y: auto; padding: 10px;">
+          <div style="height: 460px; overflow-y: auto; padding: 10px;">
             <el-table :data="category.variables" style="width: 100%" @row-click="insertVariable" highlight-current-row class="variable-table">
-              <el-table-column prop="name" label="函数名" width="150" show-overflow-tooltip>
+              <el-table-column prop="name" label="函数名" min-width="180" show-overflow-tooltip>
                 <template #default="{ row }">
                   <el-tag size="small" class="function-tag">{{ row.name }}</el-tag>
                 </template>
               </el-table-column>
-              <el-table-column prop="desc" label="描述" min-width="150" />
-              <el-table-column prop="syntax" label="语法" min-width="200" show-overflow-tooltip />
+              <el-table-column prop="desc" label="描述" min-width="100" show-overflow-tooltip />
+              <el-table-column prop="syntax" label="语法" min-width="280" show-overflow-tooltip />
               <el-table-column prop="example" label="示例" min-width="200" show-overflow-tooltip />
-              <el-table-column label="操作" width="80" fixed="right">
+              <el-table-column label="操作" width="60">
                 <template #default="{ row }">
                   <el-button link type="primary" size="small" class="insert-btn">{{ $t('uiAutomation.testCase.insert') }}</el-button>
                 </template>
@@ -540,7 +541,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   Plus, Search, CaretRight, Edit, CopyDocument, Delete, Check,
   Rank, ArrowUp, ArrowDown, WarningFilled, Picture, Warning,
-  ZoomIn, View, Refresh, MagicStick, ArrowLeft
+  ZoomIn, View, Refresh, MagicStick, ArrowLeft, DataLine
 } from '@element-plus/icons-vue'
 import draggable from 'vuedraggable'
 import {
@@ -679,7 +680,7 @@ const variableCategoriesComputed = computed(() => [
     ]
   },
   {
-    label: '编码转换',
+    label: t('uiAutomation.testCase.variableCategories.encoding'),
     variables: [
       { name: 'base64_encode', syntax: '${base64_encode(text, encoding)}', desc: 'Base64编码', example: '${base64_encode("123456", "utf-8")}' },
       { name: 'base64_decode', syntax: '${base64_decode(text, encoding)}', desc: 'Base64解码', example: '${base64_decode("MTIzNDU2", "utf-8")}' },
@@ -698,7 +699,7 @@ const variableCategoriesComputed = computed(() => [
     ]
   },
   {
-    label: '加密哈希',
+    label: t('uiAutomation.testCase.variableCategories.encryption'),
     variables: [
       { name: 'md5_hash', syntax: '${md5_hash(text)}', desc: 'MD5加密', example: '${md5_hash("123456")}' },
       { name: 'sha1_hash', syntax: '${sha1_hash(text)}', desc: 'SHA1加密', example: '${sha1_hash("123456")}' },
@@ -710,7 +711,7 @@ const variableCategoriesComputed = computed(() => [
     ]
   },
   {
-    label: 'Crontab',
+    label: t('uiAutomation.testCase.variableCategories.crontab'),
     variables: [
       { name: 'generate_expression', syntax: '${generate_expression(minute, hour, day, month, weekday)}', desc: '生成Crontab表达式', example: '${generate_expression("*", "*", "*", "*", "*")}' },
       { name: 'parse_expression', syntax: '${parse_expression(expression)}', desc: '解析Crontab表达式', example: '${parse_expression("0 0 * * *")}' },
@@ -756,7 +757,8 @@ const handleDataFactorySelect = (record) => {
     }
 
     step[field] = valueToSet
-    ElMessage.success(`已引用数据: ${record.name}`)
+    const displayName = record.tool_name_display || record.tool_name || '未知工具'
+    ElMessage.success(`已引用数据: ${displayName}`)
   }
 }
 
@@ -944,6 +946,8 @@ const saveTestCase = async () => {
     await updateTestCase(selectedTestCase.value.id, data)
     ElMessage.success('保存成功')
     await loadTestCases()
+    // 保存成功后返回列表
+    backToList()
   } catch (error) {
     console.error('保存测试用例失败:', error)
     ElMessage.error('保存失败')
@@ -1122,6 +1126,16 @@ watch(showCreateDialog, (val) => {
 
 onMounted(() => {
   loadProjects()
+  
+  // 监听窗口 resize，修复 tabs active-bar 位置问题
+  window.addEventListener('resize', () => {
+    const tabsWrapper = document.querySelector('.result-tabs .el-tabs__nav-wrap')
+    if (tabsWrapper) {
+      // 触发 Element Plus 重新计算 active-bar 位置
+      const event = new Event('resize')
+      window.dispatchEvent(event)
+    }
+  })
 })
 </script>
 
@@ -1163,19 +1177,149 @@ onMounted(() => {
     }
   }
 
-  :deep(.el-input__wrapper) {
-    border-radius: 8px;
-    border: 1px solid rgba(147, 112, 219, 0.3);
-    box-shadow: none;
+  .search-input {
+    :deep(.el-input__wrapper) {
+      border-radius: 8px;
+      border: 1px solid rgba(147, 112, 219, 0.3);
+      box-shadow: none;
 
-    &:hover, &.is-focus {
-      border-color: #7b42f6;
-      box-shadow: 0 0 0 3px rgba(123, 66, 246, 0.1);
+      &:hover, &.is-focus {
+        border-color: #7b42f6;
+        box-shadow: 0 0 0 3px rgba(123, 66, 246, 0.1);
+      }
+    }
+
+    :deep(.el-input__inner) {
+      color: #5a32a3;
+      font-weight: 500;
     }
   }
 
   .filter-bar-spacer {
     flex: 1;
+  }
+
+  .create-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    border-radius: 8px;
+    padding: 10px 20px;
+    font-weight: 600;
+    transition: all 0.3s ease;
+    background: linear-gradient(135deg, #7b42f6 0%, #5a32a3 100%);
+    border: none;
+    box-shadow: 0 4px 12px rgba(123, 66, 246, 0.3);
+
+    &:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(123, 66, 246, 0.4);
+    }
+
+    .el-icon {
+      font-size: 16px;
+      margin-right: 4px;
+    }
+  }
+}
+
+.detail-top-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 20px 24px;
+  background: linear-gradient(135deg, #ffffff 0%, #f8f7ff 100%);
+  border-radius: 12px;
+  box-shadow: 0 4px 16px rgba(147, 112, 219, 0.1);
+  border: 1px solid rgba(147, 112, 219, 0.1);
+
+  .detail-top-title {
+    margin: 0;
+    font-size: 18px;
+    font-weight: 600;
+    color: #333;
+  }
+
+  .detail-title-wrapper {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-shrink: 0;
+
+    .back-btn {
+      visibility: visible !important;
+      opacity: 1 !important;
+    }
+  }
+
+  .detail-top-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    flex: 1;
+
+    .btn-secondary {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+
+      .el-icon {
+        font-size: 16px;
+        margin-right: 4px;
+      }
+    }
+
+    .run-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+
+      .el-icon {
+        font-size: 16px;
+        margin-right: 4px;
+      }
+    }
+
+    .el-button--primary {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: linear-gradient(135deg, #7b42f6 0%, #5a32a3 100%);
+      border: none;
+      box-shadow: 0 4px 12px rgba(123, 66, 246, 0.3);
+
+      .el-icon {
+        font-size: 16px;
+        margin-right: 4px;
+      }
+
+      &:hover {
+        background: linear-gradient(135deg, #8a52f7 0%, #6a42b3 100%);
+        transform: translateY(-2px);
+        box-shadow: 0 6px 20px rgba(123, 66, 246, 0.4);
+      }
+    }
+
+    .config-select {
+      :deep(.el-input__wrapper) {
+        border-radius: 8px;
+        border: 1px solid rgba(147, 112, 219, 0.3);
+        box-shadow: none;
+
+        &:hover, &.is-focus {
+          border-color: #7b42f6;
+          box-shadow: 0 0 0 3px rgba(123, 66, 246, 0.1);
+        }
+      }
+
+      :deep(.el-input__inner) {
+        color: #5a32a3;
+        font-weight: 500;
+      }
+    }
   }
 
   .reset-btn {
@@ -1658,7 +1802,7 @@ onMounted(() => {
     flex: 1;
     display: flex;
     flex-direction: column;
-    padding: 24px;
+    padding: 24px 0;
     overflow: hidden;
     height: 100%;
 
@@ -1667,7 +1811,7 @@ onMounted(() => {
       justify-content: space-between;
       align-items: center;
       margin-bottom: 20px;
-      padding-bottom: 16px;
+      padding: 0 24px 16px;
       border-bottom: 1px solid rgba(147, 112, 219, 0.15);
       gap: 12px;
       min-height: 40px;
@@ -1681,13 +1825,14 @@ onMounted(() => {
         .back-btn {
           display: inline-flex !important;
           align-items: center;
-          gap: 4px;
+          gap: 6px;
           background: #f5f3ff !important;
           border: 1px solid #7b42f6 !important;
           color: #5a32a3 !important;
-          border-radius: 6px;
-          padding: 6px 12px;
-          font-size: 13px;
+          border-radius: 8px;
+          padding: 8px 16px;
+          font-size: 14px;
+          height: 36px;
           visibility: visible !important;
           opacity: 1 !important;
 
@@ -1695,6 +1840,10 @@ onMounted(() => {
             background: #e8e4ff !important;
             border-color: #5a32a3 !important;
             color: #5a32a3 !important;
+          }
+
+          .el-icon {
+            font-size: 16px;
           }
         }
 
@@ -1708,33 +1857,110 @@ onMounted(() => {
 
       .detail-actions {
         display: flex;
-        gap: 8px;
+        gap: 2px;
         flex-wrap: wrap;
         align-items: center;
         margin-left: auto;
         flex-shrink: 0;
 
-        .btn-secondary {
-          background: #ffffff;
-          border: 1px solid rgba(147, 112, 219, 0.4);
-          color: #5a32a3;
-          border-radius: 6px;
+        :deep(.el-button) {
+          margin-left: 0 !important;
+          margin-right: 0 !important;
+        }
 
-          &:hover {
-            background: #f8f7ff;
-            border-color: #7b42f6;
-            color: #7b42f6;
+        .btn-secondary {
+          background: #ffffff !important;
+          border: 1px solid rgba(147, 112, 219, 0.4) !important;
+          color: #5a32a3 !important;
+          border-radius: 8px;
+          height: 36px;
+          padding: 0 16px;
+          font-size: 14px;
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+
+          &:hover,
+          &:focus,
+          &:active {
+            background: #f8f7ff !important;
+            border-color: #7b42f6 !important;
+            color: #7b42f6 !important;
+            outline: none !important;
           }
+
+          .el-icon {
+            font-size: 16px;
+          }
+        }
+
+        :deep(.el-button.btn-secondary:hover),
+        :deep(.el-button.btn-secondary:focus),
+        :deep(.el-button.btn-secondary:active) {
+          background: #f8f7ff !important;
+          border-color: #7b42f6 !important;
+          color: #7b42f6 !important;
+        }
+
+        // 覆盖 Element Plus 默认的蓝色悬停样式
+        :deep(.el-button.el-button--default.btn-secondary:hover) {
+          background-color: #f8f7ff !important;
+          border-color: #7b42f6 !important;
+          color: #7b42f6 !important;
+        }
+
+        // 强制覆盖所有状态
+        :deep(.btn-secondary.el-button) {
+          --el-button-hover-bg-color: #f8f7ff !important;
+          --el-button-hover-border-color: #7b42f6 !important;
+          --el-button-hover-text-color: #7b42f6 !important;
+        }
+
+        // 深度覆盖 Element Plus 默认按钮悬停样式
+        :deep(.el-button.el-button--default.btn-secondary) {
+          --el-button-bg-color: #ffffff;
+          --el-button-border-color: rgba(147, 112, 219, 0.4);
+          --el-button-text-color: #5a32a3;
+          --el-button-hover-bg-color: #f8f7ff !important;
+          --el-button-hover-border-color: #7b42f6 !important;
+          --el-button-hover-text-color: #7b42f6 !important;
+          --el-button-active-bg-color: #f8f7ff !important;
+          --el-button-active-border-color: #7b42f6 !important;
+          --el-button-active-text-color: #7b42f6 !important;
         }
 
         .run-btn {
           background: linear-gradient(135deg, #67c23a 0%, #529b2e 100%);
           border: none;
-          border-radius: 6px;
+          border-radius: 8px;
+          height: 36px;
+          padding: 0 16px;
+          font-size: 14px;
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
 
           &:hover {
             transform: translateY(-1px);
             box-shadow: 0 4px 12px rgba(103, 194, 58, 0.3);
+          }
+
+          .el-icon {
+            font-size: 16px;
+          }
+        }
+
+        .el-button--primary {
+          border-radius: 8px;
+          height: 36px;
+          padding: 0 16px;
+          font-size: 14px;
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+
+          .el-icon {
+            font-size: 16px;
           }
         }
 
@@ -1753,31 +1979,87 @@ onMounted(() => {
       flex-direction: column;
       min-height: 0;
       margin-bottom: 20px;
-      border: 1px solid rgba(147, 112, 219, 0.15);
-      border-radius: 10px;
-      background: linear-gradient(180deg, #faf8ff 0%, #f5f3ff 100%);
+      background: transparent;
       overflow: hidden;
 
       .steps-header {
         display: flex;
         justify-content: space-between;
         align-items: center;
-        padding: 16px 20px;
-        border-bottom: 1px solid rgba(147, 112, 219, 0.15);
-        background: #ffffff;
+        padding: 2px 0 16px;
+        border-bottom: none;
+        background: transparent;
 
-        .steps-title {
-          margin: 0;
-          font-size: 16px;
-          font-weight: 600;
-          color: #5a32a3;
+        .steps-title-wrapper {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+
+          .steps-title {
+            margin: 0;
+            font-size: 16px;
+            font-weight: 600;
+            color: #5a32a3;
+          }
         }
 
-        .btn-text {
-          color: #7b42f6;
+        .add-step-btn {
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+          padding: 10px 20px;
+          border-radius: 8px;
+          background: linear-gradient(135deg, #7b42f6 0%, #5a32a3 100%);
+          border: none;
+          color: #ffffff;
+          font-size: 14px;
+          font-weight: 600;
+          transition: all 0.3s ease;
 
           &:hover {
-            color: #5a32a3;
+            transform: translateY(-2px);
+            background: linear-gradient(135deg, #7b42f6 0%, #5a32a3 100%);
+            color: #ffffff;
+          }
+
+          &:active, &:focus {
+            background: linear-gradient(135deg, #7b42f6 0%, #5a32a3 100%);
+            color: #ffffff;
+            border: none;
+            outline: none;
+          }
+
+          .el-icon {
+            font-size: 16px;
+            margin-right: 4px;
+          }
+        }
+
+        .expand-btn {
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+          padding: 10px 20px;
+          border-radius: 8px;
+          background: #ffffff;
+          border: 1px solid #e5e7eb;
+          color: #6b7280;
+          font-size: 14px;
+          font-weight: 600;
+          transition: all 0.3s ease;
+
+          &:hover {
+            background: #f9fafb;
+            border-color: #7b42f6;
+            color: #7b42f6;
+            transform: translateY(-2px);
+          }
+
+          &:active, &:focus {
+            background: #ffffff;
+            color: #6b7280;
+            border: 1px solid #e5e7eb;
+            outline: none;
           }
         }
       }
@@ -1786,7 +2068,7 @@ onMounted(() => {
         overflow-y: auto;
         flex: 1;
         min-height: 0;
-        padding: 16px;
+        padding: 16px 0;
 
         &::-webkit-scrollbar {
           width: 6px;
@@ -1810,15 +2092,18 @@ onMounted(() => {
       .steps-list {
         .step-item {
           background: #ffffff;
-          border: 1px solid rgba(147, 112, 219, 0.15);
-          border-radius: 10px;
+          border: 1px solid #e5e7eb;
+          border-radius: 8px;
           margin-bottom: 12px;
-          box-shadow: 0 2px 8px rgba(147, 112, 219, 0.05);
-          transition: all 0.3s ease;
+          transition: all 0.2s ease;
 
           &:hover {
             border-color: #7b42f6;
-            box-shadow: 0 4px 12px rgba(123, 66, 246, 0.1);
+            box-shadow: 0 2px 8px rgba(123, 66, 246, 0.1);
+          }
+
+          &.expanded .step-header {
+            border-radius: 8px 8px 0 0;
           }
 
           .step-header {
@@ -1826,8 +2111,8 @@ onMounted(() => {
             justify-content: space-between;
             align-items: center;
             padding: 12px 16px;
-            background: linear-gradient(135deg, #faf8ff 0%, #f5f3ff 100%);
-            border-radius: 10px 10px 0 0;
+            background: #f9fafb;
+            border-radius: 8px;
 
             .step-left {
               display: flex;
@@ -1891,7 +2176,7 @@ onMounted(() => {
 
           .step-content {
             padding: 16px;
-            border-top: 1px solid rgba(147, 112, 219, 0.1);
+            border-top: 1px solid #e5e7eb;
 
             .step-param {
               display: flex;
@@ -1908,17 +2193,81 @@ onMounted(() => {
                 font-weight: 500;
                 color: #5a32a3;
                 font-size: 13px;
+                text-align: right;
+                flex-shrink: 0;
+              }
+
+              .input-with-buttons {
+                display: flex;
+                align-items: center;
+                justify-content: flex-end;
+                gap: 6px;
+                flex: 1;
+                padding-right: 0;
+
+                .param-input {
+                  flex: 1;
+                }
+
+                .action-btn {
+                  width: 28px;
+                  height: 28px;
+                  padding: 0;
+                  border-radius: 6px;
+                  background: transparent;
+                  border: 1px solid #e5e7eb;
+                  color: #9ca3af;
+                  font-size: 14px;
+                  display: inline-flex;
+                  align-items: center;
+                  justify-content: center;
+                  flex-shrink: 0;
+                  margin-right: -1.5px;
+
+                  &:hover {
+                    background: #f3f4f6;
+                    border-color: #d1d5db;
+                    color: #6b7280;
+                  }
+
+                  .el-icon {
+                    font-size: 14px;
+                  }
+                }
+              }
+
+              .param-input {
+                flex: 1;
+                width: 100%;
+              }
+
+              .param-select {
+                width: 150px;
               }
 
               .param-input,
               .param-select {
                 :deep(.el-input__wrapper) {
                   border-radius: 6px;
-                  border: 1px solid rgba(147, 112, 219, 0.3);
+                  border: 1px solid #e5e7eb !important;
+                  box-shadow: none !important;
 
-                  &:hover, &.is-focus {
-                    border-color: #7b42f6;
-                    box-shadow: 0 0 0 3px rgba(123, 66, 246, 0.1);
+                  &:hover {
+                    border-color: #d1d5db !important;
+                    box-shadow: none !important;
+                  }
+
+                  &.is-focus, &.is-focused, &:focus, &:focus-within {
+                    border-color: #d1d5db !important;
+                    box-shadow: none !important;
+                    outline: none !important;
+                  }
+                }
+
+                :deep(.el-input__inner) {
+                  &:focus {
+                    outline: none !important;
+                    box-shadow: none !important;
                   }
                 }
               }
@@ -1933,8 +2282,8 @@ onMounted(() => {
       display: flex;
       flex-direction: column;
       min-height: 0;
-      border: 1px solid rgba(147, 112, 219, 0.15);
-      border-radius: 10px;
+      border: 1px solid #e5e7eb;
+      border-radius: 8px;
       background: #ffffff;
       overflow: hidden;
 
@@ -1942,9 +2291,9 @@ onMounted(() => {
         display: flex;
         justify-content: space-between;
         align-items: center;
-        padding: 16px 20px;
-        border-bottom: 1px solid rgba(147, 112, 219, 0.15);
-        background: linear-gradient(135deg, #faf8ff 0%, #f5f3ff 100%);
+        padding: 16px 24px;
+        border-bottom: 1px solid #e5e7eb;
+        background: #f9fafb;
 
         .result-title {
           margin: 0;
@@ -1955,6 +2304,19 @@ onMounted(() => {
 
         .result-tag {
           font-weight: 600;
+          white-space: nowrap !important;
+
+          :deep(.el-tag__content) {
+            display: inline-flex !important;
+            align-items: center !important;
+            gap: 4px !important;
+            white-space: nowrap !important;
+            flex-wrap: nowrap !important;
+          }
+
+          :deep(.el-icon) {
+            flex-shrink: 0 !important;
+          }
         }
       }
 
@@ -1963,7 +2325,7 @@ onMounted(() => {
         min-height: 0;
         display: flex;
         flex-direction: column;
-        padding: 20px;
+        padding: 20px 24px;
 
         .result-tabs {
           :deep(.el-tabs__header) {
@@ -1980,6 +2342,16 @@ onMounted(() => {
             &:hover {
               color: #5a32a3;
             }
+          }
+
+          // 修复 active-bar 位置问题
+          :deep(.el-tabs__active-bar) {
+            background-color: #7b42f6;
+            height: 2px;
+          }
+
+          :deep(.el-tabs__nav-wrap::after) {
+            display: none;
           }
         }
       }
@@ -2235,6 +2607,22 @@ onMounted(() => {
       gap: 12px;
       margin-bottom: 12px;
 
+      .el-tag {
+        white-space: nowrap !important;
+
+        :deep(.el-tag__content) {
+          display: inline-flex !important;
+          align-items: center !important;
+          gap: 6px !important;
+          white-space: nowrap !important;
+          flex-wrap: nowrap !important;
+        }
+
+        :deep(.el-icon) {
+          flex-shrink: 0 !important;
+        }
+      }
+
       .error-step {
         font-size: 13px;
         color: #f56c6c;
@@ -2287,6 +2675,34 @@ onMounted(() => {
         max-height: 200px;
         overflow-y: auto;
       }
+    }
+  }
+}
+
+// 变量助手弹窗样式
+.variable-helper-dialog {
+  :deep(.el-dialog__body) {
+    padding: 0 20px 20px 20px;
+  }
+
+  .variable-tabs {
+    :deep(.el-tabs__header) {
+      margin-bottom: 10px;
+    }
+
+    :deep(.el-tabs__nav-wrap) {
+      padding: 0 10px;
+    }
+
+    :deep(.el-tabs__item) {
+      padding: 0 16px;
+      font-size: 14px;
+      height: 40px;
+      line-height: 40px;
+    }
+
+    :deep(.el-tabs__content) {
+      overflow: hidden;
     }
   }
 }

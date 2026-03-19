@@ -55,6 +55,30 @@ body {
   &.critical { color: #f56c6c; font-weight: bold; }
 }
 
+// 全局覆盖 btn-secondary 按钮样式
+.el-button.btn-secondary {
+  --el-button-bg-color: #ffffff !important;
+  --el-button-border-color: rgba(147, 112, 219, 0.4) !important;
+  --el-button-text-color: #5a32a3 !important;
+  --el-button-hover-bg-color: #f8f7ff !important;
+  --el-button-hover-border-color: #7b42f6 !important;
+  --el-button-hover-text-color: #7b42f6 !important;
+  --el-button-active-bg-color: #f8f7ff !important;
+  --el-button-active-border-color: #7b42f6 !important;
+  --el-button-active-text-color: #7b42f6 !important;
+  background-color: #ffffff !important;
+  border-color: rgba(147, 112, 219, 0.4) !important;
+  color: #5a32a3 !important;
+
+  &:hover,
+  &:focus,
+  &:active {
+    background-color: #f8f7ff !important;
+    border-color: #7b42f6 !important;
+    color: #7b42f6 !important;
+  }
+}
+
 .text-truncate {
   white-space: nowrap;
   overflow: hidden;

@@ -2905,6 +2905,7 @@ export default {
   gap: 6px;
 }
 
+/*
 .cancel-generation-btn-inline::before {
   content: '';
   display: inline-block;
@@ -2915,6 +2916,7 @@ export default {
   background-repeat: no-repeat;
   vertical-align: middle;
 }
+*/
 
 .cancel-generation-btn-inline:hover {
   background: #ef4444;

@@ -185,9 +185,9 @@
         </el-form-item>
 
         <!-- 根据触发器类型显示不同配置 -->
-        <el-form-item v-if="taskForm.trigger_type === 'CRON'" :label="$t('uiAutomation.scheduledTask.cronExpression')" required>
-          <el-input v-model="taskForm.cron_expression" :placeholder="$t('uiAutomation.scheduledTask.cronPlaceholder')" />
-          <div class="cron-help">
+        <el-form-item v-if="taskForm.trigger_type === 'CRON'" required>
+          <template #label>
+            <span style="white-space: nowrap;">{{ $t('uiAutomation.scheduledTask.cronExpression') }}</span>
             <el-tooltip raw-content placement="top">
               <template #content>
                 <div style="line-height: 1.6; text-align: left;">
@@ -204,9 +204,10 @@
                   <div>{{ $t('uiAutomation.scheduledTask.cronHelp.everyMonth') }}</div>
                 </div>
               </template>
-              <span style="cursor: pointer; color: #409EFF;">{{ $t('uiAutomation.scheduledTask.cronHelpLink') }}</span>
+              <el-icon class="cron-help-icon"><Warning /></el-icon>
             </el-tooltip>
-          </div>
+          </template>
+          <el-input v-model="taskForm.cron_expression" :placeholder="$t('uiAutomation.scheduledTask.cronPlaceholder')" />
         </el-form-item>
 
         <el-form-item v-if="taskForm.trigger_type === 'INTERVAL'" :label="$t('uiAutomation.scheduledTask.intervalTime')" required>
@@ -286,7 +287,7 @@
 <script setup>
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Plus, ArrowDown } from '@element-plus/icons-vue'
+import { Plus, ArrowDown, Warning } from '@element-plus/icons-vue'
 import { useI18n } from 'vue-i18n'
 import {
   getScheduledTasks,
@@ -977,9 +978,9 @@ const deleteTask = async (task) => {
     --el-fill-color-light: #ffffff;
     --el-fill-color-lighter: #ffffff;
     --el-fill-color-blank: #ffffff;
-    --el-text-color-primary: #333;
-    --el-text-color-regular: #333;
-    --el-text-color-secondary: #666;
+    --el-text-color-primary: #262626;
+    --el-text-color-regular: #595959;
+    --el-text-color-secondary: #8c8c8c;
     --el-text-color-placeholder: #999;
     --el-table-header-bg-color: #ffffff;
     --el-table-row-hover-bg-color: #f8f7ff;
@@ -1076,6 +1077,20 @@ const deleteTask = async (task) => {
         font-size: 14px;
         line-height: 24px;
       }
+    }
+
+    // 直接覆盖表头单元格样式
+    :deep(.el-table__header th) {
+      background-color: #ffffff !important;
+      color: #5a32a3 !important;
+      font-weight: 600 !important;
+    }
+
+    // 覆盖表头单元格内容样式
+    :deep(.el-table__header th .cell) {
+      background-color: #ffffff !important;
+      color: #5a32a3 !important;
+      font-weight: 600 !important;
     }
   }
 }
@@ -1360,5 +1375,21 @@ const deleteTask = async (task) => {
     }
   }
 }
+
+// Cron帮助图标样式
+:deep(.cron-help-icon) {
+  margin-left: 6px;
+  font-size: 20px;
+  color: #7b42f6;
+  cursor: pointer;
+  padding: 2px;
+  border-radius: 50%;
+  transition: all 0.3s ease;
+  vertical-align: baseline;
+
+  &:hover {
+    background: rgba(123, 66, 246, 0.1);
+    transform: scale(1.1);
+  }
+}
 </style>
-  --el-color-primary-light-9: #f8f

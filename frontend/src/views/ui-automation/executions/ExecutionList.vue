@@ -39,7 +39,11 @@
     <div class="card-container">
       <el-table :data="executions" v-loading="loading" stripe style="width: 100%" @selection-change="handleSelectionChange">
         <el-table-column type="selection" width="55" header-align="center" align="center" />
-        <el-table-column prop="id" label="ID" width="80" header-align="center" align="center" />
+        <el-table-column label="序号" width="80" header-align="center" align="center">
+          <template #default="{ $index }">
+            {{ (pagination.currentPage - 1) * pagination.pageSize + $index + 1 }}
+          </template>
+        </el-table-column>
         <el-table-column prop="test_case_name" :label="$t('uiAutomation.execution.caseName')" min-width="200" header-align="center" align="center">
           <template #default="{ row }">
             <span class="case-name-cell" @click="viewExecutionDetail(row)">
@@ -77,7 +81,7 @@
             {{ formatDuration(row.execution_time) }}
           </template>
         </el-table-column>
-        <el-table-column :label="$t('uiAutomation.common.operation')" width="240" fixed="right" header-align="center" align="center">
+        <el-table-column :label="$t('uiAutomation.common.operation')" width="180" fixed="right" header-align="center" align="center">
           <template #default="{ row }">
             <div class="action-buttons">
               <el-button size="small" class="action-btn view-btn" @click="viewExecutionDetail(row)">
@@ -93,15 +97,7 @@
                 <el-icon><Delete /></el-icon>
                 <span>{{ $t('uiAutomation.common.delete') }}</span>
               </el-button>
-              <el-button
-                v-if="row.status === 'failed' || row.status === 'error'"
-                size="small"
-                class="action-btn rerun-btn"
-                @click="showRerunDialog(row)"
-              >
-                <el-icon><Refresh /></el-icon>
-                <span>{{ $t('uiAutomation.common.rerun') }}</span>
-              </el-button>
+
             </div>
           </template>
         </el-table-column>
@@ -164,8 +160,8 @@
           <el-tab-pane :label="$t('uiAutomation.execution.failedScreenshots')" name="screenshots" v-if="currentExecution.status === 'failed' || currentExecution.status === 'error'">
             <div class="screenshots-container">
               <div v-if="currentExecution.screenshots && currentExecution.screenshots.length > 0">
-                <div v-for="(screenshot, index) in currentExecution.screenshots" :key="index" class="screenshot-item">
-                  <h5>{{ screenshot.description || `${$t('uiAutomation.execution.screenshot')} ${index + 1}` }}</h5>
+                <div v-for="(screenshot, screenshotIndex) in currentExecution.screenshots" :key="screenshotIndex" class="screenshot-item">
+                  <h5>{{ screenshot.description || `${$t('uiAutomation.execution.screenshot')} ${Number(screenshotIndex) + 1}` }}</h5>
                   <!-- 检查截图URL是否有效 -->
                   <div v-if="screenshot.url" class="screenshot-wrapper">
                     <img
@@ -1048,9 +1044,9 @@ onMounted(async () => {
 // 操作按钮容器
 .action-buttons {
   display: flex;
-  justify-content: flex-start;
+  justify-content: center;
   align-items: center;
-  gap: 4px;
+  gap: 8px;
   flex-wrap: nowrap;
 }
 
@@ -1058,12 +1054,14 @@ onMounted(async () => {
 .action-btn {
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 4px;
   font-size: 12px;
   font-weight: 500;
-  padding: 4px 10px !important;
+  padding: 6px 14px !important;
   border-radius: 6px;
   transition: all 0.3s ease;
+  min-width: 70px;
 
   .el-icon {
     font-size: 14px;

@@ -1025,4 +1025,49 @@ onMounted(async () => {
   align-items: center;
   justify-content: center;
 }
+
+/* 创建页面对象弹窗样式 */
+:deep(.el-dialog .el-input__wrapper) {
+  box-shadow: none !important;
+  border: 1px solid transparent !important;
+  border-radius: 4px !important;
+  transition: all 0.3s !important;
+  background-color: #f5f7fa !important;
+}
+
+:deep(.el-dialog .el-input__wrapper:hover) {
+  border-color: #c0c4cc !important;
+  background-color: #ffffff !important;
+}
+
+:deep(.el-dialog .el-input__wrapper.is-focus) {
+  border-color: #409eff !important;
+  box-shadow: 0 0 0 1px #409eff !important;
+  background-color: #ffffff !important;
+}
+
+:deep(.el-dialog .el-textarea__inner) {
+  box-shadow: none !important;
+  border: 1px solid transparent !important;
+  border-radius: 4px !important;
+  background-color: #f5f7fa !important;
+  transition: all 0.3s !important;
+}
+
+:deep(.el-dialog .el-textarea__inner:hover) {
+  border-color: #c0c4cc !important;
+  background-color: #ffffff !important;
+}
+
+:deep(.el-dialog .el-textarea__inner:focus) {
+  border-color: #409eff !important;
+  box-shadow: 0 0 0 1px #409eff !important;
+  background-color: #ffffff !important;
+}
+
+:deep(.el-dialog__footer .el-button:not(.el-button--primary):hover) {
+  background-color: #ecf5ff !important;
+  border-color: #409eff !important;
+  color: #409eff !important;
+}
 </style>

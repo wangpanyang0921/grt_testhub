@@ -18,7 +18,7 @@
           <div class="logo-icon">
             <img src="@/assets/images/grt.png" alt="TestHub Logo" class="logo-image" />
           </div>
-          <h1 class="brand-title">国人通 TestHub</h1>
+          <h1 class="brand-title">国人通测试平台</h1>
         </div>
       </div>
 

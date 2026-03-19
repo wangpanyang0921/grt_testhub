@@ -104,10 +104,10 @@
           <el-input v-model="createForm.base_url" :placeholder="$t('uiAutomation.project.rules.baseUrlRequired')" />
         </el-form-item>
         <el-form-item :label="$t('uiAutomation.project.startDate')" prop="start_date">
-          <el-date-picker v-model="createForm.start_date" type="date" :placeholder="$t('uiAutomation.project.selectDate')" />
+          <el-date-picker v-model="createForm.start_date" type="date" :placeholder="$t('uiAutomation.project.selectDate')" style="width: 100%" />
         </el-form-item>
         <el-form-item :label="$t('uiAutomation.project.endDate')" prop="end_date">
-          <el-date-picker v-model="createForm.end_date" type="date" :placeholder="$t('uiAutomation.project.selectDate')" />
+          <el-date-picker v-model="createForm.end_date" type="date" :placeholder="$t('uiAutomation.project.selectDate')" style="width: 100%" />
         </el-form-item>
       </el-form>
       <template #footer>
@@ -138,10 +138,10 @@
           <el-input v-model="editForm.base_url" :placeholder="$t('uiAutomation.project.rules.baseUrlRequired')" />
         </el-form-item>
         <el-form-item :label="$t('uiAutomation.project.startDate')" prop="start_date">
-          <el-date-picker v-model="editForm.start_date" type="date" :placeholder="$t('uiAutomation.project.selectDate')" />
+          <el-date-picker v-model="editForm.start_date" type="date" :placeholder="$t('uiAutomation.project.selectDate')" style="width: 100%" />
         </el-form-item>
         <el-form-item :label="$t('uiAutomation.project.endDate')" prop="end_date">
-          <el-date-picker v-model="editForm.end_date" type="date" :placeholder="$t('uiAutomation.project.selectDate')" />
+          <el-date-picker v-model="editForm.end_date" type="date" :placeholder="$t('uiAutomation.project.selectDate')" style="width: 100%" />
         </el-form-item>
       </el-form>
       <template #footer>
@@ -155,20 +155,20 @@
     <!-- 项目详情弹框 -->
     <el-dialog v-model="showDetailDialog" :title="$t('uiAutomation.project.projectDetail')" width="600px">
       <div v-if="currentProjectDetail" class="project-detail">
-        <el-descriptions bordered column="1">
-          <el-descriptions-item :label="$t('uiAutomation.project.projectName')">{{ currentProjectDetail.name }}</el-descriptions-item>
-          <el-descriptions-item :label="$t('uiAutomation.project.projectDesc')" :span="2">{{ currentProjectDetail.description || $t('uiAutomation.project.noDescription') }}</el-descriptions-item>
-          <el-descriptions-item :label="$t('uiAutomation.common.status')">
-            <span class="status-badge" :class="getStatusClass(currentProjectDetail.status)">
+        <el-descriptions bordered column="1" class="detail-descriptions" label-width="120px">
+          <el-descriptions-item :label="$t('uiAutomation.project.projectName')" label-class-name="label-right">{{ currentProjectDetail.name }}</el-descriptions-item>
+          <el-descriptions-item :label="$t('uiAutomation.project.projectDesc')" :span="2" label-class-name="label-right">{{ currentProjectDetail.description || $t('uiAutomation.project.noDescription') }}</el-descriptions-item>
+          <el-descriptions-item :label="$t('uiAutomation.common.status')" label-class-name="label-right">
+            <span class="detail-status-text" :class="getStatusClass(currentProjectDetail.status)">
               {{ getStatusText(currentProjectDetail.status) }}
             </span>
           </el-descriptions-item>
-          <el-descriptions-item :label="$t('uiAutomation.project.baseUrl')">{{ currentProjectDetail.base_url }}</el-descriptions-item>
-          <el-descriptions-item :label="$t('uiAutomation.project.owner')">{{ currentProjectDetail.owner?.username || $t('uiAutomation.project.none') }}</el-descriptions-item>
-          <el-descriptions-item :label="$t('uiAutomation.project.startDate')">{{ currentProjectDetail.start_date ? formatDate(null, null, currentProjectDetail.start_date) : $t('uiAutomation.project.notSet') }}</el-descriptions-item>
-          <el-descriptions-item :label="$t('uiAutomation.project.endDate')">{{ currentProjectDetail.end_date ? formatDate(null, null, currentProjectDetail.end_date) : $t('uiAutomation.project.notSet') }}</el-descriptions-item>
-          <el-descriptions-item :label="$t('uiAutomation.common.createTime')">{{ formatDate(null, null, currentProjectDetail.created_at) }}</el-descriptions-item>
-          <el-descriptions-item :label="$t('uiAutomation.common.updateTime')">{{ formatDate(null, null, currentProjectDetail.updated_at) }}</el-descriptions-item>
+          <el-descriptions-item :label="$t('uiAutomation.project.baseUrl')" label-class-name="label-right">{{ currentProjectDetail.base_url }}</el-descriptions-item>
+          <el-descriptions-item :label="$t('uiAutomation.project.owner')" label-class-name="label-right">{{ currentProjectDetail.owner?.username || $t('uiAutomation.project.none') }}</el-descriptions-item>
+          <el-descriptions-item :label="$t('uiAutomation.project.startDate')" label-class-name="label-right">{{ currentProjectDetail.start_date ? formatDate(null, null, currentProjectDetail.start_date) : $t('uiAutomation.project.notSet') }}</el-descriptions-item>
+          <el-descriptions-item :label="$t('uiAutomation.project.endDate')" label-class-name="label-right">{{ currentProjectDetail.end_date ? formatDate(null, null, currentProjectDetail.end_date) : $t('uiAutomation.project.notSet') }}</el-descriptions-item>
+          <el-descriptions-item :label="$t('uiAutomation.common.createTime')" label-class-name="label-right">{{ formatDate(null, null, currentProjectDetail.created_at) }}</el-descriptions-item>
+          <el-descriptions-item :label="$t('uiAutomation.common.updateTime')" label-class-name="label-right">{{ formatDate(null, null, currentProjectDetail.updated_at) }}</el-descriptions-item>
         </el-descriptions>
       </div>
       <div v-else class="text-center text-gray-500">
@@ -522,6 +522,47 @@ onMounted(() => {
   }
 }
 
+// 详情弹窗中的状态文本样式（与其他字段对齐）
+.detail-status-text {
+  font-size: 14px;
+  line-height: 22px;
+
+  &.not_started {
+    color: #8c8c8c;
+  }
+
+  &.in_progress {
+    color: #52c41a;
+  }
+
+  &.completed {
+    color: #52c41a;
+  }
+}
+
+// 标签右对齐样式 - 应用于 el-descriptions 的 bordered 模式
+:deep(.detail-descriptions) {
+  // 针对 bordered 模式的标签单元格
+  .el-descriptions__cell.is-bordered-label {
+    text-align: right !important;
+    justify-content: flex-end !important;
+    
+    .el-descriptions__label {
+      text-align: right !important;
+      justify-content: flex-end !important;
+      width: 100%;
+    }
+  }
+  
+  // 标签类名样式
+  .label-right {
+    text-align: right !important;
+    justify-content: flex-end !important;
+    display: inline-flex;
+    width: 100%;
+  }
+}
+
 // 页面容器
 .page-container {
   padding: 24px;
@@ -648,9 +689,9 @@ onMounted(() => {
     --el-fill-color-light: #ffffff;
     --el-fill-color-lighter: #ffffff;
     --el-fill-color-blank: #ffffff;
-    --el-text-color-primary: #333;
-    --el-text-color-regular: #333;
-    --el-text-color-secondary: #666;
+    --el-text-color-primary: #262626;
+    --el-text-color-regular: #595959;
+    --el-text-color-secondary: #8c8c8c;
     --el-text-color-placeholder: #999;
     --el-table-header-bg-color: #ffffff;
     --el-table-row-hover-bg-color: #f8f7ff;
@@ -1044,6 +1085,14 @@ onMounted(() => {
           }
         }
 
+        .el-date-picker {
+          width: 100%;
+
+          .el-input__wrapper {
+            width: 100%;
+          }
+        }
+
         .el-textarea__inner {
           border-radius: 8px;
           border: 1px solid rgba(147, 112, 219, 0.2);
@@ -1053,6 +1102,16 @@ onMounted(() => {
             border-color: #7b42f6;
           }
         }
+      }
+    }
+  }
+
+  // 项目详情样式
+  .project-detail {
+    :deep(.detail-descriptions) {
+      .el-descriptions__label {
+        text-align: right !important;
+        justify-content: flex-end !important;
       }
     }
   }

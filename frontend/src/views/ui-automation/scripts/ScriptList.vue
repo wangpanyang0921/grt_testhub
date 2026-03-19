@@ -381,8 +381,8 @@ const getFrameworkText = (framework) => {
 // 获取脚本类型文本
 const getScriptTypeText = (scriptType) => {
   const typeMap = {
-    'CODE': t('uiAutomation.script.codeScript'),
-    'RECORD': t('uiAutomation.script.recordScript')
+    'CODE': t('uiAutomation.script.scriptTypes.CODE'),
+    'RECORD': t('uiAutomation.script.scriptTypes.RECORD')
   }
   return typeMap[scriptType] || scriptType || t('uiAutomation.status.unknown')
 }

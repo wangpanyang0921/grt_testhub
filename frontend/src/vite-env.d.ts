@@ -5,3 +5,11 @@ declare module '*.vue' {
   const component: DefineComponent<{}, {}, any>
   export default component
 }
+
+// 全局 Window 扩展
+declare global {
+  interface Window {
+    ELEMENTS_DEBUG?: any
+    debugTreeData?: any
+  }
+}

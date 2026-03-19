@@ -747,9 +747,9 @@ onMounted(async () => {
     --el-fill-color-light: #ffffff;
     --el-fill-color-lighter: #ffffff;
     --el-fill-color-blank: #ffffff;
-    --el-text-color-primary: #333;
-    --el-text-color-regular: #333;
-    --el-text-color-secondary: #666;
+    --el-text-color-primary: #262626;
+    --el-text-color-regular: #595959;
+    --el-text-color-secondary: #8c8c8c;
     --el-text-color-placeholder: #999;
     --el-table-header-bg-color: #ffffff;
     --el-table-row-hover-bg-color: #f8f7ff;
@@ -822,6 +822,20 @@ onMounted(async () => {
           background-color: #f8f7ff !important;
         }
       }
+    }
+
+    // 直接覆盖表头单元格样式
+    :deep(.el-table__header th) {
+      background-color: #ffffff !important;
+      color: #5a32a3 !important;
+      font-weight: 600 !important;
+    }
+
+    // 覆盖表头单元格内容样式
+    :deep(.el-table__header th .cell) {
+      background-color: #ffffff !important;
+      color: #5a32a3 !important;
+      font-weight: 600 !important;
     }
   }
 }

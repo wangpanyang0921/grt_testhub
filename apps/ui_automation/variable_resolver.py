@@ -28,13 +28,26 @@ class VariableResolver:
             'random_letters': self._random_letters,
             'random_chinese': self._random_chinese,
             
-            # 业务数据函数
+            # 业务数据函数 (旧版命名兼容)
             'random_phone': self._random_phone,
             'random_email': self._random_email,
             'random_id_card': self._random_id_card,
             'random_name': self._random_name,
             'random_company': self._random_company,
             'random_address': self._random_address,
+            
+            # 业务数据函数 (新版命名 - 前端变量助手使用)
+            'generate_chinese_name': self._generate_chinese_name,
+            'generate_chinese_phone': self._generate_chinese_phone,
+            'generate_chinese_email': self._generate_chinese_email,
+            'generate_chinese_address': self._generate_chinese_address,
+            'generate_id_card': self._generate_id_card,
+            'generate_company_name': self._generate_company_name,
+            'generate_bank_card': self._generate_bank_card,
+            'generate_hk_id_card': self._generate_hk_id_card,
+            'generate_business_license': self._generate_business_license,
+            'generate_user_profile': self._generate_user_profile,
+            'generate_coordinates': self._generate_coordinates,
             
             # 时间日期函数
             'timestamp': self._timestamp,
@@ -74,13 +87,18 @@ class VariableResolver:
         def replace_func(match):
             expression = match.group(1)
             try:
-                return str(self._evaluate_expression(expression))
+                result = str(self._evaluate_expression(expression))
+                print(f"✓ 变量解析成功: ${{{expression}}} -> {result}")
+                return result
             except Exception as e:
                 # 如果解析失败，保留原始表达式
                 print(f"⚠️  变量解析失败: ${{{expression}}} - {str(e)}")
                 return match.group(0)
         
-        return re.sub(pattern, replace_func, text)
+        result = re.sub(pattern, replace_func, text)
+        if result != text:
+            print(f"✓ 文本变量解析: '{text}' -> '{result}'")
+        return result
     
     def _evaluate_expression(self, expression):
         """评估单个表达式
@@ -130,6 +148,9 @@ class VariableResolver:
                 else:
                     args.append(int(arg))
             except ValueError:
+                # 如果是纯字母（参数名如 'count', 'gender' 等），跳过（使用函数默认值）
+                if arg.isalpha():
+                    continue
                 # 移除引号
                 args.append(arg.strip('\'"'))
         return args
@@ -586,6 +607,309 @@ class VariableResolver:
         """
         chars = string.ascii_letters + string.digits + '!@#$%^&*'
         return ''.join(random.choices(chars, k=int(length)))
+
+    # ========== 新版业务数据函数 (前端变量助手使用) ==========
+
+    def _generate_chinese_name(self, gender='random', count=1):
+        """生成中文姓名
+
+        Args:
+            gender: 性别 ('male', 'female', 'random')
+            count: 生成数量
+
+        Returns:
+            中文姓名或姓名列表
+
+        Example:
+            ${generate_chinese_name(random, 1)} -> "张伟"
+        """
+        surnames = ['王', '李', '张', '刘', '陈', '杨', '黄', '赵', '周', '吴',
+                    '徐', '孙', '马', '朱', '胡', '郭', '何', '林', '罗', '高']
+        male_names = ['伟', '强', '磊', '军', '洋', '勇', '杰', '涛', '明', '超',
+                      '鹏', '飞', '波', '辉', '刚', '健', '俊', '峰', '建', '华']
+        female_names = ['芳', '娜', '秀', '敏', '静', '丽', '艳', '娟', '霞', '玲',
+                        '婷', '雪', '梅', '兰', '红', '英', '华', '文', '玉', '春']
+
+        def generate_one():
+            surname = random.choice(surnames)
+            if gender == 'male':
+                name = random.choice(male_names)
+                if random.random() > 0.5:
+                    name += random.choice(male_names)
+            elif gender == 'female':
+                name = random.choice(female_names)
+                if random.random() > 0.5:
+                    name += random.choice(female_names)
+            else:
+                all_names = male_names + female_names
+                name = random.choice(all_names)
+                if random.random() > 0.5:
+                    name += random.choice(all_names)
+            return surname + name
+
+        count = int(count)
+        if count == 1:
+            return generate_one()
+        return [generate_one() for _ in range(count)]
+
+    def _generate_chinese_phone(self, count=1):
+        """生成中国手机号
+
+        Args:
+            count: 生成数量
+
+        Returns:
+            手机号或手机号列表
+
+        Example:
+            ${generate_chinese_phone(1)} -> "13812345678"
+        """
+        prefixes = ['138', '139', '135', '136', '137', '150', '151', '152', '157', '158', '159',
+                    '182', '183', '187', '188', '130', '131', '132', '155', '156', '185', '186']
+
+        def generate_one():
+            prefix = random.choice(prefixes)
+            suffix = ''.join(random.choices(string.digits, k=8))
+            return prefix + suffix
+
+        count = int(count)
+        if count == 1:
+            return generate_one()
+        return [generate_one() for _ in range(count)]
+
+    def _generate_chinese_email(self, count=1):
+        """生成邮箱地址
+
+        Args:
+            count: 生成数量
+
+        Returns:
+            邮箱或邮箱列表
+
+        Example:
+            ${generate_chinese_email(1)} -> "zhangwei123@test.com"
+        """
+        domains = ['qq.com', '163.com', '126.com', 'gmail.com', 'outlook.com', 'test.com']
+
+        def generate_one():
+            username = ''.join(random.choices(string.ascii_lowercase + string.digits, k=8))
+            domain = random.choice(domains)
+            return f"{username}@{domain}"
+
+        count = int(count)
+        if count == 1:
+            return generate_one()
+        return [generate_one() for _ in range(count)]
+
+    def _generate_chinese_address(self, full_address=True, count=1):
+        """生成中国地址
+
+        Args:
+            full_address: 是否生成完整地址
+            count: 生成数量
+
+        Returns:
+            地址或地址列表
+
+        Example:
+            ${generate_chinese_address(true, 1)} -> "北京市朝阳区建国路123号"
+        """
+        provinces = ['北京市', '上海市', '广东省', '浙江省', '江苏省', '四川省', '湖北省', '陕西省']
+        cities = ['北京', '上海', '广州', '深圳', '杭州', '南京', '成都', '武汉', '西安']
+        districts = ['朝阳区', '海淀区', '浦东新区', '天河区', '南山区', '西湖区', '鼓楼区', '武昌区']
+        streets = ['建国路', '中山路', '人民路', '解放路', '和平路', '胜利路', '建设路', '文化路']
+
+        def generate_one():
+            if full_address:
+                province = random.choice(provinces)
+                district = random.choice(districts)
+                street = random.choice(streets)
+                number = random.randint(1, 999)
+                return f"{province}{district}{street}{number}号"
+            else:
+                city = random.choice(cities)
+                district = random.choice(districts)
+                return f"{city}{district}"
+
+        count = int(count)
+        if count == 1:
+            return generate_one()
+        return [generate_one() for _ in range(count)]
+
+    def _generate_id_card(self, count=1):
+        """生成身份证号
+
+        Args:
+            count: 生成数量
+
+        Returns:
+            身份证号或身份证号列表
+
+        Example:
+            ${generate_id_card(1)} -> "110101199001011234"
+        """
+        area_codes = ['110101', '310101', '440101', '500101', '320101', '330101', '510101', '420101']
+
+        def generate_one():
+            area_code = random.choice(area_codes)
+            birth_year = random.randint(1970, 2005)
+            birth_month = random.randint(1, 12)
+            birth_day = random.randint(1, 28)
+            birth_date = f"{birth_year}{birth_month:02d}{birth_day:02d}"
+            sequence = f"{random.randint(0, 999):03d}"
+            check_digit = random.choice(string.digits + 'X')
+            return area_code + birth_date + sequence + check_digit
+
+        count = int(count)
+        if count == 1:
+            return generate_one()
+        return [generate_one() for _ in range(count)]
+
+    def _generate_company_name(self, count=1):
+        """生成公司名称
+
+        Args:
+            count: 生成数量
+
+        Returns:
+            公司名称或公司名称列表
+
+        Example:
+            ${generate_company_name(1)} -> "北京科技有限公司"
+        """
+        cities = ['北京', '上海', '广州', '深圳', '杭州', '成都', '武汉', '西安', '南京']
+        types = ['科技', '网络', '信息', '软件', '电子', '智能', '数据', '云计算', '互联网']
+        suffixes = ['有限公司', '股份有限公司', '技术有限公司', '集团有限公司', '网络科技有限公司']
+
+        def generate_one():
+            city = random.choice(cities)
+            type_name = random.choice(types)
+            suffix = random.choice(suffixes)
+            return f"{city}{type_name}{suffix}"
+
+        count = int(count)
+        if count == 1:
+            return generate_one()
+        return [generate_one() for _ in range(count)]
+
+    def _generate_bank_card(self, count=1):
+        """生成银行卡号
+
+        Args:
+            count: 生成数量
+
+        Returns:
+            银行卡号或银行卡号列表
+
+        Example:
+            ${generate_bank_card(1)} -> "6222021234567890123"
+        """
+        prefixes = ['622202', '622203', '622208', '622848', '622845', '622846', '622847']
+
+        def generate_one():
+            prefix = random.choice(prefixes)
+            suffix = ''.join(random.choices(string.digits, k=13))
+            return prefix + suffix
+
+        count = int(count)
+        if count == 1:
+            return generate_one()
+        return [generate_one() for _ in range(count)]
+
+    def _generate_hk_id_card(self, count=1):
+        """生成香港身份证号
+
+        Args:
+            count: 生成数量
+
+        Returns:
+            香港身份证号或身份证号列表
+
+        Example:
+            ${generate_hk_id_card(1)} -> "Y123456(7)"
+        """
+        def generate_one():
+            prefix = random.choice(string.ascii_uppercase)
+            numbers = ''.join(random.choices(string.digits, k=6))
+            check = random.randint(0, 9)
+            return f"{prefix}{numbers}({check})"
+
+        count = int(count)
+        if count == 1:
+            return generate_one()
+        return [generate_one() for _ in range(count)]
+
+    def _generate_business_license(self, count=1):
+        """生成营业执照号
+
+        Args:
+            count: 生成数量
+
+        Returns:
+            营业执照号或营业执照号列表
+
+        Example:
+            ${generate_business_license(1)} -> "91110108MA1234567X"
+        """
+        def generate_one():
+            prefix = '91'
+            area_code = random.choice(['110105', '110108', '310101', '440106', '330106'])
+            org_code = ''.join(random.choices(string.ascii_uppercase + string.digits, k=8))
+            check = random.choice(string.ascii_uppercase + string.digits)
+            return f"{prefix}{area_code}{org_code}{check}"
+
+        count = int(count)
+        if count == 1:
+            return generate_one()
+        return [generate_one() for _ in range(count)]
+
+    def _generate_user_profile(self, count=1):
+        """生成用户档案
+
+        Args:
+            count: 生成数量
+
+        Returns:
+            用户档案JSON字符串或档案列表
+        """
+        def generate_one():
+            import json
+            profile = {
+                'name': self._generate_chinese_name(),
+                'phone': self._generate_chinese_phone(),
+                'email': self._generate_chinese_email(),
+                'id_card': self._generate_id_card(),
+                'address': self._generate_chinese_address()
+            }
+            return json.dumps(profile, ensure_ascii=False)
+
+        count = int(count)
+        if count == 1:
+            return generate_one()
+        return [generate_one() for _ in range(count)]
+
+    def _generate_coordinates(self, count=1):
+        """生成经纬度坐标
+
+        Args:
+            count: 生成数量
+
+        Returns:
+            经纬度坐标或坐标列表
+
+        Example:
+            ${generate_coordinates(1)} -> "39.9042,116.4074"
+        """
+        def generate_one():
+            # 中国范围内的经纬度
+            lat = round(random.uniform(18.0, 53.5), 4)
+            lng = round(random.uniform(73.5, 135.0), 4)
+            return f"{lat},{lng}"
+
+        count = int(count)
+        if count == 1:
+            return generate_one()
+        return [generate_one() for _ in range(count)]
 
 
 # 全局单例

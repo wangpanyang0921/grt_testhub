@@ -914,7 +914,7 @@ export default {
   scriptEditor: {
     title: '智能脚本生成',
     elementLibrary: '元素库',
-    searchElement: '搜索元素...',
+    searchElement: '搜索元素',
     clickToInsert: '点击插入代码',
     executionLogs: '执行日志',
     elementDetail: '元素详情',
@@ -965,7 +965,7 @@ export default {
     codePreview: '代码预览',
     propertiesConfig: '属性配置',
     availableElements: '可用元素',
-    searchElements: '搜索元素...',
+    searchElements: '搜索元素',
     pageObjectElements: '页面对象元素',
     dragElementHint: '从左侧拖拽元素到这里',
     refreshCode: '刷新代码',
@@ -1061,6 +1061,7 @@ export default {
     save: '保存',
     scriptTypes: {
       CODE: '代码脚本',
+      RECORD: '录制脚本',
       VISUAL: '可视化脚本',
       KEYWORD: '关键字脚本'
     },
@@ -1082,11 +1083,11 @@ export default {
   // 测试用例管理
   testCase: {
     title: '测试用例管理',
-    newTestCase: '新建测试用例',
+    newTestCase: '新建用例',
     testCaseList: '测试用例列表',
     searchPlaceholder: '搜索测试用例...',
     noDescription: '暂无描述',
-    stepsCount: '步骤数',
+    stepsCount: '步骤',
     stepsCountUnit: '步骤',
     addStep: '添加步骤',
     saveTestCase: '保存',
@@ -1119,7 +1120,7 @@ export default {
     inputPlaceholder: '请输入内容，支持变量如 {{random_phone()}}',
     switchTabPlaceholder: '输入索引(0,1...)或留空切换到最新',
     insertVariable: '插入动态变量',
-    waitTime: '等待时间（毫秒）：',
+    waitTime: '等待（ms）：',
     assertType: '断言类型：',
     assertTextContains: '文本包含',
     assertTextEquals: '文本等于',
@@ -1164,10 +1165,14 @@ export default {
     stepDesc: '步骤描述:',
     detailErrorInfo: '详细错误信息:',
     variableCategories: {
+      string: '字符串',
       randomNumber: '随机数',
       randomString: '随机字符串',
       businessData: '业务数据',
       dateTime: '时间日期',
+      encoding: '编码转换',
+      encryption: '加密哈希',
+      crontab: 'Crontab',
       other: '其他'
     },
     variables: {

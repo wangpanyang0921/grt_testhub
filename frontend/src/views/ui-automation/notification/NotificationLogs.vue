@@ -9,27 +9,19 @@
         @clear="handleSearch"
         @keyup.enter="handleSearch"
         style="width: 260px;"
+        class="search-input"
       >
         <template #prefix>
           <el-icon><Search /></el-icon>
         </template>
       </el-input>
-      <el-date-picker
-        v-model="searchForm.dateRange"
-        type="daterange"
-        :range-separator="$t('uiAutomation.notification.logs.dateRangeTo')"
-        :start-placeholder="$t('uiAutomation.notification.logs.startDate')"
-        :end-placeholder="$t('uiAutomation.notification.logs.endDate')"
-        value-format="YYYY-MM-DD"
-        @change="handleSearch"
-        style="width: 680px;"
-      />
       <el-select
         v-model="searchForm.status"
         :placeholder="$t('uiAutomation.notification.logs.notificationStatus')"
         clearable
         @change="handleSearch"
         style="width: 160px;"
+        class="status-select"
       >
         <el-option :label="$t('uiAutomation.notification.logs.allStatus')" value=""/>
         <el-option :label="$t('uiAutomation.notification.logs.statusSuccess')" value="success"/>
@@ -58,7 +50,6 @@
           prop="task_name"
           :label="$t('uiAutomation.notification.logs.taskName')"
           min-width="150"
-          sortable="custom"
           header-align="center"
           align="center"
         />
@@ -92,7 +83,6 @@
           prop="created_at"
           :label="$t('uiAutomation.notification.logs.notificationTime')"
           min-width="180"
-          sortable="custom"
           header-align="center"
           align="center"
         >
@@ -104,7 +94,6 @@
           prop="status_display"
           :label="$t('uiAutomation.common.status')"
           min-width="100"
-          sortable="custom"
           header-align="center"
           align="center"
         >
@@ -159,46 +148,47 @@
     >
       <el-form
           v-if="selectedLog"
-          label-position="top"
+          label-position="left"
+          label-width="100px"
           class="notification-detail-form"
       >
         <el-row :gutter="20">
           <el-col :span="12">
-            <el-form-item :label="$t('uiAutomation.notification.logs.taskName')">
+            <el-form-item :label="$t('uiAutomation.notification.logs.taskName') + ':'">
               <span>{{ selectedLog.task_name }}</span>
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item :label="$t('uiAutomation.notification.logs.taskType')">
+            <el-form-item :label="$t('uiAutomation.notification.logs.taskType') + ':'">
               <span>{{ selectedLog.task_type_display }}</span>
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item :label="$t('uiAutomation.notification.logs.notificationType')">
+            <el-form-item :label="$t('uiAutomation.notification.logs.notificationType') + ':'">
               <el-tag :type="getNotificationTypeTagType(selectedLog.actual_notification_type_display)">
                 {{ selectedLog.actual_notification_type_display }}
               </el-tag>
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item :label="$t('uiAutomation.common.status')">
+            <el-form-item :label="$t('uiAutomation.common.status') + ':'">
               <el-tag :type="getStatusTagType(selectedLog.status_display)">
                 {{ selectedLog.status_display }}
               </el-tag>
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item :label="$t('uiAutomation.notification.logs.notificationTime')">
+            <el-form-item :label="$t('uiAutomation.notification.logs.notificationTime') + ':'">
               <span>{{ formatDate(selectedLog.created_at) }}</span>
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item :label="$t('uiAutomation.notification.logs.sentTime')">
+            <el-form-item :label="$t('uiAutomation.notification.logs.sentTime') + ':'">
               <span>{{ selectedLog.sent_at ? formatDate(selectedLog.sent_at) : '-' }}</span>
             </el-form-item>
           </el-col>
           <el-col :span="24" v-if="selectedLog.webhook_bot_info && (selectedLog.webhook_bot_info.bot_type || selectedLog.webhook_bot_info.type)">
-            <el-form-item :label="$t('uiAutomation.notification.logs.webhookBot')">
+            <el-form-item :label="$t('uiAutomation.notification.logs.webhookBot') + ':'">
               <div class="webhook-info">
                 <el-tag
                     class="webhook-tag"
@@ -211,7 +201,7 @@
             </el-form-item>
           </el-col>
           <el-col :span="24">
-            <el-form-item :label="$t('uiAutomation.notification.logs.content')">
+            <el-form-item :label="$t('uiAutomation.notification.logs.content') + ':'" class="content-form-item">
               <div class="notification-content">
                 <div v-if="parsedNotificationContent" class="notification-content-parsed">
                   <div class="content-item" v-for="(item, index) in parsedNotificationContent" :key="index">
@@ -226,7 +216,7 @@
             </el-form-item>
           </el-col>
           <el-col :span="24" v-if="selectedLog.error_message">
-            <el-form-item :label="$t('uiAutomation.notification.logs.errorMessage')">
+            <el-form-item :label="$t('uiAutomation.notification.logs.errorMessage') + ':'" class="error-form-item">
               <div class="error-message">
                 <el-alert
                     :title="selectedLog.error_message"
@@ -636,31 +626,62 @@ export default {
 // 筛选栏
 .filter-bar {
   padding: 20px 24px;
-  background: #ffffff;
-  border: 1px solid rgba(147, 112, 219, 0.12);
+  background: linear-gradient(135deg, #ffffff 0%, #f8f7ff 100%);
+  border: 1px solid rgba(147, 112, 219, 0.1);
   border-radius: 12px;
-  box-shadow: 0 4px 16px rgba(147, 112, 219, 0.08);
+  box-shadow: 0 4px 16px rgba(147, 112, 219, 0.1);
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 16px;
 
-  :deep(.el-input__wrapper),
-  :deep(.el-select .el-input__wrapper) {
-    box-shadow: 0 2px 8px rgba(147, 112, 219, 0.08);
-    border-radius: 8px;
-    border: 1px solid rgba(147, 112, 219, 0.2);
-    background: #ffffff;
+  .status-select {
+    :deep(.el-input__wrapper) {
+      border-radius: 8px;
+      border: 1px solid rgba(147, 112, 219, 0.3);
+      box-shadow: none;
 
-    &:hover,
-    &:focus {
-      box-shadow: 0 2px 8px rgba(147, 112, 219, 0.15);
-      border-color: #7b42f6;
+      &:hover, &.is-focus {
+        border-color: #7b42f6;
+        box-shadow: 0 0 0 3px rgba(123, 66, 246, 0.1);
+      }
+    }
+
+    :deep(.el-input__inner) {
+      color: #5a32a3;
+      font-weight: 500;
     }
   }
 
-  :deep(.el-input__inner) {
-    color: #5a32a3;
-    font-weight: 500;
+  .search-input {
+    :deep(.el-input__wrapper) {
+      border-radius: 8px;
+      border: 1px solid rgba(147, 112, 219, 0.3);
+      box-shadow: none;
+
+      &:hover, &.is-focus {
+        border-color: #7b42f6;
+        box-shadow: 0 0 0 3px rgba(123, 66, 246, 0.1);
+      }
+    }
+
+    :deep(.el-input__inner) {
+      color: #5a32a3;
+      font-weight: 500;
+    }
+  }
+
+  // 日期选择器宽度限制
+  :deep(.el-date-editor--daterange) {
+    width: 320px !important;
+    max-width: 320px !important;
+
+    .el-input__wrapper {
+      width: 100% !important;
+    }
+
+    .el-range-separator {
+      color: #999;
+    }
   }
 
   .filter-bar-spacer {
@@ -745,9 +766,9 @@ export default {
     --el-fill-color-light: #ffffff;
     --el-fill-color-lighter: #ffffff;
     --el-fill-color-blank: #ffffff;
-    --el-text-color-primary: #333;
-    --el-text-color-regular: #333;
-    --el-text-color-secondary: #666;
+    --el-text-color-primary: #262626;
+    --el-text-color-regular: #595959;
+    --el-text-color-secondary: #8c8c8c;
     --el-text-color-placeholder: #999;
     --el-table-header-bg-color: #ffffff;
     --el-table-row-hover-bg-color: #f8f7ff;
@@ -844,6 +865,20 @@ export default {
         font-size: 14px;
         line-height: 24px;
       }
+    }
+
+    // 直接覆盖表头单元格样式
+    :deep(.el-table__header th) {
+      background-color: #ffffff !important;
+      color: #5a32a3 !important;
+      font-weight: 600 !important;
+    }
+
+    // 覆盖表头单元格内容样式
+    :deep(.el-table__header th .cell) {
+      background-color: #ffffff !important;
+      color: #5a32a3 !important;
+      font-weight: 600 !important;
     }
   }
 }
@@ -1172,7 +1207,25 @@ export default {
 }
 
 .notification-detail-form :deep(.el-form-item) {
-  margin-bottom: 18px;
+  margin-bottom: 30px;
+}
+
+.notification-detail-form :deep(.el-form-item__label) {
+  color: #606266;
+  font-weight: 500;
+  justify-content: flex-end;
+  padding-right: 8px;
+}
+
+.notification-detail-form :deep(.el-form-item__content) {
+  color: #303133;
+  display: flex;
+  align-items: center;
+}
+
+.notification-detail-form :deep(.content-form-item .el-form-item__content),
+.notification-detail-form :deep(.error-form-item .el-form-item__content) {
+  display: block;
 }
 
 .notification-content {
