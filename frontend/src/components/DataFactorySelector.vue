@@ -346,7 +346,9 @@ const handleSelectionChange = (selection: DataFactoryRecord[]) => {
 
 // 预览记录
 const previewRecord = (record: DataFactoryRecord) => {
-  previewData.value = JSON.stringify(record.data, null, 2)
+  // 优先使用 data 字段，如果不存在则使用 output_data 字段
+  const dataToPreview = record.data !== undefined ? record.data : record.output_data
+  previewData.value = JSON.stringify(dataToPreview, null, 2)
   previewVisible.value = true
 }
 

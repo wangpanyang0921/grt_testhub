@@ -1233,11 +1233,8 @@ export default {
 }
 
 .notification-content-parsed {
-  background: #ffffff;
-  border-radius: 8px;
-  padding: 20px;
-  border: 1px solid #e4e7ed;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  background: transparent;
+  padding: 0;
 }
 
 .content-item {
@@ -1257,13 +1254,14 @@ export default {
 }
 
 .content-label {
-  font-weight: 600;
+  font-weight: 500;
   color: #606266;
   min-width: 100px;
   flex-shrink: 0;
-  margin-right: 16px;
+  margin-right: 8px;
   font-size: 14px;
   line-height: 1.8;
+  text-align: right;
 }
 
 .content-value {
