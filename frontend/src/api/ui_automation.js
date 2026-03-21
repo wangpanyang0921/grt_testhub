@@ -1211,3 +1211,11 @@ export function downloadXmindImportFile(id) {
     }
   })
 }
+
+// 删除 XMind 导入记录
+export function deleteXmindImportRecord(id) {
+  return request({
+    url: `/ui-automation/xmind-imports/${id}/`,
+    method: 'delete'
+  })
+}

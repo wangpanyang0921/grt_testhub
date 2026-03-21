@@ -106,7 +106,7 @@
           </template>
         </el-table-column>
 
-        <el-table-column label="操作" width="180" fixed="right" header-align="center" align="center">
+        <el-table-column label="操作" width="260" fixed="right" header-align="center" align="center">
           <template #default="{ row }">
             <div class="action-buttons">
               <el-button size="small" type="primary" class="action-btn edit-btn" @click="viewDetail(row)">
@@ -122,6 +122,15 @@
               >
                 <el-icon><Download /></el-icon>
                 <span>下载</span>
+              </el-button>
+              <el-button
+                size="small"
+                type="danger"
+                class="action-btn delete-btn"
+                @click="handleDelete(row)"
+              >
+                <el-icon><Delete /></el-icon>
+                <span>删除</span>
               </el-button>
             </div>
           </template>
@@ -257,12 +266,12 @@
 
 <script setup>
 import { ref, onMounted } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   Upload, FolderOpened, Document, Delete, Right, Loading,
   Search, Refresh, Clock, View, Download
 } from '@element-plus/icons-vue'
-import { convertXMindToExcel, getXmindImportRecords, getXmindImportRecordDetail, downloadXmindImportFile } from '@/api/ui_automation'
+import { convertXMindToExcel, getXmindImportRecords, getXmindImportRecordDetail, downloadXmindImportFile, deleteXmindImportRecord } from '@/api/ui_automation'
 
 // ============ 文件转换相关 ============
 const isDragOver = ref(false)
@@ -495,6 +504,32 @@ const viewDetail = async (row) => {
     console.error('获取详情失败:', error)
     ElMessage.error('获取详情失败')
     detailDialogVisible.value = false
+  }
+}
+
+// 删除记录
+const handleDelete = async (row) => {
+  try {
+    await ElMessageBox.confirm(
+      `确定要删除导入记录 "${row.file_name}" 吗？删除后将无法恢复。`,
+      '确认删除',
+      {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+        type: 'warning'
+      }
+    )
+
+    await deleteXmindImportRecord(row.id)
+    ElMessage.success('删除成功')
+
+    // 刷新列表
+    fetchRecords()
+  } catch (error) {
+    if (error !== 'cancel') {
+      console.error('删除失败:', error)
+      ElMessage.error('删除失败，请重试')
+    }
   }
 }
 
@@ -1002,6 +1037,19 @@ onMounted(() => {
       box-shadow: 0 4px 12px rgba(82, 196, 26, 0.4);
     }
   }
+
+  &.delete-btn {
+    background: linear-gradient(135deg, #ff4d4f 0%, #f5222d 100%) !important;
+    border: none !important;
+    color: #ffffff !important;
+    font-weight: 600 !important;
+
+    &:hover {
+      background: linear-gradient(135deg, #ff7875 0%, #ff4d4f 100%) !important;
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(245, 34, 45, 0.4);
+    }
+  }
 }
 
 .pagination-container {
@@ -1279,7 +1327,7 @@ onMounted(() => {
 
       .step-number {
         font-weight: 600;
-        color: #409eff;
+        color: #7b42f6;
       }
     }
 

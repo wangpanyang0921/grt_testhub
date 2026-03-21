@@ -4462,7 +4462,7 @@ def convert_xmind_to_excel(request):
         )
 
 
-class XmindImportRecordViewSet(viewsets.ReadOnlyModelViewSet):
+class XmindImportRecordViewSet(viewsets.ModelViewSet):
     """XMind 导入记录视图集"""
     queryset = XmindImportRecord.objects.all()
     serializer_class = XmindImportRecordSerializer
@@ -4472,6 +4472,15 @@ class XmindImportRecordViewSet(viewsets.ReadOnlyModelViewSet):
     ordering_fields = ['created_at', 'updated_at', 'test_case_count']
     ordering = ['-created_at']
     pagination_class = StandardPagination
+
+    def destroy(self, request, *args, **kwargs):
+        """删除导入记录"""
+        instance = self.get_object()
+        
+        # 删除数据库记录
+        self.perform_destroy(instance)
+        
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
     def get_serializer_class(self):
         if self.action == 'retrieve':
