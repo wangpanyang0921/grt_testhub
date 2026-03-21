@@ -151,25 +151,6 @@
       class="detail-dialog"
     >
       <div v-if="currentRecord" class="detail-content">
-        <!-- 基本信息 -->
-        <div class="detail-section">
-          <h3 class="section-title">基本信息</h3>
-          <el-descriptions :column="2" border>
-            <el-descriptions-item label="文件名">{{ currentRecord.file_name }}</el-descriptions-item>
-            <el-descriptions-item label="状态">
-              <el-tag :type="getStatusType(currentRecord.status)" effect="dark">
-                {{ currentRecord.status_display }}
-              </el-tag>
-            </el-descriptions-item>
-            <el-descriptions-item label="用例数量">{{ currentRecord.test_case_count }} 条</el-descriptions-item>
-            <el-descriptions-item label="导入人">
-              {{ currentRecord.created_by?.username || '-' }}
-            </el-descriptions-item>
-            <el-descriptions-item label="导入时间">{{ formatDateTime(currentRecord.created_at) }}</el-descriptions-item>
-            <el-descriptions-item label="更新时间">{{ formatDateTime(currentRecord.updated_at) }}</el-descriptions-item>
-          </el-descriptions>
-        </div>
-
         <!-- 错误信息 -->
         <div v-if="currentRecord.error_message" class="detail-section">
           <h3 class="section-title error-title">错误信息</h3>
@@ -181,89 +162,91 @@
           />
         </div>
 
-        <!-- 测试用例数据 -->
-        <div v-if="currentRecord.import_data && currentRecord.import_data.length > 0" class="detail-section">
-          <h3 class="section-title">测试用例数据 ({{ currentRecord.import_data.length }} 条)</h3>
-          <el-table
-            :data="currentRecord.import_data"
-            stripe
-            border
-            max-height="400"
-            style="width: 100%"
-          >
-            <el-table-column type="index" label="序号" width="60" align="center" />
-            <el-table-column label="用例名称" min-width="180" show-overflow-tooltip>
-              <template #default="{ row }">
-                <span class="case-name">{{ row.name }}</span>
-              </template>
-            </el-table-column>
-            <el-table-column label="所属模块" min-width="120" show-overflow-tooltip>
-              <template #default="{ row }">
-                {{ row.suite || '-' }}
-              </template>
-            </el-table-column>
-            <el-table-column label="前置条件" min-width="120" show-overflow-tooltip>
-              <template #default="{ row }">
-                {{ row.preconditions || '-' }}
-              </template>
-            </el-table-column>
-            <el-table-column label="优先级" width="70" align="center">
-              <template #default="{ row }">
-                <el-tag :type="getPriorityType(row.importance)" effect="plain" size="small">
-                  {{ getPriorityText(row.importance) }}
-                </el-tag>
-              </template>
-            </el-table-column>
-            <el-table-column label="执行方式" width="80" align="center">
-              <template #default="{ row }">
-                {{ row.execution_type === 2 ? '自动' : '手动' }}
-              </template>
-            </el-table-column>
-            <el-table-column label="步骤数" width="70" align="center">
-              <template #default="{ row }">
-                {{ row.steps?.length || 0 }}
-              </template>
-            </el-table-column>
-          </el-table>
-        </div>
-
-        <!-- 测试步骤详情 -->
-        <div v-if="currentRecord.import_data && currentRecord.import_data.length > 0" class="detail-section">
-          <h3 class="section-title">测试步骤详情</h3>
-          <el-collapse>
-            <el-collapse-item
-              v-for="(testCase, index) in currentRecord.import_data.slice(0, 5)"
-              :key="index"
-              :title="`${Number(index) + 1}. ${testCase.name}`"
+        <!-- Tab 页签 -->
+        <el-tabs v-if="currentRecord.import_data && currentRecord.import_data.length > 0" v-model="detailActiveTab" class="detail-tabs">
+          <el-tab-pane label="测试用例数据" name="cases">
+            <el-table
+              :data="currentRecord.import_data"
+              stripe
+              border
+              max-height="450"
+              style="width: 100%"
             >
-              <div v-if="testCase.steps && testCase.steps.length > 0" class="steps-list">
-                <div
-                  v-for="(step, stepIndex) in testCase.steps"
-                  :key="stepIndex"
-                  class="step-item"
-                >
-                  <div class="step-header">
-                    <span class="step-number">步骤 {{ step.step_number }}</span>
-                  </div>
-                  <div class="step-content">
-                    <div class="step-row">
-                      <span class="step-label">操作：</span>
-                      <span class="step-value">{{ step.actions }}</span>
+              <el-table-column type="index" label="序号" width="60" align="center" />
+              <el-table-column label="用例名称" min-width="180" show-overflow-tooltip>
+                <template #default="{ row }">
+                  <span class="case-name">{{ row.name }}</span>
+                </template>
+              </el-table-column>
+              <el-table-column label="所属模块" min-width="120" show-overflow-tooltip>
+                <template #default="{ row }">
+                  {{ row.suite || '-' }}
+                </template>
+              </el-table-column>
+              <el-table-column label="前置条件" min-width="120" show-overflow-tooltip>
+                <template #default="{ row }">
+                  {{ row.preconditions || '-' }}
+                </template>
+              </el-table-column>
+              <el-table-column label="优先级" width="70" align="center">
+                <template #default="{ row }">
+                  <el-tag :type="getPriorityType(row.importance)" effect="plain" size="small">
+                    {{ getPriorityText(row.importance) }}
+                  </el-tag>
+                </template>
+              </el-table-column>
+              <el-table-column label="执行方式" width="90" align="center">
+                <template #default="{ row }">
+                  <span style="white-space: nowrap;">{{ row.execution_type === 2 ? '自动' : '手动' }}</span>
+                </template>
+              </el-table-column>
+              <el-table-column label="步骤数" width="70" align="center">
+                <template #default="{ row }">
+                  {{ row.steps?.length || 0 }}
+                </template>
+              </el-table-column>
+            </el-table>
+          </el-tab-pane>
+
+          <el-tab-pane label="测试步骤详情" name="steps">
+            <el-collapse>
+              <el-collapse-item
+                v-for="(testCase, index) in (showAllSteps ? currentRecord.import_data : currentRecord.import_data.slice(0, 5))"
+                :key="index"
+                :title="`${Number(index) + 1}. ${testCase.name}`"
+              >
+                <div v-if="testCase.steps && testCase.steps.length > 0" class="steps-list">
+                  <div
+                    v-for="(step, stepIndex) in testCase.steps"
+                    :key="stepIndex"
+                    class="step-item"
+                  >
+                    <div class="step-header">
+                      <span class="step-number">步骤 {{ step.step_number }}</span>
                     </div>
-                    <div v-if="step.expectedresults" class="step-row">
-                      <span class="step-label">预期结果：</span>
-                      <span class="step-value">{{ step.expectedresults }}</span>
+                    <div class="step-content">
+                      <div class="step-row">
+                        <span class="step-label">操作：</span>
+                        <span class="step-value">{{ step.actions }}</span>
+                      </div>
+                      <div v-if="step.expectedresults" class="step-row">
+                        <span class="step-label">预期结果：</span>
+                        <span class="step-value">{{ step.expectedresults }}</span>
+                      </div>
                     </div>
                   </div>
                 </div>
-              </div>
-              <el-empty v-else description="暂无步骤数据" />
-            </el-collapse-item>
-            <div v-if="currentRecord.import_data.length > 5" class="more-cases-tip">
-              还有 {{ currentRecord.import_data.length - 5 }} 条用例...
+                <el-empty v-else description="暂无步骤数据" />
+              </el-collapse-item>
+            </el-collapse>
+            <div v-if="currentRecord.import_data.length > 5 && !showAllSteps" class="more-cases-tip" @click="showAllSteps = true">
+              <span class="expand-link">展开全部 {{ currentRecord.import_data.length }} 条用例</span>
             </div>
-          </el-collapse>
-        </div>
+            <div v-if="showAllSteps && currentRecord.import_data.length > 5" class="more-cases-tip" @click="showAllSteps = false">
+              <span class="collapse-link">收起用例</span>
+            </div>
+          </el-tab-pane>
+        </el-tabs>
       </div>
       <template #footer>
         <el-button @click="detailDialogVisible = false">关闭</el-button>
@@ -451,6 +434,8 @@ const searchQuery = ref('')
 // 详情对话框
 const detailDialogVisible = ref(false)
 const currentRecord = ref(null)
+const detailActiveTab = ref('cases')  // 'cases' | 'steps'
+const showAllSteps = ref(false)  // 是否展开所有测试步骤
 
 // 获取列表数据
 const fetchRecords = async () => {
@@ -500,6 +485,8 @@ const handleCurrentChange = (val) => {
 const viewDetail = async (row) => {
   detailDialogVisible.value = true
   currentRecord.value = null
+  showAllSteps.value = false  // 重置展开状态
+  detailActiveTab.value = 'cases'  // 默认显示用例数据页签
 
   try {
     const response = await getXmindImportRecordDetail(row.id)
@@ -1232,6 +1219,41 @@ onMounted(() => {
       }
     }
   }
+
+  // Tab 页签样式
+  .detail-tabs {
+    :deep(.el-tabs__header) {
+      margin-bottom: 16px;
+    }
+
+    :deep(.el-tabs__nav-wrap::after) {
+      background-color: rgba(123, 66, 246, 0.1);
+    }
+
+    :deep(.el-tabs__item) {
+      font-size: 14px;
+      font-weight: 500;
+      color: #666;
+
+      &:hover {
+        color: #7b42f6;
+      }
+
+      &.is-active {
+        color: #7b42f6;
+        font-weight: 600;
+      }
+    }
+
+    :deep(.el-tabs__active-bar) {
+      background-color: #7b42f6;
+    }
+
+    :deep(.el-tab-pane) {
+      max-height: 500px;
+      overflow-y: auto;
+    }
+  }
 }
 
 .case-name {
@@ -1287,5 +1309,18 @@ onMounted(() => {
   padding: 15px;
   color: #909399;
   font-size: 14px;
+  cursor: pointer;
+
+  .expand-link,
+  .collapse-link {
+    color: #7b42f6;
+    font-weight: 500;
+    transition: all 0.2s ease;
+
+    &:hover {
+      color: #6d33e6;
+      text-decoration: underline;
+    }
+  }
 }
 </style>
