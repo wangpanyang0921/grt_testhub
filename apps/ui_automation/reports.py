@@ -321,11 +321,13 @@ class AIExecutionReportGenerator:
 
         # 先从 steps_completed 中提取信息
         for step in steps_completed:
+            status = step.get('status', 'completed')
             detailed_steps.append({
                 'step_number': step.get('step_number', 0),
                 'action': step.get('action', ''),
                 'element': step.get('element', ''),
-                'status': step.get('status', 'completed'),
+                'status': status,
+                'status_display': self._get_task_status_display(status),
                 'timestamp': step.get('timestamp', ''),
                 'thinking': step.get('thinking', ''),
                 'screenshot': step.get('screenshot', ''),
@@ -341,6 +343,7 @@ class AIExecutionReportGenerator:
                     'step_number': int(step_num),
                     'action': action_str,
                     'status': 'completed',
+                    'status_display': self._get_task_status_display('completed'),
                     'timestamp': '',
                 })
 

@@ -103,6 +103,7 @@
           <el-select v-model="configForm.role" :placeholder="$t('configuration.aiModel.selectRole')" style="width: 100%">
             <el-option value="writer" :label="$t('configuration.aiModel.roles.writer')" />
             <el-option value="reviewer" :label="$t('configuration.aiModel.roles.reviewer')" />
+            <el-option value="knowledge_base" :label="$t('configuration.aiModel.roles.knowledge_base')" />
           </el-select>
           <div v-if="formErrors.role" class="error-message">{{ formErrors.role }}</div>
         </el-form-item>
@@ -708,6 +709,11 @@ export default {
 .role-badge.reviewer {
   background: #fff7e6;
   color: #fa8c16;
+}
+
+.role-badge.knowledge_base {
+  background: #e6fffb;
+  color: #13c2c2;
 }
 
 .status-badge {

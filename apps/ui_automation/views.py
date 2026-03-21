@@ -3028,14 +3028,19 @@ class AICaseViewSet(viewsets.ModelViewSet):
                         if task_id and status:
                             updated = False
                             for task in execution_record.planned_tasks:
-                                if task['id'] == task_id:
+                                # 确保类型一致进行比较
+                                if str(task['id']) == str(task_id):
+                                    old_status = task.get('status', 'pending')
                                     task['status'] = status
                                     updated = True
+                                    logger.info(f"DEBUG: Updated task {task_id} from {old_status} to {status}")
                                     break
                             if updated:
                                 await sync_to_async(safe_save)(execution_record, update_fields=['planned_tasks'])
+                            else:
+                                logger.warning(f"DEBUG: Task ID {task_id} not found in planned_tasks")
                     except Exception as e:
-                        logger.error(f"更新步骤状态失败: {e}")
+                        logger.error(f"更新步骤状态失败: {e}", exc_info=True)
 
                 history = run_full_process_sync(
                     ai_case.task_description,
@@ -4308,14 +4313,19 @@ class AITestSuiteViewSet(viewsets.ModelViewSet):
                                         updated = False
                                         if execution_record.planned_tasks:
                                             for task in execution_record.planned_tasks:
-                                                if task['id'] == task_id:
+                                                # 确保类型一致进行比较
+                                                if str(task['id']) == str(task_id):
+                                                    old_status = task.get('status', 'pending')
                                                     task['status'] = status
                                                     updated = True
+                                                    logger.info(f"DEBUG: Updated task {task_id} from {old_status} to {status}")
                                                     break
                                         if updated:
                                             await sync_to_async(safe_save)(execution_record, update_fields=['planned_tasks'])
+                                        else:
+                                            logger.warning(f"DEBUG: Task ID {task_id} not found in planned_tasks")
                                 except Exception as e:
-                                    logger.error(f"更新步骤状态失败: {e}")
+                                    logger.error(f"更新步骤状态失败: {e}", exc_info=True)
 
                             history = loop.run_until_complete(
                                 browser_session.run_single_case(
@@ -4361,17 +4371,31 @@ class AITestSuiteViewSet(viewsets.ModelViewSet):
 
                     ai_test_suite.execution_status = 'passed' if failed_count == 0 else 'failed'
                 finally:
+                    # 确保浏览器会话被正确关闭
                     if browser_session:
-                        browser_session.close()
-                    loop.close()
+                        try:
+                            logger.info("正在关闭浏览器会话...")
+                            # 在事件循环中执行异步关闭
+                            loop.run_until_complete(browser_session.close_async())
+                            logger.info("✓ 浏览器会话已关闭")
+                        except Exception as e:
+                            logger.error(f"关闭浏览器会话时出错: {e}")
+                    # 关闭事件循环
+                    try:
+                        loop.close()
+                        logger.info("✓ 事件循环已关闭")
+                    except:
+                        pass
             except Exception as e:
                 ai_test_suite.execution_status = 'failed'
                 logger.error(f"运行AI测试套件失败: {e}")
                 if browser_session:
                     try:
+                        logger.info("异常处理中：正在关闭浏览器会话...")
                         browser_session.close()
-                    except:
-                        pass
+                        logger.info("✓ 浏览器会话已关闭")
+                    except Exception as close_err:
+                        logger.error(f"异常处理中关闭浏览器会话失败: {close_err}")
             finally:
                 ai_test_suite.passed_count = passed_count
                 ai_test_suite.failed_count = failed_count
@@ -4380,6 +4404,12 @@ class AITestSuiteViewSet(viewsets.ModelViewSet):
         thread = threading.Thread(target=run_suite_task)
         thread.daemon = True
         thread.start()
+
+        return Response({
+            'message': 'AI测试套件开始执行',
+            'suite_id': ai_test_suite.id,
+            'case_count': len(suite_ai_cases_list)
+        }, status=status.HTTP_200_OK)
 
 
 @api_view(['POST'])

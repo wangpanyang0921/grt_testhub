@@ -293,6 +293,10 @@
               <el-icon><Promotion /></el-icon>
               <span>Dify助手</span>
             </el-menu-item>
+            <el-menu-item index="/ai-assistant/knowledge-base">
+              <el-icon><Collection /></el-icon>
+              <span>知识库</span>
+            </el-menu-item>
           </template>
         </el-menu>
       </el-aside>
@@ -422,6 +426,7 @@ const breadcrumbTitle = computed(() => {
   const routeMap = {
     // AI 知识库
     '/ai-assistant/chat': 'Dify助手',
+    '/ai-assistant/knowledge-base': '知识库',
 
     // AI用例生成
     '/ai-generation/requirement-analysis': t('menu.aiCaseGeneration'),

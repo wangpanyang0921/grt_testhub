@@ -24,10 +24,10 @@
             <div class="config-name-cell">{{ row.name || $t('promptConfig.unnamed') }}</div>
           </template>
         </el-table-column>
-        <el-table-column :label="$t('promptConfig.promptType')" width="120" header-align="center" align="center">
+        <el-table-column :label="$t('promptConfig.promptType')" width="140" header-align="center" align="center">
           <template #default="{ row }">
             <span class="type-badge" :class="row.prompt_type">
-              {{ row.prompt_type === 'writer' ? $t('promptConfig.writerPrompt') : $t('promptConfig.reviewerPrompt') }}
+              {{ getPromptTypeLabel(row.prompt_type) }}
             </span>
           </template>
         </el-table-column>
@@ -95,6 +95,7 @@
           <el-select v-model="configForm.prompt_type" :placeholder="$t('promptConfig.selectPromptType')" style="width: 100%">
             <el-option value="writer" :label="$t('promptConfig.writerPrompt')" />
             <el-option value="reviewer" :label="$t('promptConfig.reviewerPrompt')" />
+            <el-option value="knowledge_base" label="知识库问答" />
           </el-select>
           <div v-if="formErrors.prompt_type" class="error-message">{{ formErrors.prompt_type }}</div>
         </el-form-item>
@@ -135,9 +136,9 @@
       <div class="preview-content">
         <div class="preview-meta">
           <div class="meta-item">
-            <label>{{ $t('promptConfig.type') }}</label>
+            <label>{{ $t('promptConfig.promptType') }}</label>
             <span class="type-badge" :class="previewConfig.prompt_type">
-              {{ previewConfig.prompt_type === 'writer' ? $t('promptConfig.writerPrompt') : $t('promptConfig.reviewerPrompt') }}
+              {{ getPromptTypeLabel(previewConfig.prompt_type) }}
             </span>
           </div>
           <div class="meta-item">
@@ -166,6 +167,11 @@
           <el-tab-pane :label="$t('promptConfig.reviewerTab')" name="reviewer">
             <div class="content-display">
               <div class="content-text">{{ defaultPrompts.reviewer || $t('promptConfig.noContent') }}</div>
+            </div>
+          </el-tab-pane>
+          <el-tab-pane label="知识库问答" name="knowledge_base">
+            <div class="content-display">
+              <div class="content-text">{{ defaultPrompts.knowledge_base || $t('promptConfig.noContent') }}</div>
             </div>
           </el-tab-pane>
         </el-tabs>
@@ -214,7 +220,8 @@ export default {
       previewConfig: {},
       defaultPrompts: {
         writer: '',
-        reviewer: ''
+        reviewer: '',
+        knowledge_base: ''
       },
       activeTab: 'writer',
       configForm: {
@@ -236,6 +243,15 @@ export default {
   },
 
   methods: {
+    getPromptTypeLabel(type) {
+      const typeMap = {
+        'writer': this.$t('promptConfig.writerPrompt'),
+        'reviewer': this.$t('promptConfig.reviewerPrompt'),
+        'knowledge_base': '知识库问答'
+      }
+      return typeMap[type] || type
+    },
+
     openAddModal() {
       this.resetForm()
       this.clearFormErrors()
@@ -312,6 +328,16 @@ export default {
             name: this.t('promptConfig.defaultReviewerName'),
             prompt_type: 'reviewer',
             content: this.defaultPrompts.reviewer,
+            is_active: true
+          })
+        }
+
+        // 创建知识库问答提示词配置
+        if (this.defaultPrompts.knowledge_base) {
+          await api.post('/requirement-analysis/prompts/', {
+            name: '默认知识库问答提示词',
+            prompt_type: 'knowledge_base',
+            content: this.defaultPrompts.knowledge_base,
             is_active: true
           })
         }
@@ -602,6 +628,11 @@ export default {
 .type-badge.reviewer {
   background: #f9f0ff;
   color: #722ed1;
+}
+
+.type-badge.knowledge_base {
+  background: #e6fffb;
+  color: #13c2c2;
 }
 
 .creator-name {

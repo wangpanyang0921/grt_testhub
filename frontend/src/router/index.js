@@ -72,6 +72,11 @@ const routes = [
         path: 'chat',
         name: 'Assistant',
         component: () => import('@/views/assistant/AssistantView.vue')
+      },
+      {
+        path: 'knowledge-base',
+        name: 'KnowledgeBase',
+        component: () => import('@/views/assistant/KnowledgeBaseView.vue')
       }
     ]
   },

@@ -7,21 +7,49 @@ import json
 from datetime import datetime
 from django.utils import timezone
 from django.db import connection
-from playwright.sync_api import sync_playwright
-from selenium import webdriver
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
-from selenium.webdriver.chrome.options import Options as ChromeOptions
-from selenium.webdriver.firefox.options import Options as FirefoxOptions
-from selenium.webdriver.safari.options import Options as SafariOptions
-from selenium.webdriver.edge.options import Options as EdgeOptions
 
 from .models import (
     TestSuite, TestExecution, TestCase, TestCaseStep,
     TestCaseExecution, Element, TestScript, ScriptStep
 )
 from .variable_resolver import resolve_variables
+
+# 延迟导入浏览器驱动，避免在模块加载时就导入
+def _import_playwright():
+    """延迟导入 Playwright"""
+    try:
+        from playwright.sync_api import sync_playwright
+        return sync_playwright
+    except ImportError as e:
+        raise ImportError(
+            "Playwright 模块未正确安装。请运行: pip install playwright && playwright install"
+        ) from e
+
+def _import_selenium():
+    """延迟导入 Selenium"""
+    try:
+        from selenium import webdriver
+        from selenium.webdriver.common.by import By
+        from selenium.webdriver.support.ui import WebDriverWait
+        from selenium.webdriver.support import expected_conditions as EC
+        from selenium.webdriver.chrome.options import Options as ChromeOptions
+        from selenium.webdriver.firefox.options import Options as FirefoxOptions
+        from selenium.webdriver.safari.options import Options as SafariOptions
+        from selenium.webdriver.edge.options import Options as EdgeOptions
+        return {
+            'webdriver': webdriver,
+            'By': By,
+            'WebDriverWait': WebDriverWait,
+            'EC': EC,
+            'ChromeOptions': ChromeOptions,
+            'FirefoxOptions': FirefoxOptions,
+            'SafariOptions': SafariOptions,
+            'EdgeOptions': EdgeOptions
+        }
+    except ImportError as e:
+        raise ImportError(
+            "Selenium 模块未正确安装。请运行: pip install selenium"
+        ) from e
 
 
 
@@ -143,16 +171,16 @@ class TestExecutor:
         failed = 0
         skipped = 0
         
-        # 检查 Playwright 是否可用
+        # 检查 Playwright 是否可用（使用延迟导入）
         try:
-            from playwright.sync_api import sync_playwright as test_import
+            sync_playwright = _import_playwright()
         except ImportError as e:
             error_msg = (
-                "Playwright 模块未正确安装或 Django 服务器未在虚拟环境中运行。\n\n"
-                "请确保：\n"
-                "1. 已在虚拟环境中安装: pip install playwright\n"
-                "2. 已安装浏览器: playwright install\n"
-                "3. Django 服务器在虚拟环境中运行\n\n"
+                f"Playwright 模块未正确安装或 Django 服务器未在虚拟环境中运行。\n\n"
+                f"请确保：\n"
+                f"1. 已在虚拟环境中安装: pip install playwright\n"
+                f"2. 已安装浏览器: playwright install\n"
+                f"3. Django 服务器在虚拟环境中运行\n\n"
                 f"详细错误: {str(e)}"
             )
             print(f"❌ {error_msg}")
@@ -1669,6 +1697,39 @@ class TestExecutor:
         failed = 0
         skipped = 0
 
+        # 检查 Selenium 是否可用（使用延迟导入）
+        try:
+            _import_selenium()
+        except ImportError as e:
+            error_msg = (
+                f"Selenium 模块未正确安装。\n\n"
+                f"请运行: pip install selenium webdriver-manager\n\n"
+                f"详细错误: {str(e)}"
+            )
+            print(f"❌ {error_msg}")
+            
+            # 更新套件执行状态
+            if self.execution:
+                self.update_execution_result(
+                    status='FAILED',
+                    failed=len(self.test_cases),
+                    error_msg=error_msg
+                )
+            
+            # 更新所有用例状态为失败
+            for test_case in self.test_cases:
+                TestCaseExecution.objects.filter(
+                    test_case=test_case,
+                    test_suite=self.test_suite,
+                    status='pending'
+                ).update(
+                    status='failed',
+                    error_message=error_msg,
+                    finished_at=timezone.now()
+                )
+            
+            return
+
         # 预先获取所有脚本数据，避免在 Selenium 上下文中访问 ORM
         scripts_data = []
         for test_script in self.scripts:
@@ -2008,6 +2069,16 @@ class TestExecutor:
 
     def create_selenium_driver(self):
         """创建 Selenium WebDriver"""
+        # 延迟导入 Selenium 模块
+        try:
+            selenium_modules = _import_selenium()
+            webdriver = selenium_modules['webdriver']
+            ChromeOptions = selenium_modules['ChromeOptions']
+            FirefoxOptions = selenium_modules['FirefoxOptions']
+            EdgeOptions = selenium_modules['EdgeOptions']
+        except ImportError as e:
+            raise ImportError(f"Selenium 未安装: {str(e)}")
+        
         from selenium.webdriver.chrome.service import Service as ChromeService
         from selenium.webdriver.firefox.service import Service as FirefoxService
         from selenium.webdriver.edge.service import Service as EdgeService

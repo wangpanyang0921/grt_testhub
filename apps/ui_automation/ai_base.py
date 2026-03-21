@@ -1594,28 +1594,70 @@ class PersistentBrowserSession:
         except:
             return "执行操作"
     
-    def close(self):
-        """关闭浏览器会话"""
+    async def close_async(self):
+        """异步关闭浏览器会话"""
         # 优先关闭 browser_session，因为它管理实际的浏览器实例
         if self.browser_session:
             try:
-                import asyncio
-                loop = asyncio.get_event_loop()
-                if loop.is_running():
-                    asyncio.create_task(self.browser_session.close())
-                else:
-                    loop.run_until_complete(self.browser_session.close())
+                await self.browser_session.close()
+                logger.info("✓ browser_session 已关闭")
             except Exception as e:
                 logger.warning(f"关闭 browser_session 时出错: {e}")
         
         # 然后关闭 controller
         if hasattr(self.controller, 'close'):
             try:
-                import asyncio
-                loop = asyncio.get_event_loop()
-                if loop.is_running():
-                    asyncio.create_task(self.controller.close())
+                await self.controller.close()
+                logger.info("✓ controller 已关闭")
+            except:
+                pass
+    
+    def close(self):
+        """同步关闭浏览器会话 - 确保浏览器被正确关闭"""
+        import asyncio
+        
+        # 优先关闭 browser_session，因为它管理实际的浏览器实例
+        if self.browser_session:
+            try:
+                # 尝试获取当前事件循环
+                try:
+                    loop = asyncio.get_running_loop()
+                except RuntimeError:
+                    loop = None
+                
+                if loop and loop.is_running():
+                    # 如果事件循环正在运行，需要创建一个新任务并等待它完成
+                    # 使用 run_coroutine_threadsafe 在运行中的循环中执行关闭
+                    future = asyncio.run_coroutine_threadsafe(self.browser_session.close(), loop)
+                    try:
+                        future.result(timeout=10)  # 等待最多10秒
+                        logger.info("✓ browser_session 已关闭")
+                    except Exception as e:
+                        logger.warning(f"等待 browser_session 关闭时超时或出错: {e}")
                 else:
-                    loop.run_until_complete(self.controller.close())
+                    # 没有运行的事件循环，直接运行
+                    asyncio.run(self.browser_session.close())
+                    logger.info("✓ browser_session 已关闭")
+            except Exception as e:
+                logger.warning(f"关闭 browser_session 时出错: {e}")
+        
+        # 然后关闭 controller
+        if hasattr(self.controller, 'close'):
+            try:
+                try:
+                    loop = asyncio.get_running_loop()
+                except RuntimeError:
+                    loop = None
+                
+                if loop and loop.is_running():
+                    future = asyncio.run_coroutine_threadsafe(self.controller.close(), loop)
+                    try:
+                        future.result(timeout=5)
+                        logger.info("✓ controller 已关闭")
+                    except:
+                        pass
+                else:
+                    asyncio.run(self.controller.close())
+                    logger.info("✓ controller 已关闭")
             except:
                 pass

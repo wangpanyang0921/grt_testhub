@@ -135,7 +135,7 @@
               <div class="step-header">
                 <span class="step-number">{{ $t('uiAutomation.ai.executionReport.step') }} {{ step.step_number }}</span>
                 <el-tag :type="getStepStatusType(step.status)" size="small">
-                  {{ step.status }}
+                  {{ step.status_display || getStepStatusText(step.status) }}
                 </el-tag>
               </div>
               <div class="step-content">
@@ -480,7 +480,7 @@ const initBarChart = () => {
         type: 'bar',
         data: data.map(item => item.value),
         itemStyle: {
-          color: '#409EFF'
+          color: '#8B5CF6'
         }
       }
     ]
@@ -519,6 +519,16 @@ const getStepStatusType = (status) => {
     'failed': 'danger'
   }
   return typeMap[status] || 'info'
+}
+
+// 获取步骤状态文本（中文）
+const getStepStatusText = (status) => {
+  const textMap = {
+    'completed': t('uiAutomation.ai.executionReport.completed'),
+    'pending': t('uiAutomation.ai.executionReport.pending'),
+    'failed': t('uiAutomation.ai.executionReport.failed')
+  }
+  return textMap[status] || status
 }
 
 // 导出报告
@@ -724,7 +734,7 @@ const handleClose = () => {
 }
 
 .step-card {
-  border-left: 3px solid #409EFF;
+  border-left: 3px solid #8B5CF6;
 }
 
 .step-header {
@@ -736,7 +746,7 @@ const handleClose = () => {
 
 .step-number {
   font-weight: 600;
-  color: #409EFF;
+  color: #8B5CF6;
 }
 
 .step-content > div {
@@ -771,7 +781,7 @@ const handleClose = () => {
 .metric-value {
   font-size: 24px;
   font-weight: 600;
-  color: #409EFF;
+  color: #8B5CF6;
 }
 
 .gif-container {

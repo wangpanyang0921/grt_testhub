@@ -89,3 +89,61 @@ class AssistantMessage(models.Model):
     
     def __str__(self):
         return f"{self.get_message_type_display()}: {self.content[:50]}"
+
+
+class KnowledgeBaseDocument(models.Model):
+    """知识库文档"""
+    STATUS_CHOICES = [
+        ('pending', '待索引'),
+        ('indexing', '索引中'),
+        ('indexed', '已索引'),
+        ('failed', '索引失败'),
+    ]
+    
+    FILE_TYPE_CHOICES = [
+        ('pdf', 'PDF'),
+        ('md', 'Markdown'),
+        ('txt', 'Text'),
+        ('doc', 'Word'),
+        ('docx', 'Word'),
+    ]
+    
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='kb_documents', verbose_name='用户')
+    name = models.CharField(max_length=500, verbose_name='文档名称')
+    file = models.FileField(upload_to='knowledge_base/%Y/%m/', verbose_name='文档文件')
+    file_type = models.CharField(max_length=10, choices=FILE_TYPE_CHOICES, verbose_name='文件类型')
+    file_size = models.BigIntegerField(verbose_name='文件大小(字节)')
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending', verbose_name='索引状态')
+    vector_collection_id = models.CharField(max_length=255, blank=True, null=True, verbose_name='向量索引ID')
+    index_data = models.JSONField(blank=True, null=True, verbose_name='索引数据')
+    index_error = models.TextField(blank=True, verbose_name='索引错误信息')
+    created_at = models.DateTimeField(default=timezone.now, verbose_name='创建时间')
+    updated_at = models.DateTimeField(auto_now=True, verbose_name='更新时间')
+    
+    class Meta:
+        db_table = 'knowledge_base_documents'
+        verbose_name = '知识库文档'
+        verbose_name_plural = '知识库文档'
+        ordering = ['-created_at']
+    
+    def __str__(self):
+        return f"{self.name} ({self.get_status_display()})"
+
+
+class KnowledgeBaseChat(models.Model):
+    """知识库对话记录"""
+    document = models.ForeignKey(KnowledgeBaseDocument, on_delete=models.CASCADE, related_name='chats', verbose_name='文档')
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='kb_chats', verbose_name='用户')
+    question = models.TextField(verbose_name='问题')
+    answer = models.TextField(verbose_name='回答')
+    retrieved_pages = models.JSONField(blank=True, null=True, verbose_name='检索到的页面')
+    created_at = models.DateTimeField(default=timezone.now, verbose_name='创建时间')
+    
+    class Meta:
+        db_table = 'knowledge_base_chats'
+        verbose_name = '知识库对话'
+        verbose_name_plural = '知识库对话'
+        ordering = ['-created_at']
+    
+    def __str__(self):
+        return f"{self.user.username}: {self.question[:50]}"
