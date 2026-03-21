@@ -147,7 +147,21 @@
                       </span>
                       流式输出
                     </div>
-                    <div class="mode-desc">生成过程内容可见</div>
+                    <div class="mode-desc">实时展示AI生成过程，可观察思考逻辑</div>
+                    <div class="mode-features">
+                      <div class="feature-item">
+                        <span class="feature-dot"></span>
+                        <span>逐字实时显示生成内容</span>
+                      </div>
+                      <div class="feature-item">
+                        <span class="feature-dot"></span>
+                        <span>支持随时中断和修改</span>
+                      </div>
+                      <div class="feature-item">
+                        <span class="feature-dot"></span>
+                        <span>适合需要精细调整的场景</span>
+                      </div>
+                    </div>
                   </div>
                 </div>
                 <div class="mode-option" :class="{ active: globalOutputMode === 'complete' }" @click="selectOutputMode('complete')">
@@ -160,7 +174,21 @@
                       </span>
                       完整输出
                     </div>
-                    <div class="mode-desc">生成过程内容不可见</div>
+                    <div class="mode-desc">等待AI完整生成后统一展示结果</div>
+                    <div class="mode-features">
+                      <div class="feature-item">
+                        <span class="feature-dot"></span>
+                        <span>一次性呈现完整测试用例</span>
+                      </div>
+                      <div class="feature-item">
+                        <span class="feature-dot"></span>
+                        <span>减少等待过程中的干扰</span>
+                      </div>
+                      <div class="feature-item">
+                        <span class="feature-dot"></span>
+                        <span>适合批量生成和导出场景</span>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -176,20 +204,54 @@
             <div class="step-content-wrapper">
               <div class="input-method-selector">
                 <div class="input-method-option" :class="{ active: selectedInputMethod === 'manual' }" @click="selectInputMethod('manual')">
-                  <div class="input-method-icon manual-icon">
-                    <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                      <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z" fill="currentColor"/>
-                    </svg>
+                  <div class="input-method-header">
+                    <div class="input-method-icon manual-icon">
+                      <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z" fill="currentColor"/>
+                      </svg>
+                    </div>
+                    <div class="input-method-title">手动输入</div>
                   </div>
-                  <div class="input-method-title">手动输入</div>
+                  <div class="input-method-desc">直接在页面输入需求描述</div>
+                  <div class="mode-features">
+                    <div class="feature-item">
+                      <span class="feature-dot"></span>
+                      <span>适合简短、明确的需求</span>
+                    </div>
+                    <div class="feature-item">
+                      <span class="feature-dot"></span>
+                      <span>快速输入，即时生成</span>
+                    </div>
+                    <div class="feature-item">
+                      <span class="feature-dot"></span>
+                      <span>支持实时编辑和调整</span>
+                    </div>
+                  </div>
                 </div>
                 <div class="input-method-option" :class="{ active: selectedInputMethod === 'upload' }" @click="selectInputMethod('upload')">
-                  <div class="input-method-icon upload-icon">
-                    <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                      <path d="M9 16h6v-6h4l-7-7-7 7h4v6zm-4 2h14v2H5v-2z" fill="currentColor"/>
-                    </svg>
+                  <div class="input-method-header">
+                    <div class="input-method-icon upload-icon">
+                      <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M9 16h6v-6h4l-7-7-7 7h4v6zm-4 2h14v2H5v-2z" fill="currentColor"/>
+                      </svg>
+                    </div>
+                    <div class="input-method-title">文件上传</div>
                   </div>
-                  <div class="input-method-title">文件上传</div>
+                  <div class="input-method-desc">上传PRD文档或需求文件</div>
+                  <div class="mode-features">
+                    <div class="feature-item">
+                      <span class="feature-dot"></span>
+                      <span>支持 PDF、Word、TXT 格式</span>
+                    </div>
+                    <div class="feature-item">
+                      <span class="feature-dot"></span>
+                      <span>自动提取文档内容</span>
+                    </div>
+                    <div class="feature-item">
+                      <span class="feature-dot"></span>
+                      <span>适合复杂、详细的需求文档</span>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -255,66 +317,59 @@
                 </div>
               </div>
 
-              <h3 v-if="selectedFile" class="upload-section-title">需求上传</h3>
-              <div class="upload-area"
-                   @dragover.prevent
-                   @drop="handleDrop"
-                   :class="{ 'drag-over': isDragOver }"
-                   @dragenter="isDragOver = true"
-                   @dragleave="isDragOver = false">
-                <div v-if="!selectedFile" class="upload-placeholder">
-                  <div class="upload-area-icon">
+              <div class="upload-wrapper" v-if="!selectedFile">
+                <div class="upload-box"
+                     @dragover.prevent
+                     @drop="handleDrop"
+                     :class="{ 'drag-over': isDragOver }"
+                     @dragenter="isDragOver = true"
+                     @dragleave="isDragOver = false">
+                  <div class="upload-box-icon">
                     <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                      <path d="M14 2H6C4.9 2 4 2.9 4 4V20C4 21.1 4.9 22 6 22H18C19.1 22 20 21.1 20 20V8L14 2Z" fill="url(#uploadGradient)" stroke="#8b5cf6" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-                      <path d="M14 2V8H20" stroke="#8b5cf6" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-                      <path d="M12 18V12" stroke="#8b5cf6" stroke-width="1.5" stroke-linecap="round"/>
-                      <path d="M9 15L12 12L15 15" stroke="#8b5cf6" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-                      <defs>
-                        <linearGradient id="uploadGradient" x1="4" y1="2" x2="20" y2="22" gradientUnits="userSpaceOnUse">
-                          <stop stop-color="#f5f0ff"/>
-                          <stop offset="1" stop-color="#ede9fe"/>
-                        </linearGradient>
-                      </defs>
+                      <path d="M9 16h6v-6h4l-7-7-7 7h4v6zm-4 2h14v2H5v-2z" fill="currentColor"/>
                     </svg>
                   </div>
-                  <p class="upload-hint">{{ $t('requirementAnalysis.supportedFormats') }}</p>
+                  <div class="upload-box-text">
+                    <p class="upload-box-main">点击或拖拽文件到此处</p>
+                    <p class="upload-box-sub">支持 PDF、Word、TXT、Markdown 格式</p>
+                  </div>
                   <input
                     type="file"
                     ref="fileInput"
                     @change="handleFileSelect"
                     accept=".pdf,.doc,.docx,.txt,.md"
                     style="display: none;">
-                  <button class="select-file-btn" @click="$refs.fileInput.click()">
-                    {{ $t('requirementAnalysis.selectFile') }}
+                  <button class="upload-box-btn" @click="$refs.fileInput.click()">
+                    选择文件
                   </button>
                 </div>
+              </div>
 
-                <div v-else class="file-selected">
-                  <div class="file-info">
-                    <div class="file-icon-wrapper">
-                      <svg class="file-icon-svg" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                        <path d="M14 2H6C4.9 2 4 2.9 4 4V20C4 21.1 4.9 22 6 22H18C19.1 22 20 21.1 20 20V8L14 2Z" fill="url(#fileGradient)" stroke="#8b5cf6" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-                        <path d="M14 2V8H20" stroke="#8b5cf6" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-                        <path d="M16 13H8" stroke="#8b5cf6" stroke-width="1.5" stroke-linecap="round"/>
-                        <path d="M16 17H8" stroke="#8b5cf6" stroke-width="1.5" stroke-linecap="round"/>
-                        <path d="M10 9H8" stroke="#8b5cf6" stroke-width="1.5" stroke-linecap="round"/>
-                        <defs>
-                          <linearGradient id="fileGradient" x1="4" y1="2" x2="20" y2="22" gradientUnits="userSpaceOnUse">
-                            <stop stop-color="#f5f0ff"/>
-                            <stop offset="1" stop-color="#ede9fe"/>
-                          </linearGradient>
-                        </defs>
-                      </svg>
-                    </div>
-                    <div class="file-details">
-                      <p class="file-name">{{ selectedFile.name }}</p>
-                    </div>
-                    <button class="remove-file" @click="removeFile" title="移除文件">
-                      <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                        <path d="M18 6L6 18M6 6L18 18" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                      </svg>
-                    </button>
+              <div v-if="selectedFile" class="file-selected-box">
+                <div class="file-info">
+                  <div class="file-icon-wrapper">
+                    <svg class="file-icon-svg" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                      <path d="M14 2H6C4.9 2 4 2.9 4 4V20C4 21.1 4.9 22 6 22H18C19.1 22 20 21.1 20 20V8L14 2Z" fill="url(#fileGradient)" stroke="#8b5cf6" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                      <path d="M14 2V8H20" stroke="#8b5cf6" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                      <path d="M16 13H8" stroke="#8b5cf6" stroke-width="1.5" stroke-linecap="round"/>
+                      <path d="M16 17H8" stroke="#8b5cf6" stroke-width="1.5" stroke-linecap="round"/>
+                      <path d="M10 9H8" stroke="#8b5cf6" stroke-width="1.5" stroke-linecap="round"/>
+                      <defs>
+                        <linearGradient id="fileGradient" x1="4" y1="2" x2="20" y2="22" gradientUnits="userSpaceOnUse">
+                          <stop stop-color="#f5f0ff"/>
+                          <stop offset="1" stop-color="#ede9fe"/>
+                        </linearGradient>
+                      </defs>
+                    </svg>
                   </div>
+                  <div class="file-details">
+                    <p class="file-name">{{ selectedFile.name }}</p>
+                  </div>
+                  <button class="remove-file" @click="removeFile" title="移除文件">
+                    <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                      <path d="M18 6L6 18M6 6L18 18" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                  </button>
                 </div>
               </div>
 
@@ -2187,17 +2242,18 @@ export default {
 
 .mode-content {
   border: 2px solid rgba(123, 66, 246, 0.15);
-  border-radius: 20px;
-  padding: 60px 48px;
+  border-radius: 24px;
+  padding: 80px 40px;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  background: linear-gradient(145deg, rgba(255, 255, 255, 0.95) 0%, rgba(255, 255, 255, 0.9) 100%);
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.98) 0%, rgba(255, 255, 255, 0.95) 100%);
   display: flex;
   flex-direction: column;
   justify-content: center;
+  align-items: center;
   width: 100%;
   box-sizing: border-box;
-  box-shadow: 0 4px 20px rgba(123, 66, 246, 0.08);
-  min-height: 200px;
+  box-shadow: 0 4px 24px rgba(123, 66, 246, 0.1);
+  min-height: 320px;
 }
 
 .mode-option:hover .mode-content {
@@ -2214,36 +2270,40 @@ export default {
 }
 
 .mode-title {
-  font-size: 1.35rem;
+  font-size: 1.6rem;
   font-weight: 600;
   color: #1a1a2e;
-  margin-bottom: 12px;
+  margin-bottom: 16px;
   display: flex;
   align-items: center;
-  justify-content: center;
-  gap: 12px;
+  justify-content: flex-start;
+  gap: 14px;
+  width: 100%;
+  padding-left: 16px;
 }
 
 .mode-desc {
-  font-size: 1rem;
+  font-size: 1.05rem;
   color: #64748b;
-  line-height: 1.6;
-  text-align: center;
+  line-height: 1.7;
+  text-align: left;
+  width: 100%;
+  padding-left: 16px;
 }
 
 .mode-icon {
-  width: 28px;
-  height: 28px;
+  width: 36px;
+  height: 36px;
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 8px;
+  border-radius: 10px;
   transition: all 0.3s ease;
 }
 
 .mode-icon svg {
-  width: 20px;
-  height: 20px;
+  width: 24px;
+  height: 24px;
 }
 
 .stream-icon {
@@ -2274,6 +2334,44 @@ export default {
 
 .mode-option.active .mode-desc {
   color: #475569;
+}
+
+.mode-features {
+  margin-top: 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  align-items: flex-start;
+  text-align: left;
+  width: 100%;
+  padding-left: 16px;
+}
+
+.feature-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.9rem;
+  color: #64748b;
+  transition: all 0.3s ease;
+  white-space: nowrap;
+}
+
+.feature-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #8b5cf6 0%, #7b42f6 100%);
+  flex-shrink: 0;
+}
+
+.mode-option.active .feature-item {
+  color: #475569;
+}
+
+.mode-option.active .feature-dot {
+  background: linear-gradient(135deg, #7b42f6 0%, #6d28d9 100%);
+  box-shadow: 0 2px 6px rgba(123, 66, 246, 0.3);
 }
 
 .form-input, .form-select, .form-textarea {
@@ -2417,25 +2515,142 @@ export default {
   text-align: left;
 }
 
-.upload-area {
+/* 上传区域包装器 */
+.upload-wrapper {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+  min-height: 400px;
+}
+
+/* 上传盒子 */
+.upload-box {
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.98) 0%, rgba(255, 255, 255, 0.95) 100%);
+  border: 2px dashed rgba(123, 66, 246, 0.25);
+  border-radius: 20px;
+  padding: 60px 80px;
+  box-shadow: 0 4px 20px rgba(123, 66, 246, 0.08);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  transition: all 0.3s ease;
+}
+
+.upload-box:hover {
+  border-color: rgba(123, 66, 246, 0.4);
+  box-shadow: 0 6px 24px rgba(123, 66, 246, 0.12);
+}
+
+.upload-box.drag-over {
+  border: 2px dashed #7b42f6;
+  background: rgba(123, 66, 246, 0.05);
+}
+
+.upload-box-icon {
+  width: 72px;
+  height: 72px;
+  border-radius: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, rgba(139, 92, 246, 0.12) 0%, rgba(123, 66, 246, 0.08) 100%);
+  color: #8b5cf6;
+  margin-bottom: 24px;
+}
+
+.upload-box-icon svg {
+  width: 32px;
+  height: 32px;
+}
+
+.upload-box-text {
+  text-align: center;
+  margin-bottom: 28px;
+}
+
+.upload-box-main {
+  font-size: 1.15rem;
+  font-weight: 500;
+  color: #1a1a2e;
+  margin-bottom: 8px;
+}
+
+.upload-box-sub {
+  font-size: 0.9rem;
+  color: #94a3b8;
+}
+
+.upload-box-btn {
+  background: linear-gradient(135deg, #7b42f6 0%, #6d28d9 100%);
+  color: white;
   border: none;
-  border-radius: 0;
-  padding: 0;
+  padding: 12px 32px;
+  border-radius: 10px;
+  cursor: pointer;
+  font-size: 0.95rem;
+  font-weight: 500;
+  transition: all 0.25s ease;
+  box-shadow: 0 4px 12px rgba(109, 40, 217, 0.25);
+}
+
+.upload-box-btn:hover {
+  background: linear-gradient(135deg, #8b5cf6 0%, #7b42f6 100%);
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(109, 40, 217, 0.35);
+}
+
+/* 已选文件盒子 */
+.file-selected-box {
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.98) 0%, rgba(255, 255, 255, 0.95) 100%);
+  border: 2px solid rgba(123, 66, 246, 0.15);
+  border-radius: 16px;
+  padding: 24px 32px;
+  box-shadow: 0 4px 16px rgba(123, 66, 246, 0.08);
+  margin-bottom: 24px;
+}
+
+.upload-area {
+  border: 2px dashed rgba(123, 66, 246, 0.3);
+  border-radius: 16px;
+  padding: 48px 60px;
   text-align: center;
   transition: all 0.25s ease;
   margin-bottom: 24px;
-  background: transparent;
+  background: rgba(255, 255, 255, 0.5);
+  max-width: 600px;
+  width: 100%;
 }
 
 .upload-area.drag-over {
   border: 2px dashed #7b42f6;
-  background: rgba(123, 66, 246, 0.05);
-  border-radius: 12px;
-  padding: 20px;
+  background: rgba(123, 66, 246, 0.08);
 }
 
 .upload-placeholder {
   color: #64748b;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.upload-area-icon-large {
+  width: 72px;
+  height: 72px;
+  margin: 0 auto 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, rgba(139, 92, 246, 0.15) 0%, rgba(123, 66, 246, 0.1) 100%);
+  border-radius: 20px;
+  transition: all 0.3s ease;
+  color: #8b5cf6;
+
+  svg {
+    width: 36px;
+    height: 36px;
+  }
 }
 
 .upload-area-icon {
@@ -2453,6 +2668,19 @@ export default {
     width: 36px;
     height: 36px;
   }
+}
+
+.upload-hint-main {
+  color: #1a1a2e;
+  font-size: 1.15rem;
+  font-weight: 500;
+  margin-bottom: 8px;
+}
+
+.upload-hint-sub {
+  color: #94a3b8;
+  font-size: 0.9rem;
+  margin-bottom: 20px;
 }
 
 .upload-hint {
@@ -3197,7 +3425,7 @@ export default {
   justify-content: center;
   gap: 0;
   margin: 0;
-  padding: 32px 0 24px 0;
+  padding: 24px 0 16px 0;
   background: #f5f0ff;
   border: none;
   box-shadow: none;
@@ -3360,25 +3588,25 @@ export default {
 /* 步骤卡片样式 */
 .step-section {
   margin: 0;
-  min-height: calc(100vh - 80px - 96px);
+  min-height: calc(100vh - 80px - 80px);
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: center;
-  padding: 0;
+  padding: 20px 0 40px;
   background: #f5f0ff;
 }
 
 .step-card {
   background: transparent;
   border-radius: 0;
-  padding: 40px 60px;
+  padding: 20px 40px;
   box-shadow: none;
   border: none;
   margin: 0;
   width: 100%;
   max-width: none;
   display: flex;
-  gap: 48px;
+  gap: 32px;
 }
 
 .step-card-main {
@@ -3386,10 +3614,11 @@ export default {
   min-width: 0;
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
-  max-width: 900px;
+  justify-content: flex-start;
+  max-width: 1200px;
   margin: 0 auto;
-  padding: 40px 0;
+  padding: 20px 0;
+  width: 100%;
 }
 
 .step-content-wrapper {
@@ -3416,8 +3645,8 @@ export default {
 .output-mode-selector {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
-  gap: 32px;
-  max-width: 1000px;
+  gap: 40px;
+  max-width: 1100px;
   margin: 0 auto;
   width: 100%;
 }
@@ -3465,24 +3694,25 @@ export default {
 .input-method-selector {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
-  gap: 32px;
-  max-width: 1000px;
+  gap: 40px;
+  max-width: 1100px;
   margin: 0 auto;
+  width: 100%;
 }
 
 .input-method-option {
-  padding: 60px 48px;
+  padding: 80px 40px;
   border: 2px solid rgba(123, 66, 246, 0.15);
-  border-radius: 20px;
+  border-radius: 24px;
   cursor: pointer;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  background: linear-gradient(145deg, rgba(255, 255, 255, 0.95) 0%, rgba(255, 255, 255, 0.9) 100%);
-  text-align: center;
-  box-shadow: 0 4px 20px rgba(123, 66, 246, 0.08);
-  min-height: 200px;
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.98) 0%, rgba(255, 255, 255, 0.95) 100%);
+  text-align: left;
+  box-shadow: 0 4px 24px rgba(123, 66, 246, 0.1);
+  min-height: 320px;
   display: flex;
   flex-direction: column;
-  align-items: center;
+  align-items: flex-start;
   justify-content: center;
 }
 
@@ -3499,19 +3729,27 @@ export default {
   box-shadow: 0 4px 24px rgba(123, 66, 246, 0.2);
 }
 
+.input-method-header {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 16px;
+  padding-left: 16px;
+}
+
 .input-method-icon {
-  width: 64px;
-  height: 64px;
-  border-radius: 16px;
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
   display: flex;
   align-items: center;
   justify-content: center;
-  margin-bottom: 20px;
   transition: all 0.3s ease;
+  flex-shrink: 0;
 
   svg {
-    width: 32px;
-    height: 32px;
+    width: 24px;
+    height: 24px;
   }
 
   &.manual-icon {
@@ -3538,16 +3776,22 @@ export default {
 }
 
 .input-method-title {
-  font-size: 1.15rem;
+  font-size: 1.6rem;
   font-weight: 600;
   color: #1a1a2e;
-  margin-bottom: 8px;
 }
 
 .input-method-desc {
-  font-size: 0.8rem;
-  color: #8c8c8c;
-  line-height: 1.5;
+  font-size: 1.05rem;
+  color: #64748b;
+  line-height: 1.6;
+  margin-bottom: 8px;
+  padding-left: 16px;
+}
+
+.input-method-option .mode-features {
+  margin-top: 24px;
+  padding-left: 16px;
 }
 
 /* 步骤3的卡片样式调整 */

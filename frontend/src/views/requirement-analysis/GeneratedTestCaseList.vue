@@ -1,6 +1,23 @@
 <template>
   <div class="page-container">
     <div class="filter-bar">
+      <!-- 左侧：关联需求查询输入框 -->
+      <el-input
+        v-model="searchTitle"
+        :placeholder="$t('generatedTestCases.searchRequirement')"
+        clearable
+        @clear="loadTasks"
+        @keyup.enter="loadTasks"
+        style="width: 280px;"
+      >
+        <template #prefix>
+          <el-icon><Search /></el-icon>
+        </template>
+      </el-input>
+
+      <div class="filter-bar-spacer"></div>
+
+      <!-- 右侧：状态筛选 -->
       <div class="status-tabs">
         <button
           class="status-tab"
@@ -52,23 +69,11 @@
         </button>
       </div>
 
-      <div class="filter-bar-spacer"></div>
-
-      <el-button
-        type="danger"
-        class="batch-delete-btn"
-        :disabled="selectedTasks.length === 0"
-        @click="batchDeleteTasks"
-        :loading="isDeleting">
-        <el-icon><Delete /></el-icon>
-        {{ isDeleting ? $t('generatedTestCases.deleting') : '批量删除' }}
-      </el-button>
     </div>
 
     <div class="card-container">
       <!-- 有数据时显示表格 -->
-      <el-table v-if="tasks.length > 0" :data="tasks" v-loading="isLoading" stripe @selection-change="handleSelectionChange">
-        <el-table-column type="selection" width="55" header-align="center" align="center" />
+      <el-table v-if="tasks.length > 0" :data="tasks" v-loading="isLoading" stripe>
         <el-table-column label="序号" width="80" header-align="center" align="center">
           <template #default="{ $index }">
             {{ (pagination.currentPage - 1) * pagination.pageSize + $index + 1 }}
@@ -97,7 +102,7 @@
             {{ formatDateTime(row.created_at) }}
           </template>
         </el-table-column>
-        <el-table-column :label="$t('generatedTestCases.actions')" width="120" fixed="right" header-align="center" align="center">
+        <el-table-column :label="$t('generatedTestCases.actions')" width="180" fixed="right" header-align="center" align="center">
           <template #default="{ row }">
             <div class="action-buttons">
               <el-button
@@ -109,6 +114,14 @@
                 <el-icon><Download /></el-icon>
                 <span>{{ $t('generatedTestCases.exportMarkdown') }}</span>
               </el-button>
+              <el-button
+                type="danger"
+                size="small"
+                class="action-btn delete-btn"
+                @click="deleteTask(row)">
+                <el-icon><Delete /></el-icon>
+                <span>{{ $t('generatedTestCases.delete') }}</span>
+              </el-button>
             </div>
           </template>
         </el-table-column>
@@ -117,11 +130,10 @@
       <!-- 无数据时显示空状态 -->
       <div v-if="!isLoading && tasks.length === 0" class="empty-state">
         <div class="empty-icon">
-          <el-icon :size="32" color="#bfbfbf"><Document /></el-icon>
+          <el-icon :size="48" color="#d9d9d9"><Search /></el-icon>
         </div>
-        <h3>{{ selectedStatus ? '暂无符合条件的数据' : $t('generatedTestCases.noTasks') }}</h3>
-        <p v-if="!selectedStatus">{{ $t('generatedTestCases.emptyHint') }}<router-link to="/ai-generation/requirement-analysis">{{ $t('generatedTestCases.aiGeneration') }}</router-link>{{ $t('generatedTestCases.createTask') }}</p>
-
+        <h3>{{ getEmptyTitle() }}</h3>
+        <p v-if="getEmptyDescription()">{{ getEmptyDescription() }}</p>
       </div>
 
       <div v-if="tasks.length > 0" class="pagination-container">
@@ -272,7 +284,7 @@
 <script>
 import api from '@/utils/api'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Download, Delete, Document } from '@element-plus/icons-vue'
+import { Download, Delete, Document, Search } from '@element-plus/icons-vue'
 
 export default {
   components: {
@@ -284,6 +296,7 @@ export default {
       isLoading: false,
       tasks: [],
       selectedStatus: '',
+      searchTitle: '',
       selectedTaskDetail: null,
       selectedTestCaseDetail: null,
       showTestCaseDetailModal: false,
@@ -350,7 +363,11 @@ export default {
         if (this.selectedStatus) {
           params.append('status', this.selectedStatus)
         }
-        
+
+        if (this.searchTitle) {
+          params.append('title', this.searchTitle)
+        }
+
         if (params.toString()) {
           url += '?' + params.toString()
         }
@@ -435,6 +452,30 @@ export default {
       }
     },
 
+    async deleteTask(row) {
+      try {
+        await ElMessageBox.confirm(
+          this.$t('generatedTestCases.deleteConfirm', { title: row.title }),
+          this.$t('generatedTestCases.confirmTitle'),
+          {
+            confirmButtonText: this.$t('common.confirm'),
+            cancelButtonText: this.$t('common.cancel'),
+            type: 'warning'
+          }
+        )
+
+        await api.delete(`/requirement-analysis/testcase-generation/${row.task_id}/`)
+        ElMessage.success(this.$t('generatedTestCases.deleteTaskSuccess'))
+        this.loadTasks()
+        this.updateStats()
+      } catch (error) {
+        if (error !== 'cancel') {
+          console.error('删除任务失败:', error)
+          ElMessage.error(this.$t('generatedTestCases.deleteFailed'))
+        }
+      }
+    },
+
     updateStats() {
       this.loadAllStats()
     },
@@ -468,6 +509,26 @@ export default {
         this.allStats.running = 0
         this.allStats.failed = 0
       }
+    },
+
+    getEmptyTitle() {
+      if (this.searchTitle) {
+        return this.$t('generatedTestCases.noSearchResults')
+      }
+      if (this.selectedStatus) {
+        return this.$t('generatedTestCases.noStatusResults')
+      }
+      return this.$t('generatedTestCases.noTasks')
+    },
+
+    getEmptyDescription() {
+      if (this.searchTitle) {
+        return this.$t('generatedTestCases.noSearchResultsHint')
+      }
+      if (this.selectedStatus) {
+        return this.$t('generatedTestCases.noStatusResultsHint')
+      }
+      return ''
     },
 
     getStatusText(status) {
@@ -1054,35 +1115,36 @@ export default {
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    padding: 80px 40px;
-    min-height: 300px;
+    padding: 100px 40px;
+    min-height: 400px;
+    background: #ffffff;
 
     .empty-icon {
-      width: 64px;
-      height: 64px;
+      width: 120px;
+      height: 120px;
       display: flex;
       align-items: center;
       justify-content: center;
-      background: #f5f5f5;
-      border-radius: 16px;
-      margin-bottom: 20px;
+      background: linear-gradient(135deg, #f5f3ff 0%, #ede9fe 100%);
+      border-radius: 50%;
+      margin-bottom: 24px;
       transition: all 0.3s ease;
 
       .el-icon {
-        opacity: 0.5;
+        opacity: 0.6;
       }
     }
 
     h3 {
-      color: #8c8c8c;
-      margin-bottom: 0;
-      font-size: 14px;
-      font-weight: 400;
+      color: #1f1f1f;
+      margin-bottom: 8px;
+      font-size: 16px;
+      font-weight: 500;
     }
 
     p {
       font-size: 14px;
-      line-height: 1.8;
+      line-height: 1.6;
       color: #8c8c8c;
       max-width: 400px;
       margin: 0 auto;
@@ -1311,13 +1373,17 @@ export default {
   padding: 4px 10px !important;
   border-radius: 6px;
   transition: all 0.3s ease;
+  min-width: auto !important;
+  width: auto !important;
 
   .el-icon {
     font-size: 14px;
+    color: #ffffff !important;
   }
 
   span {
     font-size: 12px;
+    color: #ffffff !important;
   }
 
   &.export-btn {
@@ -1334,6 +1400,19 @@ export default {
 
     &:active {
       transform: translateY(0);
+    }
+  }
+
+  &.delete-btn {
+    background: linear-gradient(135deg, #ff4d4f 0%, #f5222d 100%) !important;
+    border: none !important;
+    color: #ffffff !important;
+    font-weight: 600 !important;
+
+    &:hover {
+      background: linear-gradient(135deg, #ff7875 0%, #ff4d4f 100%) !important;
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(245, 34, 45, 0.4);
     }
   }
 }

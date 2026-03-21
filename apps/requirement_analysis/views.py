@@ -1257,6 +1257,11 @@ class TestCaseGenerationTaskViewSet(viewsets.ModelViewSet):
         if created_by:
             queryset = queryset.filter(created_by_id=created_by)
 
+        # 按标题搜索
+        title_param = self.request.query_params.get('title')
+        if title_param:
+            queryset = queryset.filter(title__icontains=title_param)
+
         return queryset.order_by('-created_at')
 
     @action(detail=False, methods=['post'])

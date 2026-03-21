@@ -50,7 +50,16 @@
       <!-- 中间:代码编辑器 -->
       <div class="center-panel">
         <div class="code-editor-container">
-          <div ref="monacoEditor" class="monaco-editor"></div>
+          <div v-if="editorLoading" class="editor-loading">
+            <el-icon class="loading-icon"><Loading /></el-icon>
+            <span>正在加载代码编辑器...</span>
+          </div>
+          <div v-else-if="editorError" class="editor-error">
+            <el-icon><Warning /></el-icon>
+            <span>代码编辑器加载失败</span>
+            <el-button type="primary" size="small" @click="initMonacoEditor">重试</el-button>
+          </div>
+          <div v-show="!editorLoading && !editorError" ref="monacoEditor" class="monaco-editor"></div>
         </div>
       </div>
 
@@ -142,7 +151,7 @@ import { ref, reactive, computed, onMounted, watch, onBeforeUnmount, shallowRef 
 import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
-  Search, Plus, View, Document, Check, Delete, Operation, Folder
+  Search, Plus, View, Document, Check, Delete, Operation, Folder, Loading, Warning
 } from '@element-plus/icons-vue'
 import loader from '@monaco-editor/loader'
 
@@ -174,6 +183,8 @@ const treeKey = ref(0)
 
 const cursorPosition = reactive({ line: 1, column: 1 })
 const saving = ref(false)
+const editorLoading = ref(true)
+const editorError = ref(false)
 
 // 标签页控制
 const rightActiveTab = ref('logs')
@@ -282,6 +293,9 @@ const countElements = (tree) => {
 const initMonacoEditor = async () => {
   if (!monacoEditor.value) return
 
+  editorLoading.value = true
+  editorError.value = false
+
   try {
     // 配置 loader 使用 CDN
     loader.config({
@@ -311,7 +325,7 @@ const initMonacoEditor = async () => {
       smoothScrolling: true,
       contextmenu: true,
       quickSuggestions: true,
-      wordBasedSuggestions: true,
+      wordBasedSuggestions: 'currentDocument',
       suggestOnTriggerCharacters: true,
       acceptSuggestionOnEnter: 'on',
       tabCompletion: 'on',
@@ -332,8 +346,13 @@ const initMonacoEditor = async () => {
       cursorPosition.line = e.position.lineNumber
       cursorPosition.column = e.position.column
     })
+
+    editorLoading.value = false
   } catch (error) {
     console.error('Failed to initialize Monaco Editor:', error)
+    editorLoading.value = false
+    editorError.value = true
+    ElMessage.error('代码编辑器加载失败，请刷新页面重试')
   }
 }
 
@@ -497,8 +516,9 @@ const saveScript = async () => {
     return
   }
 
+  let scriptName = ''
   try {
-    const { value: scriptName, action } = await ElMessageBox.prompt(
+    const result = await ElMessageBox.prompt(
       '',
       '保存脚本',
       {
@@ -506,7 +526,6 @@ const saveScript = async () => {
         cancelButtonText: '取消',
         inputPlaceholder: '请输入脚本名称',
         customClass: 'script-save-message-box',
-        width: 420,
         inputValidator: (value) => {
           if (!value || !value.trim()) {
             return '脚本名称不能为空'
@@ -515,13 +534,20 @@ const saveScript = async () => {
         }
       }
     )
+    // @ts-ignore
+    scriptName = result.value || ''
+  } catch {
+    // 用户取消
+    return
+  }
 
-    if (action !== 'confirm') {
-      return
-    }
+  if (!scriptName) {
+    return
+  }
 
-    saving.value = true
+  saving.value = true
 
+  try {
     await createTestScript({
       name: scriptName.trim(),
       project: projectId.value,
@@ -533,10 +559,8 @@ const saveScript = async () => {
 
     ElMessage.success(`${t('uiAutomation.scriptEditor.messages.saveSuccess')}: ${scriptName}`)
   } catch (error) {
-    if (error !== 'cancel') {
-      console.error('Failed to save script:', error)
-      ElMessage.error(t('uiAutomation.scriptEditor.messages.saveFailed'))
-    }
+    console.error('Failed to save script:', error)
+    ElMessage.error(t('uiAutomation.scriptEditor.messages.saveFailed'))
   } finally {
     saving.value = false
   }
@@ -847,6 +871,48 @@ onBeforeUnmount(() => {
   .monaco-editor {
     width: 100%;
     height: 100%;
+  }
+
+  .editor-loading,
+  .editor-error {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    color: #fff;
+    font-size: 14px;
+    background: #1e1e1e;
+    z-index: 10;
+
+    .el-icon {
+      font-size: 32px;
+      color: #7b42f6;
+    }
+
+    .loading-icon {
+      animation: rotate 1s linear infinite;
+    }
+  }
+
+  .editor-error {
+    .el-icon {
+      color: #f56c6c;
+    }
+  }
+}
+
+@keyframes rotate {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
   }
 }
 

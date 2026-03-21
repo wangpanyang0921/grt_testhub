@@ -203,11 +203,14 @@ export default {
     generationTime: '生成时间',
     actions: '操作',
 
+    // Search
+    searchRequirement: '搜索关联需求',
+
     // Actions
     viewDetail: '查看详情',
     adoptAll: '全部采纳',
     exportExcel: '导出Excel',
-    exportMarkdown: '导出MD',
+    exportMarkdown: '导出',
     delete: '删除',
     batchAdopt: '批量采纳',
     batchDiscard: '批量弃用',
@@ -220,6 +223,10 @@ export default {
     emptyHint: '还没有AI生成用例任务，去',
     aiGeneration: 'AI用例生成',
     createTask: '页面创建一个任务吧！',
+    noSearchResults: '暂无搜索结果',
+    noSearchResultsHint: '未找到匹配的关联需求，请尝试其他关键词',
+    noStatusResults: '暂无符合条件的数据',
+    noStatusResultsHint: '当前筛选条件下没有数据，请尝试其他状态',
 
     // Loading
     loadingTasks: '🔄 正在加载任务列表...',
@@ -278,10 +285,11 @@ export default {
     cancel: '取消',
 
     // Messages
-    deleteConfirm: '确定要删除这个任务吗？',
+    deleteConfirm: '确定要删除任务 "{title}" 吗？此操作不可恢复。',
     batchDeleteConfirm: '确定要删除选中的 {count} 个任务吗？此操作不可恢复。',
     confirmTitle: '确认删除',
     deleteSuccess: '成功删除 {success} 个任务，失败 {failed} 个',
+    deleteTaskSuccess: '删除成功',
     deleteFailed: '删除失败',
     batchDeleteSuccess: '成功删除 {count} 个任务',
     batchDeleteFailed: '批量删除失败',
