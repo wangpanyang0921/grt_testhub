@@ -286,6 +286,14 @@
               <span>{{ $t('menu.difyConfig') }}</span>
             </el-menu-item>
           </template>
+
+          <!-- AI 知识库模块菜单 -->
+          <template v-else-if="currentModule === 'ai-assistant'">
+            <el-menu-item index="/ai-assistant/chat">
+              <el-icon><Promotion /></el-icon>
+              <span>Dify助手</span>
+            </el-menu-item>
+          </template>
         </el-menu>
       </el-aside>
 
@@ -348,7 +356,7 @@ import { useI18n } from 'vue-i18n'
 import { ref } from 'vue'
 import {
   Monitor, Folder, Document, Flag, Check, Collection, VideoPlay,
-  DataAnalysis, ChatDotRound, DocumentCopy, Link, MagicStick,
+  DataAnalysis, ChatDotRound, DocumentCopy, Link, MagicStick, Promotion,
   Odometer, Timer, Setting, AlarmClock, Bell, Aim, Edit, Cpu, ArrowDown, Cellphone, Connection, FolderOpened, Box, Tools
 } from '@element-plus/icons-vue'
 
@@ -387,6 +395,7 @@ onMounted(async () => {
 })
 
 const currentModule = computed(() => {
+  if (route.path.startsWith('/ai-assistant')) return 'ai-assistant'
   if (route.path.startsWith('/ai-generation')) return 'ai-generation'
   if (route.path.startsWith('/api-testing')) return 'api-testing'
   if (route.path.startsWith('/ui-automation')) return 'ui-automation'
@@ -398,6 +407,7 @@ const currentModule = computed(() => {
 
 const moduleName = computed(() => {
   const map = {
+    'ai-assistant': 'AI 知识库',
     'ai-generation': t('modules.aiGeneration'),
     'api-testing': t('modules.apiTesting'),
     'ui-automation': t('modules.uiAutomation'),
@@ -410,6 +420,9 @@ const moduleName = computed(() => {
 
 const breadcrumbTitle = computed(() => {
   const routeMap = {
+    // AI 知识库
+    '/ai-assistant/chat': 'Dify助手',
+
     // AI用例生成
     '/ai-generation/requirement-analysis': t('menu.aiCaseGeneration'),
     '/ai-generation/generated-testcases': t('menu.aiGeneratedTestcases'),
@@ -507,6 +520,8 @@ const handleCommand = async (command) => {
 
 .logo {
   height: 70px;
+  min-height: 70px;
+  max-height: 70px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -517,6 +532,8 @@ const handleCommand = async (command) => {
   position: relative;
   overflow: hidden;
   border-bottom: 1px solid rgba(147, 112, 219, 0.08);
+  box-sizing: border-box;
+  box-shadow: 0 2px 8px rgba(147, 112, 219, 0.1);
 
   .logo-img-wrapper {
     width: 40px;
@@ -1120,15 +1137,24 @@ const handleCommand = async (command) => {
   padding: 0;
   flex-shrink: 0;
   height: 70px !important;
+  min-height: 70px !important;
+  max-height: 70px !important;
   box-shadow: 0 2px 8px rgba(147, 112, 219, 0.1);
   backdrop-filter: blur(10px);
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
 
   .header-content {
-    height: 100%;
+    width: 100%;
+    height: 70px;
+    min-height: 70px;
+    max-height: 70px;
     display: flex;
     justify-content: space-between;
     align-items: center;
     padding: 0 24px;
+    box-sizing: border-box;
   }
 
   .header-left {

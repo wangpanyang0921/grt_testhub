@@ -183,7 +183,7 @@ const handleNavigate = (type) => {
     'ui': '/ui-automation/dashboard',
     'app': '/app-automation/dashboard',
     'ai-intelligent': '/ai-intelligent-mode/testing',
-    'assistant': '/ai-generation/assistant',
+    'assistant': '/ai-assistant/chat',
     'config': '/configuration/ai-model',
     'data': '/data-factory'
   }
@@ -216,8 +216,7 @@ const handleNavigate = (type) => {
   }
 
   if (routes[type]) {
-    const routeData = router.resolve({ path: routes[type] })
-    window.open(routeData.href, '_blank')
+    router.push(routes[type])
   }
 }
 </script>

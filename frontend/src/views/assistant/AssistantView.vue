@@ -1,18 +1,17 @@
 <template>
-  <div class="assistant-layout">
-    <!-- 左侧侧边栏 -->
-    <div class="sidebar">
-      <div class="new-chat-btn-wrapper">
-        <el-button type="primary" class="new-chat-btn" @click="startNewChat" :icon="Plus">
-          {{ $t('assistant.newChat') }}
-        </el-button>
+  <div class="assistant-container">
+    <!-- 内部左侧侧边栏 - 会话列表 -->
+    <div class="session-sidebar">
+      <div class="sidebar-header">
+        <div class="sidebar-title">历史会话</div>
+        <el-button type="primary" class="new-chat-btn" @click="startNewChat" :icon="Plus" circle size="small" />
       </div>
-      
+
       <div class="history-list">
-        <div class="history-label">{{ $t('assistant.historyChat') }}</div>
+        <div class="history-label" style="display: none;">{{ $t('assistant.historyChat') }}</div>
         <div class="session-scroll-area">
-          <div 
-            v-for="session in historySessionsDescending" 
+          <div
+            v-for="session in historySessionsDescending"
             :key="session.id"
             :class="['session-item', { active: currentSession?.id === session.id }]"
             @click="switchToSession(session)"
@@ -22,26 +21,10 @@
               <span class="session-title" :title="session.title">{{ session.title || $t('assistant.newChat') }}</span>
             </div>
             <div class="session-actions" @click.stop>
-              <el-icon class="delete-icon" @click.stop="handleDeleteSession(session.id)"><Delete /></el-icon>
+              <span class="delete-text" @click.stop="handleDeleteSession(session.id)">删除</span>
             </div>
           </div>
         </div>
-      </div>
-      
-      <div class="user-profile">
-        <el-dropdown trigger="click" @command="handleCommand">
-          <div class="user-info">
-            <el-avatar :size="32" :src="userStore.user?.avatar || ''" :icon="UserFilled" />
-            <span class="username">{{ userStore.user?.username || $t('assistant.user') }}</span>
-            <el-icon class="el-icon--right"><ArrowDown /></el-icon>
-          </div>
-          <template #dropdown>
-            <el-dropdown-menu>
-              <el-dropdown-item command="home">{{ $t('assistant.goHome') }}</el-dropdown-item>
-              <el-dropdown-item command="logout" divided>{{ $t('assistant.logout') }}</el-dropdown-item>
-            </el-dropdown-menu>
-          </template>
-        </el-dropdown>
       </div>
     </div>
 
@@ -57,7 +40,7 @@
             <h1>{{ $t('assistant.title') }}</h1>
             <p>{{ $t('assistant.subtitle') }}</p>
           </div>
-          
+
           <div class="center-input-wrapper">
             <el-input
               v-model="inputMessage"
@@ -69,16 +52,16 @@
               @keydown.enter.exact.prevent="handleEnter"
             />
             <div class="input-actions">
-              <el-button 
-                type="primary" 
-                circle 
-                :icon="Promotion" 
+              <el-button
+                type="primary"
+                circle
+                :icon="Promotion"
                 :disabled="!inputMessage.trim()"
                 @click="sendMessage"
               />
             </div>
           </div>
-          
+
           <div class="suggestion-chips" v-if="false">
             <div class="chip" @click="useSuggestion($t('assistant.suggestions.apiTestQuestion'))">{{ $t('assistant.suggestions.apiTest') }}</div>
             <div class="chip" @click="useSuggestion($t('assistant.suggestions.performancePlanQuestion'))">{{ $t('assistant.suggestions.performancePlan') }}</div>
@@ -91,13 +74,16 @@
       <!-- 场景2：对话界面 -->
       <div v-else class="chat-screen">
         <div class="chat-header">
-          <span class="chat-title">{{ currentSession?.title || $t('assistant.newChat') }}</span>
+          <div class="chat-header-left">
+            <el-icon class="back-icon" @click="startNewChat"><ArrowLeft /></el-icon>
+            <span class="chat-title">{{ currentSession?.title || $t('assistant.newChat') }}</span>
+          </div>
           <span class="chat-time" v-if="currentSession">{{ formatDate(currentSession.updated_at) }}</span>
         </div>
-        
+
         <div class="messages-container" ref="messagesContainer">
-          <div 
-            v-for="(message, index) in messages" 
+          <div
+            v-for="(message, index) in messages"
             :key="message.id || index"
             :class="['message-row', message.role]"
           >
@@ -110,9 +96,17 @@
               <div class="message-status" v-if="message.isPending">
                 <el-icon class="is-loading"><Loading /></el-icon> {{ $t('assistant.thinking') }}
               </div>
+              <div class="message-actions" v-if="message.role === 'assistant' && !message.isPending">
+                <el-button type="primary" link size="small" @click="copyMessage(message.content)">
+                  <el-icon><CopyDocument /></el-icon> 复制
+                </el-button>
+                <el-button type="primary" link size="small" @click="editMessage(message)">
+                  <el-icon><Edit /></el-icon> 编辑
+                </el-button>
+              </div>
             </div>
           </div>
-          
+
           <!-- 底部占位，确保滚动到底部 -->
           <div style="height: 20px;"></div>
         </div>
@@ -128,8 +122,8 @@
               resize="none"
               @keydown.enter.exact.prevent="handleEnter"
             />
-            <el-button 
-              type="primary" 
+            <el-button
+              type="primary"
               class="send-btn"
               :disabled="!inputMessage.trim() || sending"
               @click="sendMessage"
@@ -150,7 +144,7 @@ import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useUserStore } from '@/stores/user'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Plus, Delete, ChatDotRound, User, Cpu, Promotion, Loading, UserFilled, ArrowDown } from '@element-plus/icons-vue'
+import { Plus, Delete, ChatDotRound, User, Cpu, Promotion, Loading, ArrowLeft, CopyDocument, Edit } from '@element-plus/icons-vue'
 import api from '@/utils/api'
 
 const router = useRouter()
@@ -165,30 +159,10 @@ const inputMessage = ref('')
 const sending = ref(false)
 const messagesContainer = ref(null)
 
-const handleCommand = (command) => {
-  if (command === 'logout') {
-    handleLogout()
-  } else if (command === 'home') {
-    router.push('/home')
-  }
-}
-
-const handleLogout = () => {
-  ElMessageBox.confirm(t('assistant.logoutConfirm'), t('assistant.logoutTitle'), {
-    confirmButtonText: t('assistant.confirm'),
-    cancelButtonText: t('assistant.cancel'),
-    type: 'warning'
-  }).then(() => {
-    userStore.logout()
-    router.push('/login')
-    ElMessage.success(t('assistant.loggedOut'))
-  }).catch(() => {})
-}
-
 // 计算属性
 const historySessionsDescending = computed(() => {
-  return [...historySessions.value].sort((a, b) => 
-    new Date(b.updated_at) - new Date(a.updated_at)
+  return [...historySessions.value].sort((a, b) =>
+    new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
   )
 })
 
@@ -237,7 +211,7 @@ const startNewChat = () => {
 // 切换会话
 const switchToSession = async (session) => {
   if (currentSession.value?.id === session.id) return
-  
+
   try {
     currentSession.value = { ...session }
     const response = await api.get(`/assistant/sessions/${session.id}/messages/`)
@@ -247,6 +221,22 @@ const switchToSession = async (session) => {
     console.error('Load messages failed:', error)
     ElMessage.error(t('assistant.messages.loadMessageFailed'))
   }
+}
+
+// 复制消息内容
+const copyMessage = async (content) => {
+  try {
+    await navigator.clipboard.writeText(content)
+    ElMessage.success('复制成功')
+  } catch (error) {
+    console.error('Copy failed:', error)
+    ElMessage.error('复制失败')
+  }
+}
+
+// 编辑消息
+const editMessage = (message) => {
+  inputMessage.value = message.content
 }
 
 // 删除会话
@@ -294,10 +284,10 @@ const handleEnter = (e) => {
 const sendMessage = async () => {
   const text = inputMessage.value.trim()
   if (!text || sending.value) return
-  
+
   inputMessage.value = ''
   sending.value = true
-  
+
   // 1. 立即上屏用户消息
   const tempUserMsg = {
     role: 'user',
@@ -305,7 +295,7 @@ const sendMessage = async () => {
     created_at: new Date().toISOString()
   }
   messages.value.push(tempUserMsg)
-  
+
   // 2. 添加一个临时的"思考中"消息
   const tempAiMsg = {
     role: 'assistant',
@@ -314,33 +304,33 @@ const sendMessage = async () => {
   }
   messages.value.push(tempAiMsg)
   scrollToBottom()
-  
+
   try {
     // 如果是新会话（没有ID），先创建会话
     let sessionId = currentSession.value?.id
     let isFirstMessage = false
-    
+
     if (!sessionId) {
       isFirstMessage = true
       const newSessionId = `session_${Date.now()}_${Math.random().toString(36).substring(2, 15)}`
       // 智能生成标题（取前10个字）
       const title = text.length > 10 ? text.substring(0, 10) + '...' : text
-      
+
       const sessionRes = await api.post('/assistant/sessions/', {
         session_id: newSessionId,
         title: title
       })
-      
+
       currentSession.value = sessionRes.data
       sessionId = currentSession.value.session_id // 注意：后端返回的是对象，这里需要用 session_id 字段
-      
+
       // 立即添加到历史列表
       historySessions.value.unshift(currentSession.value)
     } else {
       // 如果是已有会话，使用 session_id 字段
       sessionId = currentSession.value.session_id
     }
-    
+
     // 3. 发送请求
     const response = await api.post('/assistant/chat/send_message/', {
       session_id: sessionId,
@@ -348,19 +338,19 @@ const sendMessage = async () => {
     }, {
       timeout: 60000
     })
-    
+
     // 4. 替换临时消息为真实消息
     messages.value.pop() // 移除思考中
     messages.value.pop() // 移除临时用户消息（因为后端返回了完整的用户消息对象）
-    
+
     messages.value.push(response.data.user_message)
     messages.value.push(response.data.assistant_message)
-    
+
     // 更新会话的 conversation_id
     if (response.data.conversation_id && currentSession.value) {
       currentSession.value.conversation_id = response.data.conversation_id
     }
-    
+
     // 如果是第一次对话，更新历史列表中的会话信息（比如 updated_at）
     if (!isFirstMessage) {
       const index = historySessions.value.findIndex(s => s.id === currentSession.value.id)
@@ -371,7 +361,7 @@ const sendMessage = async () => {
         historySessions.value.unshift(updatedSession)
       }
     }
-    
+
   } catch (error) {
     console.error('Send failed:', error)
     // 移除临时消息，显示错误
@@ -404,97 +394,103 @@ onMounted(async () => {
 </script>
 
 <style scoped lang="scss">
-.assistant-layout {
+.assistant-container {
   display: flex;
-  height: 100vh;
-  background: #fff;
+  height: 100%;
+  background: linear-gradient(135deg, #f5f3ff 0%, #ede9fe 100%);
   overflow: hidden;
+  padding: 24px;
+  gap: 20px;
 }
 
-/* 左侧侧边栏 */
-.sidebar {
-  width: 260px;
-  background: linear-gradient(180deg, #f8f5ff 0%, #f0ebfa 50%, #e8e3f5 100%);
-  border-right: 1px solid rgba(123, 66, 246, 0.12);
+/* 内部左侧侧边栏 - 会话列表 - 统一背景色 */
+.session-sidebar {
+  width: 280px;
+  background: linear-gradient(135deg, #ffffff 0%, #f8f7ff 100%);
+  border-radius: 12px;
+  box-shadow: 0 4px 16px rgba(147, 112, 219, 0.1);
+  border: 1px solid rgba(147, 112, 219, 0.1);
   display: flex;
   flex-direction: column;
   flex-shrink: 0;
-  color: #5a32a3;
-  box-shadow: 4px 0 16px rgba(123, 66, 246, 0.08);
+  overflow: hidden;
 
-  .new-chat-btn-wrapper {
-    padding: 20px;
+  .sidebar-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 20px 24px;
+    border-bottom: 1px solid rgba(147, 112, 219, 0.1);
+    background: transparent;
+
+    .sidebar-title {
+      font-size: 16px;
+      font-weight: 600;
+      color: #1f2937;
+    }
 
     .new-chat-btn {
-        width: 100%;
-        height: 42px;
-        border-radius: 12px;
-        font-size: 14px;
-        font-weight: 500;
-        background: linear-gradient(135deg, #7b42f6 0%, #9f7aea 100%);
-        border: none;
-        color: white;
-        box-shadow: 0 4px 12px rgba(123, 66, 246, 0.3);
-        transition: all 0.3s ease;
+      background: #7b42f6;
+      border: none;
+      transition: all 0.3s ease;
 
-        &:hover {
-          transform: translateY(-2px);
-          box-shadow: 0 6px 16px rgba(123, 66, 246, 0.4);
-        }
-
-        &:active {
-          transform: translateY(0);
-        }
+      &:hover {
+        background: #6b35e0;
+        transform: scale(1.05);
       }
+    }
   }
-  
+
   .history-list {
     flex: 1;
     display: flex;
     flex-direction: column;
     overflow: hidden;
-    
+    padding: 16px;
+
     .history-label {
-      padding: 0 20px 10px;
+      padding: 0 8px 12px;
       font-size: 12px;
-      color: rgba(90, 50, 163, 0.6);
+      color: #8c8c8c;
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
     }
-    
+
     .session-scroll-area {
       flex: 1;
       overflow-y: auto;
-      padding: 0 10px;
-      
+      padding: 0;
+
       &::-webkit-scrollbar {
         width: 4px;
       }
       &::-webkit-scrollbar-thumb {
-        background: rgba(255, 255, 255, 0.2);
+        background: rgba(147, 112, 219, 0.2);
         border-radius: 2px;
       }
+      &::-webkit-scrollbar-track {
+        background: transparent;
+      }
     }
-    
+
     .session-item {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      padding: 12px 14px;
-      margin: 6px 12px;
-      border-radius: 12px;
+      padding: 14px 16px;
+      margin: 6px 0;
+      border-radius: 10px;
       cursor: pointer;
       transition: all 0.3s ease;
-      color: #5a32a3;
-      background: rgba(255, 255, 255, 0.7);
-      box-shadow: 0 2px 8px rgba(123, 66, 246, 0.06);
-      backdrop-filter: blur(10px);
-      border: 1px solid rgba(123, 66, 246, 0.08);
+      color: #595959;
+      background: transparent;
+      border: 1px solid transparent;
 
       &:hover {
-        background: rgba(255, 255, 255, 0.95);
+        background: rgba(147, 112, 219, 0.08);
         color: #7b42f6;
-        font-weight: 600;
-        box-shadow: 0 4px 16px rgba(123, 66, 246, 0.12);
-        transform: translateX(4px);
+        border-color: rgba(147, 112, 219, 0.15);
 
         .session-actions {
           opacity: 1;
@@ -502,24 +498,30 @@ onMounted(async () => {
       }
 
       &.active {
-        background: linear-gradient(135deg, #7b42f6 0%, #9f7aea 100%);
-        color: white;
-        font-weight: 600;
-        box-shadow: 0 4px 16px rgba(123, 66, 246, 0.35);
-        border-color: transparent;
+        background: linear-gradient(135deg, #f5f3ff 0%, #ede9fe 100%);
+        color: #7b42f6;
+        font-weight: 500;
+        border-color: rgba(147, 112, 219, 0.2);
+        box-shadow: 0 2px 8px rgba(147, 112, 219, 0.1);
+
+        .chat-icon {
+          color: #7b42f6;
+        }
       }
-      
+
       .session-title-wrapper {
         display: flex;
         align-items: center;
-        gap: 8px;
+        gap: 10px;
         flex: 1;
         overflow: hidden;
-        
+
         .chat-icon {
           font-size: 16px;
+          color: #d1d5db;
+          flex-shrink: 0;
         }
-        
+
         .session-title {
           font-size: 14px;
           white-space: nowrap;
@@ -527,66 +529,41 @@ onMounted(async () => {
           text-overflow: ellipsis;
         }
       }
-      
+
       .session-actions {
         opacity: 0;
         transition: opacity 0.2s;
-        
-        .delete-icon {
-          font-size: 14px;
-          color: rgba(90, 50, 163, 0.6);
+        flex-shrink: 0;
+
+        .delete-text {
+          font-size: 12px;
+          color: #9ca3af;
+          padding: 4px 8px;
+          border-radius: 4px;
+          transition: all 0.2s;
+          cursor: pointer;
+
           &:hover {
-            color: #ff4d4f;
+            color: #f56c6c;
+            background: #fef0f0;
           }
         }
       }
     }
   }
-  
-  .user-profile {
-    padding: 12px 16px;
-    border-top: 1px solid rgba(123, 66, 246, 0.1);
-    margin-top: auto;
-
-    .user-info {
-      display: flex;
-      align-items: center;
-      cursor: pointer;
-      padding: 8px 12px;
-      border-radius: 12px;
-      transition: all 0.3s ease;
-      background: rgba(255, 255, 255, 0.5);
-
-      &:hover {
-        background: rgba(255, 255, 255, 0.9);
-        box-shadow: 0 2px 8px rgba(123, 66, 246, 0.1);
-      }
-
-      .username {
-        margin: 0 8px;
-        font-size: 14px;
-        color: #5a32a3;
-        font-weight: 500;
-        flex: 1;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-      }
-
-      .el-icon {
-        color: #9f7aea;
-      }
-    }
-  }
 }
 
-/* 右侧主内容区 */
+/* 右侧主内容区 - 统一背景色 */
 .main-content {
   flex: 1;
   display: flex;
   flex-direction: column;
   position: relative;
-  background: linear-gradient(135deg, #faf8ff 0%, #f5f3ff 50%, #f0edff 100%);
+  background: linear-gradient(135deg, #ffffff 0%, #f8f7ff 100%);
+  border-radius: 12px;
+  box-shadow: 0 4px 16px rgba(147, 112, 219, 0.1);
+  border: 1px solid rgba(147, 112, 219, 0.1);
+  overflow: hidden;
 }
 
 /* 场景1：欢迎页（新会话） */
@@ -596,81 +573,87 @@ onMounted(async () => {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding-bottom: 100px;
-  
+  padding: 0;
+  background: transparent;
+  min-height: 0;
+
   .welcome-content {
     width: 100%;
-    max-width: 800px;
-    padding: 0 20px;
+    max-width: 720px;
+    padding: 0 40px;
     display: flex;
     flex-direction: column;
     align-items: center;
+    margin-top: -40px;
   }
-  
+
   .logo-area {
     text-align: center;
-    margin-bottom: 40px;
+    margin-bottom: 36px;
 
     .logo-circle {
-      width: 88px;
-      height: 88px;
-      background: linear-gradient(135deg, #e0c3fc 0%, #8ec5fc 100%);
-      border-radius: 24px;
+      width: 72px;
+      height: 72px;
+      background: #7b42f6;
+      border-radius: 20px;
       display: flex;
       align-items: center;
       justify-content: center;
       margin: 0 auto 24px;
-      box-shadow: 0 8px 32px rgba(123, 66, 246, 0.25);
-      border: 3px solid rgba(255, 255, 255, 0.5);
+      box-shadow: 0 8px 24px rgba(123, 66, 246, 0.25);
 
       .el-icon {
-        font-size: 44px;
-        color: #7b42f6;
+        font-size: 36px;
+        color: #ffffff;
       }
     }
 
     h1 {
-      font-size: 32px;
-      color: #5a32a3;
+      font-size: 28px;
+      color: #1f2937;
       margin: 0 0 12px;
-      font-weight: 700;
-      letter-spacing: 1px;
+      font-weight: 600;
+      letter-spacing: -0.5px;
     }
 
     p {
-      color: #7c6f9c;
-      font-size: 16px;
+      color: #6b7280;
+      font-size: 15px;
       margin: 0;
       font-weight: 400;
     }
   }
-  
+
   .center-input-wrapper {
     width: 100%;
+    max-width: 640px;
     position: relative;
-    margin-bottom: 30px;
-    background: rgba(255, 255, 255, 0.9);
-    border-radius: 20px;
+    background: #ffffff;
+    border-radius: 16px;
     padding: 8px;
-    box-shadow: 0 4px 20px rgba(123, 66, 246, 0.1);
-    border: 1px solid rgba(123, 66, 246, 0.1);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+    border: 1px solid rgba(147, 112, 219, 0.15);
     transition: all 0.3s ease;
 
     &:focus-within {
-      box-shadow: 0 4px 24px rgba(123, 66, 246, 0.18);
-      border-color: rgba(123, 66, 246, 0.2);
-      background: #fff;
+      box-shadow: 0 4px 24px rgba(123, 66, 246, 0.15);
+      border-color: #7b42f6;
     }
 
     .center-input {
       :deep(.el-textarea__inner) {
         border-radius: 12px;
-        padding: 16px 50px 16px 16px;
-        font-size: 16px;
+        padding: 12px 48px 12px 16px;
+        font-size: 15px;
         border: none !important;
         background: transparent;
         box-shadow: none !important;
         outline: none !important;
+        min-height: 52px !important;
+
+        &::placeholder {
+          color: #9ca3af;
+        }
 
         &:focus {
           box-shadow: none !important;
@@ -682,22 +665,20 @@ onMounted(async () => {
 
     .input-actions {
       position: absolute;
-      right: 16px;
-      bottom: 16px;
+      right: 14px;
+      bottom: 14px;
 
       .el-button {
-        width: 44px;
-        height: 44px;
-        background: linear-gradient(135deg, #7b42f6 0%, #9f7aea 100%);
+        width: 36px;
+        height: 36px;
+        background: #7b42f6;
         border: none;
-        box-shadow: 0 4px 12px rgba(123, 66, 246, 0.35);
         transition: all 0.3s ease;
-        border-radius: 12px;
+        border-radius: 10px;
 
         &:hover {
-          background: linear-gradient(135deg, #6d33e6 0%, #8b5cf6 100%);
           transform: translateY(-2px);
-          box-shadow: 0 6px 20px rgba(123, 66, 246, 0.45);
+          background: #6b35e0;
         }
 
         &:active {
@@ -705,41 +686,41 @@ onMounted(async () => {
         }
 
         &.is-disabled {
-          background: linear-gradient(135deg, #d1d5db 0%, #9ca3af 100%);
-          box-shadow: none;
+          background: #e5e7eb;
         }
 
         .el-icon {
-          font-size: 20px;
+          font-size: 18px;
           color: white;
         }
       }
     }
   }
-  
+
   .suggestion-chips {
     display: flex;
     flex-wrap: wrap;
     gap: 12px;
     justify-content: center;
+    margin-top: 24px;
 
     .chip {
-      padding: 10px 20px;
-      background: rgba(255, 255, 255, 0.8);
-      border-radius: 24px;
+      padding: 10px 18px;
+      background: #ffffff;
+      border-radius: 20px;
       font-size: 14px;
-      color: #6b5b8a;
+      color: #4b5563;
       cursor: pointer;
       transition: all 0.3s ease;
-      border: 1px solid rgba(123, 66, 246, 0.1);
-      box-shadow: 0 2px 8px rgba(123, 66, 246, 0.06);
+      border: 1px solid #e5e7eb;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
       font-weight: 500;
 
       &:hover {
-        background: linear-gradient(135deg, #7b42f6 0%, #9f7aea 100%);
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
         color: #fff;
         transform: translateY(-2px);
-        box-shadow: 0 4px 16px rgba(123, 66, 246, 0.25);
+        box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
         border-color: transparent;
       }
     }
@@ -752,41 +733,62 @@ onMounted(async () => {
   display: flex;
   flex-direction: column;
   height: 100%;
-  
+  background: transparent;
+
   .chat-header {
-    height: 64px;
-    border-bottom: 1px solid rgba(147, 112, 219, 0.15);
+    height: 60px;
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 0 28px;
+    padding: 0 24px;
     flex-shrink: 0;
-    background: rgba(255, 255, 255, 0.7);
-    backdrop-filter: blur(10px);
-    box-shadow: 0 2px 12px rgba(147, 112, 219, 0.08);
+    background: transparent;
 
-    .chat-title {
-      font-size: 17px;
-      font-weight: 600;
-      color: #5a32a3;
-      letter-spacing: 0.5px;
+    .chat-header-left {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+
+      .back-icon {
+        font-size: 20px;
+        color: #6b7280;
+        cursor: pointer;
+        padding: 8px;
+        border-radius: 8px;
+        transition: all 0.2s;
+
+        &:hover {
+          background: #f3f4f6;
+          color: #7b42f6;
+        }
+      }
+
+      .chat-title {
+        font-size: 16px;
+        font-weight: 600;
+        color: #1f2937;
+        letter-spacing: 0.3px;
+      }
     }
 
     .chat-time {
-      font-size: 12px;
-      color: #9370db;
-      background: rgba(147, 112, 219, 0.1);
-      padding: 4px 10px;
-      border-radius: 12px;
-      border: 1px solid rgba(147, 112, 219, 0.15);
+      font-size: 13px;
+      color: #9ca3af;
+      font-weight: 500;
     }
   }
-  
+
   .messages-container {
     flex: 1;
     overflow-y: auto;
-    padding: 24px;
-    background: linear-gradient(135deg, #faf8ff 0%, #f5f3ff 100%);
+    padding: 24px 32px;
+    background: transparent;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+
+    &::-webkit-scrollbar {
+      display: none;
+    }
 
     .message-row {
       display: flex;
@@ -798,130 +800,161 @@ onMounted(async () => {
         flex-direction: row-reverse;
 
         .message-bubble {
-          background: linear-gradient(135deg, #7b42f6 0%, #5a32a3 100%);
-          color: #fff;
-          border-radius: 16px 16px 4px 16px;
-          box-shadow: 0 4px 12px rgba(123, 66, 246, 0.25);
+          background: transparent;
+          color: #374151;
+          border-radius: 0;
+          box-shadow: none;
 
           :deep(pre) {
-            background: rgba(255, 255, 255, 0.15);
-            border: 1px solid rgba(255, 255, 255, 0.2);
+            background: #1f2937;
+            border: none;
           }
 
           :deep(code) {
-            background: rgba(255, 255, 255, 0.2);
-            color: #fff;
+            background: #f3f4f6;
+            color: #ef4444;
           }
 
           :deep(p) {
-            color: #fff;
+            color: #374151;
           }
         }
       }
 
       &.assistant {
         .message-bubble {
-          background: #fff;
-          color: #303133;
-          border-radius: 16px 16px 16px 4px;
-          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
-          border: 1px solid rgba(147, 112, 219, 0.1);
+          background: transparent;
+          color: #374151;
+          border-radius: 0;
+          box-shadow: none;
+          border: none;
         }
       }
 
       .avatar {
         flex-shrink: 0;
-        margin-top: 4px;
+        margin-top: 2px;
 
         .user-avatar {
-          background: linear-gradient(135deg, #c0c4cc 0%, #a8abb2 100%);
+          background: #e5e7eb;
           border: 2px solid #fff;
-          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+          box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
         }
 
         .ai-avatar {
-          background: linear-gradient(135deg, #ffecd2 0%, #fcb69f 100%);
-          color: #5a6c7d;
+          background: #7b42f6;
+          color: #fff;
           border-radius: 10px;
           border: 2px solid #fff;
-          box-shadow: 0 2px 8px rgba(252, 182, 159, 0.3);
+          box-shadow: 0 1px 3px rgba(123, 66, 246, 0.2);
         }
       }
 
       .message-bubble {
-        max-width: 75%;
-        padding: 14px 18px;
-        font-size: 14px;
-        line-height: 1.7;
+        max-width: 80%;
+        padding: 0;
+        font-size: 15px;
+        line-height: 1.6;
         position: relative;
         transition: all 0.3s ease;
-        
+
         .message-content {
           word-wrap: break-word;
-          
+
           :deep(p) {
-            margin: 0 0 8px 0;
+            margin: 0 0 10px 0;
             &:last-child { margin: 0; }
           }
-          
+
           :deep(pre) {
-            background: #282c34;
-            color: #abb2bf;
-            padding: 12px;
-            border-radius: 8px;
+            background: #1f2937;
+            color: #e5e7eb;
+            padding: 14px;
+            border-radius: 10px;
             overflow-x: auto;
-            margin: 8px 0;
+            margin: 10px 0;
+            font-size: 13px;
           }
-          
+
           :deep(code) {
             font-family: 'Menlo', 'Monaco', 'Courier New', monospace;
             font-size: 13px;
+            padding: 2px 6px;
+            background: #f3f4f6;
+            border-radius: 4px;
+            color: #ef4444;
           }
         }
-        
+
         .message-status {
           display: flex;
           align-items: center;
-          gap: 6px;
+          gap: 8px;
           font-size: 13px;
-          color: #909399;
-          
+          color: #9ca3af;
+          margin-top: 8px;
+
           .is-loading {
             animation: rotating 2s linear infinite;
+          }
+        }
+
+        .message-actions {
+          display: flex;
+          gap: 8px;
+          margin-top: 12px;
+          padding-top: 8px;
+          border-top: 1px solid #e5e7eb;
+
+          .el-button {
+            font-size: 12px;
+            color: #6b7280;
+
+            &:hover {
+              color: #7b42f6;
+            }
+
+            .el-icon {
+              color: inherit;
+            }
           }
         }
       }
     }
   }
-  
+
   .chat-footer {
-    padding: 20px 28px;
-    border-top: 1px solid rgba(147, 112, 219, 0.15);
-    background: rgba(255, 255, 255, 0.6);
-    backdrop-filter: blur(10px);
-    box-shadow: 0 -2px 12px rgba(147, 112, 219, 0.06);
+    padding: 16px 24px 20px;
+    background: transparent;
 
     .input-box {
       position: relative;
-      border: 1px solid rgba(147, 112, 219, 0.25);
+      border: 1px solid rgba(147, 112, 219, 0.15);
       border-radius: 16px;
-      padding: 10px;
-      background: rgba(255, 255, 255, 0.9);
+      padding: 8px;
+      background: #ffffff;
       transition: all 0.3s;
-      box-shadow: 0 2px 12px rgba(147, 112, 219, 0.1);
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
+      max-width: 900px;
+      margin: 0 auto;
 
       &:focus-within {
         border-color: #7b42f6;
-        box-shadow: 0 0 0 3px rgba(123, 66, 246, 0.15), 0 4px 16px rgba(123, 66, 246, 0.15);
-        background: #fff;
+        box-shadow: 0 4px 20px rgba(123, 66, 246, 0.12);
       }
 
       :deep(.el-textarea__inner) {
         border: none !important;
         box-shadow: none !important;
-        padding: 8px 50px 8px 8px;
+        padding: 10px 48px 10px 14px;
         background: transparent;
         outline: none !important;
+        font-size: 15px;
+        min-height: 44px !important;
+
+        &::placeholder {
+          color: #9ca3af;
+        }
       }
 
       .send-btn {
@@ -933,14 +966,13 @@ onMounted(async () => {
         height: 32px;
         padding: 0;
         border-radius: 8px;
-        background: linear-gradient(135deg, #7b42f6 0%, #5a32a3 100%);
+        background: #7b42f6;
         border: none;
-        box-shadow: 0 2px 8px rgba(123, 66, 246, 0.3);
         transition: all 0.3s ease;
 
         &:hover {
-          background: linear-gradient(135deg, #6d33e6 0%, #4a249c 100%);
-          box-shadow: 0 4px 12px rgba(123, 66, 246, 0.4);
+          transform: translateY(-50%) scale(1.05);
+          background: #6b35e0;
         }
 
         &:active {
@@ -948,8 +980,7 @@ onMounted(async () => {
         }
 
         &.is-disabled {
-          background: linear-gradient(135deg, #c0c4cc 0%, #a8abb2 100%);
-          box-shadow: none;
+          background: #e5e7eb;
         }
 
         .el-icon {
@@ -957,13 +988,6 @@ onMounted(async () => {
           font-size: 14px;
         }
       }
-    }
-    
-    .footer-tip {
-      text-align: center;
-      font-size: 12px;
-      color: #c0c4cc;
-      margin-top: 8px;
     }
   }
 }

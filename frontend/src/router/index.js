@@ -60,10 +60,20 @@ const routes = [
     meta: { requiresGuest: true }
   },
   {
-    path: '/ai-generation/assistant',
-    name: 'Assistant',
-    component: () => import('@/views/assistant/AssistantView.vue'),
-    meta: { requiresAuth: true }
+    path: '/ai-assistant',
+    component: Layout,
+    meta: { requiresAuth: true },
+    children: [
+      {
+        path: '',
+        redirect: 'chat'
+      },
+      {
+        path: 'chat',
+        name: 'Assistant',
+        component: () => import('@/views/assistant/AssistantView.vue')
+      }
+    ]
   },
   {
     path: '/ai-generation',
