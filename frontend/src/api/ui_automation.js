@@ -1164,3 +1164,50 @@ export function runAITestSuite(suiteId, data) {
     timeout: 600000  // 10分钟超时，因为套件可能包含多个测试用例
   })
 }
+
+// ============ XMind 转 Excel 相关 API ============
+
+// XMind 文件转换为 Excel
+export function convertXMindToExcel(file) {
+  const formData = new FormData()
+  formData.append('file', file)
+  
+  return request({
+    url: '/ui-automation/convert-xmind/',
+    method: 'post',
+    data: formData,
+    responseType: 'blob',  // 重要：设置响应类型为 blob，用于文件下载
+    headers: {
+      'Content-Type': 'multipart/form-data'
+    }
+  })
+}
+
+// 获取 XMind 导入历史记录列表
+export function getXmindImportRecords(params) {
+  return request({
+    url: '/ui-automation/xmind-imports/',
+    method: 'get',
+    params
+  })
+}
+
+// 获取 XMind 导入记录详情
+export function getXmindImportRecordDetail(id) {
+  return request({
+    url: `/ui-automation/xmind-imports/${id}/`,
+    method: 'get'
+  })
+}
+
+// 下载 XMind 导入记录生成的 Excel 文件
+export function downloadXmindImportFile(id) {
+  return request({
+    url: `/ui-automation/xmind-imports/${id}/download/`,
+    method: 'get',
+    responseType: 'blob',  // 重要：设置响应类型为 blob，用于文件下载
+    headers: {
+      'Content-Type': undefined  // 移除 Content-Type，让浏览器自动设置
+    }
+  })
+}

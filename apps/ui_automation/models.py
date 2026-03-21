@@ -1181,3 +1181,30 @@ class AITestSuiteAICase(models.Model):
     def __str__(self):
         return f'{self.ai_test_suite.name} - {self.ai_case.name}'
 
+class XmindImportRecord(models.Model):
+    """XMind 导入记录模型"""
+    STATUS_CHOICES = [
+        ('pending', '待处理'),
+        ('processing', '处理中'),
+        ('success', '成功'),
+        ('failed', '失败'),
+    ]
+
+    file_name = models.CharField(max_length=255, verbose_name='原始文件名')
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending', verbose_name='状态')
+    test_case_count = models.IntegerField(default=0, verbose_name='测试用例数量')
+    import_data = models.JSONField(blank=True, null=True, verbose_name='导入数据', help_text='存储完整的解析后数据')
+    error_message = models.TextField(blank=True, verbose_name='错误信息')
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='xmind_imports', verbose_name='导入人')
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='创建时间')
+    updated_at = models.DateTimeField(auto_now=True, verbose_name='更新时间')
+
+    class Meta:
+        db_table = 'ui_xmind_import_records'
+        verbose_name = 'XMind 导入记录'
+        verbose_name_plural = 'XMind 导入记录'
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f'{self.file_name} - {self.get_status_display()}'
+

@@ -22,7 +22,9 @@ from .views import (
     UiNotificationLogViewSet,
     OperationRecordViewSet,
     UiDashboardViewSet,
-    AITestSuiteViewSet
+    AITestSuiteViewSet,
+    XmindImportRecordViewSet,
+    convert_xmind_to_excel
 )
 from .views_config import EnvironmentConfigViewSet, AIIntelligentModeConfigViewSet
 
@@ -48,6 +50,7 @@ router.register(r'ai-case-generation', AICaseViewSet, basename='ai-case-generati
 router.register(r'notification-logs', UiNotificationLogViewSet)
 router.register(r'operation-records', OperationRecordViewSet)
 router.register(r'ai-test-suites', AITestSuiteViewSet)
+router.register(r'xmind-imports', XmindImportRecordViewSet, basename='xmind-imports')
 
 
 # Configuration Center APIs
@@ -57,6 +60,7 @@ router.register(r'ai-models', AIIntelligentModeConfigViewSet, basename='ai-model
 
 urlpatterns = [
     path('', include(router.urls)),
+    path('convert-xmind/', convert_xmind_to_excel, name='convert-xmind'),
 ]
 
 # 添加媒体文件路由

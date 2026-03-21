@@ -33,6 +33,7 @@ import UiAITesting from '@/views/ui-automation/ai/AITesting.vue'
 import UiAICaseList from '@/views/ui-automation/ai/AICaseList.vue'
 import UiAIExecutionRecords from '@/views/ui-automation/ai/AIExecutionRecords.vue'
 import UiAISuiteList from '@/views/ui-automation/ai/AISuiteList.vue'
+import UiXMindConverter from '@/views/ui-automation/ai/XMindConverter.vue'
 
 /** @type {import('vue-router').RouteRecordRaw[]} */
 const routes = [
@@ -172,6 +173,11 @@ const routes = [
         path: 'profile',
         name: 'Profile',
         component: () => import('@/views/profile/UserProfile.vue')
+      },
+      {
+        path: 'xmind-converter',
+        name: 'XMindConverter',
+        component: UiXMindConverter
       }
     ]
   },

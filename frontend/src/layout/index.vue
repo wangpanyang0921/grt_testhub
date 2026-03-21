@@ -33,6 +33,10 @@
                 <span>{{ $t('menu.aiGeneratedTestcases') }}</span>
               </el-menu-item>
             </el-sub-menu>
+            <el-menu-item index="/ai-generation/xmind-converter">
+              <el-icon><Tools /></el-icon>
+              <span>XMind 转 Excel</span>
+            </el-menu-item>
             <!-- 临时隐藏：项目管理
             <el-menu-item index="/ai-generation/projects">
               <el-icon><Folder /></el-icon>
@@ -239,7 +243,6 @@
               <el-icon><Timer /></el-icon>
               <span>{{ $t('menu.aiExecutionRecords') }}</span>
             </el-menu-item>
-
           </template>
 
           <!-- 配置中心模块菜单 -->
@@ -346,7 +349,7 @@ import { ref } from 'vue'
 import {
   Monitor, Folder, Document, Flag, Check, Collection, VideoPlay,
   DataAnalysis, ChatDotRound, DocumentCopy, Link, MagicStick,
-  Odometer, Timer, Setting, AlarmClock, Bell, Aim, Edit, Cpu, ArrowDown, Cellphone, Connection, FolderOpened, Box
+  Odometer, Timer, Setting, AlarmClock, Bell, Aim, Edit, Cpu, ArrowDown, Cellphone, Connection, FolderOpened, Box, Tools
 } from '@element-plus/icons-vue'
 
 const router = useRouter()
@@ -410,6 +413,7 @@ const breadcrumbTitle = computed(() => {
     // AI用例生成
     '/ai-generation/requirement-analysis': t('menu.aiCaseGeneration'),
     '/ai-generation/generated-testcases': t('menu.aiGeneratedTestcases'),
+    '/ai-generation/xmind-converter': 'XMind 转 Excel',
     '/ai-generation/projects': t('menu.projectManagement'),
     '/ai-generation/testcases': t('menu.testCases'),
     '/ai-generation/versions': t('menu.versionManagement'),

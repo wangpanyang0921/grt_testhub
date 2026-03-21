@@ -979,32 +979,34 @@ export default {
 
     :deep(.el-table__header-wrapper) {
       background-color: #ffffff !important;
+    }
 
-      :deep(.el-table__header) {
+    :deep(.el-table__header) {
+      background-color: #ffffff !important;
+    }
+
+    :deep(th) {
+      background-color: #ffffff !important;
+      color: #5a32a3 !important;
+      font-weight: 600;
+      font-size: 14px;
+      border-bottom: 1px solid #e9ecef;
+      padding: 0 !important;
+      text-align: center;
+      transition: all 0.3s ease;
+
+      &:hover {
         background-color: #ffffff !important;
-
-        :deep(th) {
-          background-color: #ffffff !important;
-          color: #5a32a3;
-          font-weight: 600;
-          font-size: 14px;
-          border-bottom: 1px solid #e9ecef;
-          padding: 16px;
-          text-align: center;
-          line-height: 24px;
-          transition: all 0.3s ease;
-
-          &:hover {
-            background-color: #ffffff !important;
-          }
-
-          :deep(.cell) {
-            background-color: #ffffff !important;
-            color: #5a32a3 !important;
-            font-weight: 600 !important;
-          }
-        }
       }
+    }
+
+    :deep(th .cell) {
+      background-color: #ffffff !important;
+      color: #5a32a3 !important;
+      font-weight: 600 !important;
+      white-space: nowrap !important;
+      line-height: 24px !important;
+      padding: 16px !important;
     }
 
     :deep(.el-table__body-wrapper) {

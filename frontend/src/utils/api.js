@@ -156,15 +156,16 @@ api.interceptors.response.use(
     }
 
     // 其他错误处理
+    // 注意：对于 blob 类型的响应，不能直接访问 data.error 或 data.detail
+    // 这类错误会在调用方处理
     if (error.response?.status === 401) {
       ElMessage.error('登录已过期，请重新登录')
     } else if (error.response?.status >= 500) {
       ElMessage.error('服务器错误，请稍后重试')
-    } else if (error.response?.data?.error) {
-      ElMessage.error(error.response.data.error)
-    } else if (error.response?.data?.detail) {
-      ElMessage.error(error.response.data.detail)
+    } else if (error.response?.status === 404) {
+      ElMessage.error('请求的资源不存在')
     }
+    // 对于其他错误（包括 blob 类型的错误响应），让调用方处理
 
     return Promise.reject(error)
   }

@@ -6,7 +6,7 @@ from .models import (
     ElementGroup, PageObject, PageObjectElement, ScriptStep, ScriptElementUsage,
     TestCase, TestCaseStep, TestCaseExecution, OperationRecord,
     UiScheduledTask, UiNotificationLog, UiTaskNotificationSetting,
-    AICase, AIExecutionRecord, AITestSuite, AITestSuiteAICase
+    AICase, AIExecutionRecord, AITestSuite, AITestSuiteAICase, XmindImportRecord
 )
 from django.contrib.auth import get_user_model
 
@@ -1120,4 +1120,22 @@ class AITestSuiteUpdateSerializer(serializers.ModelSerializer):
                 )
 
         return instance
+
+
+class XmindImportRecordSerializer(serializers.ModelSerializer):
+    """XMind 导入记录序列化器"""
+    created_by = UserSerializer(read_only=True)
+    status_display = serializers.CharField(source='get_status_display', read_only=True)
+
+    class Meta:
+        model = XmindImportRecord
+        fields = '__all__'
+        read_only_fields = ('created_at', 'updated_at', 'created_by')
+
+
+class XmindImportRecordDetailSerializer(XmindImportRecordSerializer):
+    """XMind 导入记录详情序列化器（包含完整数据）"""
+    
+    class Meta(XmindImportRecordSerializer.Meta):
+        fields = '__all__'
 

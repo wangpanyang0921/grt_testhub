@@ -15,6 +15,7 @@ import json
 import re
 import random
 import time
+import os
 
 from .models import (
     UiProject, LocatorStrategy, Element, TestScript, TestSuite,
@@ -22,7 +23,8 @@ from .models import (
     ElementGroup, PageObject, PageObjectElement, ScriptStep, ScriptElementUsage,
     TestCase, TestCaseStep, TestCaseExecution, OperationRecord,
     UiScheduledTask, UiNotificationLog, UiTaskNotificationSetting,
-    AICase, AIExecutionRecord, ScriptExecution, AITestSuite, AITestSuiteAICase
+    AICase, AIExecutionRecord, ScriptExecution, AITestSuite, AITestSuiteAICase,
+    XmindImportRecord
 )
 from .serializers import (
     UiProjectSerializer, UiProjectCreateSerializer, UiProjectUpdateSerializer,
@@ -41,7 +43,8 @@ from .serializers import (
     OperationRecordSerializer,
     UiScheduledTaskSerializer, UiNotificationLogSerializer, UiTaskNotificationSettingSerializer,
     AICaseSerializer, AIExecutionRecordSerializer,
-    AITestSuiteSerializer, AITestSuiteCreateSerializer, AITestSuiteUpdateSerializer, AITestSuiteAICaseSerializer
+    AITestSuiteSerializer, AITestSuiteCreateSerializer, AITestSuiteUpdateSerializer, AITestSuiteAICaseSerializer,
+    XmindImportRecordSerializer, XmindImportRecordDetailSerializer
 )
 from .operation_logger import log_operation
 
@@ -4378,6 +4381,287 @@ class AITestSuiteViewSet(viewsets.ModelViewSet):
         thread.daemon = True
         thread.start()
 
-        return Response({'message': 'AI测试套件开始执行'})
+
+@api_view(['POST'])
+def convert_xmind_to_excel(request):
+    """
+    将上传的 XMind 文件转换为 Excel 文件，并保存到数据库
+    """
+    import tempfile
+    import os
+    from django.http import FileResponse
+    from xmind2testcase.xlsx import xmind_to_xlsx_file
+    from xmind2testcase.utils import get_xmind_testcase_list
+    from .models import XmindImportRecord
+
+    if request.method != 'POST':
+        return Response({'error': '只支持 POST 请求'}, status=status.HTTP_405_METHOD_NOT_ALLOWED)
+
+    if 'file' not in request.FILES:
+        return Response({'error': '请上传 XMind 文件'}, status=status.HTTP_400_BAD_REQUEST)
+
+    uploaded_file = request.FILES['file']
+    
+    # 检查文件扩展名
+    if not uploaded_file.name.endswith('.xmind'):
+        return Response({'error': '请上传 .xmind 格式的文件'}, status=status.HTTP_400_BAD_REQUEST)
+
+    # 创建导入记录
+    import_record = XmindImportRecord.objects.create(
+        file_name=uploaded_file.name,
+        status='processing',
+        created_by=request.user if request.user.is_authenticated else None
+    )
+
+    try:
+        # 创建临时目录
+        with tempfile.TemporaryDirectory() as temp_dir:
+            # 保存上传的文件到临时目录
+            temp_xmind_path = os.path.join(temp_dir, uploaded_file.name)
+            
+            with open(temp_xmind_path, 'wb+') as destination:
+                for chunk in uploaded_file.chunks():
+                    destination.write(chunk)
+
+            # 获取解析后的测试用例数据
+            testcases = get_xmind_testcase_list(temp_xmind_path)
+
+            # 获取当前用户的用户名
+            case_owner = request.user.username if request.user.is_authenticated else '王盼阳'
+
+            # 转换 XMind 到 Excel，传入负责人
+            xlsx_file_path = xmind_to_xlsx_file(temp_xmind_path, case_owner)
+
+            # 更新导入记录状态
+            import_record.status = 'success'
+            import_record.test_case_count = len(testcases)
+            import_record.import_data = testcases
+            import_record.save()
+
+            # 读取生成的 Excel 文件
+            xlsx_filename = os.path.basename(xlsx_file_path)
+            
+            response = FileResponse(
+                open(xlsx_file_path, 'rb'),
+                content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+            )
+            response['Content-Disposition'] = f'attachment; filename="{xlsx_filename}"'
+            response['X-Import-Record-Id'] = str(import_record.id)
+            
+            return response
+
+    except Exception as e:
+        logger.error(f'XMind 转换失败: {str(e)}')
+        # 更新导入记录状态为失败
+        import_record.status = 'failed'
+        import_record.error_message = str(e)
+        import_record.save()
+        return Response(
+            {'error': f'转换失败: {str(e)}', 'import_record_id': import_record.id}, 
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+
+class XmindImportRecordViewSet(viewsets.ReadOnlyModelViewSet):
+    """XMind 导入记录视图集"""
+    queryset = XmindImportRecord.objects.all()
+    serializer_class = XmindImportRecordSerializer
+    permission_classes = [IsAuthenticated]
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    search_fields = ['file_name']
+    ordering_fields = ['created_at', 'updated_at', 'test_case_count']
+    ordering = ['-created_at']
+    pagination_class = StandardPagination
+
+    def get_serializer_class(self):
+        if self.action == 'retrieve':
+            return XmindImportRecordDetailSerializer
+        return XmindImportRecordSerializer
+
+    def get_queryset(self):
+        return XmindImportRecord.objects.all().select_related('created_by')
+
+    @action(detail=True, methods=['get'])
+    def download(self, request, pk=None):
+        """
+        根据导入记录数据动态生成并下载 Excel 文件
+        """
+        import tempfile
+        import os
+        from django.http import FileResponse
+
+        # 获取导入记录
+        import_record = self.get_object()
+
+        # 检查记录状态
+        if import_record.status != 'success':
+            return Response({'error': '该记录尚未转换成功，无法下载'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # 检查是否有导入数据
+        if not import_record.import_data:
+            return Response({'error': '该记录没有测试用例数据'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            # 创建临时目录
+            with tempfile.TemporaryDirectory() as temp_dir:
+                # 获取创建人用户名
+                case_owner = import_record.created_by.username if import_record.created_by else '王盼阳'
+
+                # 生成 Excel 文件
+                xlsx_file_path = self._generate_excel_from_data(
+                    import_record.import_data,
+                    import_record.file_name,
+                    temp_dir,
+                    case_owner
+                )
+
+                # 读取生成的 Excel 文件并返回
+                xlsx_filename = os.path.basename(xlsx_file_path)
+
+                response = FileResponse(
+                    open(xlsx_file_path, 'rb'),
+                    content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+                )
+                response['Content-Disposition'] = f'attachment; filename="{xlsx_filename}"'
+
+                return response
+
+        except Exception as e:
+            logger.error(f'生成 Excel 文件失败: {str(e)}')
+            return Response({'error': f'生成 Excel 文件失败: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    def _generate_excel_from_data(self, testcases, original_filename, temp_dir, case_owner='王盼阳'):
+        """
+        根据测试用例数据生成 Excel 文件
+        """
+        from openpyxl import Workbook
+        from openpyxl.styles import Font, Alignment, Border, Side, PatternFill
+        from openpyxl.utils import get_column_letter
+
+        # 创建Excel工作簿
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "测试用例"
+
+        # 设置表头
+        fileheader = ["标题", "目录", "前置条件", "步骤描述", "预期结果", "负责人", "优先级", "类型", "标签", "预计工时汇总", "实际工时汇总"]
+        ws.append(fileheader)
+
+        # 设置表头样式
+        header_font = Font(bold=True, color="FFFFFF")
+        header_fill = PatternFill(start_color="FF6600", end_color="FF6600", fill_type="solid")
+        thin_border = Border(left=Side(style='thin'),
+                           right=Side(style='thin'),
+                           top=Side(style='thin'),
+                           bottom=Side(style='thin'))
+
+        for cell in ws[1]:
+            cell.font = header_font
+            cell.fill = header_fill
+            cell.border = thin_border
+            cell.alignment = Alignment(horizontal='center', vertical='center')
+
+        # 填充测试用例数据
+        for index, testcase in enumerate(testcases, start=2):
+            row = self._gen_a_testcase_row(testcase, original_filename, case_owner)
+            ws.append(row)
+
+            # 设置单元格边框和对齐方式
+            for cell in ws[index]:
+                cell.border = thin_border
+                cell.alignment = Alignment(vertical='top', wrap_text=True)
+
+        # 自动调整列宽
+        self._adjust_column_widths(ws)
+
+        # 保存文件
+        base_name = original_filename.rsplit('.', 1)[0] if '.' in original_filename else original_filename
+        xlsx_file = os.path.join(temp_dir, f'{base_name}.xlsx')
+        wb.save(xlsx_file)
+
+        return xlsx_file
+
+    def _gen_a_testcase_row(self, testcase_dict, original_filename, case_owner='王盼阳'):
+        """生成一行测试用例数据"""
+        case_title = testcase_dict.get('name', '')
+
+        # 生成目录
+        suite = testcase_dict.get('suite', '')
+        status = testcase_dict.get('status', '')
+        status_parts = status.split(' ') if status else []
+        str_result2 = "|".join(status_parts[:-1]) if len(status_parts) > 1 else ""
+
+        base_name = original_filename.rsplit('.', 1)[0] if '.' in original_filename else original_filename
+        case_module = (f"{base_name}|" if base_name else "") + \
+                      self._gen_case_module(suite) + \
+                      (f"|{str_result2}" if str_result2 else "")
+
+        case_precontion = testcase_dict.get('preconditions', '')
+        case_step, case_expected_result = self._gen_case_step_and_expected_result(testcase_dict.get('steps', []))
+        case_priority = self._gen_case_priority(testcase_dict.get('importance', 4))
+        case_type = self._gen_case_type(testcase_dict.get('execution_type', 1))
+        case_label = ''
+        case_expecthours = ''
+        case_actualhours = ''
+
+        return [case_title, case_module, case_precontion, case_step, case_expected_result,
+                case_owner, case_priority, case_type, case_label, case_expecthours, case_actualhours]
+
+    def _gen_case_module(self, module_name):
+        """生成模块名称"""
+        if module_name:
+            module_name = module_name.replace('（', '(')
+            module_name = module_name.replace('）', ')')
+        else:
+            module_name = '/'
+        return module_name
+
+    def _gen_case_step_and_expected_result(self, steps):
+        """生成测试步骤和预期结果"""
+        case_step = ''
+        case_expected_result = ''
+
+        for step_dict in steps:
+            step_number = step_dict.get('step_number', 1)
+            actions = step_dict.get('actions', '').replace('\n', '').strip()
+            expectedresults = step_dict.get('expectedresults', '').replace('\n', '').strip()
+
+            case_step += f"{step_number}. {actions}\n"
+            if expectedresults:
+                case_expected_result += f"{step_number}. {expectedresults}\n"
+
+        return case_step, case_expected_result
+
+    def _gen_case_priority(self, priority):
+        """转换优先级数字为文本"""
+        mapping = {1: 'P0', 2: 'P1', 3: 'P2', 4: 'P3'}
+        return mapping.get(priority, 'P3')
+
+    def _gen_case_type(self, case_type):
+        """转换用例类型数字为文本"""
+        mapping = {1: '功能测试', 2: '自动'}
+        return mapping.get(case_type, '功能测试')
+
+    def _adjust_column_widths(self, ws):
+        """根据内容自适应调整列宽"""
+        for column in ws.columns:
+            max_length = 0
+            column_letter = column[0].column_letter
+
+            for cell in column:
+                try:
+                    if cell.value:
+                        text_length = 0
+                        for char in str(cell.value):
+                            if ord(char) > 127:
+                                text_length += 2
+                            else:
+                                text_length += 1
+                        max_length = max(max_length, text_length)
+                except:
+                    pass
+
+            adjusted_width = min(max_length + 2, 50)
+            ws.column_dimensions[column_letter].width = adjusted_width
 
 
