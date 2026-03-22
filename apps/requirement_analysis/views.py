@@ -34,7 +34,7 @@ from django.db import models
 from .models import (
     RequirementDocument, RequirementAnalysis, BusinessRequirement,
     GeneratedTestCase, AnalysisTask, AIModelConfig, PromptConfig, TestCaseGenerationTask,
-    GenerationConfig, AIModelService
+    GenerationConfig, AIModelService, TestTemplateConfig, TestTemplateCategory
 )
 from .serializers import (
     RequirementDocumentSerializer, RequirementAnalysisSerializer,
@@ -42,7 +42,7 @@ from .serializers import (
     AnalysisTaskSerializer, DocumentUploadSerializer,
     TestCaseGenerationRequestSerializer, TestCaseReviewRequestSerializer,
     AIModelConfigSerializer, PromptConfigSerializer, TestCaseGenerationTaskSerializer,
-    GenerationConfigSerializer
+    GenerationConfigSerializer, TestTemplateConfigSerializer, TestTemplateCategorySerializer
 )
 from .services import RequirementAnalysisService, DocumentProcessor
 
@@ -281,20 +281,196 @@ class BusinessRequirementViewSet(viewsets.ReadOnlyModelViewSet):
         # 生成标题
         title = f"{req_name} - {scenario['type']}用例"
 
-        # 生成前置条件
-        if "登录" in req_name:
-            precondition = f"1. 系统正常运行\n2. 测试用户账号已准备\n3. {req_module}模块可访问"
-        elif "数据" in req_name:
-            precondition = f"1. 系统正常运行\n2. 数据库连接正常\n3. 测试数据已准备\n4. {req_module}模块可访问"
-        elif "支付" in req_name:
-            precondition = f"1. 系统正常运行\n2. 支付接口连接正常\n3. 测试账户余额充足\n4. {req_module}模块可访问"
+        # ========== 优先从数据库读取前置条件配置 ==========
+        db_precondition = TestTemplateConfig.get_precondition(req_name, req_module)
+
+        if db_precondition:
+            # 使用数据库配置的前置条件
+            precondition = db_precondition
+            logger.info(f"从数据库加载前置条件: {req_name}")
         else:
-            precondition = f"1. 系统正常运行\n2. 用户已登录系统\n3. {req_module}模块可访问\n4. 相关权限已配置"
+            # ========== 职业教育 SaaS 平台专用前置条件（作为后备）==========
+
+            # 【课程管理】前置条件
+            if any(keyword in req_name for keyword in ["课程", "课时", "章节", "课件"]):
+                precondition = f"1. 系统正常运行\n2. 教师账号已登录\n3. 课程分类已配置\n4. 测试视频/课件资源已准备\n5. {req_module}模块可访问"
+
+            # 【学员管理】前置条件
+            elif any(keyword in req_name for keyword in ["学员", "学生", "报名", "学籍", "分班"]):
+                precondition = f"1. 系统正常运行\n2. 管理员/教师账号已登录\n3. 班级信息已创建\n4. 测试学员账号已准备\n5. {req_module}模块可访问"
+
+            # 【教学管理】前置条件
+            elif any(keyword in req_name for keyword in ["排课", "课表", "考勤", "作业", "考试"]):
+                precondition = f"1. 系统正常运行\n2. 教师账号已登录\n3. 课程和班级信息已配置\n4. 学员名单已导入\n5. {req_module}模块可访问"
+
+            # 【直播教学】前置条件
+            elif any(keyword in req_name for keyword in ["直播", "回放", "连麦", "白板"]):
+                precondition = f"1. 系统正常运行\n2. 直播服务连接正常\n3. 教师/学员账号已准备\n4. 浏览器摄像头/麦克风权限已开启\n5. {req_module}模块可访问"
+
+            # 【证书管理】前置条件
+            elif any(keyword in req_name for keyword in ["证书", "结业", "学分", "成绩单"]):
+                precondition = f"1. 系统正常运行\n2. 管理员账号已登录\n3. 证书模板已配置\n4. 学员学习记录已生成\n5. {req_module}模块可访问"
+
+            # 【营销招生】前置条件
+            elif any(keyword in req_name for keyword in ["试听", "体验课", "团购", "分销", "优惠券"]):
+                precondition = f"1. 系统正常运行\n2. 营销人员账号已登录\n3. 课程信息已发布\n4. 营销活动规则已配置\n5. {req_module}模块可访问"
+
+            # 【内容管理】前置条件
+            elif any(keyword in req_name for keyword in ["题库", "试题", "试卷", "资料"]):
+                precondition = f"1. 系统正常运行\n2. 教师/教研账号已登录\n3. 题库分类已配置\n4. 测试试题/资料已准备\n5. {req_module}模块可访问"
+
+            # 【问答互动】前置条件
+            elif any(keyword in req_name for keyword in ["问答", "提问", "答疑", "讨论", "评价"]):
+                precondition = f"1. 系统正常运行\n2. 学员账号已登录\n3. 课程学习进度满足互动条件\n4. 教师账号在线可回复\n5. {req_module}模块可访问"
+
+            # ========== 原有前置条件逻辑保留 ==========
+            elif "登录" in req_name:
+                precondition = f"1. 系统正常运行\n2. 测试用户账号已准备\n3. {req_module}模块可访问"
+            elif "数据" in req_name:
+                precondition = f"1. 系统正常运行\n2. 数据库连接正常\n3. 测试数据已准备\n4. {req_module}模块可访问"
+            elif "支付" in req_name:
+                precondition = f"1. 系统正常运行\n2. 支付接口连接正常\n3. 测试账户余额充足\n4. {req_module}模块可访问"
+            else:
+                precondition = f"1. 系统正常运行\n2. 用户已登录系统\n3. {req_module}模块可访问\n4. 相关权限已配置"
 
         # 生成测试步骤
         steps = []
         for i, step_template in enumerate(scenario['steps_template'], 1):
-            if "登录" in req_name:
+
+            # ========== 职业教育 SaaS 平台专用测试步骤 - 开始 ==========
+
+            # 【课程管理】测试步骤
+            if any(keyword in req_name for keyword in ["课程", "课时", "章节", "课件"]):
+                if i == 1:
+                    steps.append(f"{i}. 教师登录系统，进入课程管理后台")
+                elif i == 2:
+                    if scenario_key == 1:  # 正常路径
+                        steps.append(f"{i}. 点击创建课程，填写课程基本信息（名称、分类、封面、简介）")
+                    elif scenario_key == 2:  # 异常路径
+                        steps.append(f"{i}. 尝试创建课程，输入异常数据（如超长名称、无效格式封面）")
+                    else:
+                        steps.append(f"{i}. 执行{scenario['focus']}相关的课程操作")
+                elif i == 3:
+                    steps.append(f"{i}. 编排课程章节结构，上传课时内容（视频/文档/作业）")
+                elif i == 4:
+                    steps.append(f"{i}. 设置课程价格/可见性，发布课程并验证展示效果")
+
+            # 【学员管理】测试步骤
+            elif any(keyword in req_name for keyword in ["学员", "学生", "报名", "学籍", "分班"]):
+                if i == 1:
+                    steps.append(f"{i}. 管理员/教师登录系统，进入学员管理模块")
+                elif i == 2:
+                    if scenario_key == 1:
+                        steps.append(f"{i}. 录入新学员信息或处理学员报名申请")
+                    elif scenario_key == 2:
+                        steps.append(f"{i}. 尝试录入异常学员信息（如重复手机号、格式错误）")
+                    else:
+                        steps.append(f"{i}. 执行{scenario['focus']}相关的学员操作")
+                elif i == 3:
+                    steps.append(f"{i}. 进行班级分配或学籍状态变更操作")
+                elif i == 4:
+                    steps.append(f"{i}. 验证学员信息同步和学习权限开通情况")
+
+            # 【教学管理】测试步骤
+            elif any(keyword in req_name for keyword in ["排课", "课表", "考勤", "作业", "考试"]):
+                if i == 1:
+                    steps.append(f"{i}. 教师登录系统，进入教学管理模块")
+                elif i == 2:
+                    if scenario_key == 1:
+                        steps.append(f"{i}. 创建排课计划或发布作业/考试")
+                    elif scenario_key == 2:
+                        steps.append(f"{i}. 尝试创建冲突排课或过期作业/考试")
+                    else:
+                        steps.append(f"{i}. 执行{scenario['focus']}相关的教学操作")
+                elif i == 3:
+                    steps.append(f"{i}. 学员参与课程/提交作业/参加考试")
+                elif i == 4:
+                    steps.append(f"{i}. 教师批改/系统评分，验证成绩和考勤记录")
+
+            # 【直播教学】测试步骤
+            elif any(keyword in req_name for keyword in ["直播", "回放", "连麦", "白板"]):
+                if i == 1:
+                    steps.append(f"{i}. 教师创建直播课，设置直播时间和参数，学员预约课程")
+                elif i == 2:
+                    if scenario_key == 1:
+                        steps.append(f"{i}. 教师开始直播，学员进入直播间，测试音视频设备")
+                    elif scenario_key == 2:
+                        steps.append(f"{i}. 模拟网络异常/设备故障等异常情况")
+                    else:
+                        steps.append(f"{i}. 执行{scenario['focus']}相关的直播操作")
+                elif i == 3:
+                    steps.append(f"{i}. 进行直播互动（连麦、白板、弹幕、答题）")
+                elif i == 4:
+                    steps.append(f"{i}. 结束直播，验证回放生成和直播数据统计")
+
+            # 【证书管理】测试步骤
+            elif any(keyword in req_name for keyword in ["证书", "结业", "学分", "成绩单"]):
+                if i == 1:
+                    steps.append(f"{i}. 管理员登录系统，进入证书管理模块")
+                elif i == 2:
+                    if scenario_key == 1:
+                        steps.append(f"{i}. 配置证书模板和结业条件规则")
+                    elif scenario_key == 2:
+                        steps.append(f"{i}. 尝试配置无效证书模板或不合理结业条件")
+                    else:
+                        steps.append(f"{i}. 执行{scenario['focus']}相关的证书操作")
+                elif i == 3:
+                    steps.append(f"{i}. 学员完成学习，系统自动判断结业条件")
+                elif i == 4:
+                    steps.append(f"{i}. 生成电子证书/成绩单，验证信息准确性和防伪功能")
+
+            # 【营销招生】测试步骤
+            elif any(keyword in req_name for keyword in ["试听", "体验课", "团购", "分销", "优惠券"]):
+                if i == 1:
+                    steps.append(f"{i}. 营销人员登录系统，配置营销活动规则")
+                elif i == 2:
+                    if scenario_key == 1:
+                        steps.append(f"{i}. 学员/推广员参与营销活动（领取优惠/分享推广）")
+                    elif scenario_key == 2:
+                        steps.append(f"{i}. 尝试违规参与活动（如重复领取、虚假推广）")
+                    else:
+                        steps.append(f"{i}. 执行{scenario['focus']}相关的营销操作")
+                elif i == 3:
+                    steps.append(f"{i}. 完成购买转化，验证优惠计算和佣金分成")
+                elif i == 4:
+                    steps.append(f"{i}. 查看营销数据统计和财务报表")
+
+            # 【内容管理】测试步骤
+            elif any(keyword in req_name for keyword in ["题库", "试题", "试卷", "资料"]):
+                if i == 1:
+                    steps.append(f"{i}. 教师/教研登录系统，进入内容管理模块")
+                elif i == 2:
+                    if scenario_key == 1:
+                        steps.append(f"{i}. 上传/导入试题或学习资料")
+                    elif scenario_key == 2:
+                        steps.append(f"{i}. 尝试上传异常格式文件或重复试题")
+                    else:
+                        steps.append(f"{i}. 执行{scenario['focus']}相关的内容操作")
+                elif i == 3:
+                    steps.append(f"{i}. 进行内容审核和分类管理")
+                elif i == 4:
+                    steps.append(f"{i}. 验证内容展示和权限控制")
+
+            # 【问答互动】测试步骤
+            elif any(keyword in req_name for keyword in ["问答", "提问", "答疑", "讨论", "评价"]):
+                if i == 1:
+                    steps.append(f"{i}. 学员登录系统，在学习过程中发起提问/评价")
+                elif i == 2:
+                    if scenario_key == 1:
+                        steps.append(f"{i}. 提交问题/评价内容")
+                    elif scenario_key == 2:
+                        steps.append(f"{i}. 尝试提交违规内容（敏感词/恶意信息）")
+                    else:
+                        steps.append(f"{i}. 执行{scenario['focus']}相关的互动操作")
+                elif i == 3:
+                    steps.append(f"{i}. 教师回复问题/系统审核内容")
+                elif i == 4:
+                    steps.append(f"{i}. 验证互动记录和消息通知")
+
+            # ========== 职业教育 SaaS 平台专用测试步骤 - 结束 ==========
+
+            # 原有测试步骤逻辑保留
+            elif "登录" in req_name:
                 if i == 1:
                     steps.append(f"{i}. 打开登录页面，准备测试用户凭证")
                 elif i == 2:
@@ -3254,3 +3430,424 @@ class ConfigStatusViewSet(viewsets.ViewSet):
             return Response({
                 'error': f'检查配置状态失败: {str(e)}'
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+# ==================== 测试模板配置API（前端可配置）====================
+
+class TestTemplateConfigPagination(PageNumberPagination):
+    """测试模板配置分页器"""
+    page_size = 10
+    page_size_query_param = 'page_size'
+    max_page_size = 100
+
+
+class TestTemplateConfigViewSet(viewsets.ModelViewSet):
+    """
+    测试模板配置视图集
+    提供测试模板的增删改查接口，支持前端页面配置
+    """
+    queryset = TestTemplateConfig.objects.all()
+    serializer_class = TestTemplateConfigSerializer
+    pagination_class = TestTemplateConfigPagination
+
+    def get_queryset(self):
+        """支持按类型和模块筛选"""
+        queryset = TestTemplateConfig.objects.all()
+
+        # 按模板类型筛选
+        template_type = self.request.query_params.get('template_type')
+        if template_type:
+            queryset = queryset.filter(template_type=template_type)
+
+        # 按业务模块筛选
+        module_category = self.request.query_params.get('module_category')
+        if module_category:
+            queryset = queryset.filter(module_category=module_category)
+
+        # 按启用状态筛选
+        is_active = self.request.query_params.get('is_active')
+        if is_active is not None:
+            queryset = queryset.filter(is_active=is_active.lower() == 'true')
+
+        # 按关键词搜索
+        keyword = self.request.query_params.get('keyword')
+        if keyword:
+            queryset = queryset.filter(
+                models.Q(name__icontains=keyword) |
+                models.Q(keywords__icontains=keyword) |
+                models.Q(module_category__icontains=keyword)
+            )
+
+        return queryset.order_by('priority', 'created_at')
+
+    def perform_create(self, serializer):
+        """创建时自动设置创建者"""
+        serializer.save(created_by=self.request.user)
+
+    @action(detail=False, methods=['get'])
+    def template_types(self, request):
+        """获取所有模板类型选项"""
+        types = [
+            {'value': 'test_point', 'label': '测试点模板', 'description': '定义功能测试的验证点'},
+            {'value': 'test_scenario', 'label': '测试场景模板', 'description': '定义测试的业务场景'},
+            {'value': 'test_step', 'label': '测试步骤模板', 'description': '定义测试的操作步骤'},
+            {'value': 'precondition', 'label': '前置条件模板', 'description': '定义测试的前置条件'}
+        ]
+        return Response(types)
+
+    @action(detail=False, methods=['get'])
+    def module_categories(self, request):
+        """获取所有业务模块分类"""
+        categories = TestTemplateConfig.objects.values_list(
+            'module_category', flat=True
+        ).distinct().exclude(module_category='').order_by('module_category')
+        return Response(list(categories))
+
+    @action(detail=False, methods=['post'])
+    def batch_create(self, request):
+        """批量创建模板（用于初始化职业教育模板）"""
+        templates_data = request.data.get('templates', [])
+        created_count = 0
+        errors = []
+
+        for template_data in templates_data:
+            try:
+                # 检查是否已存在
+                existing = TestTemplateConfig.objects.filter(
+                    name=template_data.get('name'),
+                    template_type=template_data.get('template_type')
+                ).first()
+
+                if existing:
+                    errors.append(f"模板 '{template_data.get('name')}' 已存在，跳过")
+                    continue
+
+                # 创建模板
+                TestTemplateConfig.objects.create(
+                    name=template_data.get('name'),
+                    template_type=template_data.get('template_type'),
+                    keywords=template_data.get('keywords'),
+                    content=template_data.get('content'),
+                    priority=template_data.get('priority', 100),
+                    module_category=template_data.get('module_category', ''),
+                    is_active=template_data.get('is_active', True),
+                    created_by=request.user
+                )
+                created_count += 1
+            except Exception as e:
+                errors.append(f"创建模板 '{template_data.get('name')}' 失败: {str(e)}")
+
+        return Response({
+            'created_count': created_count,
+            'errors': errors,
+            'message': f'成功创建 {created_count} 个模板'
+        })
+
+    @action(detail=False, methods=['post'])
+    def init_education_templates(self, request):
+        """初始化职业教育SaaS默认模板"""
+        templates = [
+            # ========== 测试点模板 ==========
+            {
+                'name': '课程管理测试点',
+                'template_type': 'test_point',
+                'keywords': '课程,课时,章节,课件,大纲',
+                'content': [
+                    '课程发布流程验证',
+                    '章节顺序编排验证',
+                    '课时完成状态验证',
+                    '课程上下架控制验证',
+                    '课程内容预览验证',
+                    '课程分类归属验证'
+                ],
+                'priority': 10,
+                'module_category': '课程管理'
+            },
+            {
+                'name': '学员管理测试点',
+                'template_type': 'test_point',
+                'keywords': '学员,学生,报名,学籍,分班,入学',
+                'content': [
+                    '学员报名流程验证',
+                    '班级自动分配验证',
+                    '学籍状态变更验证',
+                    '学习进度计算验证',
+                    '学员信息导入导出验证',
+                    '学员转班/退班验证'
+                ],
+                'priority': 10,
+                'module_category': '学员管理'
+            },
+            {
+                'name': '教学管理测试点',
+                'template_type': 'test_point',
+                'keywords': '排课,课表,考勤,签到,作业,考试,测验',
+                'content': [
+                    '自动排课算法验证',
+                    '课表冲突检测验证',
+                    '学员考勤记录验证',
+                    '作业布置与提交验证',
+                    '作业批改与反馈验证',
+                    '考试成绩统计验证',
+                    '考试防作弊监控验证'
+                ],
+                'priority': 10,
+                'module_category': '教学管理'
+            },
+            {
+                'name': '直播教学测试点',
+                'template_type': 'test_point',
+                'keywords': '直播,回放,连麦,白板,弹幕,屏幕共享',
+                'content': [
+                    '直播推流稳定性验证',
+                    '直播回放自动生成验证',
+                    '师生音视频连麦验证',
+                    '白板实时同步验证',
+                    '弹幕内容审核验证',
+                    '屏幕共享清晰度验证',
+                    '直播数据统计验证'
+                ],
+                'priority': 10,
+                'module_category': '直播教学'
+            },
+            {
+                'name': '证书管理测试点',
+                'template_type': 'test_point',
+                'keywords': '证书,结业,学分,成绩单,毕业,资质',
+                'content': [
+                    '证书模板配置验证',
+                    '结业条件自动判断验证',
+                    '学分累计计算验证',
+                    '电子证书生成验证',
+                    '证书真伪查询验证',
+                    '成绩单导出验证'
+                ],
+                'priority': 10,
+                'module_category': '证书管理'
+            },
+            {
+                'name': '营销招生测试点',
+                'template_type': 'test_point',
+                'keywords': '试听,体验课,团购,分销,推荐,优惠券,促销',
+                'content': [
+                    '试听申请流程验证',
+                    '试听转正式学员验证',
+                    '团购优惠规则验证',
+                    '分销佣金计算验证',
+                    '推荐码绑定关系验证',
+                    '优惠券使用规则验证'
+                ],
+                'priority': 10,
+                'module_category': '营销招生'
+            },
+            {
+                'name': '内容管理测试点',
+                'template_type': 'test_point',
+                'keywords': '题库,试题,试卷,资料,资源,视频,文档',
+                'content': [
+                    '题库分类管理验证',
+                    '试题批量导入验证',
+                    '试卷自动组卷验证',
+                    '学习资料上传验证',
+                    '视频转码处理验证',
+                    '资源权限控制验证'
+                ],
+                'priority': 10,
+                'module_category': '内容管理'
+            },
+            {
+                'name': '问答互动测试点',
+                'template_type': 'test_point',
+                'keywords': '问答,提问,答疑,讨论,评论,评价,点赞',
+                'content': [
+                    '学员提问流程验证',
+                    '教师答疑回复验证',
+                    '问答内容审核验证',
+                    '课程评价提交验证',
+                    '讨论区互动验证',
+                    '优质内容推荐验证'
+                ],
+                'priority': 10,
+                'module_category': '问答互动'
+            },
+
+            # ========== 测试场景模板 ==========
+            {
+                'name': '学习流程场景',
+                'template_type': 'test_scenario',
+                'keywords': '学习,课程,课时,章节,进度',
+                'content': [
+                    '学员选课报名场景',
+                    '课程学习进度记录场景',
+                    '课时完成状态变更场景',
+                    '学习资料下载场景',
+                    '学习笔记记录场景',
+                    '课程评价反馈场景',
+                    '学习提醒推送场景'
+                ],
+                'priority': 10,
+                'module_category': '学习流程'
+            },
+            {
+                'name': '教学流程场景',
+                'template_type': 'test_scenario',
+                'keywords': '教学,授课,老师,教师,讲师',
+                'content': [
+                    '教师发布课程场景',
+                    '在线直播授课场景',
+                    '课件上传管理场景',
+                    '作业布置与批改场景',
+                    '学员答疑互动场景',
+                    '教学数据统计场景',
+                    '课程资料更新场景'
+                ],
+                'priority': 10,
+                'module_category': '教学流程'
+            },
+            {
+                'name': '考试测评场景',
+                'template_type': 'test_scenario',
+                'keywords': '考试,测评,测验,quiz,答题,阅卷',
+                'content': [
+                    '在线考试参加场景',
+                    '考试防作弊监控场景',
+                    '成绩自动批改场景',
+                    '主观题人工阅卷场景',
+                    '错题本自动生成场景',
+                    '能力评估报告场景',
+                    '考试成绩查询场景'
+                ],
+                'priority': 10,
+                'module_category': '考试测评'
+            },
+            {
+                'name': '证书发放场景',
+                'template_type': 'test_scenario',
+                'keywords': '证书,结业,毕业,学分,资质认证',
+                'content': [
+                    '结业条件达成场景',
+                    '电子证书生成场景',
+                    '证书信息核验场景',
+                    '学分达标判断场景',
+                    '学习档案归档场景',
+                    '证书真伪查询场景',
+                    '成绩单导出打印场景'
+                ],
+                'priority': 10,
+                'module_category': '证书发放'
+            },
+
+            # ========== 前置条件模板 ==========
+            {
+                'name': '课程管理前置条件',
+                'template_type': 'precondition',
+                'keywords': '课程,课时,章节,课件',
+                'content': {
+                    'precondition': '1. 系统正常运行\n2. 教师账号已登录\n3. 课程分类已配置\n4. 测试视频/课件资源已准备\n5. {module}模块可访问'
+                },
+                'priority': 10,
+                'module_category': '课程管理'
+            },
+            {
+                'name': '学员管理前置条件',
+                'template_type': 'precondition',
+                'keywords': '学员,学生,报名,学籍,分班',
+                'content': {
+                    'precondition': '1. 系统正常运行\n2. 管理员/教师账号已登录\n3. 班级信息已创建\n4. 测试学员账号已准备\n5. {module}模块可访问'
+                },
+                'priority': 10,
+                'module_category': '学员管理'
+            },
+            {
+                'name': '直播教学前置条件',
+                'template_type': 'precondition',
+                'keywords': '直播,回放,连麦,白板',
+                'content': {
+                    'precondition': '1. 系统正常运行\n2. 直播服务连接正常\n3. 教师/学员账号已准备\n4. 浏览器摄像头/麦克风权限已开启\n5. {module}模块可访问'
+                },
+                'priority': 10,
+                'module_category': '直播教学'
+            },
+            {
+                'name': '考试测评前置条件',
+                'template_type': 'precondition',
+                'keywords': '考试,测评,测验,quiz',
+                'content': {
+                    'precondition': '1. 系统正常运行\n2. 考试题库已配置\n3. 考生信息已导入\n4. 考试时间窗口已设置\n5. {module}模块可访问'
+                },
+                'priority': 10,
+                'module_category': '考试测评'
+            },
+        ]
+
+        # 直接创建模板，不调用 batch_create
+        created_count = 0
+        errors = []
+
+        for template_data in templates:
+            try:
+                # 检查是否已存在
+                existing = TestTemplateConfig.objects.filter(
+                    name=template_data.get('name'),
+                    template_type=template_data.get('template_type')
+                ).first()
+
+                if existing:
+                    errors.append(f"模板 '{template_data.get('name')}' 已存在，跳过")
+                    continue
+
+                # 创建模板
+                serializer = self.get_serializer(data=template_data)
+                if serializer.is_valid():
+                    serializer.save(created_by=request.user)
+                    created_count += 1
+                else:
+                    errors.append(f"模板 '{template_data.get('name')}' 验证失败: {serializer.errors}")
+
+            except Exception as e:
+                errors.append(f"创建模板 '{template_data.get('name')}' 失败: {str(e)}")
+
+        return Response({
+            'message': f'成功创建 {created_count} 个模板',
+            'created_count': created_count,
+            'errors': errors
+        })
+
+    @action(detail=False, methods=['post'])
+    def test_match(self, request):
+        """测试模板匹配（用于调试）"""
+        text = request.data.get('text', '')
+        template_type = request.data.get('template_type')
+
+        matched_templates = TestTemplateConfig.match_templates(text, template_type)
+
+        result = []
+        for template in matched_templates:
+            result.append({
+                'id': template.id,
+                'name': template.name,
+                'type': template.template_type,
+                'keywords': template.get_keywords_list(),
+                'content': template.content,
+                'module_category': template.module_category
+            })
+
+        return Response({
+            'input_text': text,
+            'template_type': template_type,
+            'matched_count': len(result),
+            'matched_templates': result
+        })
+
+
+class TestTemplateCategoryViewSet(viewsets.ModelViewSet):
+    """测试模板分类视图集"""
+    queryset = TestTemplateCategory.objects.all()
+    serializer_class = TestTemplateCategorySerializer
+
+    def get_queryset(self):
+        """只返回启用的分类"""
+        return TestTemplateCategory.objects.filter(is_active=True).order_by('sort_order')
+
+
+# ==================== 测试模板配置API结束 ====================

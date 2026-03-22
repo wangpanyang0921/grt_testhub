@@ -399,6 +399,11 @@ const routes = [
             component: () => import('@/views/requirement-analysis/GenerationConfigView.vue')
           },
           {
+            path: 'test-templates',
+            name: 'ConfigTestTemplates',
+            component: () => import('@/views/requirement-analysis/TestTemplateConfig.vue')
+          },
+          {
             path: 'ui-env',
             name: 'ConfigUIEnv',
             component: () => import('@/views/configuration/UIEnvironmentConfig.vue')

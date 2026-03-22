@@ -2,7 +2,7 @@ from rest_framework import serializers
 from .models import (
     RequirementDocument, RequirementAnalysis, BusinessRequirement,
     GeneratedTestCase, AnalysisTask, AIModelConfig, PromptConfig, TestCaseGenerationTask,
-    GenerationConfig
+    GenerationConfig, TestTemplateConfig, TestTemplateCategory
 )
 
 
@@ -287,3 +287,104 @@ class GenerationConfigSerializer(serializers.ModelSerializer):
             'is_active', 'created_at', 'updated_at'
         ]
         read_only_fields = ['created_at', 'updated_at']
+
+
+# ==================== 测试模板配置序列化器 ====================
+
+class TestTemplateConfigSerializer(serializers.ModelSerializer):
+    """测试模板配置序列化器"""
+    template_type_display = serializers.CharField(source='get_template_type_display', read_only=True)
+    created_by_name = serializers.CharField(source='created_by.username', read_only=True)
+    keywords_list = serializers.SerializerMethodField()
+    content_preview = serializers.SerializerMethodField()
+
+    class Meta:
+        model = TestTemplateConfig
+        fields = [
+            'id', 'name', 'template_type', 'template_type_display',
+            'keywords', 'keywords_list', 'content', 'content_preview',
+            'priority', 'module_category', 'is_active',
+            'created_by', 'created_by_name', 'created_at', 'updated_at'
+        ]
+        read_only_fields = ['created_at', 'updated_at', 'created_by']
+
+    def get_keywords_list(self, obj):
+        """返回关键词列表"""
+        return obj.get_keywords_list()
+
+    def get_content_preview(self, obj):
+        """返回内容预览（限制长度）"""
+        content = obj.content
+        if isinstance(content, list):
+            preview = ', '.join(str(item) for item in content[:3])
+            if len(content) > 3:
+                preview += f' 等{len(content)}项'
+            return preview
+        elif isinstance(content, dict):
+            return f'包含 {len(content)} 个字段的对象'
+        return str(content)[:100]
+
+    def validate_keywords(self, value):
+        """验证关键词格式"""
+        if not value or not value.strip():
+            raise serializers.ValidationError('关键词不能为空')
+
+        keywords = [k.strip() for k in value.split(',') if k.strip()]
+        if not keywords:
+            raise serializers.ValidationError('至少需要提供一个关键词')
+
+        return value
+
+    def validate_content(self, value):
+        """验证内容格式"""
+        if value is None:
+            raise serializers.ValidationError('模板内容不能为空')
+
+        # 根据模板类型验证内容格式
+        template_type = self.initial_data.get('template_type')
+
+        if template_type == 'test_point':
+            if not isinstance(value, list):
+                raise serializers.ValidationError('测试点模板的内容必须是数组格式')
+            if len(value) == 0:
+                raise serializers.ValidationError('测试点列表不能为空')
+
+        elif template_type == 'test_scenario':
+            if not isinstance(value, list):
+                raise serializers.ValidationError('测试场景模板的内容必须是数组格式')
+            if len(value) == 0:
+                raise serializers.ValidationError('测试场景列表不能为空')
+
+        elif template_type == 'precondition':
+            if isinstance(value, dict):
+                if 'precondition' not in value:
+                    raise serializers.ValidationError('前置条件模板必须包含 precondition 字段')
+            elif not isinstance(value, str):
+                raise serializers.ValidationError('前置条件模板的内容必须是字符串或对象格式')
+
+        return value
+
+
+class TestTemplateCategorySerializer(serializers.ModelSerializer):
+    """测试模板分类序列化器"""
+
+    class Meta:
+        model = TestTemplateCategory
+        fields = ['id', 'name', 'description', 'icon', 'sort_order', 'is_active']
+
+
+class TestTemplateBatchCreateSerializer(serializers.Serializer):
+    """批量创建模板序列化器"""
+    templates = serializers.ListField(
+        child=serializers.DictField(),
+        help_text='模板数据列表'
+    )
+
+
+class TestTemplateMatchTestSerializer(serializers.Serializer):
+    """测试模板匹配序列化器"""
+    text = serializers.CharField(required=True, help_text='测试文本')
+    template_type = serializers.CharField(required=False, allow_blank=True, help_text='模板类型筛选')
+
+
+# ==================== 测试模板配置序列化器结束 ====================

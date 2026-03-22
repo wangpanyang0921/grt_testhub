@@ -11,6 +11,8 @@ from .views import (
     GenerationConfigViewSet,
     TestCaseGenerationTaskViewSet,
     ConfigStatusViewSet,
+    TestTemplateConfigViewSet,
+    TestTemplateCategoryViewSet,
     upload_and_analyze,
     analyze_text
 )
@@ -27,6 +29,9 @@ router.register(r'prompts', PromptConfigViewSet, basename='promptconfig')
 router.register(r'generation-config', GenerationConfigViewSet, basename='generationconfig')
 router.register(r'testcase-generation', TestCaseGenerationTaskViewSet, basename='testcasegenerationtask')
 router.register(r'config', ConfigStatusViewSet, basename='configstatus')
+# 测试模板配置API
+router.register(r'test-templates', TestTemplateConfigViewSet, basename='testtemplateconfig')
+router.register(r'template-categories', TestTemplateCategoryViewSet, basename='testtemplatecategory')
 
 app_name = 'requirement_analysis'
 

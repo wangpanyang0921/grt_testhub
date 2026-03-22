@@ -251,8 +251,113 @@ class AdvancedTestRequirementAnalyzer:
     def _identify_test_types(self, text: str) -> List[Dict[str, Any]]:
         """识别测试类型"""
         test_types = []
-        
-        # 功能测试
+
+        # ========== 职业教育 SaaS 平台专用测试类型 - 开始 ==========
+
+        # 【学习体验测试】- 教育平台核心
+        if any(keyword in text for keyword in ["学习", "课程", "视频", "播放", "进度", "体验"]):
+            test_types.append({
+                "type": "学习体验测试",
+                "priority": "高",
+                "description": "验证学员学习过程的流畅性和体验质量",
+                "test_points": [
+                    "视频播放流畅性验证（卡顿/缓冲）",
+                    "课件加载速度验证",
+                    "学习进度实时保存验证",
+                    "多端学习进度同步验证",
+                    "学习断点续学验证",
+                    "学习提醒推送及时性验证",
+                    "学习笔记功能验证"
+                ]
+            })
+
+        # 【教学功能测试】- 教师端核心
+        if any(keyword in text for keyword in ["教学", "授课", "直播", "课件", "作业", "老师"]):
+            test_types.append({
+                "type": "教学功能测试",
+                "priority": "高",
+                "description": "验证教师教学功能的完整性和稳定性",
+                "test_points": [
+                    "直播推流稳定性验证",
+                    "屏幕共享功能验证",
+                    "白板书写同步验证",
+                    "学员举手连麦验证",
+                    "课件展示清晰度验证",
+                    "作业布置与批改验证",
+                    "课堂录制回放生成验证"
+                ]
+            })
+
+        # 【教育内容安全测试】- 教育行业特别重要
+        if any(keyword in text for keyword in ["内容", "评论", "弹幕", "上传", "审核", "未成年"]):
+            test_types.append({
+                "type": "教育内容安全测试",
+                "priority": "高",
+                "description": "验证教育内容符合规范，保护未成年人，防止不良信息",
+                "test_points": [
+                    "用户上传内容审核验证",
+                    "评论/弹幕内容过滤验证",
+                    "敏感词实时拦截验证",
+                    "未成年人保护模式验证",
+                    "版权内容合规验证",
+                    "用户举报处理验证",
+                    "内容违规下架验证"
+                ]
+            })
+
+        # 【考试防作弊测试】- 在线考试必需
+        if any(keyword in text for keyword in ["考试", "测验", "防作弊", "监控", "阅卷"]):
+            test_types.append({
+                "type": "考试防作弊测试",
+                "priority": "高",
+                "description": "验证在线考试的公平性和防作弊机制有效性",
+                "test_points": [
+                    "切屏检测与提醒验证",
+                    "摄像头监控拍照验证",
+                    "随机试题顺序验证",
+                    "答题时间限制验证",
+                    "IP地址异常检测验证",
+                    "多设备登录限制验证",
+                    "作弊行为记录验证"
+                ]
+            })
+
+        # 【营销转化测试】- 招生业务
+        if any(keyword in text for keyword in ["营销", "招生", "试听", "转化", "分销", "团购"]):
+            test_types.append({
+                "type": "营销转化测试",
+                "priority": "中",
+                "description": "验证招生营销功能的准确性和转化效果",
+                "test_points": [
+                    "试听申请流程验证",
+                    "试听转正式学员验证",
+                    "优惠券计算准确性验证",
+                    "分销佣金分成验证",
+                    "团购成团逻辑验证",
+                    "推荐码绑定关系验证",
+                    "营销活动数据统计验证"
+                ]
+            })
+
+        # 【证书合规测试】- 资质认证
+        if any(keyword in text for keyword in ["证书", "结业", "学分", "资质", "合规"]):
+            test_types.append({
+                "type": "证书合规测试",
+                "priority": "高",
+                "description": "验证证书发放的合规性和准确性",
+                "test_points": [
+                    "结业条件自动判断验证",
+                    "学分累计计算准确性验证",
+                    "证书模板防伪验证",
+                    "电子证书数字签名验证",
+                    "证书信息不可篡改验证",
+                    "证书查询真伪验证"
+                ]
+            })
+
+        # ========== 职业教育 SaaS 平台专用测试类型 - 结束 ==========
+
+        # 功能测试（原有代码保留）
         if any(keyword in text for keyword in ["功能", "登录", "注册", "查询", "添加", "删除", "修改"]):
             test_types.append({
                 "type": "功能测试",
@@ -260,26 +365,26 @@ class AdvancedTestRequirementAnalyzer:
                 "description": "验证系统功能是否按预期工作",
                 "test_points": self._get_functional_test_points(text)
             })
-        
-        # 界面测试
+
+        # 界面测试（原有代码保留）
         if any(keyword in text for keyword in ["界面", "页面", "用户体验", "交互", "显示"]):
             test_types.append({
-                "type": "界面测试", 
+                "type": "界面测试",
                 "priority": "中",
                 "description": "验证用户界面的正确性和易用性",
                 "test_points": self._get_ui_test_points(text)
             })
-        
-        # 性能测试
+
+        # 性能测试（原有代码保留）
         if any(keyword in text for keyword in ["性能", "响应", "并发", "负载", "压力"]):
             test_types.append({
                 "type": "性能测试",
-                "priority": "中", 
+                "priority": "中",
                 "description": "验证系统性能指标是否满足要求",
                 "test_points": self._get_performance_test_points(text)
             })
-        
-        # 安全测试
+
+        # 安全测试（原有代码保留）
         if any(keyword in text for keyword in ["安全", "权限", "登录", "密码", "认证"]):
             test_types.append({
                 "type": "安全测试",
@@ -287,8 +392,8 @@ class AdvancedTestRequirementAnalyzer:
                 "description": "验证系统安全性和权限控制",
                 "test_points": self._get_security_test_points(text)
             })
-        
-        # 数据测试
+
+        # 数据测试（原有代码保留）
         if any(keyword in text for keyword in ["数据", "信息", "录入", "导入", "导出"]):
             test_types.append({
                 "type": "数据测试",
@@ -296,8 +401,8 @@ class AdvancedTestRequirementAnalyzer:
                 "description": "验证数据处理的准确性和完整性",
                 "test_points": self._get_data_test_points(text)
             })
-        
-        # 兼容性测试
+
+        # 兼容性测试（原有代码保留）
         if any(keyword in text for keyword in ["兼容", "浏览器", "设备", "平台"]):
             test_types.append({
                 "type": "兼容性测试",
@@ -305,31 +410,152 @@ class AdvancedTestRequirementAnalyzer:
                 "description": "验证系统在不同环境下的兼容性",
                 "test_points": self._get_compatibility_test_points(text)
             })
-        
+
         # 如果没有识别出特定测试类型，提供默认的测试类型
         if not test_types:
             test_types = [
                 {
                     "type": "功能测试",
-                    "priority": "高", 
+                    "priority": "高",
                     "description": "验证系统基本功能",
                     "test_points": ["正常功能验证", "异常处理验证", "边界值测试"]
                 },
                 {
                     "type": "界面测试",
                     "priority": "中",
-                    "description": "验证用户界面", 
+                    "description": "验证用户界面",
                     "test_points": ["界面布局验证", "交互操作验证", "显示内容验证"]
                 }
             ]
-        
+
         return test_types
     
     def _identify_test_scenarios(self, text: str) -> List[str]:
-        """识别测试场景"""
+        """识别测试场景 - 优先从数据库读取配置"""
         scenarios = []
-        
-        # 基于关键词识别测试场景
+
+        # ========== 优先从数据库读取场景配置 ==========
+        try:
+            # 导入模型（避免循环导入）
+            from .models import TestTemplateConfig
+
+            # 从数据库获取匹配的测试场景模板
+            db_scenarios = TestTemplateConfig.get_test_scenarios(text)
+            if db_scenarios:
+                scenarios.extend(db_scenarios)
+                logger.info(f"从数据库加载了 {len(db_scenarios)} 个测试场景")
+        except Exception as e:
+            logger.warning(f"从数据库读取测试场景配置失败: {e}，将使用默认配置")
+
+        # 如果数据库没有匹配到，使用默认配置（作为后备）
+        if not scenarios:
+            logger.info("数据库未匹配到测试场景，使用默认配置")
+            scenarios = self._get_default_test_scenarios(text)
+
+        return scenarios if scenarios else ["基本功能场景", "异常处理场景", "边界条件场景"]
+
+    def _get_default_test_scenarios(self, text: str) -> List[str]:
+        """默认测试场景（硬编码，作为数据库配置的后备）"""
+        scenarios = []
+
+        # ========== 职业教育 SaaS 平台专用场景 - 开始 ==========
+
+        # 【学习流程场景】
+        if any(keyword in text for keyword in ["学习", "课程", "课时", "章节", "进度"]):
+            scenarios.extend([
+                "学员选课报名场景",
+                "课程学习进度记录场景",
+                "课时完成状态变更场景",
+                "学习资料下载场景",
+                "学习笔记记录场景",
+                "课程评价反馈场景",
+                "学习提醒推送场景"
+            ])
+
+        # 【教学流程场景】
+        if any(keyword in text for keyword in ["教学", "授课", "老师", "教师", "讲师"]):
+            scenarios.extend([
+                "教师发布课程场景",
+                "在线直播授课场景",
+                "课件上传管理场景",
+                "作业布置与批改场景",
+                "学员答疑互动场景",
+                "教学数据统计场景",
+                "课程资料更新场景"
+            ])
+
+        # 【考试测评场景】
+        if any(keyword in text for keyword in ["考试", "测评", "测验", "quiz", "答题", "阅卷"]):
+            scenarios.extend([
+                "在线考试参加场景",
+                "考试防作弊监控场景",
+                "成绩自动批改场景",
+                "主观题人工阅卷场景",
+                "错题本自动生成场景",
+                "能力评估报告场景",
+                "考试成绩查询场景"
+            ])
+
+        # 【证书发放场景】
+        if any(keyword in text for keyword in ["证书", "结业", "毕业", "学分", "资质认证"]):
+            scenarios.extend([
+                "结业条件达成场景",
+                "电子证书生成场景",
+                "证书信息核验场景",
+                "学分达标判断场景",
+                "学习档案归档场景",
+                "证书真伪查询场景",
+                "成绩单导出打印场景"
+            ])
+
+        # 【营销招生场景】
+        if any(keyword in text for keyword in ["营销", "招生", "转化", "试听", "体验课"]):
+            scenarios.extend([
+                "试听申请预约场景",
+                "试听转正式学员场景",
+                "团购优惠使用场景",
+                "分销推广返利场景",
+                "老带新推荐场景",
+                "限时促销活动场景",
+                "优惠券领取使用场景"
+            ])
+
+        # 【学员管理场景】
+        if any(keyword in text for keyword in ["学员", "学生", "报名", "学籍", "分班"]):
+            scenarios.extend([
+                "学员信息录入场景",
+                "班级分配调整场景",
+                "学籍状态变更场景",
+                "学员转班退班场景",
+                "学习进度跟踪场景",
+                "学员沟通记录场景"
+            ])
+
+        # 【内容管理场景】
+        if any(keyword in text for keyword in ["内容", "题库", "试题", "资源", "资料"]):
+            scenarios.extend([
+                "题库分类管理场景",
+                "试题批量导入场景",
+                "试卷自动组卷场景",
+                "学习资源上传场景",
+                "内容审核发布场景",
+                "资源权限分配场景"
+            ])
+
+        # 【直播互动场景】
+        if any(keyword in text for keyword in ["直播", "回放", "连麦", "互动", "弹幕"]):
+            scenarios.extend([
+                "直播课创建预约场景",
+                "学员进入直播间场景",
+                "师生音视频互动场景",
+                "白板协作标注场景",
+                "直播回放生成场景",
+                "直播数据统计场景"
+            ])
+
+        # ========== 职业教育 SaaS 平台专用场景 - 结束 ==========
+
+        # 基于关键词识别测试场景（原有代码保留）
         if "登录" in text:
             scenarios.extend(["正常登录场景", "用户名错误场景", "密码错误场景", "账户锁定场景"])
         if "注册" in text:
@@ -342,7 +568,7 @@ class AdvancedTestRequirementAnalyzer:
             scenarios.extend(["数据录入场景", "数据查询场景", "数据修改场景", "数据删除场景"])
         if "报表" in text or "统计" in text:
             scenarios.extend(["报表生成场景", "数据筛选场景", "报表导出场景"])
-        
+
         return scenarios if scenarios else ["基本功能场景", "异常处理场景", "边界条件场景"]
     
     def _format_modules_analysis(self, modules: List[Dict[str, Any]]) -> str:
@@ -500,10 +726,128 @@ class AdvancedTestRequirementAnalyzer:
     
     # 测试点获取方法
     def _get_functional_test_points(self, text: str) -> List[str]:
-        """获取功能测试点"""
+        """获取功能测试点 - 优先从数据库读取配置"""
         test_points = []
-        
-        # 基于具体关键词生成相应的测试点
+
+        # ========== 优先从数据库读取测试点配置 ==========
+        try:
+            # 导入模型（避免循环导入）
+            from .models import TestTemplateConfig
+
+            # 从数据库获取匹配的测试点模板
+            db_test_points = TestTemplateConfig.get_test_points(text)
+            if db_test_points:
+                test_points.extend(db_test_points)
+                logger.info(f"从数据库加载了 {len(db_test_points)} 个测试点")
+        except Exception as e:
+            logger.warning(f"从数据库读取测试点配置失败: {e}，将使用默认配置")
+
+        # 如果数据库没有匹配到，使用默认配置（作为后备）
+        if not test_points:
+            logger.info("数据库未匹配到测试点，使用默认配置")
+            test_points = self._get_default_functional_test_points(text)
+
+        return test_points
+
+    def _get_default_functional_test_points(self, text: str) -> List[str]:
+        """默认功能测试点（硬编码，作为数据库配置的后备）"""
+        test_points = []
+
+        # ========== 职业教育 SaaS 平台专用测试点 - 开始 ==========
+
+        # 【课程管理】相关测试点
+        if any(keyword in text for keyword in ["课程", "课时", "章节", "课件", "大纲"]):
+            test_points.extend([
+                "课程发布流程验证",
+                "章节顺序编排验证",
+                "课时完成状态验证",
+                "课程上下架控制验证",
+                "课程内容预览验证",
+                "课程分类归属验证"
+            ])
+
+        # 【学员管理】相关测试点
+        if any(keyword in text for keyword in ["学员", "学生", "报名", "学籍", "分班", "入学"]):
+            test_points.extend([
+                "学员报名流程验证",
+                "班级自动分配验证",
+                "学籍状态变更验证",
+                "学习进度计算验证",
+                "学员信息导入导出验证",
+                "学员转班/退班验证"
+            ])
+
+        # 【教学管理】相关测试点
+        if any(keyword in text for keyword in ["排课", "课表", "考勤", "签到", "作业", "考试", "测验"]):
+            test_points.extend([
+                "自动排课算法验证",
+                "课表冲突检测验证",
+                "学员考勤记录验证",
+                "作业布置与提交验证",
+                "作业批改与反馈验证",
+                "考试成绩统计验证",
+                "考试防作弊监控验证"
+            ])
+
+        # 【直播教学】相关测试点
+        if any(keyword in text for keyword in ["直播", "回放", "连麦", "白板", "弹幕", "屏幕共享"]):
+            test_points.extend([
+                "直播推流稳定性验证",
+                "直播回放自动生成验证",
+                "师生音视频连麦验证",
+                "白板实时同步验证",
+                "弹幕内容审核验证",
+                "屏幕共享清晰度验证",
+                "直播数据统计验证"
+            ])
+
+        # 【证书管理】相关测试点
+        if any(keyword in text for keyword in ["证书", "结业", "学分", "成绩单", "毕业", "资质"]):
+            test_points.extend([
+                "证书模板配置验证",
+                "结业条件自动判断验证",
+                "学分累计计算验证",
+                "电子证书生成验证",
+                "证书真伪查询验证",
+                "成绩单导出验证"
+            ])
+
+        # 【营销招生】相关测试点
+        if any(keyword in text for keyword in ["试听", "体验课", "团购", "分销", "推荐", "优惠券", "促销"]):
+            test_points.extend([
+                "试听申请流程验证",
+                "试听转正式学员验证",
+                "团购优惠规则验证",
+                "分销佣金计算验证",
+                "推荐码绑定关系验证",
+                "优惠券使用规则验证"
+            ])
+
+        # 【内容管理】相关测试点
+        if any(keyword in text for keyword in ["题库", "试题", "试卷", "资料", "资源", "视频", "文档"]):
+            test_points.extend([
+                "题库分类管理验证",
+                "试题批量导入验证",
+                "试卷自动组卷验证",
+                "学习资料上传验证",
+                "视频转码处理验证",
+                "资源权限控制验证"
+            ])
+
+        # 【问答互动】相关测试点
+        if any(keyword in text for keyword in ["问答", "提问", "答疑", "讨论", "评论", "评价", "点赞"]):
+            test_points.extend([
+                "学员提问流程验证",
+                "教师答疑回复验证",
+                "问答内容审核验证",
+                "课程评价提交验证",
+                "讨论区互动验证",
+                "优质内容推荐验证"
+            ])
+
+        # ========== 职业教育 SaaS 平台专用测试点 - 结束 ==========
+
+        # 基于具体关键词生成相应的测试点（原有代码保留）
         if "登录" in text:
             test_points.extend(["正常登录验证", "用户名密码错误验证", "账户锁定验证", "登录状态保持验证"])
         if "注册" in text:

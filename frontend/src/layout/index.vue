@@ -264,6 +264,10 @@
                 <el-icon><Setting /></el-icon>
                 <span>{{ $t('menu.generationConfig') }}</span>
               </el-menu-item>
+              <el-menu-item index="/configuration/test-templates">
+                <el-icon><Collection /></el-icon>
+                <span>测试模板配置</span>
+              </el-menu-item>
             </el-sub-menu>
             <el-menu-item index="/configuration/ui-env">
               <el-icon><Monitor /></el-icon>
@@ -490,6 +494,7 @@ const breadcrumbTitle = computed(() => {
     '/configuration/ai-model': t('menu.aiModelConfig'),
     '/configuration/prompt-config': t('menu.promptConfig'),
     '/configuration/generation-config': t('menu.generationConfig'),
+    '/configuration/test-templates': '测试模板配置',
     '/configuration/ui-env': t('menu.uiEnvConfig'),
     '/configuration/ai-mode': t('menu.aiModeConfig'),
     '/configuration/scheduled-task': t('menu.scheduledTaskConfig'),

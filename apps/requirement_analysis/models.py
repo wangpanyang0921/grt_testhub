@@ -418,6 +418,170 @@ class TestCaseGenerationTask(models.Model):
         return f"{self.title} - {self.get_status_display()}"
 
 
+# ==================== 测试模板配置模型（前端可配置）====================
+
+class TestTemplateConfig(models.Model):
+    """
+    测试模板配置模型
+    让用户可以在前端页面配置测试模板，无需修改代码
+    """
+    TEMPLATE_TYPE_CHOICES = [
+        ('test_point', '测试点模板'),
+        ('test_scenario', '测试场景模板'),
+        ('test_step', '测试步骤模板'),
+        ('precondition', '前置条件模板'),
+    ]
+
+    name = models.CharField(max_length=100, verbose_name='模板名称', help_text='给这个模板起个名字，如"课程管理模板"')
+    template_type = models.CharField(max_length=20, choices=TEMPLATE_TYPE_CHOICES, verbose_name='模板类型')
+
+    # 关键词配置（用逗号分隔）
+    keywords = models.TextField(
+        verbose_name='匹配关键词',
+        help_text='用逗号分隔，如：课程,课时,章节,课件。需求文档中包含这些词时会匹配此模板'
+    )
+
+    # 模板内容（JSON格式，支持多条）
+    content = models.JSONField(
+        verbose_name='模板内容',
+        help_text='JSON格式，如：["测试点1", "测试点2"] 或 {"step1": "步骤1", "step2": "步骤2"}',
+        default=list
+    )
+
+    # 优先级（数字越小越优先）
+    priority = models.IntegerField(default=100, verbose_name='优先级', help_text='数字越小优先级越高，范围1-999')
+
+    # 业务模块分类
+    module_category = models.CharField(
+        max_length=50,
+        verbose_name='业务模块',
+        help_text='用于前端分组展示，如：课程管理、学员管理、直播教学',
+        blank=True,
+        default=''
+    )
+
+    # 是否启用
+    is_active = models.BooleanField(default=True, verbose_name='是否启用')
+
+    # 创建信息
+    created_by = models.ForeignKey(User, on_delete=models.CASCADE, verbose_name='创建者')
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='创建时间')
+    updated_at = models.DateTimeField(auto_now=True, verbose_name='更新时间')
+
+    class Meta:
+        db_table = 'test_template_config'
+        verbose_name = '测试模板配置'
+        verbose_name_plural = '测试模板配置'
+        ordering = ['priority', 'created_at']
+
+    def __str__(self):
+        return f"[{self.get_template_type_display()}] {self.name}"
+
+    def get_keywords_list(self):
+        """获取关键词列表"""
+        return [k.strip() for k in self.keywords.split(',') if k.strip()]
+
+    @classmethod
+    def match_templates(cls, text: str, template_type: str = None):
+        """
+        根据文本内容匹配模板
+
+        Args:
+            text: 需求文本
+            template_type: 模板类型筛选（可选）
+
+        Returns:
+            匹配的模板列表
+        """
+        queryset = cls.objects.filter(is_active=True)
+        if template_type:
+            queryset = queryset.filter(template_type=template_type)
+
+        matched = []
+        for template in queryset:
+            keywords = template.get_keywords_list()
+            if any(keyword in text for keyword in keywords):
+                matched.append(template)
+
+        return matched
+
+    @classmethod
+    def get_test_points(cls, text: str) -> list:
+        """获取匹配的功能测试点"""
+        templates = cls.match_templates(text, 'test_point')
+        points = []
+        for template in templates:
+            if isinstance(template.content, list):
+                points.extend(template.content)
+            elif isinstance(template.content, dict) and 'points' in template.content:
+                points.extend(template.content['points'])
+        return points
+
+    @classmethod
+    def get_test_scenarios(cls, text: str) -> list:
+        """获取匹配的测试场景"""
+        templates = cls.match_templates(text, 'test_scenario')
+        scenarios = []
+        for template in templates:
+            if isinstance(template.content, list):
+                scenarios.extend(template.content)
+            elif isinstance(template.content, dict) and 'scenarios' in template.content:
+                scenarios.extend(template.content['scenarios'])
+        return scenarios
+
+    @classmethod
+    def get_test_steps(cls, req_name: str, scenario_key: int) -> list:
+        """获取匹配的测试步骤"""
+        templates = cls.match_templates(req_name, 'test_step')
+        steps = []
+        for template in templates:
+            content = template.content
+            if isinstance(content, dict):
+                # 支持按步骤编号存储
+                step_key = f"step_{scenario_key}"
+                if step_key in content:
+                    steps.append(content[step_key])
+                elif 'default' in content:
+                    steps.append(content['default'])
+        return steps
+
+    @classmethod
+    def get_precondition(cls, req_name: str, module: str = '') -> str:
+        """获取匹配的前置条件"""
+        templates = cls.match_templates(req_name, 'precondition')
+        if templates:
+            content = templates[0].content
+            if isinstance(content, str):
+                return content.replace('{module}', module)
+            elif isinstance(content, dict) and 'precondition' in content:
+                return content['precondition'].replace('{module}', module)
+        return None
+
+
+class TestTemplateCategory(models.Model):
+    """
+    测试模板分类
+    用于前端分组展示
+    """
+    name = models.CharField(max_length=50, verbose_name='分类名称')
+    description = models.TextField(verbose_name='分类描述', blank=True)
+    icon = models.CharField(max_length=50, verbose_name='图标', blank=True, help_text='Element Plus图标名称')
+    sort_order = models.IntegerField(default=0, verbose_name='排序')
+    is_active = models.BooleanField(default=True, verbose_name='是否启用')
+
+    class Meta:
+        db_table = 'test_template_category'
+        verbose_name = '测试模板分类'
+        verbose_name_plural = '测试模板分类'
+        ordering = ['sort_order', 'name']
+
+    def __str__(self):
+        return self.name
+
+
+# ==================== 测试模板配置模型结束 ====================
+
+
 class AIModelService:
     """AI模型服务类"""
 
