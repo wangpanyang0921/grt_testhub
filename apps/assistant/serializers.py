@@ -51,11 +51,11 @@ class UserSerializer(serializers.Serializer):
 
 class KnowledgeBaseDocumentSerializer(serializers.ModelSerializer):
     created_by = serializers.SerializerMethodField()
-    
+
     class Meta:
         model = KnowledgeBaseDocument
-        fields = ['id', 'name', 'file_type', 'file_size', 'status', 'created_by', 'created_at', 'updated_at']
-        read_only_fields = ['file_type', 'file_size', 'status', 'created_by', 'created_at', 'updated_at']
+        fields = ['id', 'name', 'file_type', 'file_size', 'status', 'split_type', 'created_by', 'created_at', 'updated_at']
+        read_only_fields = ['file_type', 'file_size', 'status', 'split_type', 'created_by', 'created_at', 'updated_at']
     
     def get_created_by(self, obj):
         if obj.user:
@@ -67,10 +67,26 @@ class KnowledgeBaseDocumentSerializer(serializers.ModelSerializer):
 
 
 class KnowledgeBaseDocumentDetailSerializer(serializers.ModelSerializer):
+    created_by = serializers.SerializerMethodField()
+    vector_storage_uuid = serializers.SerializerMethodField()
+
     class Meta:
         model = KnowledgeBaseDocument
-        fields = ['id', 'name', 'file', 'file_type', 'file_size', 'status', 'index_data', 'index_error', 'created_at', 'updated_at']
-        read_only_fields = ['file_type', 'file_size', 'status', 'index_data', 'index_error', 'created_at', 'updated_at']
+        fields = ['id', 'name', 'file', 'file_type', 'file_size', 'status', 'vector_collection_id', 'vector_storage_uuid', 'index_data', 'index_error', 'created_by', 'created_at', 'updated_at']
+        read_only_fields = ['file_type', 'file_size', 'status', 'vector_collection_id', 'vector_storage_uuid', 'index_data', 'index_error', 'created_at', 'updated_at']
+
+    def get_created_by(self, obj):
+        if obj.user:
+            return {
+                'id': obj.user.id,
+                'username': obj.user.username
+            }
+        return None
+
+    def get_vector_storage_uuid(self, obj):
+        """获取向量存储目录 UUID"""
+        from .rag_service import rag_service
+        return rag_service.get_vector_storage_uuid(obj.id)
 
 
 class KnowledgeBaseChatSerializer(serializers.ModelSerializer):

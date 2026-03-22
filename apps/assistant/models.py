@@ -99,7 +99,7 @@ class KnowledgeBaseDocument(models.Model):
         ('indexed', '已索引'),
         ('failed', '索引失败'),
     ]
-    
+
     FILE_TYPE_CHOICES = [
         ('pdf', 'PDF'),
         ('md', 'Markdown'),
@@ -107,13 +107,19 @@ class KnowledgeBaseDocument(models.Model):
         ('doc', 'Word'),
         ('docx', 'Word'),
     ]
-    
+
+    SPLIT_TYPE_CHOICES = [
+        ('semantic', '语义切分'),
+        ('fixed', '固定长度'),
+    ]
+
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='kb_documents', verbose_name='用户')
     name = models.CharField(max_length=500, verbose_name='文档名称')
     file = models.FileField(upload_to='knowledge_base/%Y/%m/', verbose_name='文档文件')
     file_type = models.CharField(max_length=10, choices=FILE_TYPE_CHOICES, verbose_name='文件类型')
     file_size = models.BigIntegerField(verbose_name='文件大小(字节)')
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending', verbose_name='索引状态')
+    split_type = models.CharField(max_length=20, choices=SPLIT_TYPE_CHOICES, default='semantic', verbose_name='切分方式')
     vector_collection_id = models.CharField(max_length=255, blank=True, null=True, verbose_name='向量索引ID')
     index_data = models.JSONField(blank=True, null=True, verbose_name='索引数据')
     index_error = models.TextField(blank=True, verbose_name='索引错误信息')

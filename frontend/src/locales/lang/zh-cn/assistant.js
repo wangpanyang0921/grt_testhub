@@ -13,10 +13,10 @@ export default {
   loggedOut: '已退出登录',
 
   // 欢迎页
-  title: 'AI 知识库',
+  title: 'Dify 知识库',
   subtitle: '',
-  inputPlaceholder: '输入您的问题，按回车发送...',
-  chatInputPlaceholder: '输入消息...',
+  inputPlaceholder: '输入您的问题，按回车发送',
+  chatInputPlaceholder: '输入您的问题，按回车发送',
 
   // 建议提示
   suggestions: {

@@ -179,6 +179,11 @@ class KnowledgeBaseDocumentViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated]
     serializer_class = KnowledgeBaseDocumentSerializer
 
+    def get_serializer_class(self):
+        if self.action == 'retrieve':
+            return KnowledgeBaseDocumentDetailSerializer
+        return KnowledgeBaseDocumentSerializer
+
     def get_queryset(self):
         return KnowledgeBaseDocument.objects.filter(user=self.request.user)
 
@@ -186,7 +191,7 @@ class KnowledgeBaseDocumentViewSet(viewsets.ModelViewSet):
         """重写 create 方法以正确处理文件上传"""
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        
+
         # 获取上传的文件
         file_obj = request.FILES.get('file')
         if not file_obj:
@@ -194,24 +199,45 @@ class KnowledgeBaseDocumentViewSet(viewsets.ModelViewSet):
                 {'error': '请上传文件'},
                 status=status.HTTP_400_BAD_REQUEST
             )
-        
+
         # 获取文件信息
         file_name = file_obj.name
         file_size = file_obj.size
         file_type = file_name.split('.')[-1].lower() if '.' in file_name else ''
-        
+
+        # 检查文件大小（10MB = 10 * 1024 * 1024 bytes）
+        MAX_FILE_SIZE = 10 * 1024 * 1024
+        if file_size > MAX_FILE_SIZE:
+            return Response(
+                {'error': f'文件 "{file_name}" 大小超过 10MB 限制'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # 检查是否已存在同名文件
+        if KnowledgeBaseDocument.objects.filter(user=request.user, name=file_name).exists():
+            return Response(
+                {'error': f'文件 "{file_name}" 已存在，请勿重复上传'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # 获取切分方式参数
+        split_type = request.data.get('split_type', 'semantic')
+        if split_type not in ['semantic', 'fixed']:
+            split_type = 'semantic'
+
         # 保存文档
         document = serializer.save(
             user=request.user,
             status='pending',
             file_size=file_size,
             file_type=file_type,
-            file=file_obj
+            file=file_obj,
+            split_type=split_type
         )
-        
+
         # 异步生成索引
         self._generate_index_async(document, request.user)
-        
+
         return Response(
             self.get_serializer(document).data,
             status=status.HTTP_201_CREATED
@@ -257,7 +283,8 @@ class KnowledgeBaseDocumentViewSet(viewsets.ModelViewSet):
                     file_path,
                     document.file_type,
                     user=user,
-                    document_id=document.id
+                    document_id=document.id,
+                    split_type=document.split_type
                 )
 
                 if result['success']:
@@ -290,6 +317,33 @@ class KnowledgeBaseDocumentViewSet(viewsets.ModelViewSet):
         self._generate_index_async(document, request.user)
         return Response({'message': '索引生成中'}, status=status.HTTP_202_ACCEPTED)
 
+    @action(detail=True, methods=['get'])
+    def chunks(self, request, pk=None):
+        """获取文档切块内容"""
+        document = self.get_object()
+
+        # 检查文档是否已索引
+        if document.status != 'indexed':
+            return Response(
+                {'error': '文档尚未完成索引，无法查看切块内容'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # 获取切块内容
+        result = rag_service.get_document_chunks(document.id, user=request.user)
+
+        if result.get('success'):
+            return Response({
+                'document_name': document.name,
+                'chunks': result['chunks'],
+                'total': result['total']
+            })
+        else:
+            return Response(
+                {'error': result.get('error', '获取切块内容失败')},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
 
 class KnowledgeBaseChatViewSet(viewsets.ModelViewSet):
     """知识库对话视图集"""
@@ -301,7 +355,11 @@ class KnowledgeBaseChatViewSet(viewsets.ModelViewSet):
         return KnowledgeBaseChatSerializer
 
     def get_queryset(self):
-        return KnowledgeBaseChat.objects.filter(user=self.request.user)
+        queryset = KnowledgeBaseChat.objects.filter(user=self.request.user)
+        document_id = self.request.query_params.get('document')
+        if document_id:
+            queryset = queryset.filter(document_id=document_id)
+        return queryset
 
     def create(self, request, *args, **kwargs):
         """重写 create 方法以捕获异常"""
@@ -422,7 +480,7 @@ class KnowledgeBaseChatViewSet(viewsets.ModelViewSet):
                 full_answer = ''.join(answer_chunks)
 
                 # 保存对话记录
-                KnowledgeBaseChat.objects.create(
+                chat_record = KnowledgeBaseChat.objects.create(
                     user=request.user,
                     document=document,
                     question=question,
@@ -430,8 +488,8 @@ class KnowledgeBaseChatViewSet(viewsets.ModelViewSet):
                     retrieved_pages=retrieved_docs
                 )
 
-                # 发送结束标记
-                yield f"data: {json.dumps({'type': 'end', 'answer': full_answer})}\n\n"
+                # 发送结束标记，包含记录ID
+                yield f"data: {json.dumps({'type': 'end', 'answer': full_answer, 'chat_id': chat_record.id})}\n\n"
 
             except Exception as e:
                 import traceback

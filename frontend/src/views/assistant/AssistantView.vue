@@ -35,7 +35,7 @@
         <div class="welcome-content">
           <div class="logo-area">
             <div class="logo-circle">
-              <el-icon><Cpu /></el-icon>
+              <el-icon><Promotion /></el-icon>
             </div>
             <h1>{{ $t('assistant.title') }}</h1>
             <p>{{ $t('assistant.subtitle') }}</p>
@@ -73,7 +73,7 @@
 
       <!-- 场景2：对话界面 -->
       <div v-else class="chat-screen">
-        <div class="chat-header">
+        <div class="chat-header" style="display: none;">
           <div class="chat-header-left">
             <el-icon class="back-icon" @click="startNewChat"><ArrowLeft /></el-icon>
             <span class="chat-title">{{ currentSession?.title || $t('assistant.newChat') }}</span>
@@ -89,20 +89,18 @@
           >
             <div class="avatar">
               <el-avatar v-if="message.role === 'user'" :size="36" :src="userStore.user?.avatar || ''" :icon="User" class="user-avatar" />
-              <el-avatar v-else :size="36" :icon="Cpu" class="ai-avatar" />
+              <el-avatar v-else :size="36" :icon="Promotion" class="ai-avatar" />
             </div>
-            <div class="message-bubble">
-              <div class="message-content" v-html="formatMessageContent(message.content)"></div>
+            <div class="message-wrapper">
+              <div class="message-sender">
+                <span class="sender-name">{{ message.role === 'user' ? '我' : 'AI 助手' }}</span>
+                <span v-if="message.created_at" class="message-time">{{ formatDateTime(message.created_at) }}</span>
+              </div>
+              <div class="message-content">
+                <div class="message-text markdown-body" v-html="formatMessageContent(message.content)"></div>
+              </div>
               <div class="message-status" v-if="message.isPending">
                 <el-icon class="is-loading"><Loading /></el-icon> {{ $t('assistant.thinking') }}
-              </div>
-              <div class="message-actions" v-if="message.role === 'assistant' && !message.isPending">
-                <el-button type="primary" link size="small" @click="copyMessage(message.content)">
-                  <el-icon><CopyDocument /></el-icon> 复制
-                </el-button>
-                <el-button type="primary" link size="small" @click="editMessage(message)">
-                  <el-icon><Edit /></el-icon> 编辑
-                </el-button>
               </div>
             </div>
           </div>
@@ -146,6 +144,7 @@ import { useUserStore } from '@/stores/user'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Delete, ChatDotRound, User, Cpu, Promotion, Loading, ArrowLeft, CopyDocument, Edit } from '@element-plus/icons-vue'
 import api from '@/utils/api'
+import { marked } from 'marked'
 
 const router = useRouter()
 const userStore = useUserStore()
@@ -184,13 +183,21 @@ const formatDate = (dateString) => {
   return date.toLocaleDateString(localeCode, { month: '2-digit', day: '2-digit' })
 }
 
+const formatDateTime = (dateString) => {
+  if (!dateString) return ''
+  const date = new Date(dateString)
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  const hours = String(date.getHours()).padStart(2, '0')
+  const minutes = String(date.getMinutes()).padStart(2, '0')
+  const seconds = String(date.getSeconds()).padStart(2, '0')
+  return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`
+}
+
 const formatMessageContent = (content) => {
   if (!content) return ''
-  // 简单的 markdown 处理，实际项目中建议使用 markdown-it
-  return content
-    .replace(/\n/g, '<br>')
-    .replace(/```([\s\S]*?)```/g, '<pre><code>$1</code></pre>')
-    .replace(/`([^`]+)`/g, '<code>$1</code>')
+  return marked.parse(content, { breaks: true })
 }
 
 const scrollToBottom = () => {
@@ -795,41 +802,7 @@ onMounted(async () => {
       gap: 12px;
       margin-bottom: 20px;
       align-items: flex-start;
-
-      &.user {
-        flex-direction: row-reverse;
-
-        .message-bubble {
-          background: transparent;
-          color: #374151;
-          border-radius: 0;
-          box-shadow: none;
-
-          :deep(pre) {
-            background: #1f2937;
-            border: none;
-          }
-
-          :deep(code) {
-            background: #f3f4f6;
-            color: #ef4444;
-          }
-
-          :deep(p) {
-            color: #374151;
-          }
-        }
-      }
-
-      &.assistant {
-        .message-bubble {
-          background: transparent;
-          color: #374151;
-          border-radius: 0;
-          box-shadow: none;
-          border: none;
-        }
-      }
+      animation: fadeInUp 0.3s ease;
 
       .avatar {
         flex-shrink: 0;
@@ -850,39 +823,31 @@ onMounted(async () => {
         }
       }
 
-      .message-bubble {
-        max-width: 80%;
-        padding: 0;
-        font-size: 15px;
-        line-height: 1.6;
-        position: relative;
-        transition: all 0.3s ease;
+      .message-wrapper {
+        flex: 1;
+        max-width: calc(100% - 48px);
+
+        .message-sender {
+          font-size: 13px;
+          color: #6b7280;
+          margin-bottom: 6px;
+          font-weight: 500;
+          display: flex;
+          align-items: center;
+          gap: 8px;
+
+          .message-time {
+            font-size: 12px;
+            color: #9ca3af;
+            font-weight: normal;
+          }
+        }
 
         .message-content {
-          word-wrap: break-word;
-
-          :deep(p) {
-            margin: 0 0 10px 0;
-            &:last-child { margin: 0; }
-          }
-
-          :deep(pre) {
-            background: #1f2937;
-            color: #e5e7eb;
-            padding: 14px;
-            border-radius: 10px;
-            overflow-x: auto;
-            margin: 10px 0;
-            font-size: 13px;
-          }
-
-          :deep(code) {
-            font-family: 'Menlo', 'Monaco', 'Courier New', monospace;
-            font-size: 13px;
-            padding: 2px 6px;
-            background: #f3f4f6;
-            border-radius: 4px;
-            color: #ef4444;
+          .message-text {
+            font-size: 14px;
+            line-height: 1.5;
+            word-break: break-word;
           }
         }
 
@@ -898,24 +863,174 @@ onMounted(async () => {
             animation: rotating 2s linear infinite;
           }
         }
+      }
 
-        .message-actions {
+      &.user {
+        flex-direction: row-reverse;
+
+        .message-wrapper {
           display: flex;
-          gap: 8px;
-          margin-top: 12px;
-          padding-top: 8px;
-          border-top: 1px solid #e5e7eb;
+          flex-direction: column;
+          align-items: flex-end;
 
-          .el-button {
-            font-size: 12px;
-            color: #6b7280;
+          .message-sender {
+            text-align: right;
+          }
 
-            &:hover {
-              color: #7b42f6;
+          .message-content {
+            display: flex;
+            justify-content: flex-end;
+            max-width: 85%;
+
+            .message-text {
+            background: #7b42f6;
+            color: #fff;
+            padding: 10px 14px;
+            border-radius: 16px 16px 4px 16px;
+            display: inline-block;
+            line-height: 1.5;
+
+            &.markdown-body {
+              p {
+                margin: 0 0 8px 0;
+                &:last-child {
+                  margin-bottom: 0;
+                }
+              }
+
+              strong {
+                font-weight: 600;
+              }
+
+              em {
+                font-style: italic;
+              }
+
+              code {
+                background: rgba(255, 255, 255, 0.2);
+                padding: 2px 6px;
+                border-radius: 4px;
+                font-family: monospace;
+                font-size: 13px;
+              }
+
+              pre {
+                background: rgba(0, 0, 0, 0.2);
+                color: #fff;
+                padding: 12px;
+                border-radius: 8px;
+                overflow-x: auto;
+                margin: 8px 0;
+
+                code {
+                  background: transparent;
+                  padding: 0;
+                  color: inherit;
+                }
+              }
+
+              ul, ol {
+                margin: 8px 0;
+                padding-left: 20px;
+              }
+
+              li {
+                margin: 4px 0;
+              }
+
+              a {
+                color: #fff;
+                text-decoration: underline;
+              }
+
+              blockquote {
+                border-left: 4px solid rgba(255, 255, 255, 0.5);
+                margin: 8px 0;
+                padding-left: 12px;
+                color: rgba(255, 255, 255, 0.9);
+              }
             }
+          }
+          }
+        }
+      }
 
-            .el-icon {
-              color: inherit;
+      &.assistant {
+        .message-content {
+          max-width: 85%;
+
+          .message-text {
+            background: #fff;
+            color: #374151;
+            padding: 10px 14px;
+            border-radius: 16px 16px 16px 4px;
+            display: inline-block;
+            line-height: 1.5;
+            border: 1px solid rgba(147, 112, 219, 0.15);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+
+            &.markdown-body {
+              p {
+                margin: 0 0 8px 0;
+                &:last-child {
+                  margin-bottom: 0;
+                }
+              }
+
+              strong {
+                font-weight: 600;
+              }
+
+              em {
+                font-style: italic;
+              }
+
+              code {
+                background: #e5e7eb;
+                padding: 2px 6px;
+                border-radius: 4px;
+                font-family: monospace;
+                font-size: 13px;
+              }
+
+              pre {
+                background: #1f2937;
+                color: #f3f4f6;
+                padding: 12px;
+                border-radius: 8px;
+                overflow-x: auto;
+                margin: 8px 0;
+
+                code {
+                  background: transparent;
+                  padding: 0;
+                  color: inherit;
+                }
+              }
+
+              ul, ol {
+                margin: 8px 0;
+                padding-left: 20px;
+              }
+
+              li {
+                margin: 4px 0;
+              }
+
+              a {
+                color: #7b42f6;
+                text-decoration: none;
+                &:hover {
+                  text-decoration: underline;
+                }
+              }
+
+              blockquote {
+                border-left: 4px solid #7b42f6;
+                margin: 8px 0;
+                padding-left: 12px;
+                color: #6b7280;
+              }
             }
           }
         }
@@ -995,5 +1110,16 @@ onMounted(async () => {
 @keyframes rotating {
   from { transform: rotate(0deg); }
   to { transform: rotate(360deg); }
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 </style>

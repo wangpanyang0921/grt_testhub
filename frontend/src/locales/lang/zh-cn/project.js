@@ -95,7 +95,7 @@ export default {
     aiIntelligent: 'AI智能测试',
     aiIntelligentDesc: '基于自然语言的智能化测试执行',
     aiKnowledgeBase: 'AI知识库',
-    aiKnowledgeBaseDesc: '基于Dify平台知识库，提供测试问答',
+    aiKnowledgeBaseDesc: '支持三方/自建知识库，提供专业问答',
     configCenter: '配置中心',
     configCenterDesc: '系统环境、AI模型及通知配置',
 

@@ -291,11 +291,11 @@
           <template v-else-if="currentModule === 'ai-assistant'">
             <el-menu-item index="/ai-assistant/chat">
               <el-icon><Promotion /></el-icon>
-              <span>Dify助手</span>
+              <span>Dify知识库</span>
             </el-menu-item>
             <el-menu-item index="/ai-assistant/knowledge-base">
               <el-icon><Collection /></el-icon>
-              <span>知识库</span>
+              <span>RAG知识库</span>
             </el-menu-item>
           </template>
         </el-menu>
@@ -425,8 +425,8 @@ const moduleName = computed(() => {
 const breadcrumbTitle = computed(() => {
   const routeMap = {
     // AI 知识库
-    '/ai-assistant/chat': 'Dify助手',
-    '/ai-assistant/knowledge-base': '知识库',
+    '/ai-assistant/chat': 'Dify知识库',
+    '/ai-assistant/knowledge-base': 'RAG知识库',
 
     // AI用例生成
     '/ai-generation/requirement-analysis': t('menu.aiCaseGeneration'),
