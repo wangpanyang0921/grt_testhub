@@ -1,38 +1,5 @@
 <template>
   <div class="data-factory-container">
-    <el-card class="header-card">
-      <div class="header-content">
-        <div class="header-title">
-          <h1 class="page-title" @click="goToHome">
-            <el-icon class="title-icon"><DataAnalysis /></el-icon>
-            {{ $t('dataFactory.title') }}
-          </h1>
-        </div>
-        <div class="header-actions">
-          <el-button-group>
-            <el-button
-              :type="viewMode === 'scenario' ? 'primary' : ''"
-              @click="viewMode = 'scenario'"
-            >
-              <el-icon><Grid /></el-icon>
-              {{ $t('dataFactory.viewMode.scenario') }}
-            </el-button>
-            <el-button
-              :type="viewMode === 'category' ? 'primary' : ''"
-              @click="viewMode = 'category'"
-            >
-              <el-icon><Menu /></el-icon>
-              {{ $t('dataFactory.viewMode.category') }}
-            </el-button>
-          </el-button-group>
-          <el-button type="info" @click="showHistory = true">
-            <el-icon><Clock /></el-icon>
-            {{ $t('dataFactory.actions.history') }}
-          </el-button>
-        </div>
-      </div>
-    </el-card>
-
     <!-- 工具分类视图 -->
     <div v-if="viewMode === 'category'" class="category-view">
       <div
@@ -85,28 +52,169 @@
     </div>
 
     <!-- 场景视图 -->
-    <div v-else class="scenario-view">
-      <div class="scenario-grid">
+    <div v-else-if="viewMode === 'scenario'" class="scenario-view">
+      <div class="scenario-list">
         <div
           v-for="scenario in scenarios"
           :key="scenario.scenario"
-          class="scenario-card"
-          :style="{ '--primary-color': getCategoryColor(scenario.scenario).primary, '--light-color': getCategoryColor(scenario.scenario).light, '--dark-color': getCategoryColor(scenario.scenario).dark }"
-          @click="filterByScenario(scenario)"
+          class="scenario-list-container"
         >
-          <div class="scenario-glow"></div>
-          <div class="scenario-content">
-            <div class="scenario-icon-wrapper">
-              <el-icon class="scenario-icon" :style="{ color: getCategoryColor(scenario.scenario).primary }">
+          <div
+            class="scenario-list-item"
+            :class="{ 'is-expanded': expandedScenario === scenario.scenario }"
+            :style="{ '--primary-color': getCategoryColor(scenario.scenario).primary, '--light-color': getCategoryColor(scenario.scenario).light, '--dark-color': getCategoryColor(scenario.scenario).dark }"
+            @click="toggleScenarioExpand(scenario)"
+          >
+            <div class="scenario-list-icon-wrapper">
+              <el-icon class="scenario-list-icon" :style="{ color: getCategoryColor(scenario.scenario).primary }">
                 <component :is="getScenarioIcon(scenario.scenario)" />
               </el-icon>
             </div>
-            <h3 class="scenario-title">{{ getScenarioName(scenario.scenario) }}</h3>
-            <p class="scenario-desc">{{ getScenarioDesc(scenario.scenario) }}</p>
-            <div class="scenario-stats">
-              <span class="tool-count">{{ scenario.tool_count }} 个工具</span>
+            <div class="scenario-list-content">
+              <h3 class="scenario-list-title">{{ getScenarioName(scenario.scenario) }}</h3>
+              <p class="scenario-list-desc">{{ getScenarioDesc(scenario.scenario) }}</p>
+            </div>
+            <div class="scenario-list-stats">
+              <el-tag size="small" :style="{ background: getCategoryColor(scenario.scenario).light, borderColor: getCategoryColor(scenario.scenario).primary, color: getCategoryColor(scenario.scenario).primary }">
+                {{ scenario.tool_count }} 个工具
+              </el-tag>
+            </div>
+            <el-icon class="scenario-list-arrow" :class="{ 'is-expanded': expandedScenario === scenario.scenario }">
+              <ArrowDown />
+            </el-icon>
+          </div>
+          <!-- 展开的工具列表 -->
+          <div v-if="expandedScenario === scenario.scenario" class="scenario-tools-list">
+            <div
+              v-for="tool in getScenarioTools(scenario.scenario)"
+              :key="tool.name"
+              class="scenario-tool-item"
+              :style="{ '--primary-color': getCategoryColor(scenario.scenario).primary, '--light-color': getCategoryColor(scenario.scenario).light }"
+              @click="openTool(tool, getToolCategory(tool.name))"
+            >
+              <div class="scenario-tool-icon" :style="{ background: getCategoryColor(scenario.scenario).light, color: getCategoryColor(scenario.scenario).primary }">
+                <el-icon><component :is="getIcon(tool.icon || 'operation')" /></el-icon>
+              </div>
+              <div class="scenario-tool-info">
+                <h4 class="scenario-tool-name">{{ getToolDisplayName(tool.name) || tool.display_name }}</h4>
+                <p class="scenario-tool-desc">{{ getToolDescription(tool.name) || tool.description }}</p>
+              </div>
+              <el-icon class="scenario-tool-arrow"><ArrowRight /></el-icon>
             </div>
           </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 使用记录页面视图 -->
+    <div v-else-if="viewMode === 'history'" class="history-page-view">
+      <!-- 筛选栏 -->
+      <div class="filter-bar">
+        <el-input
+          v-model="historySearchQuery"
+          placeholder="搜索记录名称"
+          clearable
+          @clear="handleHistorySearch"
+          @keyup.enter="handleHistorySearch"
+          style="width: 300px;"
+        >
+          <template #prefix>
+            <el-icon><Search /></el-icon>
+          </template>
+        </el-input>
+        <div class="filter-bar-spacer"></div>
+        <el-button type="primary" @click="refreshHistoryData">
+          <el-icon><Refresh /></el-icon>
+          刷新
+        </el-button>
+      </div>
+
+      <!-- 记录列表 -->
+      <div class="card-container history-card">
+        <el-table
+          v-loading="historyLoading"
+          :data="historyRecords"
+          stripe
+          style="width: 100%"
+        >
+          <el-table-column label="序号" width="80" header-align="center" align="center">
+            <template #default="{ $index }">
+              {{ (historyCurrentPage - 1) * historyPageSize + $index + 1 }}
+            </template>
+          </el-table-column>
+
+          <el-table-column label="记录名称" min-width="200" show-overflow-tooltip header-align="center" align="left">
+            <template #default="{ row }">
+              <el-input
+                v-if="editingRecordId === row.id"
+                v-model="editingRecordName"
+                ref="editInputRef"
+                @blur="saveRecordName(row)"
+                @keyup.enter="saveRecordName(row)"
+                @keyup.escape="cancelEdit()"
+                size="small"
+                autofocus
+              />
+              <span
+                v-else
+                class="record-name-text"
+                @click="startEdit(row)"
+              >
+                {{ row.custom_name || getToolDisplayName(row.tool_name) }}
+              </span>
+            </template>
+          </el-table-column>
+
+          <el-table-column label="使用人" width="120" header-align="center" align="center">
+            <template #default="{ row }">
+              <span>{{ row.user_name }}</span>
+            </template>
+          </el-table-column>
+
+          <el-table-column label="使用时间" width="200" header-align="center" align="center">
+            <template #default="{ row }">
+              <span class="time-text">{{ formatDateTime(row.created_at) }}</span>
+            </template>
+          </el-table-column>
+
+          <el-table-column label="操作" width="200" fixed="right" header-align="center" align="center">
+            <template #default="{ row }">
+              <div class="action-buttons">
+                <el-button
+                  v-if="canExportToExcelRecord(row)"
+                  size="small"
+                  type="success"
+                  class="action-btn"
+                  @click="exportRecord(row)"
+                >
+                  <el-icon><Download /></el-icon>
+                  <span>导出</span>
+                </el-button>
+                <el-button
+                  size="small"
+                  type="danger"
+                  class="action-btn"
+                  @click="deleteRecord(row)"
+                >
+                  <el-icon><Delete /></el-icon>
+                  <span>删除</span>
+                </el-button>
+              </div>
+            </template>
+          </el-table-column>
+        </el-table>
+
+        <!-- 分页 -->
+        <div class="pagination-container">
+          <el-pagination
+            v-model:current-page="historyCurrentPage"
+            v-model:page-size="historyPageSize"
+            :page-sizes="[10, 20, 50, 100]"
+            :total="historyTotal"
+            layout="total, sizes, prev, pager, next, jumper"
+            @size-change="handleHistorySizeChange"
+            @current-change="handleHistoryPageChange"
+          />
         </div>
       </div>
     </div>
@@ -915,143 +1023,16 @@
       </template>
     </el-dialog>
 
-    <!-- 历史记录对话框 -->
-    <el-dialog
-      v-model="showHistory"
-      :title="$t('dataFactory.history.title')"
-      width="1200px"
-    >
-      <el-tabs v-model="historyTab">
-        <el-tab-pane :label="$t('dataFactory.history.allRecords')" name="all">
-          <div class="history-content">
-            <el-table :data="historyRecords" stripe class="history-table">
-              <el-table-column type="index" :label="$t('dataFactory.history.serialNumber')" width="60" align="center" />
-              <el-table-column :label="$t('dataFactory.history.recordName')" min-width="200">
-                <template #default="{ row }">
-                  <el-input
-                    v-if="editingRecordId === row.id"
-                    v-model="editingRecordName"
-                    ref="editInputRef"
-                    @blur="saveRecordName(row)"
-                    @keyup.enter="saveRecordName(row)"
-                    @keyup.escape="cancelEdit()"
-                    size="small"
-                    autofocus
-                  />
-                  <span
-                    v-else
-                    class="record-name-text"
-                    @click="startEdit(row)"
-                  >
-                    {{ row.custom_name || getToolDisplayName(row.tool_name) }}
-                  </span>
-                </template>
-              </el-table-column>
-              <el-table-column prop="user_name" :label="$t('dataFactory.history.userName')" min-width="120" />
-              <el-table-column :label="$t('dataFactory.history.usageTime')" min-width="180">
-                <template #default="{ row }">
-                  {{ formatDateTime(row.created_at) }}
-                </template>
-              </el-table-column>
-              <el-table-column :label="$t('dataFactory.history.operation')" width="240" align="center" fixed="right">
-                <template #default="{ row }">
-                  <div class="operation-buttons">
-                    <el-button size="small" type="success" @click="exportRecord(row)" v-if="canExportToExcelRecord(row)">
-                      <el-icon><Download /></el-icon>
-                      <span>{{ $t('dataFactory.actions.export') }}</span>
-                    </el-button>
-                    <el-button size="small" type="danger" @click="deleteRecord(row)">
-                      <el-icon><Delete /></el-icon>
-                      <span>{{ $t('dataFactory.actions.delete') }}</span>
-                    </el-button>
-                  </div>
-                </template>
-              </el-table-column>
-            </el-table>
-            <el-pagination
-              v-model:current-page="historyCurrentPage"
-              v-model:page-size="historyPageSize"
-              :page-sizes="[10, 20, 50, 100]"
-              :total="historyTotal"
-              layout="total, sizes, prev, pager, next, jumper"
-              @size-change="handleHistorySizeChange"
-              @current-change="handleHistoryPageChange"
-              class="history-pagination"
-            />
-          </div>
-        </el-tab-pane>
-        <el-tab-pane :label="$t('dataFactory.history.statistics')" name="stats">
-          <div class="stats-container">
-            <el-row :gutter="20">
-              <el-col :span="24">
-                <el-card class="total-stats-card">
-                  <div class="total-stats">
-                    <div class="total-stat-item">
-                      <div class="total-stat-value">{{ statistics.total_records || 0 }}</div>
-                      <div class="total-stat-label">{{ $t('dataFactory.history.totalRecords') }}</div>
-                    </div>
-                  </div>
-                </el-card>
-              </el-col>
-            </el-row>
-            <el-row :gutter="20" style="margin-top: 20px;">
-              <el-col :span="12">
-                <el-card>
-                  <template #header>
-                    <span class="card-header-title">{{ $t('dataFactory.history.categoryStats') }}</span>
-                  </template>
-                  <div v-if="statistics.category_stats && Object.keys(statistics.category_stats).length > 0">
-                    <div v-for="(count, category) in statistics.category_stats" :key="category" class="stat-item">
-                      <div class="stat-item-content">
-                        <span class="stat-label">{{ category }}</span>
-                        <el-progress 
-                          :percentage="calculatePercentage(count, statistics.total_records)" 
-                          :stroke-width="12"
-                          :show-text="false"
-                        />
-                        <span class="stat-count">{{ count }}</span>
-                      </div>
-                    </div>
-                  </div>
-                  <el-empty v-else :description="$t('dataFactory.history.noData')" :image-size="80" />
-                </el-card>
-              </el-col>
-              <el-col :span="12">
-                <el-card>
-                  <template #header>
-                    <span class="card-header-title">{{ $t('dataFactory.history.scenarioStats') }}</span>
-                  </template>
-                  <div v-if="statistics.scenario_stats && Object.keys(statistics.scenario_stats).length > 0">
-                    <div v-for="(count, scenario) in statistics.scenario_stats" :key="scenario" class="stat-item">
-                      <div class="stat-item-content">
-                        <span class="stat-label">{{ scenario }}</span>
-                        <el-progress 
-                          :percentage="calculatePercentage(count, statistics.total_records)" 
-                          :stroke-width="12"
-                          :show-text="false"
-                        />
-                        <span class="stat-count">{{ count }}</span>
-                      </div>
-                    </div>
-                  </div>
-                  <el-empty v-else :description="$t('dataFactory.history.noData')" :image-size="80" />
-                </el-card>
-              </el-col>
-            </el-row>
-          </div>
-        </el-tab-pane>
-      </el-tabs>
-    </el-dialog>
   </div>
 </template>
 
 <script setup>
 import { ref, onMounted, watch, computed, nextTick } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
-  DataLine, Menu, Grid, Clock, Operation, ArrowRight,
+  DataLine, Menu, Grid, Clock, Operation, ArrowRight, ArrowDown,
   Document, List, Lock, User, MagicStick, VideoPlay, ChatDotSquare, Picture, Connection,
   Phone, Message, Location, Ticket, OfficeBuilding, CreditCard, CircleCheck, DocumentCopy, Search, Delete, Edit, Unlock, DataLine as DataLineIcon, Sort, Share, View, Upload,
   DataAnalysis, Files, DocumentChecked, Brush, Timer, Key,
@@ -1062,7 +1043,32 @@ import axios from 'axios'
 import * as XLSX from 'xlsx'
 
 const router = useRouter()
+const route = useRoute()
 const { t } = useI18n()
+
+// 接收路由 props
+const props = defineProps({
+  defaultViewMode: {
+    type: String,
+    default: 'scenario'
+  },
+  showHistory: {
+    type: Boolean,
+    default: false
+  }
+})
+
+// 根据路由路径更新视图模式
+const updateViewFromRoute = () => {
+  const path = route.path
+  if (path.includes('/by-category')) {
+    viewMode.value = 'category'
+  } else if (path.includes('/history')) {
+    viewMode.value = 'history'
+  } else {
+    viewMode.value = 'scenario'
+  }
+}
 
 // 防抖函数
 const debounce = (func, wait) => {
@@ -1077,10 +1083,11 @@ const debounce = (func, wait) => {
   }
 }
 
-const viewMode = ref('scenario')
+const viewMode = ref(props.defaultViewMode)
 const categories = ref([])
 const scenarios = ref([])
 const currentScenario = ref(null)
+const expandedScenario = ref(null)
 const toolDialogVisible = ref(false)
 const currentTool = ref(null)
 const currentCategory = ref('')
@@ -1166,13 +1173,19 @@ const toolForm = ref({
   image_data: '',
   image_format: 'png',
   include_prefix: true,
-  base64_str: ''
+  base64_str: '',
+  sequence: '',
+  unique: false,
+  image_size: 300,
+  color: '',
+  decimals: 0
 })
 const toolResult = ref(null)
 const imagePreview = ref('')
 const qrCodeImage = ref('')
 const uploadRef = ref(null)
 const executing = ref(false)
+// showHistory 已废弃，使用 viewMode === 'history' 替代
 const showHistory = ref(false)
 const historyTab = ref('all')
 const historyRecords = ref([])
@@ -1180,6 +1193,7 @@ const historyTotal = ref(0)
 const historyCurrentPage = ref(1)
 const historyPageSize = ref(10)
 const historyLoading = ref(false)
+const historySearchQuery = ref('')
 const statsLoading = ref(false)
 const statistics = ref({})
 const editingRecordId = ref(null)
@@ -1607,7 +1621,10 @@ const resetToolForm = () => {
     include_prefix: true,
     base64_str: '',
     sequence: '',
-    unique: false
+    unique: false,
+    image_size: 300,
+    color: '',
+    decimals: 0
   }
   toolResult.value = null
   imagePreview.value = ''
@@ -1767,7 +1784,7 @@ const handleQrCodeUpload = (file) => {
   return new Promise((resolve, reject) => {
     const reader = new FileReader()
     reader.onload = (e) => {
-      const base64Data = e.target.result
+      const base64Data = String(e.target.result)
       qrCodeImage.value = base64Data
       toolForm.value.image_data = base64Data
       resolve(false)
@@ -1858,13 +1875,13 @@ const handleImageChange = (file) => {
 
   const reader = new FileReader()
   reader.onload = (e) => {
-    imagePreview.value = e.target.result
+    imagePreview.value = String(e.target.result)
   }
   reader.readAsDataURL(file.raw)
 
   const fileReader = new FileReader()
   fileReader.onload = (e) => {
-    const result = e.target.result
+    const result = String(e.target.result)
     if (result.startsWith('data:image')) {
       toolForm.value.image_data = result.split(',')[1]
     } else {
@@ -2091,6 +2108,36 @@ const filterByScenario = (scenario) => {
   ElMessage.success(`${t('dataFactory.messages.filtered')}: ${scenario.name}`)
 }
 
+const toggleScenarioExpand = (scenario) => {
+  if (expandedScenario.value === scenario.scenario) {
+    expandedScenario.value = null
+  } else {
+    expandedScenario.value = scenario.scenario
+  }
+}
+
+const getScenarioTools = (scenarioName) => {
+  const tools = []
+  categories.value.forEach(category => {
+    category.tools.forEach(tool => {
+      if (tool.scenario === scenarioName) {
+        tools.push({ ...tool, category: category.category })
+      }
+    })
+  })
+  return tools
+}
+
+const getToolCategory = (toolName) => {
+  for (const category of categories.value) {
+    const tool = category.tools.find(t => t.name === toolName)
+    if (tool) {
+      return category.category
+    }
+  }
+  return ''
+}
+
 const clearScenario = () => {
   currentScenario.value = null
 }
@@ -2131,17 +2178,22 @@ const debouncedFetchHistory = debounce(async () => {
 
 const fetchHistory = async () => {
   if (historyLoading.value) return
-  
+
   historyLoading.value = true
   try {
-    const response = await axios.get('/api/data-factory/', {
-      params: {
-        page: historyCurrentPage.value,
-        page_size: historyPageSize.value,
-        _t: Date.now()
-      }
-    })
-    
+    const params = {
+      page: historyCurrentPage.value,
+      page_size: historyPageSize.value,
+      _t: Date.now()
+    }
+
+    // 添加搜索参数
+    if (historySearchQuery.value) {
+      params.search = historySearchQuery.value
+    }
+
+    const response = await axios.get('/api/data-factory/', { params })
+
     historyRecords.value = response.data.results
     historyTotal.value = response.data.count
   } catch (error) {
@@ -2160,6 +2212,19 @@ const handleHistoryPageChange = (page) => {
 
 const handleHistorySizeChange = (size) => {
   historyPageSize.value = size
+  historyCurrentPage.value = 1
+  fetchHistory()
+}
+
+// 搜索历史记录
+const handleHistorySearch = () => {
+  historyCurrentPage.value = 1
+  fetchHistory()
+}
+
+// 刷新历史记录数据
+const refreshHistoryData = () => {
+  historySearchQuery.value = ''
   historyCurrentPage.value = 1
   fetchHistory()
 }
@@ -2260,22 +2325,22 @@ const canExportToExcelRecord = (record) => {
 
 const reExecuteRecord = async (record) => {
   try {
-    historyDialogVisible.value = false
-    
+    toolDialogVisible.value = false
+
     await nextTick()
-    
-    currentTool.value = toolsList.value.find(t => t.name === record.tool_name)
+
+    currentTool.value = tools.value.find(t => t.name === record.tool_name)
     currentCategory.value = record.tool_category
     currentScenario.value = record.tool_scenario
-    
+
     if (record.input_data) {
       Object.keys(record.input_data).forEach(key => {
-        if (inputData.value.hasOwnProperty(key)) {
-          inputData.value[key] = record.input_data[key]
+        if (toolForm.value.hasOwnProperty(key)) {
+          toolForm.value[key] = record.input_data[key]
         }
       })
     }
-    
+
     ElMessage.success(t('dataFactory.messages.reExecuteSuccess'))
   } catch (error) {
     console.error('Re-execute error:', error)
@@ -2477,8 +2542,8 @@ const downloadImage = (result) => {
   ElMessage.success(t('dataFactory.messages.downloadStarted'))
 }
 
-watch(showHistory, (newVal) => {
-  if (newVal) {
+watch(() => viewMode.value, (newVal) => {
+  if (newVal === 'history') {
     fetchHistory()
     fetchStatistics()
   }
@@ -2490,10 +2555,20 @@ watch(historyTab, (newVal) => {
   }
 })
 
+// 监听路由变化，更新视图模式
+watch(() => route.path, () => {
+  updateViewFromRoute()
+})
+
 onMounted(() => {
+  updateViewFromRoute()
   fetchCategories()
   fetchScenarios()
   fetchStatistics()
+  // 如果初始页面是使用历史，加载历史数据
+  if (viewMode.value === 'history') {
+    fetchHistory()
+  }
 })
 </script>
 
@@ -2768,18 +2843,18 @@ onMounted(() => {
 }
 
 .scenario-view {
-  .scenario-grid {
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    grid-template-rows: repeat(2, 1fr);
-    gap: 20px;
+  .scenario-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
     padding: 0 8px;
-    min-height: calc(100vh - 280px);
   }
 
-  .scenario-card {
-    position: relative;
-    cursor: pointer;
+  .scenario-list-item {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 16px 20px;
     background: linear-gradient(145deg, #ffffff 0%, #f8fafc 100%);
     border: 1px solid rgba(148, 163, 184, 0.15);
     border-radius: 12px;
@@ -2787,102 +2862,186 @@ onMounted(() => {
       0 2px 8px rgba(0, 0, 0, 0.04),
       0 0 0 1px rgba(255, 255, 255, 0.8) inset;
     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-    overflow: hidden;
-    min-height: 200px;
+    cursor: pointer;
 
     &:hover {
       box-shadow:
         0 8px 24px rgba(0, 0, 0, 0.08),
         0 0 0 1px var(--primary-color) inset,
         0 0 20px var(--light-color);
-      transform: translateY(-3px);
+      transform: translateX(4px);
       border-color: var(--primary-color);
 
-      .scenario-glow {
-        opacity: 1;
-      }
-
-      .scenario-icon-wrapper {
-        transform: scale(1.05);
+      .scenario-list-icon-wrapper {
+        transform: scale(1.1);
         box-shadow: 0 4px 12px var(--light-color);
       }
+
+      .scenario-list-arrow {
+        color: var(--primary-color);
+        transform: translateX(4px);
+      }
     }
 
-    .scenario-glow {
-      position: absolute;
-      top: -50%;
-      left: -50%;
-      width: 200%;
-      height: 200%;
-      background: radial-gradient(circle, var(--light-color) 0%, transparent 70%);
-      opacity: 0;
-      transition: opacity 0.4s ease;
-      pointer-events: none;
-    }
-
-    .scenario-content {
-      position: relative;
-      z-index: 1;
-      text-align: center;
-      padding: 32px 20px;
+    .scenario-list-icon-wrapper {
+      width: 48px;
+      height: 48px;
+      border-radius: 10px;
+      background: linear-gradient(145deg, #ffffff, #f1f5f9);
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
       display: flex;
-      flex-direction: column;
       align-items: center;
       justify-content: center;
-      height: 100%;
+      flex-shrink: 0;
+      transition: all 0.3s ease;
 
-      .scenario-icon-wrapper {
-        width: 64px;
-        height: 64px;
-        border-radius: 14px;
+      .scenario-list-icon {
+        font-size: 24px;
+        transition: all 0.3s ease;
+      }
+    }
+
+    .scenario-list-content {
+      flex: 1;
+      min-width: 0;
+
+      .scenario-list-title {
+        font-size: 16px;
+        font-weight: 600;
+        margin: 0 0 4px 0;
+        color: #1e293b;
+        line-height: 1.4;
+      }
+
+      .scenario-list-desc {
+        font-size: 13px;
+        color: #64748b;
+        margin: 0;
+        line-height: 1.5;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+    }
+
+    .scenario-list-stats {
+      flex-shrink: 0;
+    }
+
+    .scenario-list-arrow {
+      font-size: 20px;
+      color: #94a3b8;
+      transition: all 0.3s ease;
+      flex-shrink: 0;
+
+      &.is-expanded {
+        transform: rotate(180deg);
+        color: var(--primary-color);
+      }
+    }
+
+    &.is-expanded {
+      border-color: var(--primary-color);
+      box-shadow: 0 0 0 1px var(--primary-color) inset;
+    }
+  }
+
+  .scenario-tools-list {
+    padding: 8px 0 4px 0;
+    margin: 0;
+    animation: slideDown 0.3s ease;
+
+    @keyframes slideDown {
+      from {
+        opacity: 0;
+        transform: translateY(-10px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .scenario-tool-item {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      padding: 16px 20px;
+      margin-bottom: 8px;
+      background: linear-gradient(145deg, #ffffff 0%, #f8fafc 100%);
+      border: 1px solid rgba(148, 163, 184, 0.15);
+      border-radius: 12px;
+      box-shadow:
+        0 2px 8px rgba(0, 0, 0, 0.04),
+        0 0 0 1px rgba(255, 255, 255, 0.8) inset;
+      cursor: pointer;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+
+      &:last-child {
+        margin-bottom: 0;
+      }
+
+      &:hover {
+        background: #ffffff;
+        border-color: var(--primary-color);
+        box-shadow:
+          0 8px 24px rgba(0, 0, 0, 0.08),
+          0 0 0 1px var(--primary-color) inset,
+          0 0 20px var(--light-color);
+        transform: translateX(4px);
+      }
+
+      .scenario-tool-icon {
+        width: 48px;
+        height: 48px;
+        border-radius: 10px;
         background: linear-gradient(145deg, #ffffff, #f1f5f9);
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
         display: flex;
         align-items: center;
         justify-content: center;
-        margin-bottom: 20px;
+        flex-shrink: 0;
         transition: all 0.3s ease;
 
-        .scenario-icon {
-          font-size: 32px;
+        .el-icon {
+          font-size: 24px;
           transition: all 0.3s ease;
         }
       }
 
-      .scenario-title {
-        font-size: 17px;
-        font-weight: 600;
-        margin: 0 0 10px 0;
-        color: #1e293b;
-        line-height: 1.3;
-      }
-
-      .scenario-desc {
-        font-size: 13px;
-        color: #64748b;
-        margin: 0 0 16px 0;
-        line-height: 1.5;
+      .scenario-tool-info {
         flex: 1;
-        display: -webkit-box;
-        -webkit-line-clamp: 2;
-        -webkit-box-orient: vertical;
-        overflow: hidden;
+        min-width: 0;
+
+        .scenario-tool-name {
+          font-size: 16px;
+          font-weight: 600;
+          margin: 0 0 4px 0;
+          color: #1e293b;
+          line-height: 1.4;
+        }
+
+        .scenario-tool-desc {
+          font-size: 13px;
+          color: #64748b;
+          margin: 0;
+          line-height: 1.5;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
       }
 
-      .scenario-stats {
-        display: flex;
-        justify-content: center;
+      .scenario-tool-arrow {
+        font-size: 20px;
+        color: #94a3b8;
+        flex-shrink: 0;
+        transition: all 0.3s ease;
+      }
 
-        .tool-count {
-          font-size: 11px;
-          font-weight: 500;
-          color: var(--primary-color);
-          background: var(--light-color);
-          padding: 3px 10px;
-          border-radius: 10px;
-          border: 1px solid var(--primary-color);
-          opacity: 0.8;
-        }
+      &:hover .scenario-tool-arrow {
+        color: var(--primary-color);
+        transform: translateX(4px);
       }
     }
   }
@@ -3033,26 +3192,203 @@ onMounted(() => {
   }
 }
 
-.history-content {
-  max-height: calc(100vh - 300px);
+// 使用记录页面样式 - 参考 XMindConverter 风格
+.history-page-view {
   display: flex;
   flex-direction: column;
+  gap: 20px;
 
-  .history-table {
-    flex: 1;
-    overflow-y: auto;
+  // 筛选栏
+  .filter-bar {
+    padding: 20px 24px;
+    background: #ffffff;
+    border: 1px solid rgba(147, 112, 219, 0.12);
+    border-radius: 12px;
+    box-shadow: 0 4px 16px rgba(147, 112, 219, 0.08);
+    display: flex;
+    align-items: center;
+    gap: 12px;
 
-    :deep(.el-table) {
-      overflow: visible;
+    :deep(.el-input__wrapper) {
+      box-shadow: 0 2px 8px rgba(147, 112, 219, 0.08);
+      border-radius: 8px;
+      border: 1px solid rgba(147, 112, 219, 0.2);
+      background: #ffffff;
+
+      &:hover,
+      &:focus {
+        box-shadow: 0 2px 8px rgba(147, 112, 219, 0.15);
+        border-color: #7b42f6;
+      }
+    }
+
+    :deep(.el-input__inner) {
+      color: #5a32a3;
+      font-weight: 500;
+    }
+
+    .filter-bar-spacer {
+      flex: 1;
+    }
+
+    .el-button {
+      background: linear-gradient(135deg, #7b42f6 0%, #5a32a3 100%);
+      border: none;
+      border-radius: 8px;
+      padding: 10px 20px;
+      font-weight: 500;
+
+      &:hover {
+        background: linear-gradient(135deg, #6933e0 0%, #4a2690 100%);
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(123, 66, 246, 0.3);
+      }
     }
   }
 
-  .history-pagination {
-    margin-top: 20px;
+  // 卡片容器
+  .card-container {
+    background: #ffffff;
+    border: 1px solid rgba(147, 112, 219, 0.12);
+    border-radius: 12px;
+    box-shadow: 0 4px 16px rgba(147, 112, 219, 0.08);
     display: flex;
-    justify-content: center;
-    padding: 10px 0;
-    flex-shrink: 0;
+    flex-direction: column;
+    overflow: hidden;
+    padding: 20px;
+  }
+
+  // 表格样式
+  .history-card {
+    :deep(.el-table) {
+      border-radius: 8px;
+      overflow: hidden;
+
+      th.el-table__cell {
+        background: linear-gradient(135deg, #f8f7ff 0%, #f0edff 100%);
+        color: #5a32a3;
+        font-weight: 600;
+        font-size: 14px;
+        padding: 14px 0;
+      }
+
+      td.el-table__cell {
+        padding: 14px 0;
+        font-size: 14px;
+      }
+
+      .el-table__row {
+        transition: all 0.3s ease;
+
+        &:hover {
+          background: linear-gradient(135deg, #f8f7ff 0%, #f0edff 100%);
+        }
+      }
+    }
+
+    .record-name-text {
+      color: #5a32a3;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.3s ease;
+
+      &:hover {
+        color: #7b42f6;
+        text-decoration: underline;
+      }
+    }
+
+    .time-text {
+      color: #666;
+      font-size: 13px;
+    }
+
+    // 操作按钮
+    .action-buttons {
+      display: flex;
+      justify-content: center;
+      gap: 8px;
+
+      .action-btn {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        padding: 6px 12px;
+        border-radius: 6px;
+        font-size: 13px;
+        transition: all 0.3s ease;
+
+        &:hover {
+          transform: translateY(-1px);
+        }
+
+        &.el-button--success {
+          background: linear-gradient(135deg, #67c23a 0%, #529b2e 100%);
+          border: none;
+
+          &:hover {
+            background: linear-gradient(135deg, #5cb82f 0%, #4a8a2a 100%);
+            box-shadow: 0 4px 12px rgba(103, 194, 58, 0.3);
+          }
+        }
+
+        &.el-button--danger {
+          background: linear-gradient(135deg, #f56c6c 0%, #c45656 100%);
+          border: none;
+
+          &:hover {
+            background: linear-gradient(135deg, #e64c4c 0%, #b34545 100%);
+            box-shadow: 0 4px 12px rgba(245, 108, 108, 0.3);
+          }
+        }
+      }
+    }
+  }
+
+  // 分页
+  .pagination-container {
+    margin-top: 20px;
+    padding-top: 20px;
+    border-top: 1px solid rgba(147, 112, 219, 0.1);
+    display: flex;
+    justify-content: flex-end;
+
+    :deep(.el-pagination) {
+      .el-pagination__total {
+        color: #5a32a3;
+        font-weight: 500;
+      }
+
+      .el-pagination__sizes {
+        .el-input__wrapper {
+          border-color: rgba(147, 112, 219, 0.3);
+
+          &:hover {
+            border-color: #7b42f6;
+          }
+        }
+      }
+
+      .el-pager li {
+        border-radius: 6px;
+        transition: all 0.3s ease;
+
+        &.is-active,
+        &:hover {
+          background: linear-gradient(135deg, #7b42f6 0%, #5a32a3 100%);
+          color: #fff;
+        }
+      }
+
+      .btn-prev,
+      .btn-next {
+        border-radius: 6px;
+
+        &:hover {
+          color: #7b42f6;
+        }
+      }
+    }
   }
 }
 

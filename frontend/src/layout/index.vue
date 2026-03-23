@@ -302,6 +302,30 @@
               <span>RAG知识库</span>
             </el-menu-item>
           </template>
+
+          <!-- 数据工厂模块菜单 -->
+          <template v-else-if="currentModule === 'data-factory'">
+            <el-sub-menu index="data-toolbox">
+              <template #title>
+                <el-icon><DataAnalysis /></el-icon>
+                <span>数据工具箱</span>
+              </template>
+              <el-menu-item index="/data-factory/by-scenario">
+                <el-icon><Collection /></el-icon>
+                <span>按使用场景</span>
+              </el-menu-item>
+              <!-- 隐藏：按工具分类
+              <el-menu-item index="/data-factory/by-category">
+                <el-icon><Menu /></el-icon>
+                <span>按工具分类</span>
+              </el-menu-item>
+              -->
+            </el-sub-menu>
+            <el-menu-item index="/data-factory/history">
+              <el-icon><DocumentChecked /></el-icon>
+              <span>使用记录</span>
+            </el-menu-item>
+          </template>
         </el-menu>
       </el-aside>
 
@@ -365,7 +389,8 @@ import { ref } from 'vue'
 import {
   Monitor, Folder, Document, Flag, Check, Collection, VideoPlay,
   DataAnalysis, ChatDotRound, DocumentCopy, Link, MagicStick, Promotion,
-  Odometer, Timer, Setting, AlarmClock, Bell, Aim, Edit, Cpu, ArrowDown, Cellphone, Connection, FolderOpened, Box, Tools
+  Odometer, Timer, Setting, AlarmClock, Bell, Aim, Edit, Cpu, ArrowDown, Cellphone, Connection, FolderOpened, Box, Tools, Grid, Menu,
+  DocumentChecked
 } from '@element-plus/icons-vue'
 
 const router = useRouter()
@@ -410,6 +435,7 @@ const currentModule = computed(() => {
   if (route.path.startsWith('/app-automation')) return 'app-automation'
   if (route.path.startsWith('/ai-intelligent-mode')) return 'ai-intelligent-mode'
   if (route.path.startsWith('/configuration')) return 'configuration'
+  if (route.path.startsWith('/data-factory')) return 'data-factory'
   return ''
 })
 
@@ -421,7 +447,8 @@ const moduleName = computed(() => {
     'ui-automation': t('modules.uiAutomation'),
     'app-automation': 'APP自动化测试',
     'ai-intelligent-mode': t('modules.aiIntelligentMode'),
-    'configuration': t('modules.configuration')
+    'configuration': t('modules.configuration'),
+    'data-factory': '数据工厂'
   }
   return map[currentModule.value] || ''
 })
@@ -499,7 +526,10 @@ const breadcrumbTitle = computed(() => {
     '/configuration/ai-mode': t('menu.aiModeConfig'),
     '/configuration/scheduled-task': t('menu.scheduledTaskConfig'),
     '/configuration/dify': t('menu.difyConfig'),
-    
+
+    // 数据工厂
+    '/data-factory': '数据工具箱',
+
     '/profile': t('nav.profile')
   }
   return routeMap[route.path] || route.meta.title || ''

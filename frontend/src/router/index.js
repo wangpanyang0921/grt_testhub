@@ -366,9 +366,32 @@ const routes = [
   },
   {
     path: '/data-factory',
-    name: 'DataFactory',
-    component: DataFactory,
-    meta: { requiresAuth: true }
+    component: Layout,
+    meta: { requiresAuth: true },
+    children: [
+      {
+        path: '',
+        redirect: 'by-scenario'
+      },
+      {
+        path: 'by-scenario',
+        name: 'DataFactoryByScenario',
+        component: DataFactory,
+        props: { defaultViewMode: 'scenario' }
+      },
+      {
+        path: 'by-category',
+        name: 'DataFactoryByCategory',
+        component: DataFactory,
+        props: { defaultViewMode: 'category' }
+      },
+      {
+        path: 'history',
+        name: 'DataFactoryHistory',
+        component: DataFactory,
+        props: { defaultViewMode: 'history' }
+      }
+    ]
   },
   {
     path: '/configuration',

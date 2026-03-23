@@ -185,7 +185,7 @@ const handleNavigate = (type) => {
     'ai-intelligent': '/ai-intelligent-mode/testing',
     'assistant': '/ai-assistant/chat',
     'config': '/configuration/ai-model',
-    'data': '/data-factory'
+    'data': '/data-factory/by-scenario'
   }
 
   // 对 APP 自动化和接口测试进行特殊处理
