@@ -1622,9 +1622,13 @@ const resetToolForm = () => {
     base64_str: '',
     sequence: '',
     unique: false,
-    image_size: 300,
     color: '',
-    decimals: 0
+    decimals: 0,
+    version: 4,
+    plus: false,
+    token: '',
+    verify: false,
+    secret: ''
   }
   toolResult.value = null
   imagePreview.value = ''
@@ -2329,7 +2333,16 @@ const reExecuteRecord = async (record) => {
 
     await nextTick()
 
-    currentTool.value = tools.value.find(t => t.name === record.tool_name)
+    // 在所有分类中查找工具
+    let foundTool = null
+    for (const category of categories.value) {
+      const tool = category.tools.find(t => t.name === record.tool_name)
+      if (tool) {
+        foundTool = tool
+        break
+      }
+    }
+    currentTool.value = foundTool
     currentCategory.value = record.tool_category
     currentScenario.value = record.tool_scenario
 
