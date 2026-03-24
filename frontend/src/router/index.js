@@ -8,6 +8,7 @@ import Layout from '@/layout/index.vue'
 import ProjectList from '@/views/projects/ProjectList.vue'
 import Home from '@/views/Home.vue'
 import DataFactory from '@/views/data-factory/DataFactory.vue'
+import ExcelDataFiller from '@/views/data-factory/ExcelDataFiller.vue'
 import ApiDashboard from '@/views/api-testing/Dashboard.vue'
 import ApiProjectManagement from '@/views/api-testing/ProjectManagement.vue'
 import ApiInterfaceManagement from '@/views/api-testing/InterfaceManagement.vue'
@@ -390,6 +391,11 @@ const routes = [
         name: 'DataFactoryHistory',
         component: DataFactory,
         props: { defaultViewMode: 'history' }
+      },
+      {
+        path: 'excel-filler',
+        name: 'ExcelDataFiller',
+        component: ExcelDataFiller
       }
     ]
   },

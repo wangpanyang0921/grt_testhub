@@ -90,4 +90,55 @@ export function batchGenerate(data) {
  * @property {string[]} tags - 标签列表
  */
 
+// Excel智能填充 - 分析模板
+export function analyzeExcelTemplate(file) {
+  const formData = new FormData()
+  formData.append('file', file)
+  return request({
+    url: '/data-factory/excel-filler/analyze/',
+    method: 'post',
+    data: formData,
+    headers: {
+      'Content-Type': 'multipart/form-data'
+    }
+  })
+}
+
+// Excel智能填充 - 预览数据
+export function previewFilledData(file, rowCount = 5, customFields = {}) {
+  const formData = new FormData()
+  formData.append('file', file)
+  formData.append('row_count', String(rowCount))
+  if (Object.keys(customFields).length > 0) {
+    formData.append('custom_fields', JSON.stringify(customFields))
+  }
+  return request({
+    url: '/data-factory/excel-filler/preview/',
+    method: 'post',
+    data: formData,
+    headers: {
+      'Content-Type': 'multipart/form-data'
+    }
+  })
+}
+
+// Excel智能填充 - 生成并下载文件
+export function fillExcelData(file, rowCount = 10, customFields = {}) {
+  const formData = new FormData()
+  formData.append('file', file)
+  formData.append('row_count', String(rowCount))
+  if (Object.keys(customFields).length > 0) {
+    formData.append('custom_fields', JSON.stringify(customFields))
+  }
+  return request({
+    url: '/data-factory/excel-filler/fill/',
+    method: 'post',
+    data: formData,
+    headers: {
+      'Content-Type': 'multipart/form-data'
+    },
+    responseType: 'blob'
+  })
+}
+
 export {}

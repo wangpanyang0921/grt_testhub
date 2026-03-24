@@ -122,11 +122,6 @@
             <el-icon><Search /></el-icon>
           </template>
         </el-input>
-        <div class="filter-bar-spacer"></div>
-        <el-button type="primary" @click="refreshHistoryData">
-          <el-icon><Refresh /></el-icon>
-          刷新
-        </el-button>
       </div>
 
       <!-- 记录列表 -->
@@ -145,21 +140,7 @@
 
           <el-table-column label="记录名称" min-width="200" show-overflow-tooltip header-align="center" align="left">
             <template #default="{ row }">
-              <el-input
-                v-if="editingRecordId === row.id"
-                v-model="editingRecordName"
-                ref="editInputRef"
-                @blur="saveRecordName(row)"
-                @keyup.enter="saveRecordName(row)"
-                @keyup.escape="cancelEdit()"
-                size="small"
-                autofocus
-              />
-              <span
-                v-else
-                class="record-name-text"
-                @click="startEdit(row)"
-              >
+              <span class="record-name-text">
                 {{ row.custom_name || getToolDisplayName(row.tool_name) }}
               </span>
             </template>
@@ -177,9 +158,18 @@
             </template>
           </el-table-column>
 
-          <el-table-column label="操作" width="200" fixed="right" header-align="center" align="center">
+          <el-table-column label="操作" width="260" fixed="right" header-align="center" align="center">
             <template #default="{ row }">
               <div class="action-buttons">
+                <el-button
+                  size="small"
+                  type="primary"
+                  class="action-btn edit-btn"
+                  @click="editRecord(row)"
+                >
+                  <el-icon><Edit /></el-icon>
+                  <span>编辑</span>
+                </el-button>
                 <el-button
                   v-if="canExportToExcelRecord(row)"
                   size="small"
@@ -218,6 +208,47 @@
         </div>
       </div>
     </div>
+
+    <!-- 编辑记录对话框 -->
+    <el-dialog
+      v-model="editDialogVisible"
+      title="编辑记录"
+      width="700px"
+      :close-on-click-modal="false"
+      @close="closeEditDialog"
+      class="edit-record-dialog"
+    >
+      <el-form
+        v-if="editingRecord"
+        :model="editForm"
+        label-width="100px"
+        label-position="right"
+      >
+        <el-form-item label="记录名称">
+          <el-input
+            v-model="editForm.custom_name"
+            placeholder="请输入记录名称"
+            maxlength="100"
+            show-word-limit
+            clearable
+          />
+        </el-form-item>
+        <el-form-item label="工具名称">
+          <span class="record-info-text">{{ getToolDisplayName(editingRecord.tool_name) || editingRecord.tool_name }}</span>
+        </el-form-item>
+        <el-form-item label="使用人">
+          <span class="record-info-text">{{ editingRecord.user_name }}</span>
+        </el-form-item>
+        <el-form-item label="使用时间">
+          <span class="record-info-text">{{ formatDateTime(editingRecord.created_at) }}</span>
+        </el-form-item>
+
+      </el-form>
+      <template #footer>
+        <el-button @click="closeEditDialog">取消</el-button>
+        <el-button type="primary" @click="saveEditRecord">保存</el-button>
+      </template>
+    </el-dialog>
 
     <!-- 工具执行对话框 -->
     <el-dialog
@@ -1041,10 +1072,12 @@ import {
 } from '@element-plus/icons-vue'
 import axios from 'axios'
 import * as XLSX from 'xlsx'
+import { useUserStore } from '@/stores/user'
 
 const router = useRouter()
 const route = useRoute()
 const { t } = useI18n()
+const userStore = useUserStore()
 
 // 接收路由 props
 const props = defineProps({
@@ -1198,6 +1231,14 @@ const statsLoading = ref(false)
 const statistics = ref({})
 const editingRecordId = ref(null)
 const editingRecordName = ref('')
+
+// 编辑记录对话框
+const editDialogVisible = ref(false)
+const editingRecord = ref(null)
+const editForm = ref({
+  custom_name: ''
+})
+
 const jsonTreeData = ref(null)
 const jsonExpandedKeys = ref([])
 const jsonCollapseState = ref({})
@@ -1977,8 +2018,43 @@ const getFieldNameMap = () => {
     boolean: '布尔值',
     datetime: '日期时间',
     array: '数组',
-    object: '对象'
+    object: '对象',
+    // 其他常用字段
+    int: '整数',
+    float: '浮点数',
+    sequence: '序列号',
+    text: '文本',
+    url: '链接',
+    domain: '域名',
+    format: '格式',
+    length: '长度',
+    count: '数量',
+    type: '类型',
+    status: '状态',
+    created_at: '创建时间',
+    updated_at: '更新时间'
   }
+}
+
+// 根据工具类型获取对应的字段名
+const getExportFieldName = () => {
+  const toolName = currentTool.value?.name
+  const fieldMap = {
+    'generate_chinese_name': 'name',
+    'generate_chinese_phone': 'phone',
+    'generate_chinese_email': 'email',
+    'generate_chinese_address': 'address',
+    'generate_id_card': 'id_card',
+    'generate_company_name': 'company',
+    'random_uuid': 'uuid',
+    'random_password': 'password',
+    'random_string': 'string',
+    'random_mac_address': 'mac_address',
+    'random_ip_address': 'ip_address',
+    'random_sequence': 'sequence',
+    'mock_string': 'string'
+  }
+  return fieldMap[toolName] || 'value'
 }
 
 // 导出Excel功能
@@ -1991,17 +2067,30 @@ const exportToExcel = () => {
   try {
     let data = []
     const result = toolResult.value.result || toolResult.value
+    const fieldName = getExportFieldName()
 
     // 处理不同类型的结果数据
     if (Array.isArray(result)) {
-      // 如果结果是数组，直接使用
-      data = result
+      // 如果结果是数组
+      if (result.length > 0 && typeof result[0] === 'string') {
+        // 如果是字符串数组，根据工具类型使用对应字段名
+        data = result.map(item => ({ [fieldName]: item }))
+      } else {
+        // 如果是对象数组，直接使用
+        data = result
+      }
     } else if (typeof result === 'object' && result !== null) {
       // 如果结果是对象，检查是否有嵌套数组
       const values = Object.values(result)
       if (values.length === 1 && Array.isArray(values[0])) {
         // 如果对象只有一个属性且是数组，使用该数组
-        data = values[0]
+        const arr = values[0]
+        if (arr.length > 0 && typeof arr[0] === 'string') {
+          // 如果是字符串数组，根据工具类型使用对应字段名
+          data = arr.map(item => ({ [fieldName]: item }))
+        } else {
+          data = arr
+        }
       } else {
         // 否则将整个对象作为单行数据
         data = [result]
@@ -2011,19 +2100,24 @@ const exportToExcel = () => {
       try {
         const parsed = JSON.parse(result)
         if (Array.isArray(parsed)) {
-          data = parsed
+          if (parsed.length > 0 && typeof parsed[0] === 'string') {
+            // 如果是字符串数组，根据工具类型使用对应字段名
+            data = parsed.map(item => ({ [fieldName]: item }))
+          } else {
+            data = parsed
+          }
         } else if (typeof parsed === 'object' && parsed !== null) {
           data = [parsed]
         } else {
-          data = [{ value: parsed }]
+          data = [{ [fieldName]: parsed }]
         }
       } catch {
         // 如果不是有效的JSON，作为单个值导出
-        data = [{ value: result }]
+        data = [{ [fieldName]: result }]
       }
     } else {
       // 其他类型，包装为对象
-      data = [{ value: result }]
+      data = [{ [fieldName]: result }]
     }
 
     if (data.length === 0) {
@@ -2084,7 +2178,8 @@ const exportToExcel = () => {
     // 添加工作表到工作簿
     XLSX.utils.book_append_sheet(wb, ws, 'Sheet1')
 
-    // 生成中文文件名
+    // 生成文件名：用户名_工具类型_时间戳
+    const userName = userStore.user?.username || userStore.user?.first_name || '用户'
     const toolDisplayName = getToolDisplayName(currentTool.value?.name) || currentTool.value?.display_name || '导出数据'
     const timestamp = new Date().toLocaleString('zh-CN', {
       year: 'numeric',
@@ -2094,7 +2189,7 @@ const exportToExcel = () => {
       minute: '2-digit',
       second: '2-digit'
     }).replace(/[/:]/g, '-')
-    const filename = `${toolDisplayName}_${timestamp}.xlsx`
+    const filename = `${userName}_${toolDisplayName}_${timestamp}.xlsx`
 
     // 下载文件
     XLSX.writeFile(wb, filename)
@@ -2283,14 +2378,41 @@ const deleteRecord = async (record) => {
       return
     }
     console.error('Delete error:', error)
-    if (error.response && error.response.status === 404) {
-      ElMessage.error('记录不存在或已被删除')
-      // 重新获取数据
-      fetchHistory()
-    } else if (error.response && error.response.status === 403) {
-      ElMessage.error('无权删除此记录')
+    console.error('Error response:', error.response)
+    console.error('Error status:', error.response?.status)
+    console.error('Error data:', error.response?.data)
+
+    if (error.response) {
+      const status = error.response.status
+      const errorData = error.response.data
+      const errorMessage = errorData?.error || errorData?.detail || errorData?.message || ''
+
+      // 检查错误消息是否包含权限相关关键词
+      const isPermissionError = errorMessage.includes('无权') ||
+                                errorMessage.includes('权限') ||
+                                errorMessage.includes('只能删除自己') ||
+                                status === 403
+
+      if (status === 404) {
+        ElMessage.error('记录不存在或已被删除')
+        // 重新获取数据
+        fetchHistory()
+      } else if (isPermissionError) {
+        // 权限错误统一使用前端友好提示
+        ElMessage.error('只能删除自己创建的记录')
+      } else if (status === 400) {
+        ElMessage.error('删除失败：请求参数错误')
+      } else if (status === 500) {
+        ElMessage.error('服务器内部错误，请稍后重试')
+      } else {
+        // 其他错误统一使用前端友好提示
+        ElMessage.error('删除失败，请稍后重试')
+      }
+    } else if (error.request) {
+      // 请求已发出但没有收到响应
+      ElMessage.error('网络错误，请检查网络连接')
     } else {
-      ElMessage.error(t('dataFactory.history.deleteFailed'))
+      ElMessage.error('删除失败，请稍后重试')
     }
   }
 }
@@ -2371,12 +2493,40 @@ const exportRecord = (record) => {
     let data = []
     const result = record.output_data.result || record.output_data
 
+    // 根据记录的工具类型获取对应的字段名
+    const toolName = record.tool_name
+    const fieldMap = {
+      'generate_chinese_name': 'name',
+      'generate_chinese_phone': 'phone',
+      'generate_chinese_email': 'email',
+      'generate_chinese_address': 'address',
+      'generate_id_card': 'id_card',
+      'generate_company_name': 'company',
+      'random_uuid': 'uuid',
+      'random_password': 'password',
+      'random_string': 'string',
+      'random_mac_address': 'mac_address',
+      'random_ip_address': 'ip_address',
+      'random_sequence': 'sequence',
+      'mock_string': 'string'
+    }
+    const fieldName = fieldMap[toolName] || 'value'
+
     if (Array.isArray(result)) {
-      data = result
+      if (result.length > 0 && typeof result[0] === 'string') {
+        data = result.map(item => ({ [fieldName]: item }))
+      } else {
+        data = result
+      }
     } else if (typeof result === 'object' && result !== null) {
       const values = Object.values(result)
       if (values.length === 1 && Array.isArray(values[0])) {
-        data = values[0]
+        const arr = values[0]
+        if (arr.length > 0 && typeof arr[0] === 'string') {
+          data = arr.map(item => ({ [fieldName]: item }))
+        } else {
+          data = arr
+        }
       } else {
         data = [result]
       }
@@ -2384,17 +2534,21 @@ const exportRecord = (record) => {
       try {
         const parsed = JSON.parse(result)
         if (Array.isArray(parsed)) {
-          data = parsed
+          if (parsed.length > 0 && typeof parsed[0] === 'string') {
+            data = parsed.map(item => ({ [fieldName]: item }))
+          } else {
+            data = parsed
+          }
         } else if (typeof parsed === 'object' && parsed !== null) {
           data = [parsed]
         } else {
-          data = [{ value: parsed }]
+          data = [{ [fieldName]: parsed }]
         }
       } catch {
-        data = [{ value: result }]
+        data = [{ [fieldName]: result }]
       }
     } else {
-      data = [{ value: result }]
+      data = [{ [fieldName]: result }]
     }
 
     if (data.length === 0) {
@@ -2441,7 +2595,9 @@ const exportRecord = (record) => {
 
     XLSX.utils.book_append_sheet(wb, ws, 'Sheet1')
 
-    const userName = record.user_name || '未知用户'
+    // 生成文件名：用户名_工具类型_时间戳
+    const userName = userStore.user?.username || userStore.user?.first_name || record.user_name || '用户'
+    const toolDisplayName = getToolDisplayName(record.tool_name) || '导出数据'
     const timestamp = new Date().toLocaleString('zh-CN', {
       year: 'numeric',
       month: '2-digit',
@@ -2450,7 +2606,7 @@ const exportRecord = (record) => {
       minute: '2-digit',
       second: '2-digit'
     }).replace(/[/:]/g, '-')
-    const filename = `${userName}_${timestamp}.xlsx`
+    const filename = `${userName}_${toolDisplayName}_${timestamp}.xlsx`
 
     XLSX.writeFile(wb, filename)
     ElMessage.success(t('dataFactory.messages.exportSuccess'))
@@ -2514,6 +2670,54 @@ const editRecordName = (record) => {
   startEdit(record)
 }
 
+// 打开编辑记录对话框
+const editRecord = (record) => {
+  editingRecord.value = record
+  editForm.value.custom_name = record.custom_name || getToolDisplayName(record.tool_name) || record.tool_name
+  editDialogVisible.value = true
+}
+
+// 保存编辑记录
+const saveEditRecord = async () => {
+  if (!editingRecord.value) return
+  
+  const newName = editForm.value.custom_name.trim()
+  
+  if (!newName) {
+    ElMessage.warning('记录名称不能为空')
+    return
+  }
+  
+  if (newName === (editingRecord.value.custom_name || getToolDisplayName(editingRecord.value.tool_name))) {
+    editDialogVisible.value = false
+    return
+  }
+  
+  try {
+    await axios.patch(`/api/data-factory/${editingRecord.value.id}/`, {
+      custom_name: newName
+    })
+    
+    const index = historyRecords.value.findIndex(r => r.id === editingRecord.value.id)
+    if (index !== -1) {
+      historyRecords.value[index] = { ...historyRecords.value[index], custom_name: newName }
+    }
+    
+    ElMessage.success(t('dataFactory.history.editRecordNameSuccess'))
+    editDialogVisible.value = false
+  } catch (error) {
+    console.error('Edit record error:', error)
+    ElMessage.error(t('dataFactory.history.editRecordNameFailed'))
+  }
+}
+
+// 关闭编辑对话框
+const closeEditDialog = () => {
+  editDialogVisible.value = false
+  editingRecord.value = null
+  editForm.value.custom_name = ''
+}
+
 const calculatePercentage = (value, total) => {
   if (!total) return 0
   return Math.round((value / total) * 100)
@@ -2553,6 +2757,31 @@ const downloadImage = (result) => {
   link.click()
   document.body.removeChild(link)
   ElMessage.success(t('dataFactory.messages.downloadStarted'))
+}
+
+// 判断是否为图片结果
+const isImageResult = (data) => {
+  if (!data) return false
+  const result = data.result || data
+  return result.url || result.image_url || result.imageUrl ||
+         (result.format && ['png', 'jpg', 'jpeg', 'gif', 'webp'].includes(result.format.toLowerCase()))
+}
+
+// 判断是否为纯文本结果
+const isTextResult = (data) => {
+  if (!data) return false
+  const result = data.result || data
+  return typeof result === 'string' ||
+         (typeof result === 'object' && result.text !== undefined)
+}
+
+// 格式化输出数据
+const formatOutputData = (data) => {
+  if (!data) return ''
+  const result = data.result || data
+  if (typeof result === 'string') return result
+  if (result.text) return result.text
+  return JSON.stringify(result, null, 2)
 }
 
 watch(() => viewMode.value, (newVal) => {
@@ -3172,17 +3401,11 @@ onMounted(() => {
     }
     
     .record-name-text {
-      cursor: pointer;
-      padding: 4px 8px;
-      border-radius: 4px;
-      transition: all 0.2s ease;
+      color: #333;
+      font-size: 14px;
+      font-weight: 400;
+      line-height: 24px;
       display: inline-block;
-      min-width: 40px;
-      
-      &:hover {
-        background-color: rgba(123, 66, 246, 0.1);
-        color: #7b42f6;
-      }
     }
     
     .operation-buttons {
@@ -3211,7 +3434,7 @@ onMounted(() => {
   flex-direction: column;
   gap: 20px;
 
-  // 筛选栏
+  // 筛选栏 - 参考 XMindConverter 风格
   .filter-bar {
     padding: 20px 24px;
     background: #ffffff;
@@ -3252,9 +3475,18 @@ onMounted(() => {
       font-weight: 500;
 
       &:hover {
-        background: linear-gradient(135deg, #6933e0 0%, #4a2690 100%);
+        background: linear-gradient(135deg, #6d33e6 0%, #4a249c 100%);
         transform: translateY(-1px);
-        box-shadow: 0 4px 12px rgba(123, 66, 246, 0.3);
+        box-shadow: 0 4px 12px rgba(123, 66, 246, 0.4);
+      }
+
+      .el-icon {
+        color: #ffffff !important;
+        margin-right: 4px;
+      }
+
+      span {
+        color: #ffffff !important;
       }
     }
   }
@@ -3271,134 +3503,513 @@ onMounted(() => {
     padding: 20px;
   }
 
-  // 表格样式
+  // 表格样式 - 参考 XMindConverter 风格
   .history-card {
     :deep(.el-table) {
       border-radius: 8px;
       overflow: hidden;
+      --el-table-header-bg-color: #ffffff;
+      --el-table-row-hover-bg-color: #f8f7ff;
+      --el-table-stripe-bg-color: #fafaff;
+
+      &::before {
+        display: none;
+      }
+
+      // 表头样式
+      :deep(.el-table__header-wrapper) {
+        background-color: #ffffff !important;
+      }
+
+      :deep(.el-table__header) {
+        background-color: #ffffff !important;
+      }
 
       th.el-table__cell {
-        background: linear-gradient(135deg, #f8f7ff 0%, #f0edff 100%);
-        color: #5a32a3;
+        background-color: #ffffff !important;
+        color: #5a32a3 !important;
         font-weight: 600;
         font-size: 14px;
-        padding: 14px 0;
-      }
-
-      td.el-table__cell {
-        padding: 14px 0;
-        font-size: 14px;
-      }
-
-      .el-table__row {
+        border-bottom: 1px solid #e9ecef;
+        padding: 16px 0 !important;
+        text-align: center;
         transition: all 0.3s ease;
 
         &:hover {
-          background: linear-gradient(135deg, #f8f7ff 0%, #f0edff 100%);
+          background-color: #ffffff !important;
         }
+      }
+
+      :deep(th .cell) {
+        background-color: #ffffff !important;
+        color: #5a32a3 !important;
+        font-weight: 600 !important;
+        white-space: nowrap !important;
+        line-height: 24px !important;
+        padding: 16px !important;
+      }
+
+      // 表格行样式
+      :deep(.el-table__body-wrapper) {
+        background-color: #ffffff !important;
+      }
+
+      td.el-table__cell {
+        padding: 14px 16px;
+        border-bottom: 1px solid #e9ecef;
+        color: #333;
+        font-size: 14px;
+        font-weight: 400;
+        line-height: 24px;
+        transition: all 0.3s ease;
+        vertical-align: middle;
+      }
+
+      .el-table__row {
+        background-color: #ffffff !important;
+        transition: all 0.3s ease;
+        line-height: 24px;
+
+        &:hover {
+          background-color: #f8f7ff !important;
+        }
+
+        &.el-table__row--striped {
+          background-color: #fafaff !important;
+        }
+      }
+
+      // 空状态
+      :deep(.el-table__empty-block) {
+        padding: 60px 0;
+        background: #ffffff !important;
+      }
+
+      :deep(.el-table__empty-text) {
+        color: #666;
+        font-size: 14px;
+        line-height: 24px;
       }
     }
 
     .record-name-text {
-      color: #5a32a3;
-      font-weight: 500;
-      cursor: pointer;
-      transition: all 0.3s ease;
-
-      &:hover {
-        color: #7b42f6;
-        text-decoration: underline;
-      }
+      color: #333;
+      font-size: 14px;
+      font-weight: 400;
+      line-height: 24px;
     }
 
     .time-text {
       color: #666;
-      font-size: 13px;
+      font-size: 14px;
+      white-space: nowrap;
     }
 
-    // 操作按钮
+    // 操作按钮 - 参考 XMindConverter 风格
     .action-buttons {
       display: flex;
       justify-content: center;
-      gap: 8px;
+      align-items: center;
+      gap: 4px;
+      flex-wrap: nowrap;
 
       .action-btn {
         display: flex;
         align-items: center;
         gap: 4px;
-        padding: 6px 12px;
+        font-size: 12px;
+        font-weight: 500;
+        padding: 4px 10px !important;
         border-radius: 6px;
-        font-size: 13px;
         transition: all 0.3s ease;
+        min-width: auto !important;
+        width: auto !important;
+        border: none !important;
+
+        .el-icon {
+          font-size: 14px;
+          color: #ffffff !important;
+        }
+
+        span {
+          font-size: 12px;
+          color: #ffffff !important;
+        }
 
         &:hover {
           transform: translateY(-1px);
         }
 
         &.el-button--success {
-          background: linear-gradient(135deg, #67c23a 0%, #529b2e 100%);
-          border: none;
+          background: linear-gradient(135deg, #52c41a 0%, #389e0d 100%) !important;
 
           &:hover {
-            background: linear-gradient(135deg, #5cb82f 0%, #4a8a2a 100%);
-            box-shadow: 0 4px 12px rgba(103, 194, 58, 0.3);
+            background: linear-gradient(135deg, #73d13d 0%, #52c41a 100%) !important;
+            box-shadow: 0 4px 12px rgba(82, 196, 26, 0.4);
           }
         }
 
         &.el-button--danger {
-          background: linear-gradient(135deg, #f56c6c 0%, #c45656 100%);
-          border: none;
+          background: linear-gradient(135deg, #ff4d4f 0%, #f5222d 100%) !important;
 
           &:hover {
-            background: linear-gradient(135deg, #e64c4c 0%, #b34545 100%);
-            box-shadow: 0 4px 12px rgba(245, 108, 108, 0.3);
+            background: linear-gradient(135deg, #ff7875 0%, #ff4d4f 100%) !important;
+            box-shadow: 0 4px 12px rgba(245, 34, 45, 0.4);
+          }
+        }
+
+        &.edit-btn {
+          background: linear-gradient(135deg, #7b42f6 0%, #5a32a3 100%) !important;
+
+          &:hover {
+            background: linear-gradient(135deg, #6d33e6 0%, #4a249c 100%) !important;
+            box-shadow: 0 4px 12px rgba(123, 66, 246, 0.4);
           }
         }
       }
     }
   }
 
-  // 分页
-  .pagination-container {
-    margin-top: 20px;
-    padding-top: 20px;
-    border-top: 1px solid rgba(147, 112, 219, 0.1);
-    display: flex;
-    justify-content: flex-end;
+  // 编辑记录对话框样式
+  .edit-record-dialog {
+    :deep(.el-dialog__header) {
+      background: linear-gradient(135deg, #f8f7ff 0%, #f0edff 100%);
+      border-bottom: 1px solid rgba(147, 112, 219, 0.12);
+      padding: 20px 24px;
+      margin-right: 0;
 
-    :deep(.el-pagination) {
-      .el-pagination__total {
+      .el-dialog__title {
         color: #5a32a3;
-        font-weight: 500;
+        font-weight: 600;
+        font-size: 18px;
       }
+    }
 
-      .el-pagination__sizes {
-        .el-input__wrapper {
-          border-color: rgba(147, 112, 219, 0.3);
+    :deep(.el-dialog__body) {
+      padding: 24px;
+    }
+
+    :deep(.el-dialog__footer) {
+      border-top: 1px solid rgba(147, 112, 219, 0.12);
+      padding: 16px 24px;
+
+      .el-button {
+        border-radius: 6px;
+        padding: 8px 20px;
+        font-weight: 500;
+
+        &:first-child {
+          border-color: #d9d9d9;
+          color: #595959;
 
           &:hover {
             border-color: #7b42f6;
+            color: #7b42f6;
+          }
+        }
+
+        &:last-child {
+          background: linear-gradient(135deg, #7b42f6 0%, #5a32a3 100%);
+          border: none;
+
+          &:hover {
+            background: linear-gradient(135deg, #6d33e6 0%, #4a249c 100%);
+            box-shadow: 0 4px 12px rgba(123, 66, 246, 0.4);
+          }
+        }
+      }
+    }
+
+    .el-form {
+      .el-form-item {
+        margin-bottom: 20px;
+
+        &:last-child {
+          margin-bottom: 0;
+        }
+
+        :deep(.el-form-item__label) {
+          color: #5a32a3;
+          font-weight: 500;
+        }
+
+        .el-input {
+          :deep(.el-input__wrapper) {
+            border-radius: 8px;
+            border: 1px solid rgba(147, 112, 219, 0.2);
+            box-shadow: none;
+
+            &:hover,
+            &.is-focus {
+              border-color: #7b42f6;
+              box-shadow: 0 0 0 3px rgba(123, 66, 246, 0.1);
+            }
+          }
+
+          :deep(.el-input__inner) {
+            color: #333;
+            font-weight: 500;
+          }
+
+          :deep(.el-input__count) {
+            color: #999;
+          }
+        }
+      }
+    }
+
+    .record-info-text {
+      color: #666;
+      font-size: 14px;
+      line-height: 32px;
+    }
+
+    // 测试数据预览样式
+    .data-preview-item {
+      :deep(.el-form-item__content) {
+        width: calc(100% - 100px);
+        display: block;
+        line-height: 32px;
+        vertical-align: top;
+        padding-top: 0;
+      }
+
+      :deep(.el-form-item__label) {
+        vertical-align: top;
+        padding-top: 0;
+        line-height: 32px;
+      }
+    }
+
+    .data-preview-container {
+      width: 100%;
+      max-height: 300px;
+      overflow: auto;
+      background: transparent;
+      border: none;
+      padding: 0;
+      line-height: 32px;
+
+      .image-preview {
+        display: flex;
+        justify-content: flex-start;
+        align-items: center;
+        padding: 4px 0;
+
+        img {
+          max-width: 100%;
+          max-height: 250px;
+          border-radius: 6px;
+          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+      }
+
+      .text-preview,
+      .json-preview {
+        display: flex;
+        align-items: flex-start;
+        min-height: 32px;
+
+        pre {
+          margin: 0;
+          padding: 0;
+          font-family: 'Monaco', 'Menlo', 'Consolas', monospace;
+          font-size: 14px;
+          line-height: 32px;
+          color: #333;
+          white-space: pre-wrap;
+          word-wrap: break-word;
+          background: transparent;
+          border: none;
+          display: block;
+          width: 100%;
+        }
+      }
+    }
+  }
+
+  // 分页 - 参考 XMindConverter 风格
+  .pagination-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 16px 0;
+    margin-top: 8px;
+    background: transparent;
+    border: none;
+    transition: all 0.3s ease;
+
+    /* 定义主题变量 - 浅紫色风格 */
+    --primary-color: #a78bfa;
+    --primary-dark: #8b5cf6;
+    --primary-light: #f3f0ff;
+    --text-primary: #262626;
+    --text-secondary: #595959;
+    --text-tertiary: #8c8c8c;
+
+    /* 覆盖 Element Plus 默认主题变量 */
+    --el-color-primary: var(--primary-color);
+    --el-color-primary-light-3: #c4b5fd;
+    --el-color-primary-light-5: #ddd6fe;
+    --el-color-primary-light-7: #ede9fe;
+    --el-color-primary-light-9: #f5f3ff;
+    --el-border-color: rgba(167, 139, 250, 0.3);
+    --el-border-color-light: rgba(167, 139, 250, 0.2);
+    --el-border-color-lighter: rgba(167, 139, 250, 0.1);
+    --el-fill-color-light: #f5f3ff;
+    --el-fill-color-lighter: #f5f3ff;
+    --el-fill-color-blank: #f5f3ff;
+    --el-text-color-primary: var(--text-primary);
+    --el-text-color-regular: var(--text-secondary);
+    --el-text-color-secondary: var(--text-tertiary);
+
+    :deep(.el-pagination) {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      font-weight: 500;
+
+      // 总条数
+      .el-pagination__total {
+        color: #6b7280;
+        font-size: 14px;
+        font-weight: 500;
+        margin-right: 12px;
+      }
+
+      // 每页条数选择器
+      .el-pagination__sizes {
+        margin-right: 12px;
+
+        .el-select {
+          .el-input__wrapper {
+            border-radius: 8px;
+            border: 1px solid #e5e7eb;
+            background: #ffffff;
+            box-shadow: none;
+
+            &:hover {
+              border-color: #a78bfa;
+              box-shadow: 0 0 0 3px rgba(167, 139, 250, 0.1);
+            }
+
+            &.is-focus {
+              border-color: #a78bfa;
+              box-shadow: 0 0 0 3px rgba(167, 139, 250, 0.15);
+            }
+          }
+
+          .el-input__inner {
+            color: #374151;
+            font-weight: 500;
           }
         }
       }
 
-      .el-pager li {
-        border-radius: 6px;
+      // 上一页/下一页按钮
+      .btn-prev,
+      .btn-next {
+        width: 32px;
+        height: 32px;
+        border-radius: 8px;
+        border: 1px solid #e5e7eb;
+        background: #ffffff;
+        color: #6b7280;
         transition: all 0.3s ease;
 
-        &.is-active,
-        &:hover {
-          background: linear-gradient(135deg, #7b42f6 0%, #5a32a3 100%);
-          color: #fff;
+        &:hover:not(:disabled) {
+          background: #f5f3ff;
+          border-color: #a78bfa;
+          color: #8b5cf6;
+          transform: translateY(-1px);
+          box-shadow: 0 2px 8px rgba(167, 139, 250, 0.2);
+        }
+
+        &:disabled {
+          background: #f5f5f5;
+          border-color: #e0e0e0;
+          color: #c0c0c0;
+        }
+
+        .el-icon {
+          font-size: 14px;
+          font-weight: bold;
         }
       }
 
-      .btn-prev,
-      .btn-next {
-        border-radius: 6px;
+      // 页码按钮
+      .el-pager {
+        display: flex;
+        gap: 8px;
 
-        &:hover {
-          color: #7b42f6;
+        li {
+          min-width: 32px;
+          height: 32px;
+          padding: 0 8px;
+          border-radius: 8px;
+          border: 1px solid #d1d5db;
+          background: #ffffff;
+          color: #6b7280;
+          font-size: 14px;
+          font-weight: 500;
+          transition: all 0.3s ease;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+
+          &:hover:not(.is-active) {
+            background: #f5f3ff;
+            border-color: #a78bfa;
+            color: #8b5cf6;
+            transform: translateY(-1px);
+          }
+
+          &.is-active {
+            background: #f5f3ff;
+            border-color: #a78bfa;
+            color: #8b5cf6;
+            box-shadow: 0 2px 8px rgba(167, 139, 250, 0.2);
+          }
+
+          &.is-active:hover {
+            background: #ede9fe;
+            border-color: #8b5cf6;
+          }
+        }
+      }
+
+      // 跳转输入框
+      .el-pagination__jump {
+        color: #6b7280;
+        font-weight: 500;
+        margin-left: 12px;
+
+        .el-input {
+          width: 50px;
+          margin: 0 4px;
+
+          .el-input__wrapper {
+            border-radius: 8px;
+            border: 1px solid #e5e7eb;
+            background: #ffffff;
+            box-shadow: none;
+
+            &:hover {
+              border-color: #a78bfa;
+              box-shadow: 0 0 0 3px rgba(167, 139, 250, 0.1);
+            }
+
+            &.is-focus {
+              border-color: #a78bfa;
+              box-shadow: 0 0 0 3px rgba(167, 139, 250, 0.15);
+            }
+          }
+
+          .el-input__inner {
+            color: #374151;
+            font-weight: 500;
+            text-align: center;
+          }
         }
       }
     }

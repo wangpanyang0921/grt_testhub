@@ -82,6 +82,13 @@ class DataFactoryViewSet(viewsets.ModelViewSet):
         if tool_category:
             queryset = queryset.filter(tool_category=tool_category)
 
+        # 支持search参数搜索记录名称（custom_name或tool_name）
+        search = self.request.query_params.get('search')
+        if search:
+            queryset = queryset.filter(
+                Q(custom_name__icontains=search) | Q(tool_name__icontains=search)
+            )
+
         return queryset
 
     def list(self, request, *args, **kwargs):
@@ -91,7 +98,7 @@ class DataFactoryViewSet(viewsets.ModelViewSet):
             query_params = request.query_params.copy()
             query_params.pop('_t', None)  # 移除时间戳参数
             
-            cache_key = f'data_factory_history_{request.user.id}_{query_params.get("page", 1)}_{query_params.get("page_size", 10)}_{query_params.get("tool_category", "")}_{query_params.get("tool_name__icontains", "")}_{query_params.get("tags__contains", "")}'
+            cache_key = f'data_factory_history_{request.user.id}_{query_params.get("page", 1)}_{query_params.get("page_size", 10)}_{query_params.get("tool_category", "")}_{query_params.get("tool_name__icontains", "")}_{query_params.get("tags__contains", "")}_{query_params.get("search", "")}'
             
             # 检查缓存，但如果有时间戳参数则不使用缓存
             if '_t' not in request.query_params:
