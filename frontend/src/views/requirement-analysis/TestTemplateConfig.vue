@@ -4,17 +4,23 @@
     <div class="page-header">
       <div class="header-left">
         <h2>测试模板配置</h2>
-        <p class="subtitle">配置测试用例生成的模板，让系统更好地理解您的业务需求</p>
+
       </div>
       <div class="header-actions">
         <el-button type="primary" @click="handleAdd" :icon="Plus">
           新建模板
         </el-button>
         <el-button @click="handleInitEducationTemplates" :icon="Collection" :loading="initLoading">
-          初始化职业教育模板
+          初始化模板
         </el-button>
         <el-button @click="handleTestMatch" :icon="Search">
           测试匹配
+        </el-button>
+        <el-button type="success" @click="handleExport" :icon="Download">
+          导出数据
+        </el-button>
+        <el-button type="warning" @click="handleImport" :icon="Upload">
+          导入数据
         </el-button>
       </div>
     </div>
@@ -87,13 +93,17 @@
     <div class="card-container history-card">
       <el-table :data="templates" v-loading="loading" stripe>
         <el-table-column type="index" label="序号" width="84" header-align="center" align="center" />
-        <el-table-column prop="name" label="模板名称" min-width="150" show-overflow-tooltip header-align="center" />
+        <el-table-column prop="name" label="模板名称" min-width="150" header-align="center" align="center">
+          <template #default="{ row }">
+            <span class="cell-content">{{ row.name }}</span>
+          </template>
+        </el-table-column>
         <el-table-column prop="template_type_display" label="类型" width="140" header-align="center" align="center" />
         <el-table-column prop="module_category" label="业务模块" width="115" header-align="center" align="center" />
         <el-table-column prop="keywords_list" label="匹配关键词" width="240" header-align="center">
           <template #default="{ row }">
             <el-tooltip
-              :content="row.keywords_list.join(', ')"
+              :content="row.keywords_list.join(' / ')"
               placement="top"
               :disabled="row.keywords_list.length <= 3"
             >
@@ -416,6 +426,154 @@
       </template>
     </el-dialog>
 
+    <!-- 导入数据对话框 -->
+    <el-dialog
+      v-model="importVisible"
+      title="导入模板数据"
+      width="1200px"
+      :close-on-click-modal="false"
+    >
+      <div class="import-container">
+        <!-- 模板下载提示 - 有数据预览时隐藏 -->
+        <div v-if="importPreview.length === 0" class="template-download-section">
+          <div class="download-info">
+            <el-icon class="info-icon"><InfoFilled /></el-icon>
+            <div class="info-text">
+              <div class="info-title">首次导入？请先下载模板</div>
+              <div class="info-desc">下载模板文件，按照格式填写后上传</div>
+            </div>
+          </div>
+          <el-button type="primary" @click="downloadTemplate" :icon="Download">
+            下载导入模板
+          </el-button>
+        </div>
+
+        <!-- 文件上传 - 有数据预览时隐藏 -->
+        <el-upload
+          v-if="importPreview.length === 0"
+          class="upload-area"
+          drag
+          action="#"
+          :auto-upload="false"
+          :on-change="handleFileChange"
+          :show-file-list="false"
+          accept=".xlsx,.xls"
+        >
+          <el-icon class="el-icon--upload"><Upload /></el-icon>
+          <div class="el-upload__text">
+            拖拽文件到此处或 <em>点击上传</em>
+          </div>
+
+        </el-upload>
+
+        <!-- 导入统计 -->
+        <div v-if="importStats.total > 0" class="import-stats">
+          <el-row :gutter="20">
+            <el-col :span="8">
+              <div class="stat-item">
+                <div class="stat-value">{{ importStats.total }}</div>
+                <div class="stat-label">总数据</div>
+              </div>
+            </el-col>
+            <el-col :span="8">
+              <div class="stat-item valid">
+                <div class="stat-value">{{ importStats.valid }}</div>
+                <div class="stat-label">有效数据</div>
+              </div>
+            </el-col>
+            <el-col :span="8">
+              <div class="stat-item invalid">
+                <div class="stat-value">{{ importStats.invalid }}</div>
+                <div class="stat-label">有问题</div>
+              </div>
+            </el-col>
+          </el-row>
+        </div>
+
+        <!-- 数据预览 -->
+        <div v-if="importPreview.length > 0" class="import-preview">
+          <div class="preview-header">
+            <span class="preview-title">数据预览</span>
+            <span class="preview-subtitle">共 {{ importPreview.length }} 条</span>
+          </div>
+          <el-table :data="importPreview" height="300" size="small" header-align="center">
+            <el-table-column type="index" label="行号" width="80" align="center" header-align="center">
+              <template #default="{ row }">
+                <span :class="{ 'text-danger': !row.valid }">{{ row.rowNum }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column prop="name" label="模板名称" min-width="180" align="center" header-align="center">
+              <template #default="{ row }">
+                <span class="cell-content">{{ row.name }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column prop="template_type" label="类型" width="120" align="center" header-align="center">
+              <template #default="{ row }">
+                <span class="cell-content">{{ getTypeLabel(row.template_type) }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column prop="module_category" label="业务模块" width="120" align="center" header-align="center">
+              <template #default="{ row }">
+                <span class="cell-content">{{ row.module_category }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column prop="keywords" label="关键词" min-width="200" align="center" header-align="center">
+              <template #default="{ row }">
+                <el-tooltip
+                  v-if="row.keywords"
+                  :content="row.keywords.replace(/[,/]/g, ' / ')"
+                  placement="top"
+                  :disabled="row.keywords.split(/[,/]/).length <= 3"
+                >
+                  <div class="keywords-cell">
+                    <el-tag
+                      v-for="(keyword, index) in row.keywords.split(/[,/]/).slice(0, 3)"
+                      :key="index"
+                      size="small"
+                      class="keyword-tag"
+                    >
+                      {{ keyword.trim() }}
+                    </el-tag>
+                    <el-tag
+                      v-if="row.keywords.split(/[,/]/).length > 3"
+                      size="small"
+                      class="keyword-tag more-tag"
+                    >
+                      +{{ row.keywords.split(/[,/]/).length - 3 }}
+                    </el-tag>
+                  </div>
+                </el-tooltip>
+                <span v-else>-</span>
+              </template>
+            </el-table-column>
+            <el-table-column prop="priority" label="优先级" width="90" align="center" header-align="center" />
+            <el-table-column label="状态" width="100" align="center" header-align="center">
+              <template #default="{ row }">
+                <el-tag :type="row.is_active ? 'success' : 'info'" size="small">
+                  {{ row.is_active ? '已启用' : '已禁用' }}
+                </el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column label="校验" width="100" align="center" header-align="center">
+              <template #default="{ row }">
+                <el-tag v-if="row.valid" type="success" size="small">通过</el-tag>
+                <el-tooltip v-else :content="row.errors.join('; ')" placement="top">
+                  <el-tag type="danger" size="small">失败</el-tag>
+                </el-tooltip>
+              </template>
+            </el-table-column>
+          </el-table>
+        </div>
+      </div>
+
+      <template #footer>
+        <el-button @click="importVisible = false">取消</el-button>
+        <el-button type="primary" @click="confirmImport" :loading="importLoading" :disabled="importStats.valid === 0">
+          确认导入（{{ importStats.valid }}）
+        </el-button>
+      </template>
+    </el-dialog>
+
     <!-- 详情对话框 -->
     <el-dialog
       v-model="detailVisible"
@@ -458,8 +616,8 @@
               <pre>{{ detailData.content.precondition || detailData.content }}</pre>
             </template>
             <template v-else-if="Array.isArray(detailData.content)">
-              <div v-for="(item, index) in detailData.content" :key="index" class="detail-content-item">
-                {{ index + 1 }}. {{ item }}
+              <div v-for="(item, idx) in detailData.content" :key="idx" class="detail-content-item">
+                {{ Number(idx) + 1 }}. {{ item }}
               </div>
             </template>
             <template v-else>
@@ -480,9 +638,10 @@
 import { ref, reactive, onMounted, computed, watch, nextTick } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
-  Plus, Collection, Search, Edit, Delete, InfoFilled, View, Folder
+  Plus, Collection, Search, Edit, Delete, InfoFilled, View, Folder, Download, Upload
 } from '@element-plus/icons-vue'
 import axios from 'axios'
+import * as XLSX from 'xlsx'
 
 // 状态
 const loading = ref(false)
@@ -535,6 +694,17 @@ const contentList = ref([''])
 const preconditionText = ref('')
 const contentTagsListRef = ref(null)
 const contentTagRefs = ref([])
+
+// 导入相关
+const importVisible = ref(false)
+const importLoading = ref(false)
+const importFile = ref(null)
+const importPreview = ref([])
+const importStats = reactive({
+  total: 0,
+  valid: 0,
+  invalid: 0
+})
 
 // 测试匹配
 const testMatchText = ref('')
@@ -705,7 +875,7 @@ const handleAdd = () => {
 const handleEdit = (row) => {
   isEdit.value = true
   Object.assign(form, row)
-  form.keywords = row.keywords_list ? row.keywords_list.join(',') : row.keywords
+  form.keywords = row.keywords_list ? row.keywords_list.join('/') : row.keywords
 
   if (row.template_type === 'test_point' || row.template_type === 'test_scenario') {
     contentList.value = Array.isArray(row.content) ? [...row.content] : ['']
@@ -789,6 +959,455 @@ const handleTestMatch = () => {
   testMatchType.value = ''
   testMatchResult.value = null
   testMatchVisible.value = true
+}
+
+// 导出数据
+const handleExport = async () => {
+  try {
+    loading.value = true
+
+    // 获取所有数据（不分页）
+    const params = {
+      page: 1,
+      page_size: 10000 // 获取大量数据
+    }
+    if (searchKeyword.value) params.keyword = searchKeyword.value
+    if (filterType.value) params.template_type = filterType.value
+    if (filterModule.value) params.module_category = filterModule.value
+    if (filterActive.value !== null) params.is_active = filterActive.value
+
+    const response = await axios.get('/api/requirement-analysis/test-templates/', { params })
+    const allTemplates = response.data.results || response.data
+
+    if (allTemplates.length === 0) {
+      ElMessage.warning('没有数据可导出')
+      loading.value = false
+      return
+    }
+
+    // 创建工作簿
+    const workbook = XLSX.utils.book_new()
+
+    // 准备Excel数据
+    const worksheetData = [
+      ['序号', '模板名称', '模板类型', '业务模块', '匹配关键词', '优先级', '状态', '创建时间', '模板内容']
+    ]
+
+    allTemplates.forEach((template, index) => {
+      const keywords = template.keywords_list ? template.keywords_list.join(' / ') : template.keywords
+      const status = template.is_active ? '已启用' : '已禁用'
+      const createTime = formatDateTime(template.created_at)
+
+      // 处理模板内容（使用\r\n换行符以兼容Excel）
+      let content = ''
+      if (template.content) {
+        if (Array.isArray(template.content)) {
+          content = template.content.join('\r\n')
+        } else if (typeof template.content === 'object') {
+          // 对于前置条件类型的JSON对象，提取precondition字段的值
+          if (template.content.precondition) {
+            content = String(template.content.precondition)
+          } else {
+            content = JSON.stringify(template.content, null, 2)
+          }
+        } else {
+          content = String(template.content)
+        }
+      }
+
+      worksheetData.push([
+        index + 1,
+        template.name || '',
+        template.template_type_display || getTypeLabel(template.template_type),
+        template.module_category || '',
+        keywords,
+        template.priority || 100,
+        status,
+        createTime,
+        content
+      ])
+    })
+
+    // 创建工作表
+    const worksheet = XLSX.utils.aoa_to_sheet(worksheetData)
+
+    // 设置列宽
+    const colWidths = [
+      { wch: 8 },   // 序号
+      { wch: 25 },  // 模板名称
+      { wch: 15 },  // 模板类型
+      { wch: 15 },  // 业务模块
+      { wch: 30 },  // 匹配关键词
+      { wch: 10 },  // 优先级
+      { wch: 10 },  // 状态
+      { wch: 20 },  // 创建时间
+      { wch: 50 }   // 模板内容
+    ]
+    worksheet['!cols'] = colWidths
+
+    // 设置行高自适应（根据模板内容列的换行符数量）
+    worksheet['!rows'] = worksheetData.map((row, index) => {
+      const content = row[8] || '' // 模板内容在第9列（索引8）
+      // 处理\r\n和\n两种换行符
+      const normalizedContent = String(content).replace(/\r\n/g, '\n')
+      const lineCount = normalizedContent.split('\n').length
+      return { hpt: Math.max(18, lineCount * 15) } // 最小18pt，每行15pt
+    })
+
+    // 设置模板内容列的单元格样式（自动换行）
+    for (let row = 1; row < worksheetData.length; row++) {
+      const cellAddress = XLSX.utils.encode_cell({ r: row, c: 8 }) // 第9列是模板内容
+      if (worksheet[cellAddress]) {
+        worksheet[cellAddress].s = {
+          alignment: { wrapText: true, vertical: 'top', horizontal: 'left' }
+        }
+      }
+    }
+
+    // 设置所有列的默认样式（确保WPS正确识别）
+    for (let row = 0; row < worksheetData.length; row++) {
+      for (let col = 0; col < worksheetData[0].length; col++) {
+        const cellAddress = XLSX.utils.encode_cell({ r: row, c: col })
+        if (worksheet[cellAddress] && !worksheet[cellAddress].s) {
+          worksheet[cellAddress].s = {
+            alignment: { vertical: 'center' }
+          }
+        }
+      }
+    }
+
+    // 添加工作表到工作簿
+    XLSX.utils.book_append_sheet(workbook, worksheet, '测试模板配置')
+
+    // 生成文件名
+    const timestamp = new Date().toISOString().slice(0, 10)
+    const fileName = `测试模板配置_${timestamp}.xlsx`
+
+    // 导出文件
+    XLSX.writeFile(workbook, fileName)
+
+    ElMessage.success(`成功导出 ${allTemplates.length} 条数据`)
+  } catch (error) {
+    console.error('导出失败:', error)
+    ElMessage.error('导出失败: ' + (error.message || '未知错误'))
+  } finally {
+    loading.value = false
+  }
+}
+
+// 导入数据
+const handleImport = () => {
+  importVisible.value = true
+  importFile.value = null
+  importPreview.value = []
+  importStats.total = 0
+  importStats.valid = 0
+  importStats.invalid = 0
+}
+
+// 下载导入模板
+const downloadTemplate = () => {
+  // 创建工作簿
+  const workbook = XLSX.utils.book_new()
+
+  // 准备模板数据（直接显示表头）
+  const worksheetData = [
+    ['模板名称', '模板类型', '业务模块', '匹配关键词', '优先级', '状态', '模板内容']
+  ]
+
+  // 创建工作表
+  const worksheet = XLSX.utils.aoa_to_sheet(worksheetData)
+
+  // 设置列宽
+  const colWidths = [
+    { wch: 25 },  // 模板名称
+    { wch: 15 },  // 模板类型
+    { wch: 15 },  // 业务模块
+    { wch: 30 },  // 匹配关键词
+    { wch: 10 },  // 优先级
+    { wch: 10 },  // 状态
+    { wch: 50 }   // 模板内容
+  ]
+  worksheet['!cols'] = colWidths
+
+  // 设置表头样式
+  for (let col = 0; col < worksheetData[0].length; col++) {
+    const cellAddress = XLSX.utils.encode_cell({ r: 0, c: col })
+    if (!worksheet[cellAddress]) continue
+    worksheet[cellAddress].s = {
+      font: { bold: true, color: { rgb: 'FFFFFF' } },
+      fill: { fgColor: { rgb: '7B42F6' } },
+      alignment: { horizontal: 'center', vertical: 'center' }
+    }
+  }
+
+  // 添加说明工作表
+  const helpData = [
+    ['字段说明'],
+    [''],
+    ['模板名称', '必填，模板的名称，如"课程管理测试点"'],
+    ['模板类型', '必填，可选值：测试点模板、测试场景模板、测试步骤模板、前置条件模板'],
+    ['业务模块', '必填，模板所属的业务模块，如"课程管理"'],
+    ['匹配关键词', '必填，用/分隔的关键词，用于匹配需求文档'],
+    ['优先级', '选填，数字越小优先级越高，默认100'],
+    ['状态', '选填，可选值：已启用、已禁用，默认已启用'],
+    ['模板内容', '必填，测试点/场景类型每行一个；前置条件类型直接输入文本'],
+    [''],
+    ['模板内容格式说明'],
+    ['测试点模板/测试场景模板', '每行一个测试点或场景，如：\n课程发布流程验证\n章节顺序编排验证'],
+    ['前置条件模板', '直接输入文本，每行一个前置条件，如：\n1. 系统正常运行\n2. 教师账号已登录\n3. 课程分类已配置'],
+    [''],
+    ['注意事项'],
+    ['1. 请勿修改表头名称'],
+    ['2. 模板名称和类型不能为空'],
+    ['3. 建议先导出已有数据参考格式'],
+    ['4. 模板类型必须是以下之一：测试点模板、测试场景模板、测试步骤模板、前置条件模板']
+  ]
+  const helpSheet = XLSX.utils.aoa_to_sheet(helpData)
+  helpSheet['!cols'] = [{ wch: 25 }, { wch: 80 }]
+
+  // 设置行高自适应
+  helpSheet['!rows'] = helpData.map((row, index) => {
+    // 根据内容中的换行符数量计算行高
+    const maxLines = Math.max(
+      ...row.map(cell => {
+        const cellText = String(cell || '')
+        const lineCount = cellText.split('\n').length
+        return lineCount
+      })
+    )
+    return { hpt: Math.max(18, maxLines * 15) } // 最小18pt，每行15pt
+  })
+
+  // 设置说明表头样式
+  const helpHeaderCell = XLSX.utils.encode_cell({ r: 0, c: 0 })
+  if (helpSheet[helpHeaderCell]) {
+    helpSheet[helpHeaderCell].s = {
+      font: { bold: true, size: 14, color: { rgb: 'FFFFFF' } },
+      fill: { fgColor: { rgb: '7B42F6' } },
+      alignment: { horizontal: 'center' }
+    }
+  }
+  // 设置字段说明标题样式
+  const fieldTitleCell = XLSX.utils.encode_cell({ r: 10, c: 0 })
+  if (helpSheet[fieldTitleCell]) {
+    helpSheet[fieldTitleCell].s = {
+      font: { bold: true, size: 12, color: { rgb: 'FFFFFF' } },
+      fill: { fgColor: { rgb: '52C41A' } },
+      alignment: { horizontal: 'center' }
+    }
+  }
+
+  // 添加工作表到工作簿
+  XLSX.utils.book_append_sheet(workbook, worksheet, '模板数据')
+  XLSX.utils.book_append_sheet(workbook, helpSheet, '填写说明')
+
+  // 生成文件名
+  const fileName = `测试模板导入模板_${new Date().toISOString().slice(0, 10)}.xlsx`
+
+  // 导出文件
+  XLSX.writeFile(workbook, fileName)
+
+  ElMessage.success('模板下载成功，请按照说明填写后上传')
+}
+
+// 处理文件选择
+const handleFileChange = (file) => {
+  importFile.value = file
+  parseExcel(file.raw)
+}
+
+// 解析Excel文件
+const parseExcel = async (file) => {
+  // 先获取系统中已有的模板名称
+  let existingNames = new Set()
+  try {
+    const response = await axios.get('/api/requirement-analysis/test-templates/', { params: { page_size: 1000 } })
+    const templates = response.data.results || response.data
+    existingNames = new Set(templates.map(t => t.name))
+    console.log('系统中已有模板名称:', Array.from(existingNames))
+  } catch (error) {
+    console.error('获取现有模板失败:', error)
+  }
+
+  const reader = new FileReader()
+  reader.onload = (e) => {
+    try {
+      const result = e.target?.result
+      if (!result || typeof result === 'string') {
+        ElMessage.error('文件读取失败')
+        return
+      }
+      const data = new Uint8Array(result)
+      const workbook = XLSX.read(data, { type: 'array' })
+      const firstSheet = workbook.Sheets[workbook.SheetNames[0]]
+      const jsonData = XLSX.utils.sheet_to_json(firstSheet, { header: 1 })
+
+      if (jsonData.length < 2) {
+        ElMessage.warning('Excel文件没有数据')
+        return
+      }
+
+      // 解析表头（第1行是表头）
+      const headers = jsonData[0]
+      const rows = jsonData.slice(1)
+
+      const parsed = []
+      let validCount = 0
+      let invalidCount = 0
+      const nameSet = new Set() // 用于检测Excel内重复的模板名称
+
+      rows.forEach((row, idx) => {
+        // 跳过空行（所有单元格都为空）
+        if (!row || row.every(cell => !cell)) return
+
+        const item = {
+          rowNum: idx + 2,
+          valid: true,
+          errors: []
+        }
+
+        // 解析每一列
+        headers.forEach((header, colIdx) => {
+          const value = row[colIdx]
+          switch (header) {
+            case '模板名称':
+              item.name = value ? String(value).trim() : ''
+              if (!item.name) {
+                item.valid = false
+                item.errors.push('模板名称不能为空')
+              } else if (nameSet.has(item.name)) {
+                item.valid = false
+                item.errors.push(`模板名称"${item.name}"在Excel中重复`)
+              } else if (existingNames.has(item.name)) {
+                item.valid = false
+                item.errors.push(`模板名称"${item.name}"已存在于系统中`)
+              } else {
+                nameSet.add(item.name)
+              }
+              break
+            case '模板类型':
+              const typeMap = {
+                '测试点模板': 'test_point',
+                '测试场景模板': 'test_scenario',
+                '测试步骤模板': 'test_step',
+                '前置条件模板': 'precondition'
+              }
+              item.template_type = typeMap[value] || value
+              if (!item.template_type) {
+                item.valid = false
+                item.errors.push('模板类型不能为空')
+              }
+              break
+            case '业务模块':
+              item.module_category = value ? String(value).trim() : ''
+              if (!item.module_category) {
+                item.valid = false
+                item.errors.push('业务模块不能为空')
+              }
+              break
+            case '匹配关键词':
+              item.keywords = value ? String(value).trim() : ''
+              if (!item.keywords) {
+                item.valid = false
+                item.errors.push('匹配关键词不能为空')
+              }
+              break
+            case '优先级':
+              item.priority = parseInt(value) || 100
+              break
+            case '状态':
+              // 默认为已启用，只有明确填写"已禁用"时才禁用
+              item.is_active = value !== '已禁用'
+              break
+            case '模板内容':
+              if (value) {
+                const contentStr = String(value).trim()
+                // 根据模板类型处理内容
+                if (item.template_type === 'precondition') {
+                  // 前置条件类型：纯文本自动包装为JSON格式
+                  item.content = { precondition: contentStr }
+                } else if (contentStr.startsWith('{')) {
+                  // 尝试解析为JSON（其他可能的JSON类型）
+                  try {
+                    item.content = JSON.parse(contentStr)
+                  } catch {
+                    // 如果不是JSON，按行分割为数组
+                    item.content = contentStr.split(/\r?\n/).filter(line => line.trim())
+                  }
+                } else {
+                  // 按行分割为数组（测试点/场景类型）
+                  item.content = contentStr.split(/\r?\n/).filter(line => line.trim())
+                }
+              } else {
+                item.content = []
+              }
+              if (!item.content || (Array.isArray(item.content) && item.content.length === 0)) {
+                item.valid = false
+                item.errors.push('模板内容不能为空')
+              }
+              break
+          }
+        })
+
+        if (item.valid) validCount++
+        else invalidCount++
+
+        parsed.push(item)
+      })
+
+      importPreview.value = parsed
+      importStats.total = parsed.length
+      importStats.valid = validCount
+      importStats.invalid = invalidCount
+
+      if (invalidCount > 0) {
+        ElMessage.warning(`发现 ${invalidCount} 条数据有问题，请检查后再导入`)
+      } else {
+        ElMessage.success(`成功解析 ${validCount} 条数据`)
+      }
+    } catch (error) {
+      console.error('解析Excel失败:', error)
+      ElMessage.error('解析Excel失败: ' + error.message)
+    }
+  }
+  reader.readAsArrayBuffer(file)
+}
+
+// 确认导入
+const confirmImport = async () => {
+  const validItems = importPreview.value.filter(item => item.valid)
+  if (validItems.length === 0) {
+    ElMessage.warning('没有有效的数据可导入')
+    return
+  }
+
+  importLoading.value = true
+  try {
+    const templatesData = validItems.map(item => ({
+      name: item.name,
+      template_type: item.template_type,
+      module_category: item.module_category,
+      keywords: item.keywords,
+      priority: item.priority,
+      is_active: item.is_active,
+      content: item.content
+    }))
+
+    const response = await axios.post('/api/requirement-analysis/test-templates/batch_create/', {
+      templates: templatesData
+    })
+
+    ElMessage.success(response.data.message || `成功导入 ${response.data.created_count} 个模板`)
+    importVisible.value = false
+    loadTemplates()
+    loadModuleCategories()
+  } catch (error) {
+    console.error('导入失败:', error)
+    ElMessage.error('导入失败: ' + (error.response?.data?.message || error.message))
+  } finally {
+    importLoading.value = false
+  }
 }
 
 // 执行测试匹配
@@ -934,11 +1553,14 @@ onMounted(() => {
   align-items: center;
 
   .header-left {
+    display: flex;
+    align-items: center;
+
     h2 {
-      margin: 0 0 8px 0;
+      margin: 0;
       font-size: 20px;
       font-weight: 600;
-      color: #5a32a3;
+      color: #333333;
     }
 
     .subtitle {
@@ -957,39 +1579,69 @@ onMounted(() => {
       display: flex;
       align-items: center;
       justify-content: center;
-      height: 36px;
-      padding: 0 16px;
-      border-radius: 8px;
-      font-weight: 500;
+      height: 40px;
+      padding: 10px 20px !important;
+      border-radius: 8px !important;
+      font-weight: 600 !important;
       font-size: 14px;
-      transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-      border: 1px solid transparent;
+      transition: all 0.3s ease !important;
+      border: none !important;
 
-      &--primary {
-        background: linear-gradient(135deg, #7b42f6 0%, #5a32a3 100%);
-        border-color: transparent;
-        color: #ffffff;
+      // 默认样式 - 紫色渐变（新建模板）
+      background: linear-gradient(135deg, #7b42f6 0%, #5a32a3 100%) !important;
+      color: #ffffff !important;
+      box-shadow: 0 4px 12px rgba(123, 66, 246, 0.3) !important;
+
+      &:hover:not(:disabled) {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 20px rgba(123, 66, 246, 0.4) !important;
+      }
+
+      &:active:not(:disabled) {
+        transform: translateY(0);
+      }
+
+      // 初始化职业教育模板 - 蓝色渐变
+      &:nth-child(2) {
+        background: linear-gradient(135deg, #409eff 0%, #2b7de1 100%) !important;
+        box-shadow: 0 4px 12px rgba(64, 158, 255, 0.3) !important;
 
         &:hover:not(:disabled) {
-          background: linear-gradient(135deg, #6d33e6 0%, #4a249c 100%);
-          transform: translateY(-2px);
-          box-shadow: 0 4px 14px rgba(123, 66, 246, 0.35);
-        }
-
-        &:active:not(:disabled) {
-          transform: translateY(0);
+          background: linear-gradient(135deg, #66b1ff 0%, #409eff 100%) !important;
+          box-shadow: 0 6px 20px rgba(64, 158, 255, 0.4) !important;
         }
       }
 
-      &:not(.el-button--primary) {
-        background: #ffffff;
-        border-color: rgba(123, 66, 246, 0.3);
-        color: #5a32a3;
+      // 测试匹配 - 青色渐变
+      &:nth-child(3) {
+        background: linear-gradient(135deg, #13c2c2 0%, #08979c 100%) !important;
+        box-shadow: 0 4px 12px rgba(19, 194, 194, 0.3) !important;
 
-        &:hover {
-          background: #f8f7ff;
-          border-color: #7b42f6;
-          color: #7b42f6;
+        &:hover:not(:disabled) {
+          background: linear-gradient(135deg, #36cfc9 0%, #13c2c2 100%) !important;
+          box-shadow: 0 6px 20px rgba(19, 194, 194, 0.4) !important;
+        }
+      }
+
+      // 导出数据 - 绿色渐变
+      &:nth-child(4) {
+        background: linear-gradient(135deg, #52c41a 0%, #389e0d 100%) !important;
+        box-shadow: 0 4px 12px rgba(82, 196, 26, 0.3) !important;
+
+        &:hover:not(:disabled) {
+          background: linear-gradient(135deg, #73d13d 0%, #52c41a 100%) !important;
+          box-shadow: 0 6px 20px rgba(82, 196, 26, 0.4) !important;
+        }
+      }
+
+      // 导入数据 - 橙色渐变
+      &:nth-child(5) {
+        background: linear-gradient(135deg, #fa8c16 0%, #d46b08 100%) !important;
+        box-shadow: 0 4px 12px rgba(250, 140, 22, 0.3) !important;
+
+        &:hover:not(:disabled) {
+          background: linear-gradient(135deg, #ffa940 0%, #fa8c16 100%) !important;
+          box-shadow: 0 6px 20px rgba(250, 140, 22, 0.4) !important;
         }
       }
 
@@ -2014,6 +2666,215 @@ onMounted(() => {
   &.is-checked .el-switch__core {
     background-color: #7b42f6;
     border-color: #7b42f6;
+  }
+}
+
+// 导入对话框样式
+.import-container {
+  .template-download-section {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 20px 24px;
+    background: linear-gradient(135deg, #f0edff 0%, #f8f7ff 100%);
+    border: 1px solid rgba(123, 66, 246, 0.2);
+    border-radius: 12px;
+    margin-bottom: 24px;
+
+    .download-info {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+
+      .info-icon {
+        font-size: 32px;
+        color: #7b42f6;
+      }
+
+      .info-text {
+        .info-title {
+          font-size: 16px;
+          font-weight: 600;
+          color: #5a32a3;
+          margin-bottom: 4px;
+        }
+
+        .info-desc {
+          font-size: 13px;
+          color: #888;
+        }
+      }
+    }
+
+    .el-button {
+      height: 40px;
+      padding: 0 24px;
+      border-radius: 8px;
+      font-weight: 500;
+      background: linear-gradient(135deg, #7b42f6 0%, #5a32a3 100%);
+      border-color: transparent;
+      color: #ffffff;
+      transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+
+      &:hover:not(:disabled) {
+        background: linear-gradient(135deg, #6d33e6 0%, #4a249c 100%);
+        transform: translateY(-2px);
+        box-shadow: 0 4px 14px rgba(123, 66, 246, 0.35);
+      }
+
+      &:active:not(:disabled) {
+        transform: translateY(0);
+      }
+    }
+  }
+
+  .upload-area {
+    :deep(.el-upload-dragger) {
+      width: 100%;
+      height: 180px;
+      border: 2px dashed rgba(123, 66, 246, 0.3);
+      border-radius: 12px;
+      background: #f8f7ff;
+      transition: all 0.3s ease;
+
+      &:hover {
+        border-color: #7b42f6;
+        background: #f0edff;
+      }
+
+      .el-icon--upload {
+        font-size: 48px;
+        color: #7b42f6;
+        margin-bottom: 16px;
+      }
+
+      .el-upload__text {
+        color: #5a32a3;
+        font-size: 14px;
+
+        em {
+          color: #7b42f6;
+          font-weight: 600;
+        }
+      }
+    }
+
+    :deep(.el-upload__tip) {
+      text-align: center;
+      color: #888;
+      margin-top: 12px;
+    }
+  }
+
+  .import-stats {
+    margin-top: 24px;
+    padding: 20px;
+    background: #f8f7ff;
+    border-radius: 12px;
+    border: 1px solid rgba(123, 66, 246, 0.1);
+
+    .stat-item {
+      text-align: center;
+      padding: 16px;
+      background: #ffffff;
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+
+      &.valid {
+        .stat-value {
+          color: #52c41a;
+        }
+      }
+
+      &.invalid {
+        .stat-value {
+          color: #f56c6c;
+        }
+      }
+
+      .stat-value {
+        font-size: 28px;
+        font-weight: 700;
+        color: #7b42f6;
+        margin-bottom: 4px;
+      }
+
+      .stat-label {
+        font-size: 13px;
+        color: #666;
+      }
+    }
+  }
+
+  .import-preview {
+    margin-top: 24px;
+
+    .preview-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+
+      .preview-title {
+        font-size: 16px;
+        font-weight: 600;
+        color: #5a32a3;
+      }
+
+      .preview-subtitle {
+        font-size: 13px;
+        color: #888;
+      }
+    }
+
+    :deep(.el-table) {
+      border-radius: 8px;
+      overflow: hidden;
+      border: 1px solid rgba(123, 66, 246, 0.1);
+
+      th {
+        background: #f8f7ff !important;
+        color: #5a32a3 !important;
+        font-weight: 600 !important;
+        white-space: nowrap !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
+        line-height: 40px !important;
+        height: 40px !important;
+        padding: 0 !important;
+
+        .cell {
+          white-space: nowrap !important;
+          overflow: hidden !important;
+          text-overflow: ellipsis !important;
+          line-height: 40px !important;
+          background: transparent !important;
+          padding: 0 12px !important;
+          text-align: center !important;
+          justify-content: center !important;
+        }
+      }
+
+      td {
+        text-align: center !important;
+
+        .cell {
+          text-align: center !important;
+          justify-content: center !important;
+        }
+      }
+
+      .text-danger {
+        color: #f56c6c;
+        font-weight: 600;
+      }
+
+      .cell-content {
+        display: inline-block;
+        text-align: center;
+        width: 100%;
+      }
+    }
   }
 }
 </style>

@@ -479,12 +479,12 @@ class TestTemplateConfig(models.Model):
 
     def get_keywords_list(self):
         """获取关键词列表"""
-        return [k.strip() for k in self.keywords.split(',') if k.strip()]
+        return [k.strip() for k in self.keywords.replace('/', ',').split(',') if k.strip()]
 
     @classmethod
     def match_templates(cls, text: str, template_type: str = None):
         """
-        根据文本内容匹配模板
+        根据文本内容匹配模板（不区分大小写）
 
         Args:
             text: 需求文本
@@ -497,10 +497,14 @@ class TestTemplateConfig(models.Model):
         if template_type:
             queryset = queryset.filter(template_type=template_type)
 
+        # 将文本转换为小写，实现不区分大小写的匹配
+        text_lower = text.lower()
+
         matched = []
         for template in queryset:
             keywords = template.get_keywords_list()
-            if any(keyword in text for keyword in keywords):
+            # 关键词也转换为小写进行匹配
+            if any(keyword.lower() in text_lower for keyword in keywords):
                 matched.append(template)
 
         return matched
@@ -827,13 +831,77 @@ class AIModelService:
                 raise e
 
     @staticmethod
+    async def _get_matched_template_content(requirement_text: str) -> str:
+        """
+        获取匹配到的模板内容，用于追加到AI生成提示词中（异步版本）
+
+        Args:
+            requirement_text: 需求文本
+
+        Returns:
+            格式化后的模板内容字符串，如果没有匹配则返回空字符串
+        """
+        try:
+            # 使用 sync_to_async 包装 ORM 调用，避免在异步上下文中直接调用
+            from asgiref.sync import sync_to_async
+
+            # 获取匹配的测试点模板
+            get_test_points_sync = sync_to_async(TestTemplateConfig.get_test_points, thread_sensitive=True)
+            test_points = await get_test_points_sync(requirement_text)
+
+            # 获取匹配的测试场景模板
+            get_test_scenarios_sync = sync_to_async(TestTemplateConfig.get_test_scenarios, thread_sensitive=True)
+            test_scenarios = await get_test_scenarios_sync(requirement_text)
+
+            template_sections = []
+
+            # 添加测试点
+            if test_points:
+                template_sections.append("【必须包含的测试点】")
+                template_sections.append("以下测试点来自系统模板配置，必须在生成的用例中覆盖：")
+                for i, point in enumerate(test_points, 1):
+                    template_sections.append(f"{i}. {point}")
+                template_sections.append("")
+
+            # 添加测试场景
+            if test_scenarios:
+                template_sections.append("【必须包含的测试场景】")
+                template_sections.append("以下测试场景来自系统模板配置，必须在生成的用例中覆盖：")
+                for i, scenario in enumerate(test_scenarios, 1):
+                    template_sections.append(f"{i}. {scenario}")
+                template_sections.append("")
+
+            if template_sections:
+                template_sections.append("【重要】以上模板配置的测试点和场景必须包含在最终生成的测试用例中，不能遗漏。")
+                return "\n".join(template_sections)
+
+            return ""
+        except Exception as e:
+            logger.warning(f"获取匹配模板内容时出错: {e}")
+            return ""
+
+    @staticmethod
     async def generate_test_cases(task: TestCaseGenerationTask) -> str:
         """生成测试用例"""
         writer_prompt = task.writer_prompt_config.content
 
+        # 获取匹配的模板内容
+        template_content = await AIModelService._get_matched_template_content(task.requirement_text)
+        if template_content:
+            logger.info(f"需求文本匹配到模板内容，将追加到生成提示词中")
+
         # 构建更明确的用户提示，采用思维链(CoT)引导和细粒度拆分策略
         user_message = (
             f"请深入分析以下需求文档，并设计高覆盖率的测试用例。\n\n"
+        )
+
+        # 优先追加模板内容（如果存在），放在最前面强调其重要性
+        if template_content:
+            user_message += f"🚨🚨🚨【最高优先级 - 系统强制要求】🚨🚨🚨\n"
+            user_message += f"{template_content}\n"
+            user_message += f"🚨🚨🚨【以上测试点和场景必须100%包含在输出中，不得遗漏】🚨🚨🚨\n\n"
+
+        user_message += (
             f"【生成指令】\n"
             f"1. **数量原则**：请根据需求内容的实际复杂度，自动决定生成用例的数量。务必覆盖所有功能点、异常场景和边界条件，不设数量上限，应写尽写。\n"
             f"2. **深度遍历策略**：\n"
@@ -856,6 +924,7 @@ class AIModelService:
             rf"   - 示例：应输入 'a&#124;b' 而不是 'a|b' 或 'a\|b'。\n\n"
             f"【需求文档内容】\n{task.requirement_text}"
         )
+
 
         messages = [
             {"role": "system", "content": writer_prompt},
@@ -922,9 +991,23 @@ class AIModelService:
         """
         writer_prompt = task.writer_prompt_config.content
 
+        # 获取匹配的模板内容
+        template_content = await AIModelService._get_matched_template_content(task.requirement_text)
+        if template_content:
+            logger.info(f"流式生成：需求文本匹配到模板内容，将追加到生成提示词中")
+
         # 构建用户提示
         user_message = (
             f"请深入分析以下需求文档，并设计高覆盖率的测试用例。\n\n"
+        )
+
+        # 优先追加模板内容（如果存在），放在最前面强调其重要性
+        if template_content:
+            user_message += f"🚨🚨🚨【最高优先级 - 系统强制要求】🚨🚨🚨\n"
+            user_message += f"{template_content}\n"
+            user_message += f"🚨🚨🚨【以上测试点和场景必须100%包含在输出中，不得遗漏】🚨🚨🚨\n\n"
+
+        user_message += (
             f"【生成指令】\n"
             f"1. **数量原则**：请根据需求内容的实际复杂度，自动决定生成用例的数量。务必覆盖所有功能点、异常场景和边界条件，不设数量上限，应写尽写。\n"
             f"2. **深度遍历策略**：\n"

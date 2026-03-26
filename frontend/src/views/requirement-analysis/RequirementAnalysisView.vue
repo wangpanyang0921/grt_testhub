@@ -3083,11 +3083,56 @@ export default {
   flex-shrink: 0;
 }
 
-.step.active .step-number {
+/* 第1步 - 紫色 (需求分析) */
+.step:nth-child(1).active .step-number {
   background: linear-gradient(135deg, #7b42f6 0%, #6d28d9 100%);
   border-color: #7b42f6;
   color: white;
   box-shadow: 0 4px 16px rgba(123, 66, 246, 0.35);
+}
+
+.step:nth-child(1).active .step-text {
+  color: #7b42f6;
+  font-weight: 600;
+}
+
+/* 第2步 - 蓝色 (用例编写) */
+.step:nth-child(3).active .step-number {
+  background: linear-gradient(135deg, #1890ff 0%, #096dd9 100%);
+  border-color: #1890ff;
+  color: white;
+  box-shadow: 0 4px 16px rgba(24, 144, 255, 0.35);
+}
+
+.step:nth-child(3).active .step-text {
+  color: #1890ff;
+  font-weight: 600;
+}
+
+/* 第3步 - 橙色 (用例评审) */
+.step:nth-child(5).active .step-number {
+  background: linear-gradient(135deg, #fa8c16 0%, #d46b08 100%);
+  border-color: #fa8c16;
+  color: white;
+  box-shadow: 0 4px 16px rgba(250, 140, 22, 0.35);
+}
+
+.step:nth-child(5).active .step-text {
+  color: #fa8c16;
+  font-weight: 600;
+}
+
+/* 第4步 - 绿色 (生成完成) */
+.step:nth-child(7).active .step-number {
+  background: linear-gradient(135deg, #52c41a 0%, #389e0d 100%);
+  border-color: #52c41a;
+  color: white;
+  box-shadow: 0 4px 16px rgba(82, 196, 26, 0.35);
+}
+
+.step:nth-child(7).active .step-text {
+  color: #52c41a;
+  font-weight: 600;
 }
 
 .step-text {
@@ -3096,11 +3141,6 @@ export default {
   font-weight: 500;
   transition: all 0.3s ease;
   text-align: center;
-}
-
-.step.active .step-text {
-  color: #7b42f6;
-  font-weight: 600;
 }
 
 /* 步骤之间的连接线 */
@@ -3113,8 +3153,17 @@ export default {
   transition: all 0.3s ease;
 }
 
-.step-line.active {
-  background: linear-gradient(90deg, #7b42f6 0%, #9f7aea 100%);
+/* 连接线颜色根据进度变化 */
+.step-line:nth-child(2).active {
+  background: linear-gradient(90deg, #7b42f6 0%, #1890ff 100%);
+}
+
+.step-line:nth-child(4).active {
+  background: linear-gradient(90deg, #1890ff 0%, #fa8c16 100%);
+}
+
+.step-line:nth-child(6).active {
+  background: linear-gradient(90deg, #fa8c16 0%, #52c41a 100%);
 }
 
 .cancel-generation-btn-inline {

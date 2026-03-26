@@ -329,7 +329,7 @@ class TestTemplateConfigSerializer(serializers.ModelSerializer):
         if not value or not value.strip():
             raise serializers.ValidationError('关键词不能为空')
 
-        keywords = [k.strip() for k in value.split(',') if k.strip()]
+        keywords = [k.strip() for k in value.replace('/', ',').split(',') if k.strip()]
         if not keywords:
             raise serializers.ValidationError('至少需要提供一个关键词')
 
