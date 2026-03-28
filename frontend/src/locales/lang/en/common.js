@@ -10,6 +10,7 @@ export default {
   submit: 'Submit',
   back: 'Back',
   view: 'View',
+  detail: 'Detail',
   export: 'Export',
   import: 'Import',
   download: 'Download',

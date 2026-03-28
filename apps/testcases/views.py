@@ -35,53 +35,31 @@ class TestCaseListCreateView(generics.ListCreateAPIView):
         accessible_projects = Project.objects.filter(
             models.Q(owner=user) | models.Q(members=user)
         ).distinct()
+        # 查询用户有权限访问的项目下的用例，以及 project 为 null 的用例（被删除项目的用例）
         return TestCase.objects.filter(
-            project__in=accessible_projects
+            models.Q(project__in=accessible_projects) | models.Q(project__isnull=True)
         ).select_related(
             'author', 'assignee', 'project'
         ).prefetch_related(
             'versions'
         ).distinct()
-    
+
     def get_user_accessible_projects(self, user):
         """获取用户有权限访问的项目"""
         return Project.objects.filter(
             models.Q(owner=user) | models.Q(members=user)
         ).distinct()
-    
+
     def perform_create(self, serializer):
         user = self.request.user
-        project_id = self.request.data.get('project_id')
         
-        # 获取用户有权限的项目
-        accessible_projects = self.get_user_accessible_projects(user)
-        
-        if project_id:
-            # 检查指定的项目是否存在且用户有权限
-            try:
-                project = accessible_projects.get(id=project_id)
-            except Project.DoesNotExist:
-                # 如果指定项目不存在或无权限，使用第一个可访问的项目
-                project = accessible_projects.first()
-                if not project:
-                    # 如果用户没有任何项目，创建默认项目
-                    project = Project.objects.create(
-                        name="默认项目",
-                        owner=user,
-                        description='系统自动创建的默认项目'
-                    )
+        # 如果请求中指定了作者（通过author_name），则让序列化器处理作者
+        # 否则使用当前登录用户作为作者
+        # 端和菜单由序列化器根据 category_path 自动创建
+        if self.request.data.get('author_name'):
+            serializer.save()
         else:
-            # 没有指定项目，使用第一个可访问的项目
-            project = accessible_projects.first()
-            if not project:
-                # 如果用户没有任何项目，创建默认项目
-                project = Project.objects.create(
-                    name="默认项目",
-                    owner=user,
-                    description='系统自动创建的默认项目'
-                )
-        
-        serializer.save(author=user, project=project)
+            serializer.save(author=user)
 
 class TestCaseDetailView(generics.RetrieveUpdateDestroyAPIView):
     queryset = TestCase.objects.all()
@@ -97,14 +75,15 @@ class TestCaseDetailView(generics.RetrieveUpdateDestroyAPIView):
         accessible_projects = Project.objects.filter(
             models.Q(owner=user) | models.Q(members=user)
         ).distinct()
+        # 查询用户有权限访问的项目下的用例，以及 project 为 null 的用例（被删除项目的用例）
         return TestCase.objects.filter(
-            project__in=accessible_projects
+            models.Q(project__in=accessible_projects) | models.Q(project__isnull=True)
         ).select_related(
             'author', 'assignee', 'project'
         ).prefetch_related(
             'versions', 'step_details', 'attachments', 'comments'
         )
-    
+
     def get_user_accessible_projects(self, user):
         """获取用户有权限访问的项目"""
         return Project.objects.filter(
@@ -127,3 +106,26 @@ class TestCaseDetailView(generics.RetrieveUpdateDestroyAPIView):
         else:
             # 没有指定项目，保持原项目不变
             serializer.save()
+
+
+@api_view(['GET'])
+@permission_classes([permissions.IsAuthenticated])
+def testcase_modules(request):
+    """获取所有测试用例的模块列表（去重）"""
+    user = request.user
+    accessible_projects = Project.objects.filter(
+        models.Q(owner=user) | models.Q(members=user)
+    ).distinct()
+    
+    # 获取用户有权限访问的所有用例的模块字段
+    modules = TestCase.objects.filter(
+        project__in=accessible_projects
+    ).exclude(
+        module__isnull=True
+    ).exclude(
+        module=''
+    ).values_list(
+        'module', flat=True
+    ).distinct().order_by('module')
+    
+    return Response(list(modules))

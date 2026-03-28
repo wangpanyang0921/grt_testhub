@@ -10,6 +10,7 @@ export default {
   submit: '提交',
   back: '返回',
   view: '查看',
+  detail: '详情',
   export: '导出',
   import: '导入',
   download: '下载',

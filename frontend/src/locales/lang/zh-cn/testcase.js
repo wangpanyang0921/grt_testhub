@@ -6,27 +6,36 @@ export default {
     edit: '编辑测试用例',
     create: '创建测试用例',
 
+    // Form sections
+    basicInfo: '基本信息',
+    properties: '基本信息',
+    testContent: '测试内容',
+
     // Actions
     newCase: '新建用例',
     batchDelete: '批量删除',
     exportExcel: '导出Excel',
     saveChanges: '保存修改',
     createCase: '创建用例',
+    delete: '删除用例',
 
     // Field labels
-    caseTitle: '用例标题',
+    caseTitle: '用例名称',
     caseDescription: '用例描述',
-    project: '归属项目',
-    relatedProject: '关联项目',
+    project: '归属目录',
+    relatedProject: '归属目录',
     relatedVersions: '关联版本',
-    priority: '优先级',
+    moduleLabel: '模块',
+    priority: '用例级别',
     status: '状态',
-    testType: '测试类型',
+    testType: '步骤模式',
     preconditions: '前置条件',
-    steps: '操作步骤',
+    steps: '测试步骤',
     expectedResult: '预期结果',
-    author: '作者',
+    author: '创建者',
     createdAt: '创建时间',
+    creator: '创建者',
+    createTime: '创建时间',
     serialNumber: '序号',
 
     // Priority
@@ -40,19 +49,17 @@ export default {
     active: '激活',
     deprecated: '废弃',
 
-    // Test types
-    functional: '功能测试',
-    integration: '集成测试',
-    api: 'API测试',
-    ui: 'UI测试',
-    performance: '性能测试',
-    security: '安全测试',
+    // Step modes
+    text: '文本模式',
+    step: '步骤模式',
 
     // Placeholders
-    searchPlaceholder: '搜索用例标题',
+    searchPlaceholder: '搜索用例名称',
     caseTitlePlaceholder: '请输入测试用例标题',
     caseDescriptionPlaceholder: '请输入用例描述',
     selectProject: '请选择项目',
+    categoryPathPlaceholder: '格式：端名称/菜单/子菜单',
+    modulePlaceholder: '请输入模块名称',
     selectPriority: '请选择优先级',
     selectTestType: '请选择测试类型',
     selectStatus: '请选择状态',
@@ -60,7 +67,8 @@ export default {
     preconditionsPlaceholder: '请输入前置条件',
     stepsPlaceholder: '请输入详细的操作步骤，如：\n1. 打开登录页面\n2. 输入用户名和密码\n3. 点击登录按钮\n4. 验证登录结果',
     expectedResultPlaceholder: '请输入整体预期结果',
-    priorityFilter: '优先级筛选',
+    priorityFilter: '用例级别',
+    moduleFilter: '模块筛选',
     statusFilter: '状态筛选',
 
     // Messages
@@ -112,7 +120,39 @@ export default {
     excelAuthor: '作者',
     excelCreatedAt: '创建时间',
     excelSheetName: '测试用例',
-    excelFileName: '测试用例_{date}.xlsx'
+    excelFileName: '测试用例_{date}.xlsx',
+
+    // Import
+    import: '导入',
+    export: '导出',
+    importTitle: '导入测试用例',
+    dragFile: '将文件拖到此处，或',
+    clickUpload: '点击上传',
+    uploadTip: '支持 .xlsx, .xls 格式文件，文件大小不超过 10MB',
+    fieldMapping: '字段映射配置',
+    excelField: 'Excel字段',
+    systemField: '系统字段',
+    selectField: '选择映射字段',
+    dataPreview: '数据预览',
+    records: '条记录',
+    confirmImport: '确认导入',
+    parseSuccess: '成功解析 {count} 条数据',
+    parseFailed: '解析Excel文件失败',
+    emptyExcel: 'Excel文件为空或格式不正确',
+    readFileFailed: '读取文件失败',
+    noTitleMapping: '请至少映射用例标题字段',
+    rowNoTitle: '第 {row} 行缺少用例标题',
+    rowImportFailed: '第 {row} 行导入失败: {error}',
+    importAllSuccess: '成功导入 {count} 条测试用例',
+    importPartialMessage: '导入完成，成功 {success} 条，失败 {fail} 条',
+    importSuccess: '导入成功',
+    importPartialSuccess: '部分导入成功',
+    importFailed: '导入失败',
+    importResult: '导入结果',
+    importSuccessCount: '成功',
+    importFailCount: '失败',
+    errorDetails: '错误详情',
+    categoryLabel: '归属目录'
   },
   testSuite: {
     title: '测试套件',

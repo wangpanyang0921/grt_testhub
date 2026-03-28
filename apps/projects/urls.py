@@ -10,4 +10,9 @@ urlpatterns = [
     path('<int:project_id>/members/<int:member_id>/', views.remove_project_member, name='remove-member'),
     path('<int:project_id>/environments/', views.ProjectEnvironmentListCreateView.as_view(), name='environment-list'),
     path('list/', project_list_views.user_projects_list, name='user-projects-list'),
+    # 端菜单管理
+    path('<int:project_id>/menus/', views.get_project_menus, name='get-project-menus'),
+    path('<int:project_id>/menus/create/', views.create_project_menu, name='create-project-menu'),
+    path('<int:project_id>/menus/<int:menu_id>/update/', views.update_project_menu, name='update-project-menu'),
+    path('<int:project_id>/menus/<int:menu_id>/delete/', views.delete_project_menu, name='delete-project-menu'),
 ]

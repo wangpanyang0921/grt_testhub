@@ -1,7 +1,7 @@
 from django.db import models
 from django.utils import timezone
 from apps.users.models import User
-from apps.projects.models import Project
+from apps.projects.models import Project, ProjectMenu
 from apps.versions.models import Version
 
 class TestCase(models.Model):
@@ -20,16 +20,14 @@ class TestCase(models.Model):
     ]
     
     TYPE_CHOICES = [
-        ('functional', '功能测试'),
-        ('integration', '集成测试'),
-        ('api', 'API测试'),
-        ('ui', 'UI测试'),
-        ('performance', '性能测试'),
-        ('security', '安全测试'),
+        ('text', '文本模式'),
+        ('step', '步骤模式'),
     ]
     
-    project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name='testcases')
+    project = models.ForeignKey(Project, on_delete=models.SET_NULL, null=True, blank=True, related_name='testcases')
+    menu = models.ForeignKey(ProjectMenu, on_delete=models.SET_NULL, null=True, blank=True, related_name='testcases', verbose_name='所属菜单')
     versions = models.ManyToManyField(Version, blank=True, related_name='testcases', verbose_name='关联版本')
+    module = models.CharField(max_length=200, blank=True, verbose_name='模块')
     title = models.CharField(max_length=500, verbose_name='用例标题')
     description = models.TextField(blank=True, verbose_name='用例描述')
     preconditions = models.TextField(blank=True, verbose_name='前置条件')
@@ -37,7 +35,7 @@ class TestCase(models.Model):
     expected_result = models.TextField(verbose_name='预期结果')
     priority = models.CharField(max_length=20, choices=PRIORITY_CHOICES, default='medium', verbose_name='优先级')
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='draft', verbose_name='状态')
-    test_type = models.CharField(max_length=20, choices=TYPE_CHOICES, default='functional', verbose_name='测试类型')
+    test_type = models.CharField(max_length=20, choices=TYPE_CHOICES, default='text', verbose_name='步骤模式')
     tags = models.JSONField(default=list, verbose_name='标签')
     author = models.ForeignKey(User, on_delete=models.CASCADE, related_name='authored_testcases', verbose_name='作者')
     assignee = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='assigned_testcases', verbose_name='指派人')

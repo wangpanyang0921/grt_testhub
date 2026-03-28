@@ -63,3 +63,23 @@ class ProjectEnvironment(models.Model):
         db_table = 'project_environments'
         verbose_name = '项目环境'
         verbose_name_plural = '项目环境'
+
+
+class ProjectMenu(models.Model):
+    """端菜单 - 支持多级菜单结构"""
+    project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name='menus', verbose_name='所属端')
+    parent = models.ForeignKey('self', on_delete=models.CASCADE, null=True, blank=True, related_name='children', verbose_name='父菜单')
+    name = models.CharField(max_length=100, verbose_name='菜单名称')
+    description = models.TextField(blank=True, verbose_name='菜单描述')
+    sort_order = models.IntegerField(default=0, verbose_name='排序')
+    created_at = models.DateTimeField(default=timezone.now, verbose_name='创建时间')
+    updated_at = models.DateTimeField(auto_now=True, verbose_name='更新时间')
+    
+    def __str__(self):
+        return self.name
+    
+    class Meta:
+        db_table = 'project_menus'
+        verbose_name = '端菜单'
+        verbose_name_plural = '端菜单'
+        ordering = ['sort_order', 'created_at']

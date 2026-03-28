@@ -19,6 +19,7 @@ export default {
     aiGeneratedTestcases: 'AI Generated Test Cases',
     promptConfig: 'Prompt Configuration',
     projectManagement: 'Project Management',
+    aiProjectManagement: 'Endpoint Management',
     testCases: 'Test Cases',
     versionManagement: 'Version Management',
     reviewManagement: 'Review Management',
@@ -53,7 +54,6 @@ export default {
     // Configuration Center
     aiCaseGenerationConfig: 'AI Test Case Config',
     aiModelConfig: 'Model Config',
-    promptConfig: 'Prompt Configuration',
     generationConfig: 'Generation Behavior Config',
     uiEnvConfig: 'UI Environment Configuration',
     aiModeConfig: 'AI Mode Configuration',

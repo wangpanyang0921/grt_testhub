@@ -1,129 +1,177 @@
 <template>
   <div class="page-container">
+    <!-- 页面头部 -->
     <div class="page-header">
-      <h1 class="page-title">{{ $t('testcase.edit') }}</h1>
+      <h1 class="page-title">{{ form.title || $t('testcase.edit') }}</h1>
+      <div class="header-actions">
+        <el-button @click="$router.back()" class="action-btn cancel-btn">
+          <el-icon><ArrowLeft /></el-icon>
+          <span>{{ $t('common.cancel') }}</span>
+        </el-button>
+        <el-button type="primary" class="action-btn edit-btn" @click="handleSubmit" :loading="submitting">
+          <el-icon><Check /></el-icon>
+          <span>{{ $t('testcase.saveChanges') }}</span>
+        </el-button>
+      </div>
     </div>
 
-    <div class="card-container" v-if="!loading">
-      <el-form ref="formRef" :model="form" :rules="rules" label-width="100px">
-        <el-form-item :label="$t('testcase.caseTitle')" prop="title">
-          <el-input v-model="form.title" :placeholder="$t('testcase.caseTitlePlaceholder')" />
-        </el-form-item>
+    <!-- 加载状态 -->
+    <div v-if="loading" class="card-container loading-card">
+      <el-skeleton :rows="15" animated />
+    </div>
 
-        <el-form-item :label="$t('testcase.caseDescription')" prop="description">
-          <el-input
-            v-model="form.description"
-            type="textarea"
-            :rows="4"
-            :placeholder="$t('testcase.caseDescriptionPlaceholder')"
-          />
-        </el-form-item>
+    <!-- 表单内容 -->
+    <div v-else class="detail-container">
+      <el-form ref="formRef" :model="form" :rules="rules" class="testcase-form">
+        <!-- 合并的卡片：基本信息 + 测试执行 -->
+        <div class="card-container unified-card">
+          <!-- 基本信息区域 -->
+          <div class="section-header">
+            <h3 class="card-title">{{ $t('testcase.basicInfo') }}</h3>
+            <div class="card-tags">
+              <el-tag :type="priorityType(form.priority)" class="priority-tag">
+                {{ priorityLabel(form.priority) }}
+              </el-tag>
+              <el-tag type="info" class="type-tag">
+                {{ testTypeLabel(form.test_type) }}
+              </el-tag>
+            </div>
+          </div>
 
-        <el-row :gutter="20">
-          <el-col :span="8">
-            <el-form-item :label="$t('testcase.project')" prop="project_id">
-              <el-select
-                v-model="form.project_id"
-                :placeholder="$t('testcase.selectProject')"
-                clearable
-                filterable
-                @change="onProjectChange"
-              >
-                <el-option
-                  v-for="project in projects"
-                  :key="project.id"
-                  :label="project.name"
-                  :value="project.id"
-                />
-              </el-select>
-            </el-form-item>
-          </el-col>
-          <el-col :span="8">
-            <el-form-item :label="$t('testcase.priority')" prop="priority">
-              <el-select v-model="form.priority" :placeholder="$t('testcase.selectPriority')">
-                <el-option :label="$t('testcase.low')" value="low" />
-                <el-option :label="$t('testcase.medium')" value="medium" />
-                <el-option :label="$t('testcase.high')" value="high" />
-                <el-option :label="$t('testcase.critical')" value="critical" />
-              </el-select>
-            </el-form-item>
-          </el-col>
-          <el-col :span="8">
-            <el-form-item :label="$t('testcase.testType')" prop="test_type">
-              <el-select v-model="form.test_type" :placeholder="$t('testcase.selectTestType')">
-                <el-option :label="$t('testcase.functional')" value="functional" />
-                <el-option :label="$t('testcase.integration')" value="integration" />
-                <el-option :label="$t('testcase.api')" value="api" />
-                <el-option :label="$t('testcase.ui')" value="ui" />
-                <el-option :label="$t('testcase.performance')" value="performance" />
-                <el-option :label="$t('testcase.security')" value="security" />
-              </el-select>
-            </el-form-item>
-          </el-col>
-        </el-row>
+          <div class="info-section">
+            <el-row :gutter="24" class="info-row">
+              <el-col :span="12">
+                <div class="info-item">
+                  <span class="info-label">{{ $t('testcase.relatedProject') }}</span>
+                  <el-input
+                    v-model="form.category_path"
+                    :placeholder="$t('testcase.categoryPathPlaceholder') || '端名称/菜单/子菜单'"
+                    maxlength="500"
+                    class="info-input"
+                  />
+                </div>
+              </el-col>
+              <el-col :span="4">
+                <div class="info-item">
+                  <span class="info-label">{{ $t('testcase.moduleLabel') }}</span>
+                  <el-input
+                    v-model="form.module"
+                    :placeholder="$t('testcase.modulePlaceholder')"
+                    maxlength="200"
+                    class="info-input"
+                  />
+                </div>
+              </el-col>
+              <el-col :span="4">
+                <div class="info-item">
+                  <span class="info-label">{{ $t('testcase.priority') }}</span>
+                  <el-select v-model="form.priority" :placeholder="$t('testcase.selectPriority')" class="info-select">
+                    <el-option label="P0" value="critical" />
+                    <el-option label="P1" value="high" />
+                    <el-option label="P2" value="medium" />
+                    <el-option label="P3" value="low" />
+                  </el-select>
+                </div>
+              </el-col>
+              <el-col :span="4">
+                <div class="info-item">
+                  <span class="info-label">{{ $t('testcase.testType') }}</span>
+                  <el-select v-model="form.test_type" :placeholder="$t('testcase.selectTestType')" class="info-select">
+                    <el-option :label="$t('testcase.text')" value="text" />
+                    <el-option :label="$t('testcase.step')" value="step" />
+                  </el-select>
+                </div>
+              </el-col>
+            </el-row>
+          </div>
 
-        <el-row :gutter="20">
-          <el-col :span="24">
-            <el-form-item :label="$t('testcase.relatedVersions')">
-              <el-select
-                v-model="form.version_ids"
-                :placeholder="$t('testcase.selectVersions')"
-                multiple
-                clearable
-                filterable
-                @change="onVersionChange"
-              >
-                <el-option
-                  v-for="version in projectVersions"
-                  :key="version.id"
-                  :label="version.name + (version.is_baseline ? ' (' + $t('testcase.baseline') + ')' : '')"
-                  :value="version.id"
-                />
-              </el-select>
-            </el-form-item>
-          </el-col>
-        </el-row>
+          <!-- 分隔线 -->
+          <div class="section-divider"></div>
 
-        <el-form-item :label="$t('testcase.preconditions')" prop="preconditions">
-          <el-input
-            v-model="form.preconditions"
-            type="textarea"
-            :rows="3"
-            :placeholder="$t('testcase.preconditionsPlaceholder')"
-          />
-        </el-form-item>
+          <!-- 测试执行区域 -->
+          <div class="section-header">
+            <h3 class="card-title card-title-with-icon">
+              <el-icon><List /></el-icon>
+              <span>测试执行</span>
+            </h3>
+          </div>
 
-        <el-form-item :label="$t('testcase.steps')" prop="steps">
-          <el-input
-            v-model="form.steps"
-            type="textarea"
-            :rows="6"
-            maxlength="1000"
-            show-word-limit
-            :placeholder="$t('testcase.stepsPlaceholder')"
-          />
-        </el-form-item>
+          <!-- 前置条件 -->
+          <div class="step-card preconditions-card">
+            <div class="step-header">
+              <div class="step-number preconditions-number">0</div>
+              <span class="step-label preconditions-label">前置条件</span>
+            </div>
+            <el-input
+              v-model="form.preconditions"
+              type="textarea"
+              :rows="3"
+              :placeholder="$t('testcase.preconditionsPlaceholder')"
+              class="step-input"
+            />
+          </div>
 
-        <el-form-item :label="$t('testcase.expectedResult')" prop="expected_result">
-          <el-input
-            v-model="form.expected_result"
-            type="textarea"
-            :rows="3"
-            :placeholder="$t('testcase.expectedResultPlaceholder')"
-          />
-        </el-form-item>
+          <!-- 步骤列表 -->
+          <div class="steps-list">
+            <div v-for="(item, index) in form.stepItems" :key="item.id" class="step-card">
+              <div class="step-header">
+                <div class="step-number">{{ index + 1 }}</div>
+                <span class="step-label">步骤 {{ index + 1 }}</span>
+                <div class="step-actions">
+                  <el-button type="primary" link size="small" @click="addStep(index)" title="添加步骤">
+                    <el-icon><Plus /></el-icon>
+                  </el-button>
+                  <el-button type="primary" link size="small" @click="moveStepUp(index)" :disabled="index === 0" title="上移">
+                    <el-icon><ArrowUp /></el-icon>
+                  </el-button>
+                  <el-button type="primary" link size="small" @click="moveStepDown(index)" :disabled="index === form.stepItems.length - 1" title="下移">
+                    <el-icon><ArrowDown /></el-icon>
+                  </el-button>
+                  <el-button type="danger" link size="small" @click="removeStep(index)" title="删除">
+                    <el-icon><Delete /></el-icon>
+                  </el-button>
+                </div>
+              </div>
+              <div class="step-content">
+                <div class="step-field">
+                  <span class="field-label">步骤描述</span>
+                  <el-input
+                    v-model="item.step"
+                    type="textarea"
+                    :rows="3"
+                    placeholder="请输入步骤描述"
+                    class="step-input"
+                  />
+                </div>
+                <div class="expected-field">
+                  <span class="field-label expected-label">预期结果</span>
+                  <el-input
+                    v-model="item.expected"
+                    type="textarea"
+                    :rows="2"
+                    placeholder="请输入预期结果"
+                    class="step-input"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
 
-        <el-form-item>
-          <el-button type="primary" @click="handleSubmit" :loading="submitting">
-            {{ $t('testcase.saveChanges') }}
+
+        </div>
+
+        <!-- 底部操作按钮 -->
+        <div class="detail-actions">
+          <el-button @click="$router.back()" class="action-btn cancel-btn">
+            <el-icon><ArrowLeft /></el-icon>
+            <span>{{ $t('common.cancel') }}</span>
           </el-button>
-          <el-button @click="$router.back()">{{ $t('common.cancel') }}</el-button>
-        </el-form-item>
+          <el-button type="primary" class="action-btn edit-btn" @click="handleSubmit" :loading="submitting">
+            <el-icon><Check /></el-icon>
+            <span>{{ $t('testcase.saveChanges') }}</span>
+          </el-button>
+        </div>
       </el-form>
-    </div>
-
-    <div class="card-container" v-else>
-      <el-skeleton :rows="10" animated />
     </div>
   </div>
 </template>
@@ -132,7 +180,8 @@
 import { ref, reactive, onMounted, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import { ArrowLeft, Check, List, Plus, Delete, ArrowUp, ArrowDown } from '@element-plus/icons-vue'
 import api from '@/utils/api'
 
 const { t } = useI18n()
@@ -141,78 +190,123 @@ const router = useRouter()
 const formRef = ref()
 const loading = ref(true)
 const submitting = ref(false)
-const projects = ref([])
-const projectVersions = ref([])
 
 const form = reactive({
   title: '',
-  description: '',
-  project_id: null,
+  category_path: '',
+  module: '',
   priority: 'medium',
-  test_type: 'functional',
+  test_type: 'text',
   preconditions: '',
-  steps: '',
-  expected_result: '',
-  version_ids: []
+  stepItems: []
+})
+
+// 步骤项结构
+const createStepItem = (step = '', expected = '') => ({
+  id: Date.now() + Math.random(),
+  step,
+  expected
 })
 
 const rules = {
-  title: [
-    { required: true, message: computed(() => t('testcase.titleRequired')), trigger: 'blur' },
-    { min: 5, max: 500, message: computed(() => t('testcase.titleLength')), trigger: 'blur' }
-  ],
-  expected_result: [
-    { required: true, message: computed(() => t('testcase.expectedResultRequired')), trigger: 'blur' }
-  ],
-  steps: [
-    { max: 1000, message: computed(() => t('testcase.stepsMaxLength')), trigger: 'blur' }
-  ]
+  title: [{ required: true, message: t('testcase.titleRequired'), trigger: 'blur' }],
+  category_path: [{ required: true, message: t('testcase.categoryPathRequired') || '请输入归属目录', trigger: 'blur' }],
+  priority: [{ required: true, message: t('testcase.priorityRequired'), trigger: 'change' }],
+  test_type: [{ required: true, message: t('testcase.testTypeRequired'), trigger: 'change' }]
 }
 
-// 将HTML的<br>标签转换为换行符（用于编辑时显示）
-const convertBrToNewline = (text) => {
-  if (!text) return ''
-  return text.replace(/<br\s*\/?>/gi, '\n')
+// 解析步骤和预期结果为数组
+const parseSteps = (steps) => {
+  if (!steps) return []
+  return steps.split('\n').map(line => line.trim()).filter(line => line.length > 0)
 }
 
-// 将换行符转换为HTML的<br>标签（用于保存）
-const convertNewlineToBr = (text) => {
-  if (!text) return ''
-  return text.replace(/\n/g, '<br>')
-}
-
-const fetchProjects = async () => {
-  try {
-    const response = await api.get('/projects/list/')
-    projects.value = response.data.results || []
-  } catch (error) {
-    ElMessage.error(t('testcase.fetchProjectsFailed'))
+// 添加步骤
+const addStep = (index) => {
+  const newItem = createStepItem()
+  if (index !== undefined) {
+    form.stepItems.splice(index + 1, 0, newItem)
+  } else {
+    form.stepItems.push(newItem)
   }
 }
 
-const fetchProjectVersions = async (projectId) => {
-  if (!projectId) {
-    projectVersions.value = []
+// 删除步骤
+const removeStep = async (index) => {
+  if (form.stepItems.length <= 1) {
+    ElMessage.warning('至少需要保留一个步骤')
     return
   }
-
   try {
-    const response = await api.get(`/versions/projects/${projectId}/versions/`)
-    projectVersions.value = response.data || []
-  } catch (error) {
-    console.error(t('testcase.fetchVersionsFailed'), error)
-    ElMessage.error(t('testcase.fetchVersionsFailed'))
-    projectVersions.value = []
+    await ElMessageBox.confirm('确定要删除这个步骤吗？', '提示', {
+      confirmButtonText: '确定',
+      cancelButtonText: '取消',
+      type: 'warning'
+    })
+    form.stepItems.splice(index, 1)
+    ElMessage.success('删除成功')
+  } catch {
+    // 取消删除
   }
 }
 
-const onProjectChange = (projectId) => {
-  form.version_ids = []
-  fetchProjectVersions(projectId)
+// 上移步骤
+const moveStepUp = (index) => {
+  if (index === 0) return
+  const temp = form.stepItems[index]
+  form.stepItems[index] = form.stepItems[index - 1]
+  form.stepItems[index - 1] = temp
 }
 
-const onVersionChange = () => {
-  // Version change handling logic if needed
+// 下移步骤
+const moveStepDown = (index) => {
+  if (index === form.stepItems.length - 1) return
+  const temp = form.stepItems[index]
+  form.stepItems[index] = form.stepItems[index + 1]
+  form.stepItems[index + 1] = temp
+}
+
+// 优先级类型
+const priorityType = (priority) => {
+  const types = {
+    'low': 'success',
+    'medium': 'warning',
+    'high': 'danger',
+    'critical': 'danger'
+  }
+  return types[priority] || 'info'
+}
+
+// 优先级标签
+const priorityLabel = (priority) => {
+  const labels = {
+    'critical': 'P0',
+    'high': 'P1',
+    'medium': 'P2',
+    'low': 'P3'
+  }
+  return labels[priority] || priority
+}
+
+// 测试类型标签
+const testTypeLabel = (type) => {
+  const labels = {
+    'text': t('testcase.text'),
+    'step': t('testcase.step')
+  }
+  return labels[type] || type
+}
+
+// 转换 <br> 为换行符
+const convertBrToNewline = (content) => {
+  if (!content) return ''
+  return content.replace(/<br\s*\/?>/gi, '\n')
+}
+
+// 转换换行符为 <br>
+const convertNewlineToBr = (content) => {
+  if (!content) return ''
+  return content.replace(/\n/g, '<br>')
 }
 
 const fetchTestCase = async () => {
@@ -222,22 +316,21 @@ const fetchTestCase = async () => {
 
     // Fill form data
     form.title = testcase.title
-    form.description = testcase.description
-    form.project_id = testcase.project?.id || null
+    form.category_path = testcase.category_path || ''
+    form.module = testcase.module || ''
     form.priority = testcase.priority
     form.test_type = testcase.test_type
     form.preconditions = convertBrToNewline(testcase.preconditions || '')
-    form.expected_result = convertBrToNewline(testcase.expected_result || '')
 
-    // Fill steps data (convert <br> to newlines)
-    form.steps = convertBrToNewline(testcase.steps || '')
+    // 解析步骤和预期结果为数组
+    const steps = parseSteps(convertBrToNewline(testcase.steps || ''))
+    const expectedResults = parseSteps(convertBrToNewline(testcase.expected_result || ''))
 
-    // Fill version associations
-    form.version_ids = testcase.versions ? testcase.versions.map(v => v.id) : []
-
-    // If project exists, fetch versions for that project
-    if (form.project_id) {
-      await fetchProjectVersions(form.project_id)
+    // 创建步骤项数组
+    form.stepItems = []
+    const maxLength = Math.max(steps.length, expectedResults.length, 1)
+    for (let i = 0; i < maxLength; i++) {
+      form.stepItems.push(createStepItem(steps[i] || '', expectedResults[i] || ''))
     }
 
     loading.value = false
@@ -254,12 +347,20 @@ const handleSubmit = async () => {
     if (valid) {
       submitting.value = true
       try {
-        // Convert newlines back to <br> tags before submitting
+        // 将步骤数组转换为字符串
+        const steps = form.stepItems.map(item => item.step).filter(s => s).join('\n')
+        const expectedResults = form.stepItems.map(item => item.expected).filter(s => s).join('\n')
+
+        // 保存数据（保持换行符格式，不转换为<br>）
         const submitData = {
-          ...form,
-          preconditions: convertNewlineToBr(form.preconditions || ''),
-          steps: convertNewlineToBr(form.steps || ''),
-          expected_result: convertNewlineToBr(form.expected_result || '')
+          title: form.title,
+          category_path: form.category_path,
+          module: form.module,
+          priority: form.priority,
+          test_type: form.test_type,
+          preconditions: form.preconditions || '',
+          steps: steps || '',
+          expected_result: expectedResults || ''
         }
 
         await api.put(`/testcases/${route.params.id}/`, submitData)
@@ -276,13 +377,11 @@ const handleSubmit = async () => {
 }
 
 onMounted(async () => {
-  await fetchProjects()
-  await fetchTestCase()  // fetchTestCase中会根据项目获取版本列表
+  await fetchTestCase()
 })
 </script>
 
 <style lang="scss" scoped>
-// 页面容器
 .page-container {
   padding: 24px;
   min-height: calc(100vh - 60px);
@@ -292,7 +391,6 @@ onMounted(async () => {
   gap: 20px;
 }
 
-// 页面头部
 .page-header {
   display: flex;
   justify-content: space-between;
@@ -316,223 +414,366 @@ onMounted(async () => {
     -webkit-text-fill-color: transparent;
     background-clip: text;
   }
+
+  .header-actions {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
 }
 
-// 卡片容器
+.detail-container {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
 .card-container {
   background: #ffffff;
   border: 1px solid rgba(147, 112, 219, 0.12);
   border-radius: 12px;
   box-shadow: 0 4px 16px rgba(147, 112, 219, 0.08);
-  padding: 32px;
+  padding: 28px;
 
-  // 表单样式
-  .el-form {
-    // el-row 间距
-    .el-row {
-      margin-bottom: 24px;
+  &.loading-card {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    min-height: 400px;
+  }
+}
 
-      &:last-child {
-        margin-bottom: 0;
-      }
+.card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid rgba(147, 112, 219, 0.1);
+
+  .card-title {
+    font-size: 18px;
+    font-weight: 600;
+    color: #5a32a3;
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+
+    &::before {
+      content: '';
+      width: 4px;
+      height: 20px;
+      background: linear-gradient(180deg, #7b42f6 0%, #5a32a3 100%);
+      border-radius: 2px;
     }
 
-    .el-form-item {
-      margin-bottom: 24px;
-
-      &:last-child {
-        margin-bottom: 0;
-        margin-top: 32px;
-        padding-top: 24px;
-        border-top: 1px solid rgba(147, 112, 219, 0.1);
-      }
-
-      .el-form-item__label {
-        color: #5a32a3;
-        font-weight: 500;
-        font-size: 14px;
-      }
-
-      // 输入框样式
-      .el-input {
-        .el-input__wrapper {
-          box-shadow: 0 2px 8px rgba(147, 112, 219, 0.08);
-          border-radius: 8px;
-          border: 1px solid rgba(147, 112, 219, 0.15);
-          background: #ffffff;
-          transition: all 0.3s ease;
-
-          &:hover,
-          &.is-focus {
-            border-color: #7b42f6;
-            box-shadow: 0 2px 8px rgba(147, 112, 219, 0.15), 0 0 0 3px rgba(123, 66, 246, 0.1);
-          }
-
-          .el-input__inner {
-            color: #333;
-            font-size: 14px;
-
-            &::placeholder {
-              color: #999;
-            }
-          }
-        }
-      }
-
-      // 文本域样式
-      .el-textarea {
-        .el-textarea__inner {
-          box-shadow: 0 2px 8px rgba(147, 112, 219, 0.08);
-          border-radius: 8px;
-          border: 1px solid rgba(147, 112, 219, 0.15);
-          background: #ffffff;
-          transition: all 0.3s ease;
-          padding: 12px 16px;
-          line-height: 1.6;
-
-          &:hover,
-          &:focus {
-            border-color: #7b42f6;
-            box-shadow: 0 2px 8px rgba(147, 112, 219, 0.15), 0 0 0 3px rgba(123, 66, 246, 0.1);
-          }
-
-          &::placeholder {
-            color: #999;
-          }
-        }
-
-        .el-input__count {
-          color: #999;
-          font-size: 12px;
-          background: transparent;
-        }
-      }
-
-      // 选择器样式
-      .el-select {
-        width: 100%;
-
-        .el-input__wrapper {
-          box-shadow: 0 2px 8px rgba(147, 112, 219, 0.08);
-          border-radius: 8px;
-          border: 1px solid rgba(147, 112, 219, 0.15);
-          background: #ffffff;
-          transition: all 0.3s ease;
-
-          &:hover,
-          &.is-focus {
-            border-color: #7b42f6;
-            box-shadow: 0 2px 8px rgba(147, 112, 219, 0.15), 0 0 0 3px rgba(123, 66, 246, 0.1);
-          }
-
-          .el-input__inner {
-            color: #333;
-            font-size: 14px;
-
-            &::placeholder {
-              color: #999;
-            }
-          }
-        }
+    &.card-title-with-icon {
+      &::before {
+        display: none;
       }
     }
   }
 
-  // 按钮样式
-  .el-button {
-    padding: 10px 24px;
-    border-radius: 8px;
+  .card-tags {
+    display: flex;
+    gap: 8px;
+
+    .priority-tag,
+    .type-tag {
+      font-weight: 500;
+      padding: 4px 12px;
+      border-radius: 6px;
+    }
+  }
+}
+
+.info-section {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.info-row {
+  margin-bottom: 0;
+}
+
+.info-item {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+  overflow: hidden;
+
+  .info-label {
+    font-size: 13px;
     font-weight: 500;
-    font-size: 14px;
-    transition: all 0.3s ease;
-    min-width: 100px;
+    color: #7b42f6;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
 
-    // 主要按钮
-    &.el-button--primary {
-      background: linear-gradient(135deg, #7b42f6 0%, #5a32a3 100%);
-      border: none;
-      color: white;
-      box-shadow: 0 4px 12px rgba(123, 66, 246, 0.3);
+  .info-select,
+  .info-input {
+    flex: 1;
+    min-width: 0;
+  }
 
-      &:hover {
-        background: linear-gradient(135deg, #6d33e6 0%, #4a249c 100%);
-        transform: translateY(-2px);
-        box-shadow: 0 6px 20px rgba(123, 66, 246, 0.4);
-      }
-
-      &:active {
-        transform: translateY(0);
-      }
-
-      &:disabled {
-        background: #d9d9d9;
-        box-shadow: none;
-        cursor: not-allowed;
-        transform: none;
-      }
-    }
-
-    // 默认按钮
-    &:not(.el-button--primary) {
-      border: 1px solid rgba(147, 112, 219, 0.3);
-      color: #5a32a3;
-      background: #ffffff;
-
-      &:hover {
-        border-color: #7b42f6;
-        color: #7b42f6;
-        background: rgba(123, 66, 246, 0.05);
-        transform: translateY(-1px);
-      }
-    }
+  .info-select-multiple {
+    flex: 1;
   }
 }
 
-// 响应式布局
-@media (max-width: 1200px) {
-  .page-container {
-    padding: 16px;
-  }
+// 合并卡片样式
+.unified-card {
+  .section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
 
-  .page-header {
-    padding: 20px;
-
-    .page-title {
-      font-size: 20px;
-    }
-  }
-
-  .card-container {
-    padding: 24px;
-  }
-}
-
-@media (max-width: 768px) {
-  .page-container {
-    padding: 12px;
-  }
-
-  .page-header {
-    padding: 16px;
-
-    .page-title {
+    .card-title {
       font-size: 18px;
-    }
-  }
+      font-weight: 600;
+      color: #5a32a3;
+      margin: 0;
+      display: flex;
+      align-items: center;
+      gap: 8px;
 
-  .card-container {
-    padding: 16px;
+      &::before {
+        content: '';
+        width: 4px;
+        height: 20px;
+        background: linear-gradient(180deg, #7b42f6 0%, #5a32a3 100%);
+        border-radius: 2px;
+      }
 
-    .el-form {
-      .el-form-item {
-        margin-bottom: 20px;
-
-        &:last-child {
-          margin-top: 24px;
-          padding-top: 16px;
+      &.card-title-with-icon {
+        &::before {
+          display: none;
         }
       }
     }
+
+    .card-tags {
+      display: flex;
+      gap: 8px;
+
+      .priority-tag,
+      .type-tag {
+        font-weight: 500;
+        padding: 4px 12px;
+        border-radius: 6px;
+      }
+    }
+  }
+
+  .section-divider {
+    height: 1px;
+    background: rgba(147, 112, 219, 0.1);
+    margin: 24px 0;
+  }
+
+  // 步骤卡片样式 - 与详情页保持一致
+  .step-card {
+    display: flex;
+    flex-direction: column;
+    padding: 20px;
+    background: #fff;
+    border-radius: 12px;
+    border: 1px solid #e8e8e8;
+    transition: all 0.3s ease;
+    margin-bottom: 16px;
+
+    &:hover {
+      border-color: #7b42f6;
+      box-shadow: 0 4px 12px rgba(123, 66, 246, 0.1);
+    }
+
+    &.preconditions-card {
+      border-color: rgba(255, 107, 107, 0.3);
+
+      &:hover {
+        border-color: #ff6b6b;
+        box-shadow: 0 4px 12px rgba(255, 107, 107, 0.1);
+      }
+    }
+
+    .step-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 16px;
+
+      .step-number {
+        width: 32px;
+        height: 32px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: linear-gradient(135deg, #7b42f6 0%, #5a32a3 100%);
+        color: #fff;
+        font-size: 14px;
+        font-weight: 600;
+        border-radius: 50%;
+        flex-shrink: 0;
+
+        &.preconditions-number {
+          background: linear-gradient(135deg, #ff6b6b 0%, #ee5a5a 100%);
+        }
+      }
+
+      .step-label {
+        font-size: 14px;
+        font-weight: 600;
+        color: #5a32a3;
+        flex: 1;
+
+        &.preconditions-label {
+          color: #ff6b6b;
+        }
+      }
+
+      .step-actions {
+        display: flex;
+        gap: 4px;
+      }
+    }
+
+    .step-content {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+
+      .step-field,
+      .expected-field {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+
+        .field-label {
+          font-size: 12px;
+          font-weight: 500;
+          color: #999;
+          text-transform: uppercase;
+          letter-spacing: 0.5px;
+
+          &.expected-label {
+            color: #52c41a;
+          }
+        }
+      }
+    }
+
+    .step-input {
+      :deep(.el-textarea__inner) {
+        border-radius: 8px;
+        border: 1px solid rgba(147, 112, 219, 0.2);
+        transition: all 0.3s ease;
+        background: #fafaff;
+
+        &:hover,
+        &:focus {
+          border-color: #7b42f6;
+          box-shadow: 0 0 0 3px rgba(123, 66, 246, 0.1);
+          background: #fff;
+        }
+      }
+    }
+  }
+
+  .steps-list {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .add-step-container {
+    display: flex;
+    justify-content: center;
+    padding: 16px 0;
+  }
+}
+
+// 底部操作按钮
+.detail-actions {
+  display: flex;
+  justify-content: center;
+  gap: 16px;
+  padding-top: 20px;
+}
+
+// 按钮样式
+.action-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 20px;
+  font-size: 14px;
+  font-weight: 500;
+  border-radius: 8px;
+  transition: all 0.3s ease;
+
+  &.cancel-btn {
+    background: #f5f5f5;
+    border: 1px solid #e0e0e0;
+    color: #666;
+
+    &:hover {
+      background: #e8e8e8;
+      border-color: #d0d0d0;
+      color: #333;
+    }
+  }
+
+  &.edit-btn {
+    background: linear-gradient(135deg, #7b42f6 0%, #5a32a3 100%);
+    border: none;
+    color: #fff;
+
+    &:hover {
+      background: linear-gradient(135deg, #6a35e0 0%, #4a2880 100%);
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(123, 66, 246, 0.3);
+    }
+  }
+}
+
+// 表单元素样式覆盖
+:deep(.el-select) {
+  width: 100%;
+}
+
+:deep(.el-input__wrapper) {
+  box-shadow: 0 2px 8px rgba(147, 112, 219, 0.08);
+  border-radius: 8px;
+  border: 1px solid rgba(147, 112, 219, 0.15);
+  background: #ffffff;
+  transition: all 0.3s ease;
+
+  &:hover,
+  &.is-focus {
+    border-color: #7b42f6;
+    box-shadow: 0 2px 8px rgba(147, 112, 219, 0.15), 0 0 0 3px rgba(123, 66, 246, 0.1);
+  }
+}
+
+:deep(.el-textarea__inner) {
+  border-radius: 8px;
+  border: 1px solid rgba(147, 112, 219, 0.15);
+  background: #ffffff;
+  transition: all 0.3s ease;
+  padding: 12px 16px;
+  line-height: 1.6;
+
+  &:hover,
+  &:focus {
+    border-color: #7b42f6;
+    box-shadow: 0 2px 8px rgba(147, 112, 219, 0.15), 0 0 0 3px rgba(123, 66, 246, 0.1);
   }
 }
 </style>

@@ -4,8 +4,11 @@ from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import filters
 from django.db import models
-from .models import Project, ProjectMember, ProjectEnvironment
-from .serializers import ProjectSerializer, ProjectCreateSerializer, ProjectMemberSerializer, ProjectEnvironmentSerializer
+from .models import Project, ProjectMember, ProjectEnvironment, ProjectMenu
+from .serializers import (
+    ProjectSerializer, ProjectCreateSerializer, ProjectMemberSerializer, 
+    ProjectEnvironmentSerializer, ProjectMenuSerializer, ProjectMenuCreateSerializer
+)
 
 class ProjectListCreateView(generics.ListCreateAPIView):
     queryset = Project.objects.all()
@@ -39,6 +42,29 @@ class ProjectDetailView(generics.RetrieveUpdateDestroyAPIView):
     queryset = Project.objects.all()
     serializer_class = ProjectSerializer
     permission_classes = [permissions.IsAuthenticated]
+    
+    def destroy(self, request, *args, **kwargs):
+        """删除项目，但保留关联的测试用例"""
+        from apps.testcases.models import TestCase
+        from django.db import transaction
+        
+        project = self.get_object()
+        
+        with transaction.atomic():
+            # 获取该项目下的所有用例ID
+            testcase_ids = list(TestCase.objects.filter(project=project).values_list('id', flat=True))
+            
+            # 先将关联的测试用例的 menu 和 project 字段都设为 null
+            # 这样可以避免菜单级联删除时影响用例
+            updated_count = TestCase.objects.filter(project=project).update(menu=None, project=None)
+            
+            # 删除项目（会级联删除关联的菜单）
+            project.delete()
+        
+        return Response({
+            'message': f'项目删除成功，已保留 {updated_count} 个关联的测试用例',
+            'preserved_testcases': testcase_ids
+        }, status=status.HTTP_200_OK)
 
 @api_view(['POST'])
 @permission_classes([permissions.IsAuthenticated])
@@ -121,3 +147,72 @@ class ProjectEnvironmentListCreateView(generics.ListCreateAPIView):
     def perform_create(self, serializer):
         project_id = self.kwargs['project_id']
         serializer.save(project_id=project_id)
+
+
+# ==================== 端菜单管理视图 ====================
+
+@api_view(['GET'])
+@permission_classes([permissions.IsAuthenticated])
+def get_project_menus(request, project_id):
+    """获取端的所有菜单（树形结构）"""
+    try:
+        project = Project.objects.get(id=project_id)
+        # 只获取顶级菜单，子菜单会通过序列化器递归获取
+        menus = ProjectMenu.objects.filter(project=project, parent=None).order_by('sort_order', 'created_at')
+        serializer = ProjectMenuSerializer(menus, many=True)
+        return Response(serializer.data)
+    except Project.DoesNotExist:
+        return Response({'error': '端不存在'}, status=status.HTTP_404_NOT_FOUND)
+
+
+@api_view(['POST'])
+@permission_classes([permissions.IsAuthenticated])
+def create_project_menu(request, project_id):
+    """创建端菜单"""
+    try:
+        project = Project.objects.get(id=project_id)
+        
+        data = request.data.copy()
+        data['project'] = project_id
+        
+        serializer = ProjectMenuCreateSerializer(data=data)
+        serializer.is_valid(raise_exception=True)
+        menu = serializer.save()
+        
+        return Response(ProjectMenuSerializer(menu).data, status=status.HTTP_201_CREATED)
+    except Project.DoesNotExist:
+        return Response({'error': '端不存在'}, status=status.HTTP_404_NOT_FOUND)
+
+
+@api_view(['PUT', 'PATCH'])
+@permission_classes([permissions.IsAuthenticated])
+def update_project_menu(request, project_id, menu_id):
+    """更新端菜单"""
+    try:
+        project = Project.objects.get(id=project_id)
+        menu = ProjectMenu.objects.get(id=menu_id, project=project)
+        
+        serializer = ProjectMenuCreateSerializer(menu, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        menu = serializer.save()
+        
+        return Response(ProjectMenuSerializer(menu).data)
+    except Project.DoesNotExist:
+        return Response({'error': '端不存在'}, status=status.HTTP_404_NOT_FOUND)
+    except ProjectMenu.DoesNotExist:
+        return Response({'error': '菜单不存在'}, status=status.HTTP_404_NOT_FOUND)
+
+
+@api_view(['DELETE'])
+@permission_classes([permissions.IsAuthenticated])
+def delete_project_menu(request, project_id, menu_id):
+    """删除端菜单"""
+    try:
+        project = Project.objects.get(id=project_id)
+        menu = ProjectMenu.objects.get(id=menu_id, project=project)
+        menu.delete()
+        return Response({'message': '菜单删除成功'})
+    except Project.DoesNotExist:
+        return Response({'error': '端不存在'}, status=status.HTTP_404_NOT_FOUND)
+    except ProjectMenu.DoesNotExist:
+        return Response({'error': '菜单不存在'}, status=status.HTTP_404_NOT_FOUND)

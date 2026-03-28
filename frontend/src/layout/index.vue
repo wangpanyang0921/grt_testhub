@@ -37,25 +37,39 @@
               <el-icon><Tools /></el-icon>
               <span>XMind 转 Excel</span>
             </el-menu-item>
-            <!-- 临时隐藏：项目管理
-            <el-menu-item index="/ai-generation/projects">
-              <el-icon><Folder /></el-icon>
-              <span>{{ $t('menu.projectManagement') }}</span>
-            </el-menu-item>
-            -->
-            <!-- 临时隐藏：测试用例
-            <el-menu-item index="/ai-generation/testcases">
-              <el-icon><Document /></el-icon>
-              <span>{{ $t('menu.testCases') }}</span>
-            </el-menu-item>
-            -->
-            <!-- 临时隐藏：版本管理
+            <!-- 主线用例 - 按端分组 -->
+            <el-sub-menu index="testcases">
+              <template #title>
+                <el-icon><Document /></el-icon>
+                <span>{{ $t('menu.testCases') }}</span>
+              </template>
+              <!-- 端管理 -->
+              <el-menu-item index="/ai-generation/projects">
+                <el-icon><Setting /></el-icon>
+                <span>端管理</span>
+              </el-menu-item>
+              <el-menu-item index="/ai-generation/testcases">
+                <el-icon><List /></el-icon>
+                <span>全部用例</span>
+              </el-menu-item>
+              <el-menu-item 
+                v-for="project in projects" 
+                :key="project.id" 
+                :index="`/ai-generation/testcases?project=${project.id}`"
+              >
+                <el-icon><Folder /></el-icon>
+                <span>{{ project.name }}</span>
+              </el-menu-item>
+            </el-sub-menu>
+            <!-- 版本管理 - 临时隐藏 -->
+            <!--
             <el-menu-item index="/ai-generation/versions">
               <el-icon><Flag /></el-icon>
               <span>{{ $t('menu.versionManagement') }}</span>
             </el-menu-item>
             -->
-            <!-- 临时隐藏：评审管理
+            <!-- 评审管理 - 临时隐藏 -->
+            <!--
             <el-sub-menu index="reviews">
               <template #title>
                 <el-icon><Check /></el-icon>
@@ -71,13 +85,15 @@
               </el-menu-item>
             </el-sub-menu>
             -->
-            <!-- 临时隐藏：测试计划
+            <!-- 测试计划 - 临时隐藏 -->
+            <!--
             <el-menu-item index="/ai-generation/executions">
               <el-icon><VideoPlay /></el-icon>
               <span>{{ $t('menu.testPlan') }}</span>
             </el-menu-item>
             -->
-            <!-- 临时隐藏：测试报告
+            <!-- 测试报告 - 临时隐藏 -->
+            <!--
             <el-menu-item index="/ai-generation/reports">
               <el-icon><DataAnalysis /></el-icon>
               <span>{{ $t('menu.testReport') }}</span>
@@ -341,7 +357,7 @@
             <div class="header-left">
               <el-breadcrumb separator="/">
                 <el-breadcrumb-item :to="{ path: '/home' }">{{ $t('nav.home') }}</el-breadcrumb-item>
-                <el-breadcrumb-item v-if="moduleName">{{ moduleName }}</el-breadcrumb-item>
+                <el-breadcrumb-item v-if="moduleName" :to="moduleRoute">{{ moduleName }}</el-breadcrumb-item>
                 <el-breadcrumb-item>{{ breadcrumbTitle }}</el-breadcrumb-item>
               </el-breadcrumb>
             </div>
@@ -383,13 +399,13 @@
 </template>
 
 <script setup>
-import { computed, onMounted } from 'vue'
+import { computed, onMounted, ref, provide } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useUserStore } from '@/stores/user'
 import { useAppStore } from '@/stores/app'
 import { ElMessage } from 'element-plus'
 import { useI18n } from 'vue-i18n'
-import { ref } from 'vue'
+import api from '@/utils/api'
 import {
   Monitor, Folder, Document, Flag, Check, Collection, VideoPlay,
   DataAnalysis, ChatDotRound, DocumentCopy, Link, MagicStick, Promotion,
@@ -405,6 +421,22 @@ const { t } = useI18n()
 
 // 退出登录中标志，用于隐藏头像避免闪烁默认图
 const isLoggingOut = ref(false)
+
+// 端列表（用于主线用例子菜单）
+const projects = ref([])
+
+// 获取端列表
+const fetchProjects = async () => {
+  try {
+    const response = await api.get('/projects/', { params: { page_size: 1000 } })
+    projects.value = response.data.results || []
+  } catch (error) {
+    console.error('Failed to fetch projects:', error)
+  }
+}
+
+// 提供刷新项目列表的方法给子组件使用
+provide('refreshProjects', fetchProjects)
 
 // 计算头像URL
 const avatarUrl = computed(() => {
@@ -429,6 +461,9 @@ onMounted(async () => {
   console.log('Layout 用户信息初始化完成:', userStore.user)
   console.log('Layout 用户头像:', userStore.user?.avatar)
   console.log('Layout 头像URL:', avatarUrl.value)
+  
+  // 获取端列表用于主线用例子菜单
+  await fetchProjects()
 })
 
 const currentModule = computed(() => {
@@ -457,7 +492,46 @@ const moduleName = computed(() => {
   return map[currentModule.value] || ''
 })
 
+// 模块路由映射，用于面包屑跳转
+const moduleRoute = computed(() => {
+  const path = route.path
+  
+  // AI用例生成模块下的子页面
+  // 测试用例相关页面，返回到测试用例列表
+  if (path.startsWith('/ai-generation/testcases')) {
+    return '/ai-generation/testcases'
+  }
+  
+  // 端详情页，返回到端管理列表
+  if (path.match(/^\/ai-generation\/projects\/\d+$/)) {
+    return '/ai-generation/projects'
+  }
+  
+  // 其他模块可以根据需要添加
+  // 默认返回到模块首页
+  return `/${currentModule.value}`
+})
+
 const breadcrumbTitle = computed(() => {
+  const path = route.path
+
+  // 处理动态路由匹配
+  // 测试用例子路由
+  if (path.match(/^\/ai-generation\/testcases\/create$/)) {
+    return t('testcase.create')
+  }
+  if (path.match(/^\/ai-generation\/testcases\/\d+\/edit$/)) {
+    return t('testcase.edit')
+  }
+  if (path.match(/^\/ai-generation\/testcases\/\d+$/)) {
+    return t('testcase.detail')
+  }
+  
+  // 端详情页
+  if (path.match(/^\/ai-generation\/projects\/\d+$/)) {
+    return t('project.aiProjectDetail')
+  }
+
   const routeMap = {
     // AI 知识库
     '/ai-assistant/chat': 'Dify知识库',
@@ -467,7 +541,7 @@ const breadcrumbTitle = computed(() => {
     '/ai-generation/requirement-analysis': t('menu.aiCaseGeneration'),
     '/ai-generation/generated-testcases': t('menu.aiGeneratedTestcases'),
     '/ai-generation/xmind-converter': 'XMind 转 Excel',
-    '/ai-generation/projects': t('menu.projectManagement'),
+    '/ai-generation/projects': t('menu.aiProjectManagement'),
     '/ai-generation/testcases': t('menu.testCases'),
     '/ai-generation/versions': t('menu.versionManagement'),
     '/ai-generation/reviews': t('menu.reviewList'),

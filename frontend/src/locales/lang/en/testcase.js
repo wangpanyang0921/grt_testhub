@@ -6,6 +6,11 @@ export default {
     edit: 'Edit Test Case',
     create: 'Create Test Case',
 
+    // Form sections
+    basicInfo: 'Basic Information',
+    properties: 'Properties',
+    testContent: 'Test Content',
+
     // Actions
     newCase: 'New Case',
     batchDelete: 'Batch Delete',
@@ -14,20 +19,21 @@ export default {
     createCase: 'Create Case',
 
     // Field labels
-    caseTitle: 'Case Title',
+    caseTitle: 'Case Name',
     caseDescription: 'Case Description',
     project: 'Project',
-    relatedProject: 'Related Project',
+    relatedProject: 'Category',
     relatedVersions: 'Related Versions',
-    priority: 'Priority',
+    moduleLabel: 'Module',
+    priority: 'Case Level',
     status: 'Status',
-    testType: 'Test Type',
+    testType: 'Step Mode',
     preconditions: 'Preconditions',
-    steps: 'Steps',
+    steps: 'Test Steps',
     expectedResult: 'Expected Result',
-    author: 'Author',
+    author: 'Creator',
     createdAt: 'Created At',
-    serialNumber: 'No.',
+    serialNumber: 'Case ID',
 
     // Priority
     low: 'Low',
@@ -40,19 +46,16 @@ export default {
     active: 'Active',
     deprecated: 'Deprecated',
 
-    // Test types
-    functional: 'Functional Testing',
-    integration: 'Integration Testing',
-    api: 'API Testing',
-    ui: 'UI Testing',
-    performance: 'Performance Testing',
-    security: 'Security Testing',
+    // Step modes
+    text: 'Text Mode',
+    step: 'Step Mode',
 
     // Placeholders
     searchPlaceholder: 'Search case title',
     caseTitlePlaceholder: 'Enter test case title',
     caseDescriptionPlaceholder: 'Enter case description',
     selectProject: 'Select project',
+    modulePlaceholder: 'Enter module name',
     selectPriority: 'Select priority',
     selectTestType: 'Select test type',
     selectStatus: 'Select status',
@@ -112,7 +115,40 @@ export default {
     excelAuthor: 'Author',
     excelCreatedAt: 'Created At',
     excelSheetName: 'Test Cases',
-    excelFileName: 'TestCases_{date}.xlsx'
+    excelFileName: 'TestCases_{date}.xlsx',
+
+    // Import
+    import: 'Import',
+    export: 'Export',
+    importTitle: 'Import Test Cases',
+    dragFile: 'Drag file here, or ',
+    clickUpload: 'click to upload',
+    uploadTip: 'Support .xlsx, .xls format, max 10MB',
+    fieldMapping: 'Field Mapping',
+    excelField: 'Excel Field',
+    systemField: 'System Field',
+    selectField: 'Select field to map',
+    dataPreview: 'Data Preview',
+    records: 'records',
+    confirmImport: 'Confirm Import',
+    parseSuccess: 'Successfully parsed {count} records',
+    parseFailed: 'Failed to parse Excel file',
+    emptyExcel: 'Excel file is empty or invalid',
+    readFileFailed: 'Failed to read file',
+    noTitleMapping: 'Please map at least the case title field',
+    noProject: 'No available project, please create one first',
+    rowNoTitle: 'Row {row} is missing case title',
+    rowImportFailed: 'Row {row} import failed: {error}',
+    importAllSuccess: 'Successfully imported {count} test cases',
+    importPartialMessage: 'Import completed, {success} success, {fail} failed',
+    importSuccess: 'Import Successful',
+    importPartialSuccess: 'Partial Import Successful',
+    importFailed: 'Import Failed',
+    importResult: 'Import Result',
+    importSuccessCount: 'Success',
+    importFailCount: 'Failed',
+    errorDetails: 'Error Details',
+    categoryLabel: 'Category'
   },
   testSuite: {
     title: 'Test Suites',
