@@ -136,7 +136,6 @@ export default {
     emptyExcel: 'Excel file is empty or invalid',
     readFileFailed: 'Failed to read file',
     noTitleMapping: 'Please map at least the case title field',
-    noProject: 'No available project, please create one first',
     rowNoTitle: 'Row {row} is missing case title',
     rowImportFailed: 'Row {row} import failed: {error}',
     importAllSuccess: 'Successfully imported {count} test cases',

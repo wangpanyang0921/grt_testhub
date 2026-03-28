@@ -9,7 +9,7 @@ import { pluralRules } from './pluralRules.js'
 const defaultLang = localStorage.getItem('app-lang') || 'zh-cn'
 
 // 开发环境下的缺失翻译警告处理器
-const missingHandler = (locale, key, vm, values) => {
+const missingHandler = (locale, key) => {
   if (import.meta.env.DEV) {
     console.warn(`[i18n] Missing translation: "${key}" for locale "${locale}"`)
   }

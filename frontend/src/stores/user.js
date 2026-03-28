@@ -58,44 +58,36 @@ export const useUserStore = defineStore('user', () => {
   }
 
   const login = async (credentials) => {
-    try {
-      const response = await api.post('/auth/login/', credentials)
+    const response = await api.post('/auth/login/', credentials)
 
-      // 保存双token
-      accessToken.value = response.data.access
-      refreshToken.value = response.data.refresh
-      user.value = response.data.user
+    // 保存双token
+    accessToken.value = response.data.access
+    refreshToken.value = response.data.refresh
+    user.value = response.data.user
 
-      // 计算过期时间（当前时间 + 30分钟）
-      const expiresAt = Date.now() + 30 * 60 * 1000
-      tokenExpiresAt.value = expiresAt
+    // 计算过期时间（当前时间 + 30分钟）
+    const expiresAt = Date.now() + 30 * 60 * 1000
+    tokenExpiresAt.value = expiresAt
 
-      // 持久化存储
-      localStorage.setItem('access_token', accessToken.value)
-      localStorage.setItem('refresh_token', refreshToken.value)
-      localStorage.setItem('token_expires_at', expiresAt.toString())
-      localStorage.setItem('user', JSON.stringify(user.value))
+    // 持久化存储
+    localStorage.setItem('access_token', accessToken.value)
+    localStorage.setItem('refresh_token', refreshToken.value)
+    localStorage.setItem('token_expires_at', expiresAt.toString())
+    localStorage.setItem('user', JSON.stringify(user.value))
 
-      // 启动自动刷新
-      startAutoRefresh()
+    // 启动自动刷新
+    startAutoRefresh()
 
-      return response.data
-    } catch (error) {
-      throw error
-    }
+    return response.data
   }
 
   const register = async (userData) => {
-    try {
-      // 临时使用测试接口
-      const response = await api.post('/auth/test-register/', userData)
+    // 临时使用测试接口
+    const response = await api.post('/auth/test-register/', userData)
 
-      // 注册成功后不自动登录，不保存token和用户信息
-      // 让用户手动登录
-      return response.data
-    } catch (error) {
-      throw error
-    }
+    // 注册成功后不自动登录，不保存token和用户信息
+    // 让用户手动登录
+    return response.data
   }
 
   // 添加一个标记防止logout过程中的循环调用
@@ -167,17 +159,6 @@ export const useUserStore = defineStore('user', () => {
     } catch (error) {
       // 刷新失败，清除所有认证信息
       console.error('Token refresh failed:', error)
-      await logout()
-      throw error
-    }
-  }
-
-  const fetchUser = async () => {
-    try {
-      const response = await api.get('/users/me/')
-      user.value = response.data
-      localStorage.setItem('user', JSON.stringify(user.value))
-    } catch (error) {
       await logout()
       throw error
     }
