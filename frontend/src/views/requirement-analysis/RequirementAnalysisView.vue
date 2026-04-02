@@ -99,7 +99,7 @@
         <div class="step-indicator-line-horizontal" :class="{ active: currentStep >= 3 }"></div>
         <div class="step-indicator-item" :class="{ active: currentStep >= 3, clickable: currentStep > 3 }" @click="goToStep(3)">
           <span class="step-indicator-number">3</span>
-          <span class="step-indicator-text">填写需求</span>
+          <span class="step-indicator-text">需求录入</span>
         </div>
       </div>
 
@@ -253,6 +253,33 @@
                     </div>
                   </div>
                 </div>
+                <div class="input-method-option" :class="{ active: selectedInputMethod === 'kb_chunks' }" @click="selectInputMethod('kb_chunks')">
+                  <div class="input-method-header">
+                    <div class="input-method-icon kb-chunk-icon">
+                      <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        <path d="M8 7h8M8 11h8M8 15h5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                      </svg>
+                    </div>
+                    <div class="input-method-title">知识库切片</div>
+                  </div>
+                  <div class="input-method-desc">选择平台知识库中已解析的切片</div>
+                  <div class="mode-features">
+                    <div class="feature-item">
+                      <span class="feature-dot"></span>
+                      <span>支持跨文档选择多个切片</span>
+                    </div>
+                    <div class="feature-item">
+                      <span class="feature-dot"></span>
+                      <span>自动标记来源</span>
+                    </div>
+                    <div class="feature-item">
+                      <span class="feature-dot"></span>
+                      <span>提供预览供确认</span>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -385,6 +412,85 @@
             </div>
           </div>
         </div>
+
+        <!-- 知识库切片选择区域 -->
+        <div v-if="selectedInputMethod === 'kb_chunks'" class="step-card kb-chunks-card">
+          <div class="step-card-main">
+            <div class="step-content-wrapper">
+              <div class="kb-chunk-selector">
+                <!-- 步骤1：选择文档 -->
+                <div v-show="kbCurrentStep === 1" class="kb-step-panel">
+                  <div class="panel-header">
+                    <div class="panel-title">
+                      <span>选择知识库文档</span>
+                    </div>
+                  </div>
+                  <div class="panel-body">
+                    <DocumentSelector 
+                      v-model="selectedKbDocuments"
+                      @selection-change="handleKbDocumentSelection"
+                    />
+                  </div>
+                  <div class="panel-footer panel-footer-center">
+                    <div class="selection-hint">
+                      <el-icon><InfoFilled /></el-icon>
+                      <span>已选择 {{ selectedKbDocuments.length }} 个文档</span>
+                    </div>
+                    <el-button
+                      type="primary"
+                      size="large"
+                      :disabled="selectedKbDocuments.length === 0"
+                      @click="nextKbStep"
+                    >
+                      下一步
+                      <el-icon class="el-icon--right"><ArrowRight /></el-icon>
+                    </el-button>
+                  </div>
+                </div>
+
+                <!-- 步骤2：选择切片 -->
+                <div v-show="kbCurrentStep === 2" class="kb-step-panel">
+                  <div class="panel-header">
+                    <div class="panel-title">
+                      <span>选择切片内容</span>
+                    </div>
+                  </div>
+                  <div class="panel-body">
+                    <ChunkSelector 
+                      ref="chunkSelectorRef"
+                      :selected-document-ids="selectedKbDocuments"
+                      :documents="kbDocuments"
+                      v-model="selectedKbChunks"
+                      @selection-change="handleKbChunkSelection"
+                      @remove-document="removeKbDocument"
+                    />
+                  </div>
+                  <div class="panel-footer panel-footer-center">
+                    <div class="selection-hint">
+                      <el-icon><InfoFilled /></el-icon>
+                      <span>已选择 {{ selectedKbChunks.length }} 个切片</span>
+                    </div>
+                    <div class="action-buttons">
+                      <el-button size="large" @click="prevKbStep">
+                        <el-icon class="el-icon--left"><ArrowLeft /></el-icon>
+                        上一步
+                      </el-button>
+                      <el-button
+                        type="primary"
+                        size="large"
+                        :disabled="selectedKbChunks.length === 0"
+                        @click="generateFromKbChunks"
+                      >
+                        生成测试用例
+                        <el-icon class="el-icon--right"><MagicStick /></el-icon>
+                      </el-button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
 
       <!-- 生成进度和结果 -->
@@ -413,13 +519,13 @@
             </div>
           </div>
 
-          <!-- 进度信息区域 - 仅在流式输出模式下显示 -->
-          <div v-if="globalOutputMode === 'stream'" class="progress-info">
+          <!-- 进度信息区域 -->
+          <div class="progress-info">
             <div class="progress-item">
               <span class="label">{{ $t('requirementAnalysis.currentStatus') }}</span>
               <span class="value">{{ showResults ? $t('requirementAnalysis.generationComplete') : progressText }}</span>
             </div>
-            <div class="progress-item mode-item">
+            <div class="progress-item mode-item" v-if="globalOutputMode === 'stream'">
               <span class="label">输出模式</span>
               <span class="value mode-value">
                 {{ $t('requirementAnalysis.realtimeStream') }}
@@ -430,20 +536,13 @@
             </button>
           </div>
 
-          <!-- 完整输出模式提示区域 -->
-          <div v-if="globalOutputMode === 'complete' && isGenerating" class="complete-mode-notice">
+          <!-- 完整输出模式提示区域 - 仅在生成中且未完成时显示 -->
+          <div v-if="globalOutputMode === 'complete' && isGenerating && !showResults" class="complete-mode-notice">
             <div class="notice-desc">AI正在后台生成测试用例，生成过程内容不可见。请耐心等待，完成后将显示最终结果。</div>
           </div>
 
-          <!-- 完整输出模式下的取消按钮 -->
-          <div v-if="globalOutputMode === 'complete' && !showResults" class="complete-mode-cancel">
-            <button class="cancel-generation-btn-inline" @click="cancelGeneration">
-              {{ $t('requirementAnalysis.cancelGeneration') }}
-            </button>
-          </div>
-
-          <!-- 流式内容实时显示区域 - 仅在流式输出模式下显示 -->
-          <div v-if="streamedContent && globalOutputMode === 'stream'" class="stream-content-display">
+          <!-- 流式内容实时显示区域 -->
+          <div v-if="streamedContent" class="stream-content-display">
             <div class="stream-header" @click="contentExpanded = !contentExpanded" style="cursor: pointer;">
               <div class="stream-header-left">
                 <span class="expand-icon">{{ contentExpanded ? '▼' : '▶' }}</span>
@@ -459,8 +558,8 @@
             <div v-show="contentExpanded" class="stream-content" v-html="formatMarkdown(streamedContent)"></div>
           </div>
 
-          <!-- 评审内容显示区域 - 仅在流式输出模式下显示 -->
-          <div v-if="streamedReviewContent && globalOutputMode === 'stream'" class="stream-content-display" style="margin-top: 15px;">
+          <!-- 评审内容显示区域 -->
+          <div v-if="streamedReviewContent" class="stream-content-display" style="margin-top: 15px;">
             <div class="stream-header" @click="reviewExpanded = !reviewExpanded" style="cursor: pointer;">
               <div class="stream-header-left">
                 <span class="expand-icon">{{ reviewExpanded ? '▼' : '▶' }}</span>
@@ -476,8 +575,8 @@
             <div v-show="reviewExpanded" class="stream-content" v-html="formatMarkdown(streamedReviewContent)"></div>
           </div>
 
-          <!-- 最终版用例显示区域 - 仅在流式输出模式下显示 -->
-          <div v-if="finalTestCases && globalOutputMode === 'stream'" class="stream-content-display" style="margin-top: 15px;">
+          <!-- 最终版用例显示区域 -->
+          <div v-if="finalTestCases" class="stream-content-display" style="margin-top: 15px;">
             <div class="stream-header" @click="finalExpanded = !finalExpanded" style="cursor: pointer;">
               <div class="stream-header-left">
                 <span class="expand-icon">{{ finalExpanded ? '▼' : '▶' }}</span>
@@ -529,9 +628,31 @@ import api from '@/utils/api'
 import { ElMessage } from 'element-plus'
 import * as XLSX from 'xlsx'
 import { useUserStore } from '@/stores/user'
+import { 
+  Check, 
+  Document, 
+  Files, 
+  InfoFilled, 
+  ArrowRight, 
+  ArrowLeft, 
+  MagicStick 
+} from '@element-plus/icons-vue'
+import DocumentSelector from './components/DocumentSelector.vue'
+import ChunkSelector from './components/ChunkSelector.vue'
 
 export default {
   name: 'RequirementAnalysisView',
+  components: {
+    DocumentSelector,
+    ChunkSelector,
+    Check,
+    Document,
+    Files,
+    InfoFilled,
+    ArrowRight,
+    ArrowLeft,
+    MagicStick
+  },
   data() {
     return {
       // 步骤管理：0-初始，1-选择输出模式，2-选择输入方式，3-填写需求
@@ -555,11 +676,17 @@ export default {
       projects: [],
       isDragOver: false,
 
+      // 知识库切片输入
+      selectedKbDocuments: [],
+      selectedKbChunks: [],
+      kbDocuments: [],
+      kbCurrentStep: 1,
+      chunkSelectorRef: null,
+
       // 生成状态
       isGenerating: false,
       currentTaskId: null,
       progressText: '',
-      currentStep: 0,
       pollInterval: null,
       eventSource: null,  // SSE连接
       streamedContent: '',  // 流式接收的内容
@@ -756,9 +883,122 @@ export default {
     
     selectInputMethod(method) {
       this.selectedInputMethod = method
+      if (method === 'kb_chunks') {
+        this.kbCurrentStep = 1
+        this.selectedKbDocuments = []
+        this.selectedKbChunks = []
+        this.loadKbDocuments()
+      }
       this.currentStep = 3
     },
-    
+
+    // 加载知识库文档列表
+    async loadKbDocuments() {
+      try {
+        const response = await api.get('/assistant/knowledge-base/documents/indexed_documents/')
+        if (response.data.success) {
+          this.kbDocuments = response.data.documents
+        } else {
+          ElMessage.error(response.data.error || '获取知识库文档失败')
+        }
+      } catch (error) {
+        console.error('获取知识库文档失败:', error)
+        ElMessage.error('获取知识库文档失败')
+      }
+    },
+
+    // 知识库切片选择相关方法
+    handleKbDocumentSelection(selection) {
+      this.selectedKbDocuments = selection
+    },
+
+    handleKbChunkSelection(selection) {
+      this.selectedKbChunks = selection
+    },
+
+    nextKbStep() {
+      if (this.kbCurrentStep < 2) {
+        this.kbCurrentStep++
+        // 进入步骤2时，手动触发切片加载
+        this.$nextTick(() => {
+          if (this.$refs.chunkSelectorRef) {
+            this.$refs.chunkSelectorRef.reloadChunks()
+          }
+        })
+      }
+    },
+
+    prevKbStep() {
+      if (this.kbCurrentStep > 1) {
+        this.kbCurrentStep--
+      }
+    },
+
+    removeKbDocument(docId) {
+      this.selectedKbDocuments = this.selectedKbDocuments.filter(id => id !== docId)
+      this.selectedKbChunks = this.selectedKbChunks.filter(chunk => chunk.document_id !== docId)
+    },
+
+    async generateFromKbChunks() {
+      if (this.selectedKbChunks.length === 0) {
+        ElMessage.error('请选择至少一个切片')
+        return
+      }
+
+      const params = {
+        chunk_ids: this.selectedKbChunks.map(chunk => ({
+          document_id: parseInt(chunk.document_id),
+          chunk_index: parseInt(chunk.chunk_index)
+        })),
+        output_mode: this.globalOutputMode
+      }
+
+      try {
+        // 使用新的异步接口创建任务
+        const response = await api.post('/requirement-analysis/testcase-generation/generate-from-kb/', params)
+
+        if (response.data.task_id) {
+          this.currentTaskId = response.data.task_id
+
+          // 切换到生成状态，显示进度页面
+          this.isGenerating = true
+          this.showResults = false
+          this.currentStep = 1
+          this.progressText = this.$t('requirementAnalysis.statusGenerating')
+          this.finalTestCases = ''
+          this.streamedContent = ''
+          this.streamedReviewContent = ''
+
+          ElMessage.success('测试用例生成任务已创建')
+
+          // 根据输出模式选择不同的进度获取方式
+          if (this.globalOutputMode === 'stream') {
+            this.startStreamingProgress()
+          } else {
+            this.startPolling()
+          }
+        } else {
+          ElMessage.error('创建任务失败：未返回任务ID')
+        }
+      } catch (error) {
+        console.error('创建任务失败:', error)
+        let errorMsg = '创建任务失败'
+        if (error.response?.data) {
+          const data = error.response.data
+          if (typeof data === 'object') {
+            errorMsg += ': ' + Object.entries(data).map(([key, value]) => {
+              return `${key}: ${Array.isArray(value) ? value.join(', ') : value}`
+            }).join('; ')
+          } else {
+            errorMsg += ': ' + (data.error || data.detail || data)
+          }
+        } else {
+          errorMsg += ': ' + error.message
+        }
+        ElMessage.error(errorMsg)
+      }
+    },
+
     goBack() {
       if (this.currentStep > 0) {
         this.currentStep -= 1
@@ -1091,7 +1331,9 @@ export default {
           requestData.project = projectId
         }
 
-        const response = await api.post('/requirement-analysis/testcase-generation/generate/', requestData)
+        const response = await api.post('/requirement-analysis/testcase-generation/generate/', requestData, {
+          timeout: 300000
+        })
 
         this.currentTaskId = response.data.task_id
 
@@ -3740,55 +3982,93 @@ export default {
 }
 
 /* 输入方式选择器样式 */
+/* 输入方式选择器 - 现代化三列网格布局 */
 .input-method-selector {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 40px;
-  max-width: 1100px;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 24px;
+  max-width: 1200px;
   margin: 0 auto;
   width: 100%;
+  padding: 0 20px;
+}
+
+/* 响应式布局：平板显示2列 */
+@media (max-width: 1024px) {
+  .input-method-selector {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 20px;
+  }
+}
+
+/* 响应式布局：手机显示1列 */
+@media (max-width: 640px) {
+  .input-method-selector {
+    grid-template-columns: 1fr;
+    gap: 16px;
+    padding: 0 16px;
+  }
 }
 
 .input-method-option {
-  padding: 80px 40px;
-  border: 2px solid rgba(123, 66, 246, 0.15);
-  border-radius: 24px;
+  padding: 32px 28px;
+  border: 1.5px solid rgba(123, 66, 246, 0.12);
+  border-radius: 20px;
   cursor: pointer;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  background: linear-gradient(145deg, rgba(255, 255, 255, 0.98) 0%, rgba(255, 255, 255, 0.95) 100%);
+  transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+  background: linear-gradient(145deg, #ffffff 0%, #fafbfc 100%);
   text-align: left;
-  box-shadow: 0 4px 24px rgba(123, 66, 246, 0.1);
-  min-height: 320px;
+  box-shadow: 0 2px 12px rgba(123, 66, 246, 0.06);
+  min-height: 260px;
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  justify-content: center;
+  justify-content: flex-start;
+  position: relative;
+  overflow: hidden;
+}
+
+/* 添加顶部装饰条 */
+.input-method-option::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(90deg, #8b5cf6 0%, #7b42f6 50%, #6d28d9 100%);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.input-method-option:hover::before,
+.input-method-option.active::before {
+  opacity: 1;
 }
 
 .input-method-option:hover {
-  border-color: rgba(123, 66, 246, 0.4);
-  background: linear-gradient(145deg, rgba(255, 255, 255, 1) 0%, rgba(255, 255, 255, 0.98) 100%);
-  transform: translateY(-4px);
-  box-shadow: 0 8px 30px rgba(123, 66, 246, 0.15);
+  border-color: rgba(123, 66, 246, 0.35);
+  background: linear-gradient(145deg, #ffffff 0%, #f8f7ff 100%);
+  transform: translateY(-6px);
+  box-shadow: 0 12px 40px rgba(123, 66, 246, 0.15);
 }
 
 .input-method-option.active {
   border-color: #7b42f6;
-  background: linear-gradient(145deg, rgba(123, 66, 246, 0.08) 0%, rgba(123, 66, 246, 0.04) 100%);
-  box-shadow: 0 4px 24px rgba(123, 66, 246, 0.2);
+  background: linear-gradient(145deg, rgba(123, 66, 246, 0.06) 0%, rgba(123, 66, 246, 0.02) 100%);
+  box-shadow: 0 8px 32px rgba(123, 66, 246, 0.18);
 }
 
 .input-method-header {
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 12px;
   margin-bottom: 16px;
-  padding-left: 16px;
 }
 
 .input-method-icon {
-  width: 48px;
-  height: 48px;
+  width: 44px;
+  height: 44px;
   border-radius: 12px;
   display: flex;
   align-items: center;
@@ -3797,50 +4077,85 @@ export default {
   flex-shrink: 0;
 
   svg {
-    width: 24px;
-    height: 24px;
+    width: 22px;
+    height: 22px;
   }
 
   &.manual-icon {
-    background: linear-gradient(135deg, rgba(139, 92, 246, 0.15) 0%, rgba(139, 92, 246, 0.08) 100%);
+    background: linear-gradient(135deg, rgba(139, 92, 246, 0.12) 0%, rgba(139, 92, 246, 0.06) 100%);
     color: #8b5cf6;
   }
 
   &.upload-icon {
-    background: linear-gradient(135deg, rgba(123, 66, 246, 0.15) 0%, rgba(123, 66, 246, 0.08) 100%);
-    color: #7b42f6;
+    background: linear-gradient(135deg, rgba(59, 130, 246, 0.12) 0%, rgba(59, 130, 246, 0.06) 100%);
+    color: #3b82f6;
+  }
+
+  &.kb-chunk-icon {
+    background: linear-gradient(135deg, rgba(16, 185, 129, 0.12) 0%, rgba(16, 185, 129, 0.06) 100%);
+    color: #10b981;
   }
 }
 
 .input-method-option.active .manual-icon {
   background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
   color: white;
-  box-shadow: 0 4px 12px rgba(139, 92, 246, 0.3);
+  box-shadow: 0 4px 16px rgba(139, 92, 246, 0.35);
 }
 
 .input-method-option.active .upload-icon {
-  background: linear-gradient(135deg, #7b42f6 0%, #6d28d9 100%);
+  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
   color: white;
-  box-shadow: 0 4px 12px rgba(123, 66, 246, 0.3);
+  box-shadow: 0 4px 16px rgba(59, 130, 246, 0.35);
+}
+
+.input-method-option.active .kb-chunk-icon {
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  color: white;
+  box-shadow: 0 4px 16px rgba(16, 185, 129, 0.35);
 }
 
 .input-method-title {
-  font-size: 1.6rem;
+  font-size: 1.25rem;
   font-weight: 600;
-  color: #1a1a2e;
+  color: #1e293b;
+  letter-spacing: -0.02em;
 }
 
 .input-method-desc {
-  font-size: 1.05rem;
+  font-size: 0.9rem;
   color: #64748b;
-  line-height: 1.6;
-  margin-bottom: 8px;
-  padding-left: 16px;
+  line-height: 1.5;
+  margin-bottom: 16px;
 }
 
 .input-method-option .mode-features {
-  margin-top: 24px;
-  padding-left: 16px;
+  margin-top: auto;
+  padding-top: 16px;
+  border-top: 1px solid rgba(226, 232, 240, 0.6);
+  width: 100%;
+}
+
+.feature-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.8rem;
+  color: #64748b;
+  margin-bottom: 8px;
+  line-height: 1.4;
+}
+
+.feature-item:last-child {
+  margin-bottom: 0;
+}
+
+.feature-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #8b5cf6 0%, #7b42f6 100%);
+  flex-shrink: 0;
 }
 
 /* 步骤3的卡片样式调整 */
@@ -3859,9 +4174,275 @@ export default {
 .divider {
   display: none;
 }
+
+/* 知识库切片选择界面样式 - 现代简洁风格 */
+.kb-chunks-card {
+  min-height: 600px;
+}
+
+/* 知识库切片选择器 - 现代化设计 */
+.kb-chunk-selector {
+  width: 100%;
+  max-width: 1500px;
+  margin: 0 auto;
+  padding: 0 50px;
+}
+
+/* 步骤面板 - 现代卡片式设计 */
+.kb-step-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+  min-height: 480px;
+  background: #ffffff;
+  border-radius: 20px;
+  padding: 36px 40px;
+  border: 1px solid rgba(226, 232, 240, 0.8);
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.06), 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+.panel-header {
+  text-align: center;
+  padding-bottom: 20px;
+  position: relative;
+}
+
+.panel-header::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 60px;
+  height: 3px;
+  background: linear-gradient(90deg, #7b42f6 0%, #5a32a3 100%);
+  border-radius: 2px;
+}
+
+.panel-title {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  font-size: 20px;
+  font-weight: 600;
+  color: #1e293b;
+  margin-bottom: 10px;
+  letter-spacing: -0.02em;
+}
+
+.panel-title .el-icon {
+  font-size: 24px;
+  color: #7b42f6;
+  background: linear-gradient(135deg, rgba(123, 66, 246, 0.1) 0%, rgba(123, 66, 246, 0.05) 100%);
+  padding: 8px;
+  border-radius: 10px;
+}
+
+.panel-subtitle {
+  font-size: 14px;
+  color: #64748b;
+  font-weight: 400;
+}
+
+.panel-body {
+  flex: 1;
+  min-height: 320px;
+}
+
+.panel-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-top: 24px;
+  border-top: 1px solid rgba(226, 232, 240, 0.6);
+}
+
+/* 居中布局 - 用于只有单个按钮的情况 */
+.panel-footer.panel-footer-center {
+  justify-content: center;
+}
+
+.panel-footer.panel-footer-center .selection-hint {
+  display: none;
+}
+
+.selection-hint {
+  display: none;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  color: #64748b;
+  background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+  padding: 10px 16px;
+  border-radius: 10px;
+  border: 1px solid rgba(226, 232, 240, 0.6);
+}
+
+.selection-hint .el-icon {
+  color: #7b42f6;
+  font-size: 16px;
+}
+
+/* 操作按钮组 - 现代风格 */
+.action-buttons {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+
+  /* 默认按钮（上一步） */
+  :deep(.el-button:not(.el-button--primary)) {
+    height: 44px;
+    padding: 0 28px;
+    font-size: 15px;
+    font-weight: 500;
+    border-radius: 10px;
+    border: 1px solid #e5e7eb;
+    background: #ffffff;
+    color: #4b5563;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+
+    &:hover {
+      border-color: #c4b5fd;
+      color: #7b42f6;
+      background: #faf8ff;
+      box-shadow: 0 4px 12px rgba(123, 66, 246, 0.1);
+      transform: translateY(-1px);
+    }
+
+    &:active {
+      transform: translateY(0);
+      box-shadow: 0 2px 8px rgba(123, 66, 246, 0.08);
+    }
+
+    .el-icon {
+      font-size: 16px;
+    }
+  }
+
+  /* 主要按钮（下一步/生成） */
+  :deep(.el-button--primary) {
+    height: 44px;
+    padding: 0 32px;
+    font-size: 15px;
+    font-weight: 600;
+    border-radius: 10px;
+    background: linear-gradient(135deg, #7b42f6 0%, #5a32a3 100%) !important;
+    border: none !important;
+    box-shadow: 0 4px 16px rgba(123, 66, 246, 0.35) !important;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    letter-spacing: 0.3px;
+
+    &:hover:not(:disabled) {
+      background: linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%) !important;
+      box-shadow: 0 8px 24px rgba(123, 66, 246, 0.45) !important;
+      transform: translateY(-2px);
+    }
+
+    &:active:not(:disabled) {
+      background: linear-gradient(135deg, #7b42f6 0%, #5a32a3 100%) !important;
+      transform: translateY(0);
+      box-shadow: 0 4px 12px rgba(123, 66, 246, 0.35) !important;
+    }
+
+    &:disabled,
+    &.is-disabled,
+    &:disabled:hover,
+    &.is-disabled:hover,
+    &:disabled:active,
+    &.is-disabled:active,
+    &:disabled:focus,
+    &.is-disabled:focus {
+      background: linear-gradient(135deg, #e5e7eb 0%, #d1d5db 100%) !important;
+      border: none !important;
+      box-shadow: none !important;
+      opacity: 0.7 !important;
+      color: #9ca3af !important;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    .el-icon {
+      font-size: 16px;
+    }
+  }
+}
 </style>
 
 <style>
+/* 全局 Element Plus 按钮样式覆盖 */
+:root {
+  --el-button-disabled-bg-color: #d1d5db;
+  --el-button-disabled-border-color: #d1d5db;
+  --el-button-disabled-text-color: #ffffff;
+}
+
+/* 全局覆盖所有主按钮的样式 */
+.el-button--primary {
+  background: linear-gradient(135deg, #7b42f6 0%, #5a32a3 100%) !important;
+  border: none !important;
+  box-shadow: 0 4px 12px rgba(123, 66, 246, 0.3) !important;
+}
+
+.el-button--primary:hover:not(.is-disabled):not([disabled]) {
+  background: linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%) !important;
+  border: none !important;
+  box-shadow: 0 6px 16px rgba(123, 66, 246, 0.4) !important;
+  transform: translateY(-1px) !important;
+}
+
+.el-button--primary:active:not(.is-disabled):not([disabled]) {
+  background: linear-gradient(135deg, #7b42f6 0%, #5a32a3 100%) !important;
+  border: none !important;
+  box-shadow: 0 2px 8px rgba(123, 66, 246, 0.3) !important;
+  transform: translateY(0) !important;
+}
+
+/* 全局覆盖所有禁用按钮的样式 */
+.el-button--primary.is-disabled,
+.el-button--primary[disabled],
+.el-button--primary.is-disabled:hover,
+.el-button--primary[disabled]:hover,
+.el-button--primary.is-disabled:active,
+.el-button--primary[disabled]:active,
+.el-button--primary.is-disabled:focus,
+.el-button--primary[disabled]:focus {
+  background: #d1d5db !important;
+  border: none !important;
+  color: #ffffff !important;
+  opacity: 0.6 !important;
+  box-shadow: none !important;
+  transform: none !important;
+}
+
+/* 全局覆盖默认按钮的样式（上一步按钮） */
+.el-button--default,
+.el-button:not(.el-button--primary):not(.el-button--text) {
+  background: #ffffff !important;
+  border: 1px solid #e2e8f0 !important;
+  color: #64748b !important;
+}
+
+.el-button--default:hover:not(.is-disabled):not([disabled]),
+.el-button:not(.el-button--primary):not(.el-button--text):hover:not(.is-disabled):not([disabled]) {
+  background: #f8fafc !important;
+  border-color: #7b42f6 !important;
+  color: #7b42f6 !important;
+}
+
+.el-button--default:active:not(.is-disabled):not([disabled]),
+.el-button:not(.el-button--primary):not(.el-button--text):active:not(.is-disabled):not([disabled]) {
+  background: #f1f5f9 !important;
+  border-color: #5a32a3 !important;
+  color: #5a32a3 !important;
+}
+
 /* 全局样式：确保弹窗不受任何容器限制 */
 .modal-overlay {
   position: fixed !important;
