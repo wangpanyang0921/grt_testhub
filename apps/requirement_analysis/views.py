@@ -36,15 +36,21 @@ from .models import (
     GeneratedTestCase, AnalysisTask, AIModelConfig, PromptConfig, TestCaseGenerationTask,
     GenerationConfig, AIModelService, TestTemplateConfig, TestTemplateCategory
 )
+
+# 导入知识库相关模型
+from apps.assistant.models import KnowledgeBaseDocument
+from apps.assistant.rag_service import rag_service
 from .serializers import (
     RequirementDocumentSerializer, RequirementAnalysisSerializer,
     BusinessRequirementSerializer, GeneratedTestCaseSerializer,
     AnalysisTaskSerializer, DocumentUploadSerializer,
     TestCaseGenerationRequestSerializer, TestCaseReviewRequestSerializer,
     AIModelConfigSerializer, PromptConfigSerializer, TestCaseGenerationTaskSerializer,
-    GenerationConfigSerializer, TestTemplateConfigSerializer, TestTemplateCategorySerializer
+    GenerationConfigSerializer, TestTemplateConfigSerializer, TestTemplateCategorySerializer,
+    NewTestCaseGenerationRequestSerializer
 )
 from .services import RequirementAnalysisService, DocumentProcessor
+from .models import RequirementAnalysis, RequirementDocument, TestCaseGenerationTask
 
 logger = logging.getLogger(__name__)
 
@@ -525,12 +531,14 @@ class BusinessRequirementViewSet(viewsets.ReadOnlyModelViewSet):
     @action(detail=False, methods=['post'])
     def generate_test_cases(self, request):
         """为选中的需求生成测试用例"""
+        logger.info(f"收到生成测试用例请求: {request.data}")
         serializer = TestCaseGenerationRequestSerializer(data=request.data)
         if not serializer.is_valid():
+            logger.error(f"序列化器验证失败: {serializer.errors}")
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
         try:
-            requirement_ids = serializer.validated_data['requirement_ids']
+            input_source = serializer.validated_data.get('input_source', 'manual')
             test_level = serializer.validated_data['test_level']
             test_priority = serializer.validated_data['test_priority']
             test_case_count = serializer.validated_data['test_case_count']
@@ -549,55 +557,209 @@ class BusinessRequirementViewSet(viewsets.ReadOnlyModelViewSet):
 
                 return case_id
 
+            # 用于存储知识库切片合并后的内容
+            kb_merged_content = None
+
             # 同步生成测试用例
             def run_generation():
+                nonlocal kb_merged_content
                 try:
-                    # 获取需求数据
-                    requirements = BusinessRequirement.objects.filter(id__in=requirement_ids)
                     generated_test_cases = []
 
-                    for requirement in requirements:
-                        # 获取该需求现有测试用例的数量，作为起始索引
-                        existing_count = GeneratedTestCase.objects.filter(requirement=requirement).count()
+                    if input_source in ['manual', 'file']:
+                        # 原有的手动输入和文件上传逻辑
+                        requirement_ids = serializer.validated_data['requirement_ids']
+                        requirements = BusinessRequirement.objects.filter(id__in=requirement_ids)
 
-                        for i in range(test_case_count):
-                            # 生成唯一的case_id
-                            case_id = generate_unique_case_id(requirement, existing_count + i + 1)
+                        for requirement in requirements:
+                            # 获取该需求现有测试用例的数量，作为起始索引
+                            existing_count = GeneratedTestCase.objects.filter(requirement=requirement).count()
 
-                            # 根据需求类型和序号生成不同的测试用例内容
-                            test_case_content = BusinessRequirementViewSet._generate_test_case_content(requirement,
-                                                                                                       i + 1,
-                                                                                                       test_level)
+                            for i in range(test_case_count):
+                                # 生成唯一的case_id
+                                case_id = generate_unique_case_id(requirement, existing_count + i + 1)
 
+                                # 根据需求类型和序号生成不同的测试用例内容
+                                test_case_content = BusinessRequirementViewSet._generate_test_case_content(requirement,
+                                                                                                           i + 1,
+                                                                                                           test_level)
+
+                                # 创建测试用例
+                                test_case = GeneratedTestCase.objects.create(
+                                    requirement=requirement,
+                                    case_id=case_id,
+                                    title=test_case_content['title'],
+                                    priority=test_priority,
+                                    precondition=test_case_content['precondition'],
+                                    test_steps=test_case_content['test_steps'],
+                                    expected_result=test_case_content['expected_result'],
+                                    status='generated',
+                                    generated_by_ai='AI-Generator-v1.0'
+                                )
+                                generated_test_cases.append(test_case)
+
+                    elif input_source == 'kb_chunks':
+                        # 新增：从知识库切片生成用例的逻辑
+                        chunk_ids = serializer.validated_data['chunk_ids']
+
+                        # 合并切片内容
+                        merged_content = self._merge_kb_chunks_content(chunk_ids, request.user)
+                        kb_merged_content = merged_content  # 保存到外部变量
+
+                        # 创建一个虚拟的分析和需求，用于存储知识库内容
+                        from django.utils.text import slugify
+
+                        # 创建虚拟分析文档
+                        from django.core.files.base import ContentFile
+                        virtual_document, _ = RequirementDocument.objects.get_or_create(
+                            title=f"KB_Doc_{int(time.time())}",
+                            defaults={
+                                'document_type': 'txt',
+                                'status': 'analyzed',
+                                'extracted_text': merged_content[:2000],  # 只存储部分内容
+                                'uploaded_by': request.user
+                            }
+                        )
+                        # 如果没有文件，创建一个虚拟文件
+                        if not virtual_document.file:
+                            virtual_document.file.save(
+                                f'kb_virtual_{int(time.time())}.txt',
+                                ContentFile(merged_content[:1000]),
+                                save=True
+                            )
+
+                        # 创建虚拟分析结果
+                        virtual_analysis, _ = RequirementAnalysis.objects.get_or_create(
+                            document=virtual_document,
+                            defaults={
+                                'requirements_count': 1,
+                                'analysis_report': f'基于知识库切片生成的虚拟分析\n\n内容摘要：{merged_content[:500]}...'
+                            }
+                        )
+
+                        # 创建虚拟需求
+                        virtual_requirement, created = BusinessRequirement.objects.get_or_create(
+                            analysis=virtual_analysis,
+                            requirement_id=f"KB_{slugify(str(int(time.time())))}",
+                            defaults={
+                                'requirement_name': '知识库切片生成',
+                                'requirement_type': 'functional',
+                                'module': 'KnowledgeBase',
+                                'requirement_level': 'system',
+                                'description': merged_content,
+                                'estimated_hours': 1,
+                                'acceptance_criteria': '基于知识库内容生成测试用例'
+                            }
+                        )
+                        
+                        # 为知识库切片内容生成测试用例 - 使用AI模型
+                        # 创建一个临时任务对象来调用AI服务
+                        temp_task = TestCaseGenerationTask(
+                            title='知识库切片临时任务',
+                            requirement_text=merged_content,
+                            created_by=request.user
+                        )
+                        
+                        # 获取活跃的AI模型配置和提示词配置
+                        writer_config = AIModelConfig.objects.filter(role='writer', is_active=True).first()
+                        writer_prompt = PromptConfig.get_active_config('writer')
+                        
+                        if not writer_config:
+                            raise Exception('未找到可用的测试用例编写模型配置')
+                        if not writer_prompt:
+                            raise Exception('未找到可用的测试用例编写提示词配置')
+                        
+                        temp_task.writer_model_config = writer_config
+                        temp_task.writer_prompt_config = writer_prompt
+                        
+                        # 调用AI模型生成测试用例
+                        from asgiref.sync import async_to_sync
+                        
+                        # 使用async_to_sync包装异步函数
+                        ai_generated_content = async_to_sync(AIModelService.generate_test_cases)(temp_task)
+                        
+                        # 解析AI生成的内容并创建测试用例
+                        # 这里需要解析AI返回的测试用例内容，提取各个用例的组成部分
+                        # 由于AI返回的内容格式可能不同，我们先创建一个简单的解析器
+                        test_cases_data = self._parse_ai_generated_content(ai_generated_content, virtual_requirement)
+                        
+                        for i, test_case_data in enumerate(test_cases_data):
+                            case_id = generate_unique_case_id(virtual_requirement, i + 1)
+                            
                             # 创建测试用例
                             test_case = GeneratedTestCase.objects.create(
-                                requirement=requirement,
+                                requirement=virtual_requirement,
                                 case_id=case_id,
-                                title=test_case_content['title'],
+                                title=test_case_data.get('title', f'知识库切片生成用例 {i+1}'),
                                 priority=test_priority,
-                                precondition=test_case_content['precondition'],
-                                test_steps=test_case_content['test_steps'],
-                                expected_result=test_case_content['expected_result'],
+                                precondition=test_case_data.get('precondition', ''),
+                                test_steps=test_case_data.get('test_steps', ''),
+                                expected_result=test_case_data.get('expected_result', ''),
                                 status='generated',
                                 generated_by_ai='AI-Generator-v1.0'
                             )
                             generated_test_cases.append(test_case)
+                        
+                        # 保存AI生成的原始内容，供任务记录使用
+                        ai_generated_content_for_task = ai_generated_content
+                        
+                        # 为知识库切片生成的任务记录保存AI生成的原始内容，而不是表格格式
+                        # 这样可以与新API保持一致的格式
+                        kb_merged_content = merged_content  # 确保变量已定义
 
-                    return generated_test_cases
+                    if input_source == 'kb_chunks':
+                        # 对于知识库切片，返回测试用例和AI生成的原始内容
+                        return generated_test_cases, ai_generated_content_for_task
+                    else:
+                        # 对于手动输入和文件上传，返回测试用例和None
+                        return generated_test_cases, None
 
                 except Exception as e:
                     logger.error(f"生成测试用例失败: {e}")
                     raise e
 
-            test_cases = run_generation()
+            test_cases, ai_generated_content_result = run_generation()
 
             # 序列化返回结果
             test_case_serializer = GeneratedTestCaseSerializer(test_cases, many=True)
 
-            return Response({
+            # 创建任务记录
+            task = None
+            if input_source == 'kb_chunks' and kb_merged_content:
+                # 为知识库切片生成创建任务记录
+                import uuid
+                from django.utils import timezone
+
+                # 构建测试用例内容（使用AI生成的原始内容，保持与新API一致的格式）
+                # 使用从run_generation函数返回的AI生成原始内容
+                if ai_generated_content_result:
+                    test_cases_content = ai_generated_content_result
+                else:
+                    # 如果没有AI生成内容，则使用表格格式作为备选
+                    test_cases_content = self._build_test_cases_markdown(test_cases)
+
+                task = TestCaseGenerationTask.objects.create(
+                    task_id=f"KB_{uuid.uuid4().hex[:8].upper()}",
+                    title=f"知识库切片生成 - {len(test_cases)}个用例",
+                    requirement_text=kb_merged_content[:500] + "..." if len(kb_merged_content) > 500 else kb_merged_content,
+                    status='completed',
+                    progress=100,
+                    output_mode='complete',
+                    created_by=request.user,
+                    completed_at=timezone.now(),
+                    generated_test_cases=test_cases_content,
+                    final_test_cases=test_cases_content
+                )
+
+            response_data = {
                 'message': f'成功生成{len(test_cases)}个测试用例',
                 'test_cases': test_case_serializer.data
-            }, status=status.HTTP_201_CREATED)
+            }
+
+            if task:
+                response_data['task_id'] = task.task_id
+
+            return Response(response_data, status=status.HTTP_201_CREATED)
 
         except Exception as e:
             logger.error(f"生成测试用例时出错: {e}")
@@ -605,6 +767,135 @@ class BusinessRequirementViewSet(viewsets.ReadOnlyModelViewSet):
                 {'error': f'生成测试用例失败: {str(e)}'},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
+
+    def _parse_ai_generated_content(self, content, requirement):
+        """
+        解析AI生成的测试用例内容
+        这是一个简化版本，实际应用中可能需要更复杂的解析逻辑
+        """
+        # 简单的解析逻辑：按测试用例的常见格式进行分割
+        lines = content.split('\n')
+        test_cases = []
+        current_case = {}
+        
+        for line in lines:
+            line = line.strip()
+            if not line:
+                continue
+                
+            # 检查是否是新的测试用例标题
+            if '测试用例' in line or '用例' in line or line.startswith('#') or line.startswith('TC-') or line.startswith('TEST-'):
+                if current_case and any(current_case.values()):  # 如果当前用例有内容，保存它
+                    test_cases.append(current_case)
+                current_case = {'title': line, 'precondition': '', 'test_steps': '', 'expected_result': ''}
+            elif '前置条件' in line or '前提条件' in line:
+                # 提取前置条件
+                parts = line.split(':', 1)
+                if len(parts) > 1:
+                    current_case['precondition'] = parts[1].strip()
+                else:
+                    current_case['precondition'] = line.replace('前置条件', '').replace('前提条件', '').strip()
+            elif '测试步骤' in line or '操作步骤' in line:
+                # 提取测试步骤
+                parts = line.split(':', 1)
+                if len(parts) > 1:
+                    current_case['test_steps'] = parts[1].strip()
+                else:
+                    current_case['test_steps'] = line.replace('测试步骤', '').replace('操作步骤', '').strip()
+            elif '预期结果' in line or '期望结果' in line:
+                # 提取预期结果
+                parts = line.split(':', 1)
+                if len(parts) > 1:
+                    current_case['expected_result'] = parts[1].strip()
+                else:
+                    current_case['expected_result'] = line.replace('预期结果', '').replace('期望结果', '').strip()
+            elif '标题' in line:
+                # 提取标题
+                parts = line.split(':', 1)
+                if len(parts) > 1:
+                    current_case['title'] = parts[1].strip()
+        
+        # 添加最后一个用例
+        if current_case and any(current_case.values()):
+            test_cases.append(current_case)
+        
+        # 如果解析结果为空，创建一个基本的用例
+        if not test_cases:
+            test_cases.append({
+                'title': f'{requirement.requirement_name} - AI生成用例',
+                'precondition': '无特殊前置条件',
+                'test_steps': content[:500] + '...' if len(content) > 500 else content,
+                'expected_result': '功能按预期工作'
+            })
+        
+        return test_cases
+
+    def _build_test_cases_markdown(self, test_cases):
+        """构建测试用例的Markdown格式内容"""
+        lines = []
+        lines.append("| 用例ID | 标题 | 优先级 | 前置条件 | 测试步骤 | 预期结果 |")
+        lines.append("|--------|------|--------|----------|----------|----------|")
+
+        for tc in test_cases:
+            case_id = tc.case_id if hasattr(tc, 'case_id') else tc.get('case_id', 'N/A')
+            title = tc.title if hasattr(tc, 'title') else tc.get('title', 'N/A')
+            priority = tc.priority if hasattr(tc, 'priority') else tc.get('priority', 'P1')
+            precondition = tc.precondition if hasattr(tc, 'precondition') else tc.get('precondition', '')
+            test_steps = tc.test_steps if hasattr(tc, 'test_steps') else tc.get('test_steps', '')
+            expected_result = tc.expected_result if hasattr(tc, 'expected_result') else tc.get('expected_result', '')
+
+            # 处理多行文本，替换换行符
+            precondition = str(precondition).replace('\n', '<br>')
+            test_steps = str(test_steps).replace('\n', '<br>')
+            expected_result = str(expected_result).replace('\n', '<br>')
+
+            lines.append(f"| {case_id} | {title} | {priority} | {precondition} | {test_steps} | {expected_result} |")
+
+        return '\n'.join(lines)
+
+    def _merge_kb_chunks_content(self, chunk_ids, user):
+        """
+        合并知识库切片内容，添加来源标记
+        """
+        merged_content = []
+        
+        for chunk_info in chunk_ids:
+            doc_id = chunk_info['document_id']
+            chunk_idx = chunk_info['chunk_index']
+            
+            # 获取文档信息
+            try:
+                doc = KnowledgeBaseDocument.objects.get(id=doc_id, user=user)
+                
+                # 获取切片内容
+                chunks_result = rag_service.get_document_chunks(doc_id, user=user)
+                
+                if chunks_result.get('success') and 'chunks' in chunks_result:
+                    # 根据 chunk_index 查找对应的切片
+                    chunk_data = None
+                    for chunk in chunks_result['chunks']:
+                        if chunk['index'] == chunk_idx:
+                            chunk_data = chunk
+                            break
+                    
+                    if chunk_data:
+                        chunk_content = chunk_data['content']
+                        
+                        # 添加来源标记
+                        merged_content.append(f"""【来源：{doc.name} - 切片{chunk_idx + 1}】
+{chunk_content}""")
+                    else:
+                        logger.warning(f"找不到切片索引 {chunk_idx}，文档 {doc_id} 的切片列表: {[c['index'] for c in chunks_result['chunks']]}")
+                else:
+                    logger.error(f"获取文档 {doc_id} 的切片内容失败: {chunks_result.get('error', '未知错误')}")
+            except KnowledgeBaseDocument.DoesNotExist:
+                logger.error(f"用户 {user.id} 无权限访问文档 {doc_id} 或文档不存在")
+                continue
+            except Exception as e:
+                logger.error(f"处理文档 {doc_id} 切片 {chunk_idx} 时出错: {str(e)}")
+                continue
+        
+        return "\n\n---\n\n".join(merged_content)
 
 
 from rest_framework.pagination import PageNumberPagination
@@ -1460,7 +1751,7 @@ class TestCaseGenerationTaskViewSet(viewsets.ModelViewSet):
     def generate(self, request):
         """创建新的测试用例生成任务"""
         try:
-            serializer = TestCaseGenerationRequestSerializer(data=request.data)
+            serializer = NewTestCaseGenerationRequestSerializer(data=request.data)
             if not serializer.is_valid():
                 return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
@@ -1958,6 +2249,380 @@ class TestCaseGenerationTaskViewSet(viewsets.ModelViewSet):
                 {'error': f'创建任务失败: {str(e)}'},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
+
+    @action(detail=False, methods=['post'], url_path='generate-from-kb')
+    def generate_from_kb(self, request):
+        """从知识库切片创建异步测试用例生成任务"""
+        try:
+            # 验证输入参数
+            chunk_ids = request.data.get('chunk_ids', [])
+            if not chunk_ids:
+                return Response(
+                    {'error': '请选择至少一个知识库切片'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            # 合并切片内容
+            try:
+                merged_content = self._merge_kb_chunks_content(chunk_ids, request.user)
+            except Exception as e:
+                logger.error(f"合并切片内容失败: {e}")
+                return Response(
+                    {'error': f'合并切片内容失败: {str(e)}'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            if not merged_content or len(merged_content.strip()) == 0:
+                return Response(
+                    {'error': '切片内容为空'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            # 获取活跃的配置
+            writer_config = AIModelConfig.objects.filter(role='writer', is_active=True).first()
+            if not writer_config:
+                return Response(
+                    {'error': '未找到可用的测试用例编写模型配置'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            writer_prompt = PromptConfig.get_active_config('writer')
+            if not writer_prompt:
+                return Response(
+                    {'error': '未找到可用的测试用例编写提示词配置'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            reviewer_config = AIModelConfig.objects.filter(role='reviewer', is_active=True).first()
+            reviewer_prompt = PromptConfig.get_active_config('reviewer')
+
+            # 创建任务
+            task_data = {
+                'title': f"知识库切片生成 - {len(chunk_ids)}个切片",
+                'requirement_text': merged_content,
+                'writer_model_config': writer_config.id,
+                'reviewer_model_config': reviewer_config.id if reviewer_config else None,
+                'writer_prompt_config': writer_prompt.id,
+                'reviewer_prompt_config': reviewer_prompt.id if reviewer_prompt else None,
+            }
+
+            # 处理输出模式
+            output_mode = request.data.get('output_mode')
+            if output_mode and output_mode in ['stream', 'complete']:
+                task_data['output_mode'] = output_mode
+            else:
+                # 从生成行为配置中读取默认值
+                from .models import GenerationConfig
+                gen_config = GenerationConfig.get_active_config()
+                if gen_config:
+                    task_data['output_mode'] = gen_config.default_output_mode
+                else:
+                    task_data['output_mode'] = 'stream'
+
+            task_serializer = TestCaseGenerationTaskSerializer(
+                data=task_data,
+                context={'request': request}
+            )
+
+            if task_serializer.is_valid():
+                task = task_serializer.save()
+
+                # 异步执行生成任务（复用现有的 run_generation_task 逻辑）
+                def run_generation_task():
+                    try:
+                        import threading
+
+                        def execute_task():
+                            try:
+                                # 更新任务状态
+                                task.status = 'generating'
+                                task.progress = 10
+                                task.save()
+
+                                # 读取生成行为配置
+                                from .models import GenerationConfig
+                                gen_config = GenerationConfig.get_active_config()
+                                enable_auto_review = gen_config.enable_auto_review if gen_config else True
+                                review_timeout = gen_config.review_timeout if gen_config else 120
+
+                                logger.info(f"知识库切片任务 {task.task_id} 开始生成")
+
+                                loop = asyncio.new_event_loop()
+                                asyncio.set_event_loop(loop)
+
+                                try:
+                                    if task.output_mode == 'stream':
+                                        # 流式模式
+                                        task.stream_buffer = ''
+                                        task.stream_position = 0
+                                        task.save()
+
+                                        def save_stream_buffer(content):
+                                            task.stream_buffer = content
+                                            task.stream_position = len(content)
+                                            task.last_stream_update = timezone.now()
+                                            task.save(update_fields=['stream_buffer', 'stream_position', 'last_stream_update'])
+
+                                        async_save_stream_buffer = sync_to_async(save_stream_buffer)
+
+                                        async def stream_callback(chunk):
+                                            task.stream_buffer += chunk
+                                            task.stream_position = len(task.stream_buffer)
+                                            task.last_stream_update = timezone.now()
+                                            if task.stream_position % 500 < 20 or len(chunk) > 100:
+                                                try:
+                                                    await async_save_stream_buffer(task.stream_buffer)
+                                                except Exception as save_error:
+                                                    logger.warning(f"保存流式内容失败: {save_error}")
+
+                                        task.progress = 30
+                                        task.save()
+
+                                        generated_cases = loop.run_until_complete(
+                                            AIModelService.generate_test_cases_stream(task, callback=stream_callback)
+                                        )
+
+                                        if task.stream_buffer:
+                                            save_stream_buffer(task.stream_buffer)
+
+                                        task.generated_test_cases = generated_cases
+                                        task.progress = 60
+                                        task.save()
+
+                                        # 评审和改进
+                                        if enable_auto_review and task.reviewer_model_config and task.reviewer_prompt_config:
+                                            self._run_review_and_revise(task, generated_cases, loop, review_timeout)
+                                        else:
+                                            sorted_cases = AIModelService.sort_test_cases_by_id(generated_cases)
+                                            task.final_test_cases = AIModelService.renumber_test_cases(sorted_cases)
+                                            logger.info(f"任务 {task.task_id} 跳过评审")
+                                            task.save()
+
+                                    else:
+                                        # 完整模式
+                                        task.progress = 30
+                                        task.save()
+
+                                        generated_cases = loop.run_until_complete(
+                                            AIModelService.generate_test_cases(task)
+                                        )
+
+                                        task.generated_test_cases = generated_cases
+                                        task.progress = 60
+                                        task.save()
+
+                                        # 评审和改进
+                                        if enable_auto_review and task.reviewer_model_config and task.reviewer_prompt_config:
+                                            self._run_review_and_revise(task, generated_cases, loop, review_timeout)
+                                        else:
+                                            sorted_cases = AIModelService.sort_test_cases_by_id(generated_cases)
+                                            task.final_test_cases = AIModelService.renumber_test_cases(sorted_cases)
+                                            logger.info(f"任务 {task.task_id} 跳过评审")
+                                            task.save()
+
+                                    # 完成任务
+                                    task.refresh_from_db()
+                                    task.status = 'completed'
+                                    task.progress = 100
+                                    task.completed_at = timezone.now()
+                                    task.save(update_fields=['status', 'progress', 'completed_at', 'final_test_cases'])
+                                    logger.info(f"知识库切片任务 {task.task_id} 已完成")
+
+                                finally:
+                                    try:
+                                        loop.run_until_complete(loop.shutdown_asyncgens())
+                                    except Exception as e:
+                                        logger.warning(f"Error shutting down asyncgens: {e}")
+                                    finally:
+                                        loop.close()
+
+                            except Exception as e:
+                                logger.error(f"知识库切片任务执行失败: {e}")
+                                task.status = 'failed'
+                                task.error_message = str(e)
+                                task.save()
+
+                        # 在新线程中执行任务
+                        thread = threading.Thread(target=execute_task)
+                        thread.daemon = True
+                        thread.start()
+
+                    except Exception as e:
+                        logger.error(f"启动知识库切片任务失败: {e}")
+                        task.status = 'failed'
+                        task.error_message = str(e)
+                        task.save()
+
+                # 启动异步任务
+                run_generation_task()
+
+                return Response({
+                    'message': '知识库切片测试用例生成任务已创建',
+                    'task_id': task.task_id,
+                    'task': task_serializer.data
+                }, status=status.HTTP_201_CREATED)
+            else:
+                return Response(task_serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        except Exception as e:
+            logger.error(f"创建知识库切片任务时出错: {e}")
+            return Response(
+                {'error': f'创建任务失败: {str(e)}'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+    def _run_review_and_revise(self, task, generated_cases, loop, review_timeout):
+        """运行评审和改进流程"""
+        try:
+            task.status = 'reviewing'
+            task.progress = 70
+            task.save()
+
+            logger.info(f"开始评审任务 {task.task_id}")
+
+            if task.output_mode == 'stream':
+                # 流式评审
+                review_buffer = []
+
+                def save_review_buffer(content):
+                    task.review_feedback = content
+                    task.save(update_fields=['review_feedback'])
+
+                async_save_review = sync_to_async(save_review_buffer)
+
+                async def review_stream_callback(chunk):
+                    review_buffer.append(chunk)
+                    current_length = sum(len(c) for c in review_buffer)
+                    if current_length % 100 < 20 or len(chunk) > 50:
+                        try:
+                            content = ''.join(review_buffer)
+                            await async_save_review(content)
+                        except Exception as save_error:
+                            logger.warning(f"保存评审内容失败: {save_error}")
+
+                review_feedback = loop.run_until_complete(
+                    AIModelService.review_test_cases_stream(task, generated_cases, callback=review_stream_callback)
+                )
+
+                if review_buffer:
+                    task.review_feedback = ''.join(review_buffer)
+                    task.save(update_fields=['review_feedback'])
+            else:
+                # 非流式评审
+                review_feedback = loop.run_until_complete(
+                    AIModelService.review_test_cases(task, generated_cases)
+                )
+                task.review_feedback = review_feedback
+                task.save()
+
+            logger.info(f"任务 {task.task_id} 评审完成")
+
+            # 改进测试用例
+            task.status = 'revising'
+            task.progress = 85
+            task.final_test_cases = ''
+            task.save()
+
+            if task.output_mode == 'stream':
+                def save_final_buffer(content):
+                    task.final_test_cases = content
+                    task.save(update_fields=['final_test_cases'])
+
+                async_save_final = sync_to_async(save_final_buffer)
+
+                async def final_callback(chunk):
+                    task.final_test_cases = (task.final_test_cases or '') + chunk
+                    current_length = len(task.final_test_cases)
+                    if current_length % 100 < 20 or len(chunk) > 50:
+                        try:
+                            await async_save_final(task.final_test_cases)
+                        except Exception as save_error:
+                            logger.warning(f"保存最终用例失败: {save_error}")
+
+                try:
+                    revised_cases = loop.run_until_complete(
+                        asyncio.wait_for(
+                            AIModelService.revise_test_cases_based_on_review(
+                                task, generated_cases, task.review_feedback, callback=final_callback
+                            ),
+                            timeout=review_timeout
+                        )
+                    )
+                except asyncio.TimeoutError:
+                    logger.error(f"任务 {task.task_id} 改进阶段超时")
+                    revised_cases = generated_cases
+            else:
+                revised_cases = loop.run_until_complete(
+                    asyncio.wait_for(
+                        AIModelService.revise_test_cases_based_on_review(
+                            task, generated_cases, task.review_feedback
+                        ),
+                        timeout=review_timeout
+                    )
+                )
+
+            if revised_cases and len(revised_cases) > 0:
+                revised_cases = AIModelService.fix_incomplete_last_case(revised_cases)
+                sorted_cases = AIModelService.sort_test_cases_by_id(revised_cases)
+                task.final_test_cases = AIModelService.renumber_test_cases(sorted_cases)
+                logger.info(f"任务 {task.task_id} 改进完成")
+            else:
+                logger.warning(f"任务 {task.task_id} 改进返回为空")
+                sorted_cases = AIModelService.sort_test_cases_by_id(generated_cases)
+                task.final_test_cases = AIModelService.renumber_test_cases(sorted_cases)
+
+            task.save()
+
+        except Exception as e:
+            logger.error(f"评审和改进失败: {e}")
+            task.review_feedback = f"评审失败: {str(e)}"
+            sorted_cases = AIModelService.sort_test_cases_by_id(generated_cases)
+            task.final_test_cases = AIModelService.renumber_test_cases(sorted_cases)
+            task.save()
+
+    def _merge_kb_chunks_content(self, chunk_ids, user):
+        """
+        合并知识库切片内容，添加来源标记
+        """
+        merged_content = []
+
+        for chunk_info in chunk_ids:
+            doc_id = chunk_info['document_id']
+            chunk_idx = chunk_info['chunk_index']
+
+            # 获取文档信息
+            try:
+                doc = KnowledgeBaseDocument.objects.get(id=doc_id, user=user)
+
+                # 获取切片内容
+                chunks_result = rag_service.get_document_chunks(doc_id, user=user)
+
+                if chunks_result.get('success') and 'chunks' in chunks_result:
+                    # 根据 chunk_index 查找对应的切片
+                    chunk_data = None
+                    for chunk in chunks_result['chunks']:
+                        if chunk['index'] == chunk_idx:
+                            chunk_data = chunk
+                            break
+
+                    if chunk_data:
+                        chunk_content = chunk_data['content']
+
+                        # 添加来源标记
+                        merged_content.append(f"""【来源：{doc.name} - 切片{chunk_idx + 1}】
+{chunk_content}""")
+                    else:
+                        logger.warning(f"找不到切片索引 {chunk_idx}，文档 {doc_id} 的切片列表: {[c['index'] for c in chunks_result['chunks']]}")
+                else:
+                    logger.error(f"获取文档 {doc_id} 的切片内容失败: {chunks_result.get('error', '未知错误')}")
+            except KnowledgeBaseDocument.DoesNotExist:
+                logger.error(f"用户 {user.id} 无权限访问文档 {doc_id} 或文档不存在")
+                continue
+            except Exception as e:
+                logger.error(f"处理文档 {doc_id} 切片 {chunk_idx} 时出错: {str(e)}")
+                continue
+
+        return "\n\n---\n\n".join(merged_content)
 
     @action(detail=True, methods=['get'])
     def progress(self, request, task_id=None):

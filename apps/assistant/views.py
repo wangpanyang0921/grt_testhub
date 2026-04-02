@@ -317,6 +317,22 @@ class KnowledgeBaseDocumentViewSet(viewsets.ModelViewSet):
         self._generate_index_async(document, request.user)
         return Response({'message': '索引生成中'}, status=status.HTTP_202_ACCEPTED)
 
+    @action(detail=False, methods=['get'])
+    def indexed_documents(self, request):
+        """获取所有已完成索引的文档列表"""
+        # 获取用户的所有已完成索引的文档
+        documents = KnowledgeBaseDocument.objects.filter(
+            user=request.user,
+            status='indexed'
+        ).order_by('-updated_at')
+
+        serializer = self.get_serializer(documents, many=True)
+        return Response({
+            'success': True,
+            'documents': serializer.data,
+            'total': len(documents)
+        })
+
     @action(detail=True, methods=['get'])
     def chunks(self, request, pk=None):
         """获取文档切块内容"""
@@ -334,6 +350,7 @@ class KnowledgeBaseDocumentViewSet(viewsets.ModelViewSet):
 
         if result.get('success'):
             return Response({
+                'success': True,
                 'document_name': document.name,
                 'chunks': result['chunks'],
                 'total': result['total']

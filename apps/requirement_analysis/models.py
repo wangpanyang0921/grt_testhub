@@ -504,9 +504,15 @@ class TestTemplateConfig(models.Model):
         for template in queryset:
             keywords = template.get_keywords_list()
             # 关键词也转换为小写进行匹配
-            if any(keyword.lower() in text_lower for keyword in keywords):
+            matched_keywords = [k for k in keywords if k.lower() in text_lower]
+            if matched_keywords:
                 matched.append(template)
+                logger.info(f"模板匹配成功: {template.name}, 关键词: {keywords}, 匹配到的关键词: {matched_keywords}")
 
+        logger.info(f"模板匹配: 类型={template_type}, 总模板数={queryset.count()}, 匹配数={len(matched)}")
+        if matched:
+            matched_names = [t.name for t in matched]
+            logger.info(f"匹配的模板名称: {matched_names}")
         return matched
 
     @classmethod
@@ -831,6 +837,72 @@ class AIModelService:
                 raise e
 
     @staticmethod
+    def _extract_matching_text(requirement_text: str) -> str:
+        """
+        从需求文本中提取用于模板匹配的文本
+        
+        对于文件上传的情况，文本格式为：
+        "文档标题: xxx\n\n文档内容:\nxxx"
+        我们只使用标题和前1000字符进行匹配，避免长文档导致所有模板都被匹配
+        
+        对于手动输入的情况，文本格式为：
+        "需求标题: xxx\n\n需求描述:\nxxx"
+        同样只使用标题和前1000字符
+        
+        Args:
+            requirement_text: 原始需求文本
+            
+        Returns:
+            用于模板匹配的文本片段
+        """
+        if not requirement_text:
+            return ""
+        
+        # 定义内容分隔标记
+        content_markers = ['文档内容:', '需求描述:', '内容:', '描述:']
+        
+        lines = requirement_text.split('\n')
+        title_line = ""
+        content_start_idx = -1
+        
+        # 查找标题行和内容起始位置
+        for i, line in enumerate(lines):
+            # 查找标题行（通常包含"标题:"或"Title:"）
+            if '标题:' in line or 'Title:' in line:
+                title_line = line
+            # 查找内容起始标记
+            for marker in content_markers:
+                if marker in line:
+                    content_start_idx = i
+                    break
+            if content_start_idx != -1:
+                break
+        
+        # 构建用于匹配的文本
+        matching_parts = []
+        
+        # 添加标题行
+        if title_line:
+            matching_parts.append(title_line)
+        
+        # 添加内容的前1000字符（如果找到了内容标记）
+        if content_start_idx != -1 and content_start_idx + 1 < len(lines):
+            # 从内容标记的下一行开始
+            content_lines = lines[content_start_idx + 1:]
+            content_text = '\n'.join(content_lines)
+            # 只取前1000字符
+            truncated_content = content_text[:1000]
+            matching_parts.append(truncated_content)
+        else:
+            # 如果没有找到内容标记，使用整个文本的前1500字符
+            # 这样可以保留标题和一部分内容
+            matching_parts.append(requirement_text[:1500])
+        
+        result = '\n'.join(matching_parts)
+        logger.info(f"模板匹配文本提取: 原始长度={len(requirement_text)}, 匹配用长度={len(result)}")
+        return result
+
+    @staticmethod
     async def _get_matched_template_content(requirement_text: str) -> str:
         """
         获取匹配到的模板内容，用于追加到AI生成提示词中（异步版本）
@@ -845,13 +917,16 @@ class AIModelService:
             # 使用 sync_to_async 包装 ORM 调用，避免在异步上下文中直接调用
             from asgiref.sync import sync_to_async
 
+            # 提取用于模板匹配的文本（避免长文档导致所有模板都被匹配）
+            matching_text = AIModelService._extract_matching_text(requirement_text)
+
             # 获取匹配的测试点模板
             get_test_points_sync = sync_to_async(TestTemplateConfig.get_test_points, thread_sensitive=True)
-            test_points = await get_test_points_sync(requirement_text)
+            test_points = await get_test_points_sync(matching_text)
 
             # 获取匹配的测试场景模板
             get_test_scenarios_sync = sync_to_async(TestTemplateConfig.get_test_scenarios, thread_sensitive=True)
-            test_scenarios = await get_test_scenarios_sync(requirement_text)
+            test_scenarios = await get_test_scenarios_sync(matching_text)
 
             template_sections = []
 

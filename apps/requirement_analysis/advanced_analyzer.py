@@ -14,17 +14,58 @@ from datetime import datetime
 # 设置日志
 logger = logging.getLogger(__name__)
 
+
 class AdvancedTestRequirementAnalyzer:
     """先进的测试需求分析器 - 基于业务需求生成测试类型和测试点"""
-    
+
     def __init__(self):
         self.analysis_stages = [
             "document_preprocessing",
-            "requirement_extraction", 
+            "requirement_extraction",
             "requirement_structuring",
             "quality_assessment",
             "risk_analysis"
         ]
+
+    @staticmethod
+    def _extract_matching_text(text: str, max_length: int = 1000) -> str:
+        """
+        从文本中提取用于模板匹配的片段
+        避免长文档导致所有模板都被匹配
+
+        Args:
+            text: 原始文本
+            max_length: 最大提取长度
+
+        Returns:
+            用于模板匹配的文本片段
+        """
+        if not text:
+            return ""
+
+        # 如果文本较短，直接返回
+        if len(text) <= max_length:
+            return text
+
+        # 提取前max_length字符
+        # 优先提取开头部分，通常包含标题和概述
+        extracted = text[:max_length]
+
+        # 尝试在句子边界截断
+        # 查找最后一个句号、问号或感叹号
+        last_sentence_end = max(
+            extracted.rfind('。'),
+            extracted.rfind('？'),
+            extracted.rfind('!'),
+            extracted.rfind('.'),
+            extracted.rfind('?')
+        )
+
+        if last_sentence_end > max_length * 0.7:  # 如果找到句子边界且在70%之后
+            extracted = extracted[:last_sentence_end + 1]
+
+        logger.info(f"模板匹配文本提取: 原始长度={len(text)}, 匹配用长度={len(extracted)}")
+        return extracted
     
     async def analyze_requirements_advanced(self, text: str, document_title: str = "") -> Dict[str, Any]:
         """
@@ -434,13 +475,16 @@ class AdvancedTestRequirementAnalyzer:
         """识别测试场景 - 优先从数据库读取配置"""
         scenarios = []
 
+        # 提取用于模板匹配的文本（避免长文档导致所有模板都被匹配）
+        matching_text = self._extract_matching_text(text, max_length=1000)
+
         # ========== 优先从数据库读取场景配置 ==========
         try:
             # 导入模型（避免循环导入）
             from .models import TestTemplateConfig
 
             # 从数据库获取匹配的测试场景模板
-            db_scenarios = TestTemplateConfig.get_test_scenarios(text)
+            db_scenarios = TestTemplateConfig.get_test_scenarios(matching_text)
             if db_scenarios:
                 scenarios.extend(db_scenarios)
                 logger.info(f"从数据库加载了 {len(db_scenarios)} 个测试场景")
@@ -729,13 +773,16 @@ class AdvancedTestRequirementAnalyzer:
         """获取功能测试点 - 优先从数据库读取配置"""
         test_points = []
 
+        # 提取用于模板匹配的文本（避免长文档导致所有模板都被匹配）
+        matching_text = self._extract_matching_text(text, max_length=1000)
+
         # ========== 优先从数据库读取测试点配置 ==========
         try:
             # 导入模型（避免循环导入）
             from .models import TestTemplateConfig
 
             # 从数据库获取匹配的测试点模板
-            db_test_points = TestTemplateConfig.get_test_points(text)
+            db_test_points = TestTemplateConfig.get_test_points(matching_text)
             if db_test_points:
                 test_points.extend(db_test_points)
                 logger.info(f"从数据库加载了 {len(db_test_points)} 个测试点")

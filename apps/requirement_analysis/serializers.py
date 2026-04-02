@@ -121,10 +121,27 @@ class DocumentUploadSerializer(serializers.ModelSerializer):
 
 class TestCaseGenerationRequestSerializer(serializers.Serializer):
     """测试用例生成请求序列化器"""
+    # 输入源类型：manual(手动输入), file(文件上传), kb_chunks(知识库切片)
+    input_source = serializers.ChoiceField(
+        choices=[('manual', '手动输入'), ('file', '文件上传'), ('kb_chunks', '知识库切片')],
+        default='manual',
+        help_text="输入源类型"
+    )
+    
+    # 对于手动输入和文件上传，使用需求ID列表
     requirement_ids = serializers.ListField(
         child=serializers.IntegerField(),
-        help_text="需求ID列表"
+        required=False,
+        help_text="需求ID列表（手动输入和文件上传时使用）"
     )
+    
+    # 对于知识库切片，使用切片ID列表
+    chunk_ids = serializers.ListField(
+        child=serializers.DictField(child=serializers.IntegerField()),
+        required=False,
+        help_text="切片ID列表，格式：[{document_id: 1, chunk_index: 0}, {document_id: 2, chunk_index: 3}]（知识库切片时使用）"
+    )
+    
     test_level = serializers.ChoiceField(
         choices=[('unit', '单元测试'), ('integration', '集成测试'), ('system', '系统测试'), ('acceptance', '验收测试')],
         default='system',
@@ -141,6 +158,18 @@ class TestCaseGenerationRequestSerializer(serializers.Serializer):
         default=50,
         help_text="生成测试用例数量"
     )
+
+    def validate(self, data):
+        input_source = data.get('input_source', 'manual')
+        
+        if input_source in ['manual', 'file']:
+            if not data.get('requirement_ids'):
+                raise serializers.ValidationError("手动输入和文件上传方式需要提供 requirement_ids")
+        elif input_source == 'kb_chunks':
+            if not data.get('chunk_ids'):
+                raise serializers.ValidationError("知识库切片方式需要提供 chunk_ids")
+        
+        return data
 
 
 class TestCaseReviewRequestSerializer(serializers.Serializer):
@@ -267,7 +296,7 @@ class TestCaseGenerationTaskSerializer(serializers.ModelSerializer):
         return super().create(validated_data)
 
 
-class TestCaseGenerationRequestSerializer(serializers.Serializer):
+class NewTestCaseGenerationRequestSerializer(serializers.Serializer):
     """新的测试用例生成请求序列化器"""
     title = serializers.CharField(max_length=200, help_text="任务标题")
     requirement_text = serializers.CharField(help_text="需求描述")

@@ -616,49 +616,37 @@ export default {
       return caseCount || 0
     },
 
-    exportTestCasesMD(task) {
+    async exportTestCasesMD(task) {
       try {
-        const exportUrl = `/api/requirement-analysis/testcase-generation/${task.task_id}/export_md/?filename=${encodeURIComponent(task.title || task.task_id)}`
+        const exportUrl = `/requirement-analysis/testcase-generation/${task.task_id}/export_md/?filename=${encodeURIComponent(task.title || task.task_id)}`
 
         console.log('开始导出MD文件，URL:', exportUrl)
 
-        fetch(exportUrl, {
-          method: 'GET',
-          credentials: 'include',
+        // 使用api实例发送请求，自动携带认证token
+        const response = await api.get(exportUrl, {
+          responseType: 'blob'
         })
-        .then(response => {
-          if (response.ok) {
-            return response.blob();
-          } else {
-            throw new Error(`导出失败: ${response.status} ${response.statusText}`);
-          }
-        })
-        .then(blob => {
-          console.log('获取到文件blob，大小:', blob.size)
-          
-          const urlObject = URL.createObjectURL(blob)
-          
-          const link = document.createElement('a')
-          link.href = urlObject
-          link.download = `${task.title || task.task_id}.md`
-          document.body.appendChild(link)
-          link.click()
-          document.body.removeChild(link)
-          
-          setTimeout(() => {
-            URL.revokeObjectURL(urlObject)
-          }, 100)
 
-          console.log('文件下载已触发')
-          ElMessage.success('MD格式测试用例导出成功！')
-        })
-        .catch(error => {
-          console.error('导出失败:', error)
-          ElMessage.error(`导出失败: ${error.message || '未知错误'}`)
-        });
+        console.log('获取到文件blob，大小:', response.data.size)
+
+        const urlObject = URL.createObjectURL(response.data)
+
+        const link = document.createElement('a')
+        link.href = urlObject
+        link.download = `${task.title || task.task_id}.md`
+        document.body.appendChild(link)
+        link.click()
+        document.body.removeChild(link)
+
+        setTimeout(() => {
+          URL.revokeObjectURL(urlObject)
+        }, 100)
+
+        console.log('文件下载已触发')
+        ElMessage.success('MD格式测试用例导出成功！')
       } catch (error) {
         console.error('导出MD格式测试用例失败:', error)
-        ElMessage.error(`导出失败: ${error.message || '未知错误'}`)
+        ElMessage.error(`导出失败: ${error.response?.status === 401 ? '未授权，请重新登录' : (error.message || '未知错误')}`)
       }
     },
 
