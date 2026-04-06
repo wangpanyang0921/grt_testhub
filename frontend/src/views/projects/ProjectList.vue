@@ -28,7 +28,7 @@
 
     <!-- 表格容器 -->
     <div class="card-container">
-      <el-table :data="projects" v-loading="loading" stripe style="width: 100%">
+      <el-table ref="tableRef" :data="projects" v-loading="loading" stripe style="width: 100%">
         <el-table-column type="index" :label="$t('project.serialNumber')" width="80" header-align="center" align="center">
           <template #default="{ $index }">
             {{ (currentPage - 1) * pageSize + $index + 1 }}
@@ -126,7 +126,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted, computed } from 'vue'
+import { ref, reactive, onMounted, computed, onActivated, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox } from 'element-plus'
@@ -141,6 +141,7 @@ const submitting = ref(false)
 const showCreateDialog = ref(false)
 const isEdit = ref(false)
 const formRef = ref()
+const tableRef = ref(null)
 
 const projects = ref([])
 const currentPage = ref(1)
@@ -292,6 +293,15 @@ const formatDate = (dateString) => {
 
 onMounted(() => {
   fetchProjects()
+})
+
+// 在页面切换回来时刷新表格布局，修复固定列显示异常问题
+onActivated(() => {
+  nextTick(() => {
+    if (tableRef.value) {
+      tableRef.value.doLayout()
+    }
+  })
 })
 </script>
 
@@ -534,87 +544,104 @@ onMounted(() => {
   font-size: 13px;
 }
 
-// 操作按钮容器
-.action-buttons {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  gap: 4px;
-  flex-wrap: nowrap;
-}
-
-// 操作按钮
-.action-btn {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 12px;
-  font-weight: 500;
-  padding: 4px 10px !important;
-  border-radius: 6px;
-  transition: all 0.3s ease;
-  min-width: auto !important;
-  width: auto !important;
-
-  .el-icon {
-    font-size: 14px;
+// 操作按钮样式 - 使用 .page-container 作为前缀避免样式冲突
+.page-container {
+  .action-buttons {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 4px;
+    flex-wrap: nowrap;
   }
 
-  span {
+  .action-btn {
+    display: flex;
+    align-items: center;
+    gap: 4px;
     font-size: 12px;
-  }
+    font-weight: 500;
+    padding: 4px 10px !important;
+    border-radius: 6px;
+    transition: all 0.3s ease;
 
-  &.edit-btn {
-    background: linear-gradient(135deg, #7b42f6 0%, #5a32a3 100%) !important;
-    border: none !important;
-    color: #ffffff !important;
-    font-weight: 600 !important;
-
-    &:hover {
-      background: linear-gradient(135deg, #6d33e6 0%, #4a249c 100%) !important;
-      transform: translateY(-1px);
-      box-shadow: 0 4px 12px rgba(123, 66, 246, 0.4);
+    .el-icon {
+      font-size: 14px;
     }
 
-    .el-icon,
     span {
+      font-size: 12px;
+    }
+
+    &.edit-btn {
+      background: linear-gradient(135deg, #7b42f6 0%, #5a32a3 100%) !important;
+      border: none !important;
       color: #ffffff !important;
+      font-weight: 600 !important;
+
+      &:hover {
+        background: linear-gradient(135deg, #6d33e6 0%, #4a249c 100%) !important;
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(123, 66, 246, 0.4);
+      }
+
+      .el-icon,
+      span {
+        color: #ffffff !important;
+      }
     }
-  }
 
-  &.delete-btn {
-    background: linear-gradient(135deg, #ff4d4f 0%, #cf1322 100%) !important;
-    border: none !important;
-    color: #ffffff !important;
-    font-weight: 600 !important;
-
-    &:hover {
-      background: linear-gradient(135deg, #ff7875 0%, #ff4d4f 100%) !important;
-      transform: translateY(-1px);
-      box-shadow: 0 4px 12px rgba(255, 77, 79, 0.4);
-    }
-
-    .el-icon,
-    span {
+    &.detail-btn {
+      background: linear-gradient(135deg, #52c41a 0%, #389e0d 100%) !important;
+      border: none !important;
       color: #ffffff !important;
+      font-weight: 600 !important;
+
+      &:hover {
+        background: linear-gradient(135deg, #73d13d 0%, #52c41a 100%) !important;
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(82, 196, 26, 0.4);
+      }
+
+      .el-icon,
+      span {
+        color: #ffffff !important;
+      }
     }
-  }
 
-  &.cancel-btn {
-    border: 1px solid rgba(147, 112, 219, 0.3) !important;
-    color: #5a32a3 !important;
-    background: #ffffff !important;
+    &.delete-btn {
+      background: linear-gradient(135deg, #ff4d4f 0%, #cf1322 100%) !important;
+      border: none !important;
+      color: #ffffff !important;
+      font-weight: 600 !important;
 
-    &:hover {
-      border-color: #7b42f6 !important;
-      color: #7b42f6 !important;
-      background: rgba(123, 66, 246, 0.05) !important;
-      transform: translateY(-1px);
+      &:hover {
+        background: linear-gradient(135deg, #ff7875 0%, #ff4d4f 100%) !important;
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(255, 77, 79, 0.4);
+      }
+
+      .el-icon,
+      span {
+        color: #ffffff !important;
+      }
     }
 
-    .el-icon,
-    span {
+    &.cancel-btn {
+      border: 1px solid rgba(147, 112, 219, 0.3) !important;
       color: #5a32a3 !important;
+      background: #ffffff !important;
+
+      &:hover {
+        border-color: #7b42f6 !important;
+        color: #7b42f6 !important;
+        background: rgba(123, 66, 246, 0.05) !important;
+        transform: translateY(-1px);
+      }
+
+      .el-icon,
+      span {
+        color: #5a32a3 !important;
+      }
     }
   }
 }
@@ -875,39 +902,39 @@ onMounted(() => {
 @media (max-width: 768px) {
   .page-container {
     padding: 12px;
-  }
 
-  .filter-bar {
-    padding: 12px 16px;
-    flex-direction: column;
-    align-items: stretch;
+    .filter-bar {
+      padding: 12px 16px;
+      flex-direction: column;
+      align-items: stretch;
 
-    .filter-bar-spacer {
-      display: none;
+      .filter-bar-spacer {
+        display: none;
+      }
+
+      .action-btn {
+        width: 100%;
+        justify-content: center;
+      }
     }
 
-    .action-btn {
-      width: 100%;
-      justify-content: center;
+    .card-container {
+      padding: 12px;
     }
-  }
 
-  .card-container {
-    padding: 12px;
-  }
+    .action-buttons {
+      flex-direction: column;
+      gap: 4px;
 
-  .action-buttons {
-    flex-direction: column;
-    gap: 4px;
-
-    .action-btn {
-      width: 100%;
-      justify-content: center;
+      .action-btn {
+        width: 100%;
+        justify-content: center;
+      }
     }
-  }
 
-  .pagination-container {
-    padding: 12px;
+    .pagination-container {
+      padding: 12px;
+    }
   }
 }
 </style>

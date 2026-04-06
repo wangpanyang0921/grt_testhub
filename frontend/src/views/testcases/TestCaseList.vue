@@ -59,6 +59,7 @@
     <!-- 表格容器 -->
     <div class="card-container history-card">
       <el-table
+        ref="tableRef"
         :data="testcases"
         v-loading="loading"
         stripe
@@ -253,7 +254,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted, computed, watch, inject } from 'vue'
+import { ref, reactive, onMounted, computed, watch, inject, onActivated, nextTick } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox } from 'element-plus'
@@ -274,6 +275,7 @@ const currentPage = ref(1)
 const pageSize = ref(15)
 const total = ref(0)
 const searchText = ref('')
+const tableRef = ref(null)
 const moduleFilter = ref('')
 const priorityFilter = ref('')
 const projectFilter = ref('')
@@ -1003,6 +1005,15 @@ watch(() => route.query.project, (newProjectId) => {
 onMounted(() => {
   fetchAllModules()
 })
+
+// 在页面切换回来时刷新表格布局，修复固定列显示异常问题
+onActivated(() => {
+  nextTick(() => {
+    if (tableRef.value) {
+      tableRef.value.doLayout()
+    }
+  })
+})
 </script>
 
 <style lang="scss" scoped>
@@ -1352,73 +1363,113 @@ onMounted(() => {
   }
 }
 
-// 操作按钮样式
-.action-buttons {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  gap: 4px;
-  flex-wrap: nowrap;
-}
-
-.action-btn {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 12px;
-  font-weight: 500;
-  padding: 4px 10px !important;
-  border-radius: 6px;
-  transition: all 0.3s ease;
-  min-width: auto !important;
-  width: auto !important;
-
-  .el-icon {
-    font-size: 14px;
-    color: #ffffff !important;
+// 操作按钮样式 - 使用 .page-container 作为前缀避免样式冲突
+.page-container {
+  .action-buttons {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 4px;
+    flex-wrap: nowrap;
   }
 
-  span {
+  .action-btn {
+    display: flex;
+    align-items: center;
+    gap: 4px;
     font-size: 12px;
-    color: #ffffff !important;
-  }
+    font-weight: 500;
+    padding: 4px 10px !important;
+    border-radius: 6px;
+    transition: all 0.3s ease;
 
-  &.edit-btn {
-    background: linear-gradient(135deg, #7b42f6 0%, #5a32a3 100%) !important;
-    border: none !important;
-    color: #ffffff !important;
-    font-weight: 600 !important;
-
-    &:hover {
-      background: linear-gradient(135deg, #6d33e6 0%, #4a249c 100%) !important;
-      transform: translateY(-1px);
-      box-shadow: 0 4px 12px rgba(123, 66, 246, 0.4);
+    .el-icon {
+      font-size: 14px;
+      color: #ffffff !important;
     }
-  }
 
-  &.run-btn {
-    background: linear-gradient(135deg, #52c41a 0%, #389e0d 100%) !important;
-    border: none !important;
-    color: #ffffff !important;
-    font-weight: 600 !important;
-
-    &:hover {
-      background: linear-gradient(135deg, #73d13d 0%, #52c41a 100%) !important;
-      transform: translateY(-1px);
-      box-shadow: 0 4px 12px rgba(82, 196, 26, 0.4);
+    span {
+      font-size: 12px;
+      color: #ffffff !important;
     }
-  }
 
-  &.delete-btn {
-    background: linear-gradient(135deg, #ff4d4f 0%, #f5222d 100%) !important;
-    border: none !important;
-    color: #ffffff !important;
-    font-weight: 600 !important;
+    &.edit-btn {
+      background: linear-gradient(135deg, #7b42f6 0%, #5a32a3 100%) !important;
+      border: none !important;
+      color: #ffffff !important;
+      font-weight: 600 !important;
 
-    &:hover {
-      background: linear-gradient(135deg, #ff7875 0%, #ff4d4f 100%) !important;
-      transform: translateY(-1px);
-      box-shadow: 0 4px 12px rgba(245, 34, 45, 0.4);
+      &:hover {
+        background: linear-gradient(135deg, #6d33e6 0%, #4a249c 100%) !important;
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(123, 66, 246, 0.4);
+      }
+    }
+
+    &.run-btn {
+      background: linear-gradient(135deg, #52c41a 0%, #389e0d 100%) !important;
+      border: none !important;
+      color: #ffffff !important;
+      font-weight: 600 !important;
+
+      &:hover {
+        background: linear-gradient(135deg, #73d13d 0%, #52c41a 100%) !important;
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(82, 196, 26, 0.4);
+      }
+    }
+
+    &.delete-btn {
+      background: linear-gradient(135deg, #ff4d4f 0%, #f5222d 100%) !important;
+      border: none !important;
+      color: #ffffff !important;
+      font-weight: 600 !important;
+
+      &:hover {
+        background: linear-gradient(135deg, #ff7875 0%, #ff4d4f 100%) !important;
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(245, 34, 45, 0.4);
+      }
+    }
+
+    // Element Plus 按钮类型样式 - 筛选栏按钮
+    &.el-button--success {
+      background: linear-gradient(135deg, #52c41a 0%, #389e0d 100%) !important;
+      border: none !important;
+      color: #ffffff !important;
+      font-weight: 600 !important;
+
+      &:hover {
+        background: linear-gradient(135deg, #73d13d 0%, #52c41a 100%) !important;
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(82, 196, 26, 0.4);
+      }
+    }
+
+    &.el-button--warning {
+      background: linear-gradient(135deg, #faad14 0%, #d48806 100%) !important;
+      border: none !important;
+      color: #ffffff !important;
+      font-weight: 600 !important;
+
+      &:hover {
+        background: linear-gradient(135deg, #ffc53d 0%, #faad14 100%) !important;
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(250, 173, 20, 0.4);
+      }
+    }
+
+    &.el-button--danger {
+      background: linear-gradient(135deg, #ff4d4f 0%, #f5222d 100%) !important;
+      border: none !important;
+      color: #ffffff !important;
+      font-weight: 600 !important;
+
+      &:hover {
+        background: linear-gradient(135deg, #ff7875 0%, #ff4d4f 100%) !important;
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(245, 34, 45, 0.4);
+      }
     }
   }
 }
@@ -1666,22 +1717,24 @@ onMounted(() => {
     }
   }
 
-  .filter-bar {
-    padding: 12px;
+  .page-container {
+    .filter-bar {
+      padding: 12px;
 
-    :deep(.el-input),
-    :deep(.el-select) {
-      width: 100% !important;
+      :deep(.el-input),
+      :deep(.el-select) {
+        width: 100% !important;
+      }
     }
-  }
 
-  .card-container {
-    padding: 12px;
-  }
+    .card-container {
+      padding: 12px;
+    }
 
-  .action-buttons {
-    flex-direction: column;
-    gap: 4px;
+    .action-buttons {
+      flex-direction: column;
+      gap: 4px;
+    }
   }
 }
 

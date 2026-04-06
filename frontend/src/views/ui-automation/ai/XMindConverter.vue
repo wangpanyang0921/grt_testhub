@@ -59,6 +59,7 @@
     <!-- 历史记录列表 -->
     <div class="card-container history-card">
       <el-table
+        ref="tableRef"
         v-loading="loading"
         :data="records"
         stripe
@@ -265,7 +266,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, onActivated, nextTick } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   Upload, FolderOpened, Document, Delete, Right, Loading,
@@ -278,6 +279,7 @@ const isDragOver = ref(false)
 const selectedFile = ref(null)
 const converting = ref(false)
 const fileInput = ref(null)
+const tableRef = ref(null)
 
 const triggerFileSelect = () => {
   fileInput.value.click()
@@ -582,6 +584,15 @@ const formatDateTime = (datetime) => {
 
 onMounted(() => {
   fetchRecords()
+})
+
+// 在页面切换回来时刷新表格布局，修复固定列显示异常问题
+onActivated(() => {
+  nextTick(() => {
+    if (tableRef.value) {
+      tableRef.value.doLayout()
+    }
+  })
 })
 </script>
 
@@ -911,11 +922,29 @@ onMounted(() => {
       font-weight: 600 !important;
     }
 
-    // 覆盖表头单元格内容样式
+    // 直接覆盖表头单元格内容样式
     :deep(.el-table__header th .cell) {
       background-color: #ffffff !important;
       color: #5a32a3 !important;
       font-weight: 600 !important;
+    }
+
+    // 修复固定列在路由切换时的显示问题
+    :deep(.el-table__fixed-right) {
+      background-color: #ffffff !important;
+      height: 100% !important;
+    }
+
+    :deep(.el-table__fixed-right-patch) {
+      background-color: #ffffff !important;
+    }
+
+    :deep(.el-table__fixed-body-wrapper) {
+      background-color: #ffffff !important;
+    }
+
+    :deep(.el-table__fixed-header-wrapper) {
+      background-color: #ffffff !important;
     }
   }
 
@@ -981,73 +1010,73 @@ onMounted(() => {
   }
 }
 
-// 操作按钮样式 - 在历史记录卡片外部定义
-.action-buttons {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  gap: 4px;
-  flex-wrap: nowrap;
-}
-
-.action-btn {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 12px;
-  font-weight: 500;
-  padding: 4px 10px !important;
-  border-radius: 6px;
-  transition: all 0.3s ease;
-  min-width: auto !important;
-  width: auto !important;
-
-  .el-icon {
-    font-size: 14px;
-    color: #ffffff !important;
+// 操作按钮样式 - 使用 .page-container 作为前缀避免样式冲突
+.page-container {
+  .action-buttons {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 4px;
+    flex-wrap: nowrap;
   }
 
-  span {
+  .action-btn {
+    display: flex;
+    align-items: center;
+    gap: 4px;
     font-size: 12px;
-    color: #ffffff !important;
-  }
+    font-weight: 500;
+    padding: 4px 10px !important;
+    border-radius: 6px;
+    transition: all 0.3s ease;
 
-  &.edit-btn {
-    background: linear-gradient(135deg, #7b42f6 0%, #5a32a3 100%) !important;
-    border: none !important;
-    color: #ffffff !important;
-    font-weight: 600 !important;
-
-    &:hover {
-      background: linear-gradient(135deg, #6d33e6 0%, #4a249c 100%) !important;
-      transform: translateY(-1px);
-      box-shadow: 0 4px 12px rgba(123, 66, 246, 0.4);
+    .el-icon {
+      font-size: 14px;
+      color: #ffffff !important;
     }
-  }
 
-  &.run-btn {
-    background: linear-gradient(135deg, #52c41a 0%, #389e0d 100%) !important;
-    border: none !important;
-    color: #ffffff !important;
-    font-weight: 600 !important;
-
-    &:hover {
-      background: linear-gradient(135deg, #73d13d 0%, #52c41a 100%) !important;
-      transform: translateY(-1px);
-      box-shadow: 0 4px 12px rgba(82, 196, 26, 0.4);
+    span {
+      font-size: 12px;
+      color: #ffffff !important;
     }
-  }
 
-  &.delete-btn {
-    background: linear-gradient(135deg, #ff4d4f 0%, #f5222d 100%) !important;
-    border: none !important;
-    color: #ffffff !important;
-    font-weight: 600 !important;
+    &.edit-btn {
+      background: linear-gradient(135deg, #7b42f6 0%, #5a32a3 100%) !important;
+      border: none !important;
+      color: #ffffff !important;
+      font-weight: 600 !important;
 
-    &:hover {
-      background: linear-gradient(135deg, #ff7875 0%, #ff4d4f 100%) !important;
-      transform: translateY(-1px);
-      box-shadow: 0 4px 12px rgba(245, 34, 45, 0.4);
+      &:hover {
+        background: linear-gradient(135deg, #6d33e6 0%, #4a249c 100%) !important;
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(123, 66, 246, 0.4);
+      }
+    }
+
+    &.run-btn {
+      background: linear-gradient(135deg, #52c41a 0%, #389e0d 100%) !important;
+      border: none !important;
+      color: #ffffff !important;
+      font-weight: 600 !important;
+
+      &:hover {
+        background: linear-gradient(135deg, #73d13d 0%, #52c41a 100%) !important;
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(82, 196, 26, 0.4);
+      }
+    }
+
+    &.delete-btn {
+      background: linear-gradient(135deg, #ff4d4f 0%, #f5222d 100%) !important;
+      border: none !important;
+      color: #ffffff !important;
+      font-weight: 600 !important;
+
+      &:hover {
+        background: linear-gradient(135deg, #ff7875 0%, #ff4d4f 100%) !important;
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(245, 34, 45, 0.4);
+      }
     }
   }
 }
