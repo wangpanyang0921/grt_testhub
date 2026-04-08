@@ -73,7 +73,7 @@
 
     <div class="card-container">
       <!-- 有数据时显示表格 -->
-      <el-table v-if="tasks.length > 0" :data="tasks" v-loading="isLoading" stripe>
+      <el-table v-if="tasks.length > 0" :data="tasks" v-loading="isLoading" stripe ref="tableRef">
         <el-table-column label="序号" width="80" header-align="center" align="center">
           <template #default="{ $index }">
             {{ (pagination.currentPage - 1) * pagination.pageSize + $index + 1 }}
@@ -349,7 +349,15 @@ export default {
     this.fetchProjects()
     this.fetchAllVersions()
   },
-  
+
+  activated() {
+    this.$nextTick(() => {
+      if (this.$refs.tableRef) {
+        this.$refs.tableRef.doLayout()
+      }
+    })
+  },
+
   methods: {
     async loadTasks() {
       this.isLoading = true
@@ -1342,65 +1350,64 @@ export default {
   }
 }
 
-// 操作按钮容器
-.action-buttons {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  gap: 4px;
-  flex-wrap: nowrap;
-}
-
-// 操作按钮样式
-.action-btn {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 12px;
-  font-weight: 500;
-  padding: 4px 10px !important;
-  border-radius: 6px;
-  transition: all 0.3s ease;
-  min-width: auto !important;
-  width: auto !important;
-
-  .el-icon {
-    font-size: 14px;
-    color: #ffffff !important;
+// 操作按钮样式 - 使用 .page-container 作为前缀避免样式冲突
+.page-container {
+  .action-buttons {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 4px;
+    flex-wrap: nowrap;
   }
 
-  span {
+  .action-btn {
+    display: flex;
+    align-items: center;
+    gap: 4px;
     font-size: 12px;
-    color: #ffffff !important;
-  }
+    font-weight: 500;
+    padding: 4px 10px !important;
+    border-radius: 6px;
+    transition: all 0.3s ease;
 
-  &.export-btn {
-    background: linear-gradient(135deg, #7b42f6 0%, #5a32a3 100%) !important;
-    border: none !important;
-    color: #ffffff !important;
-    font-weight: 600 !important;
-
-    &:hover {
-      background: linear-gradient(135deg, #6d33e6 0%, #4a249c 100%) !important;
-      transform: translateY(-1px);
-      box-shadow: 0 4px 12px rgba(123, 66, 246, 0.4);
+    .el-icon {
+      font-size: 14px;
+      color: #ffffff !important;
     }
 
-    &:active {
-      transform: translateY(0);
+    span {
+      font-size: 12px;
+      color: #ffffff !important;
     }
-  }
 
-  &.delete-btn {
-    background: linear-gradient(135deg, #ff4d4f 0%, #f5222d 100%) !important;
-    border: none !important;
-    color: #ffffff !important;
-    font-weight: 600 !important;
+    &.export-btn {
+      background: linear-gradient(135deg, #7b42f6 0%, #5a32a3 100%) !important;
+      border: none !important;
+      color: #ffffff !important;
+      font-weight: 600 !important;
 
-    &:hover {
-      background: linear-gradient(135deg, #ff7875 0%, #ff4d4f 100%) !important;
-      transform: translateY(-1px);
-      box-shadow: 0 4px 12px rgba(245, 34, 45, 0.4);
+      &:hover {
+        background: linear-gradient(135deg, #6d33e6 0%, #4a249c 100%) !important;
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(123, 66, 246, 0.4);
+      }
+
+      &:active {
+        transform: translateY(0);
+      }
+    }
+
+    &.delete-btn {
+      background: linear-gradient(135deg, #ff4d4f 0%, #f5222d 100%) !important;
+      border: none !important;
+      color: #ffffff !important;
+      font-weight: 600 !important;
+
+      &:hover {
+        background: linear-gradient(135deg, #ff7875 0%, #ff4d4f 100%) !important;
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(245, 34, 45, 0.4);
+      }
     }
   }
 }

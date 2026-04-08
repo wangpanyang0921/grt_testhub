@@ -4376,73 +4376,6 @@ export default {
 </style>
 
 <style>
-/* 全局 Element Plus 按钮样式覆盖 */
-:root {
-  --el-button-disabled-bg-color: #d1d5db;
-  --el-button-disabled-border-color: #d1d5db;
-  --el-button-disabled-text-color: #ffffff;
-}
-
-/* 全局覆盖所有主按钮的样式 */
-.el-button--primary {
-  background: linear-gradient(135deg, #7b42f6 0%, #5a32a3 100%) !important;
-  border: none !important;
-  box-shadow: 0 4px 12px rgba(123, 66, 246, 0.3) !important;
-}
-
-.el-button--primary:hover:not(.is-disabled):not([disabled]) {
-  background: linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%) !important;
-  border: none !important;
-  box-shadow: 0 6px 16px rgba(123, 66, 246, 0.4) !important;
-  transform: translateY(-1px) !important;
-}
-
-.el-button--primary:active:not(.is-disabled):not([disabled]) {
-  background: linear-gradient(135deg, #7b42f6 0%, #5a32a3 100%) !important;
-  border: none !important;
-  box-shadow: 0 2px 8px rgba(123, 66, 246, 0.3) !important;
-  transform: translateY(0) !important;
-}
-
-/* 全局覆盖所有禁用按钮的样式 */
-.el-button--primary.is-disabled,
-.el-button--primary[disabled],
-.el-button--primary.is-disabled:hover,
-.el-button--primary[disabled]:hover,
-.el-button--primary.is-disabled:active,
-.el-button--primary[disabled]:active,
-.el-button--primary.is-disabled:focus,
-.el-button--primary[disabled]:focus {
-  background: #d1d5db !important;
-  border: none !important;
-  color: #ffffff !important;
-  opacity: 0.6 !important;
-  box-shadow: none !important;
-  transform: none !important;
-}
-
-/* 全局覆盖默认按钮的样式（上一步按钮） */
-.el-button--default,
-.el-button:not(.el-button--primary):not(.el-button--text) {
-  background: #ffffff !important;
-  border: 1px solid #e2e8f0 !important;
-  color: #64748b !important;
-}
-
-.el-button--default:hover:not(.is-disabled):not([disabled]),
-.el-button:not(.el-button--primary):not(.el-button--text):hover:not(.is-disabled):not([disabled]) {
-  background: #f8fafc !important;
-  border-color: #7b42f6 !important;
-  color: #7b42f6 !important;
-}
-
-.el-button--default:active:not(.is-disabled):not([disabled]),
-.el-button:not(.el-button--primary):not(.el-button--text):active:not(.is-disabled):not([disabled]) {
-  background: #f1f5f9 !important;
-  border-color: #5a32a3 !important;
-  color: #5a32a3 !important;
-}
-
 /* 全局样式：确保弹窗不受任何容器限制 */
 .modal-overlay {
   position: fixed !important;
@@ -4484,7 +4417,6 @@ export default {
   box-sizing: border-box !important;
 }
 
-/* 全局按钮样式 */
 .guide-actions {
   display: flex !important;
   flex-direction: column !important;
@@ -4531,5 +4463,67 @@ export default {
 .guide-actions .skip-action:hover {
   color: #4a249c;
   text-decoration: underline;
+}
+</style>
+
+<style scoped>
+/* 页面内按钮样式，避免全局污染 */
+.requirement-analysis {
+  :deep(.el-button--primary) {
+    background: linear-gradient(135deg, #7b42f6 0%, #5a32a3 100%) !important;
+    border: none !important;
+    box-shadow: 0 4px 12px rgba(123, 66, 246, 0.3) !important;
+  }
+
+  :deep(.el-button--primary:hover:not(.is-disabled):not([disabled])) {
+    background: linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%) !important;
+    border: none !important;
+    box-shadow: 0 6px 16px rgba(123, 66, 246, 0.4) !important;
+    transform: translateY(-1px) !important;
+  }
+
+  :deep(.el-button--primary:active:not(.is-disabled):not([disabled])) {
+    background: linear-gradient(135deg, #7b42f6 0%, #5a32a3 100%) !important;
+    border: none !important;
+    box-shadow: 0 2px 8px rgba(123, 66, 246, 0.3) !important;
+    transform: translateY(0) !important;
+  }
+
+  :deep(.el-button--primary.is-disabled),
+  :deep(.el-button--primary[disabled]),
+  :deep(.el-button--primary.is-disabled:hover),
+  :deep(.el-button--primary[disabled]:hover),
+  :deep(.el-button--primary.is-disabled:active),
+  :deep(.el-button--primary[disabled]:active),
+  :deep(.el-button--primary.is-disabled:focus),
+  :deep(.el-button--primary[disabled]:focus) {
+    background: #d1d5db !important;
+    border: none !important;
+    color: #ffffff !important;
+    opacity: 0.6 !important;
+    box-shadow: none !important;
+    transform: none !important;
+  }
+
+  :deep(.el-button--default),
+  :deep(.el-button:not(.el-button--primary):not(.el-button--text)) {
+    background: #ffffff !important;
+    border: 1px solid #e2e8f0 !important;
+    color: #64748b !important;
+  }
+
+  :deep(.el-button--default:hover:not(.is-disabled):not([disabled])),
+  :deep(.el-button:not(.el-button--primary):not(.el-button--text):hover:not(.is-disabled):not([disabled])) {
+    background: #f8fafc !important;
+    border-color: #7b42f6 !important;
+    color: #7b42f6 !important;
+  }
+
+  :deep(.el-button--default:active:not(.is-disabled):not([disabled])),
+  :deep(.el-button:not(.el-button--primary):not(.el-button--text):active:not(.is-disabled):not([disabled])) {
+    background: #f1f5f9 !important;
+    border-color: #5a32a3 !important;
+    color: #5a32a3 !important;
+  }
 }
 </style>
