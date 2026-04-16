@@ -1,124 +1,118 @@
 <template>
-  <div class="scheduled-tasks">
-    <div class="header">
-      <h3>{{ $t('apiTesting.scheduledTask.title') }}</h3>
-      <el-button type="primary" @click="handleCreateClick">
+  <div class="page-container">
+    <!-- 筛选栏 -->
+    <div class="filter-bar">
+      <el-select v-model="filters.task_type" :placeholder="$t('apiTesting.scheduledTask.taskType')" clearable style="width: 160px;" @change="handleFilterChange">
+        <el-option :label="$t('apiTesting.scheduledTask.taskTypes.testSuite')" value="TEST_SUITE" />
+        <el-option :label="$t('apiTesting.scheduledTask.taskTypes.apiRequest')" value="API_REQUEST" />
+      </el-select>
+      <el-select v-model="filters.trigger_type" :placeholder="$t('apiTesting.scheduledTask.triggerType')" clearable style="width: 160px;" @change="handleFilterChange">
+        <el-option :label="$t('apiTesting.scheduledTask.triggerTypes.cron')" value="CRON" />
+        <el-option :label="$t('apiTesting.scheduledTask.triggerTypes.interval')" value="INTERVAL" />
+        <el-option :label="$t('apiTesting.scheduledTask.triggerTypes.once')" value="ONCE" />
+      </el-select>
+      <el-select v-model="filters.status" :placeholder="$t('apiTesting.scheduledTask.taskStatus')" clearable style="width: 160px;" @change="handleFilterChange">
+        <el-option :label="$t('apiTesting.scheduledTask.status.active')" value="ACTIVE" />
+        <el-option :label="$t('apiTesting.scheduledTask.status.paused')" value="PAUSED" />
+        <el-option :label="$t('apiTesting.scheduledTask.status.completed')" value="COMPLETED" />
+        <el-option :label="$t('apiTesting.scheduledTask.status.failed')" value="FAILED" />
+      </el-select>
+      <div class="filter-bar-spacer"></div>
+      <el-button type="primary" class="create-btn" @click="handleCreateClick">
         <el-icon><Plus /></el-icon>
         {{ $t('apiTesting.scheduledTask.createTask') }}
       </el-button>
     </div>
 
-    <!-- 筛选条件 -->
-    <div class="filters">
-      <el-row :gutter="20">
-        <el-col :span="6">
-          <el-select v-model="filters.task_type" :placeholder="$t('apiTesting.scheduledTask.taskType')" clearable>
-            <el-option :label="$t('apiTesting.scheduledTask.taskTypes.testSuite')" value="TEST_SUITE" />
-            <el-option :label="$t('apiTesting.scheduledTask.taskTypes.apiRequest')" value="API_REQUEST" />
-          </el-select>
-        </el-col>
-        <el-col :span="6">
-          <el-select v-model="filters.trigger_type" :placeholder="$t('apiTesting.scheduledTask.triggerType')" clearable>
-            <el-option :label="$t('apiTesting.scheduledTask.triggerTypes.cron')" value="CRON" />
-            <el-option :label="$t('apiTesting.scheduledTask.triggerTypes.interval')" value="INTERVAL" />
-            <el-option :label="$t('apiTesting.scheduledTask.triggerTypes.once')" value="ONCE" />
-          </el-select>
-        </el-col>
-        <el-col :span="6">
-          <el-select v-model="filters.status" :placeholder="$t('apiTesting.scheduledTask.taskStatus')" clearable>
-            <el-option :label="$t('apiTesting.scheduledTask.status.active')" value="ACTIVE" />
-            <el-option :label="$t('apiTesting.scheduledTask.status.paused')" value="PAUSED" />
-            <el-option :label="$t('apiTesting.scheduledTask.status.completed')" value="COMPLETED" />
-            <el-option :label="$t('apiTesting.scheduledTask.status.failed')" value="FAILED" />
-          </el-select>
-        </el-col>
-        <el-col :span="6">
-          <el-button @click="resetFilters">{{ $t('apiTesting.common.reset') }}</el-button>
-          <el-button type="primary" @click="loadTasks">{{ $t('apiTesting.common.search') }}</el-button>
-        </el-col>
-      </el-row>
-    </div>
-
     <!-- 任务列表 -->
-    <div class="task-list">
-      <el-table :data="tasks" v-loading="loading">
-        <el-table-column prop="name" :label="$t('apiTesting.scheduledTask.taskName')" min-width="200" />
-        <el-table-column prop="task_type" :label="$t('apiTesting.scheduledTask.taskType')" width="120">
+    <div class="card-container">
+      <el-table :data="tasks" v-loading="loading" stripe>
+        <el-table-column label="序号" width="80" header-align="center" align="center">
+          <template #default="{ $index }">
+            {{ (pagination.current - 1) * pagination.size + $index + 1 }}
+          </template>
+        </el-table-column>
+        <el-table-column prop="name" :label="$t('apiTesting.scheduledTask.taskName')" min-width="180" header-align="center" align="center" show-overflow-tooltip />
+        <el-table-column prop="task_type" :label="$t('apiTesting.scheduledTask.taskType')" width="120" header-align="center" align="center">
           <template #default="scope">
-            <el-tag :type="scope.row.task_type === 'TEST_SUITE' ? 'success' : 'primary'">
+            <span class="task-type-badge" :class="scope.row.task_type === 'TEST_SUITE' ? 'test-suite' : 'api-request'">
               {{ scope.row.task_type === 'TEST_SUITE' ? $t('apiTesting.scheduledTask.taskTypes.testSuiteShort') : $t('apiTesting.scheduledTask.taskTypes.apiRequestShort') }}
-            </el-tag>
+            </span>
           </template>
         </el-table-column>
-        <el-table-column prop="trigger_type" :label="$t('apiTesting.scheduledTask.triggerType')" width="120">
+        <el-table-column prop="notification_type_display" :label="$t('apiTesting.scheduledTask.notificationType')" min-width="140" header-align="center" align="center">
           <template #default="scope">
-            <el-tag>
+            <span v-if="scope.row.notification_type_display && scope.row.notification_type_display !== '-'"
+                  class="notification-type-badge"
+                  :class="getNotificationTypeClass(scope.row.notification_type_display)">
+              {{ scope.row.notification_type_display }}
+            </span>
+            <span v-else>-</span>
+          </template>
+        </el-table-column>
+        <el-table-column prop="trigger_type" :label="$t('apiTesting.scheduledTask.triggerType')" width="120" header-align="center" align="center">
+          <template #default="scope">
+            <span class="trigger-type-badge">
               {{ getTriggerTypeText(scope.row.trigger_type) }}
-            </el-tag>
+            </span>
           </template>
         </el-table-column>
-        <el-table-column prop="status" :label="$t('apiTesting.common.status')" width="100">
+        <el-table-column prop="status" :label="$t('apiTesting.common.status')" width="100" header-align="center" align="center">
           <template #default="scope">
-            <el-tag :type="scope.row.status === 'ACTIVE' ? 'success' : scope.row.status === 'PAUSED' ? 'warning' : 'info'">
+            <span class="status-badge" :class="getStatusClass(scope.row.status)">
               {{ getStatusText(scope.row.status) }}
-            </el-tag>
+            </span>
           </template>
         </el-table-column>
-        <el-table-column prop="notification_type_display" :label="$t('apiTesting.scheduledTask.notificationType')" width="120">
-          <template #default="scope">
-            <el-tag
-              :type="getNotificationTypeTag(scope.row.notification_type_display)"
-              size="small"
-            >
-              {{ scope.row.notification_type_display || '-' }}
-            </el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column prop="next_run_time" :label="$t('apiTesting.scheduledTask.nextRunTime')" width="180">
+
+        <el-table-column prop="next_run_time" :label="$t('apiTesting.scheduledTask.nextRunTime')" width="180" header-align="center" align="center">
           <template #default="scope">
             {{ formatDateTime(scope.row.next_run_time) }}
           </template>
         </el-table-column>
-        <el-table-column prop="last_run_time" :label="$t('apiTesting.scheduledTask.lastRunTime')" width="180">
+        <el-table-column prop="last_run_time" :label="$t('apiTesting.scheduledTask.lastRunTime')" width="180" header-align="center" align="center">
           <template #default="scope">
             {{ formatDateTime(scope.row.last_run_time) }}
           </template>
         </el-table-column>
-        <el-table-column :label="$t('apiTesting.common.operation')" width="200" fixed="right">
+        <el-table-column :label="$t('apiTesting.common.operation')" width="410" fixed="right" header-align="center" align="center">
           <template #default="scope">
-            <el-button size="small" @click="runTaskNow(scope.row)" :loading="scope.row.running">
-              {{ $t('apiTesting.scheduledTask.runNow') }}
-            </el-button>
-            <el-dropdown @command="(command) => handleTaskAction(command, scope.row)">
-              <el-button size="small">
-                {{ $t('apiTesting.common.more') }}<el-icon><arrow-down /></el-icon>
+            <div class="action-buttons">
+              <el-button size="small" class="action-btn run-btn" @click="runTaskNow(scope.row)" :loading="scope.row.running">
+                <span>{{ $t('apiTesting.scheduledTask.runNow') }}</span>
               </el-button>
-              <template #dropdown>
-                <el-dropdown-menu>
-                  <el-dropdown-item command="edit">{{ $t('apiTesting.common.edit') }}</el-dropdown-item>
-                  <el-dropdown-item command="pause" v-if="scope.row.status === 'ACTIVE'">{{ $t('apiTesting.scheduledTask.pause') }}</el-dropdown-item>
-                  <el-dropdown-item command="activate" v-if="scope.row.status === 'PAUSED'">{{ $t('apiTesting.scheduledTask.activate') }}</el-dropdown-item>
-                  <el-dropdown-item command="logs">{{ $t('apiTesting.scheduledTask.executionLogs') }}</el-dropdown-item>
-                  <el-dropdown-item command="delete" divided>{{ $t('apiTesting.common.delete') }}</el-dropdown-item>
-                </el-dropdown-menu>
-              </template>
-            </el-dropdown>
+              <el-button size="small" class="action-btn edit-btn" @click="editTask(scope.row)">
+                <span>{{ $t('apiTesting.common.edit') }}</span>
+              </el-button>
+              <el-button size="small" class="action-btn pause-btn" v-if="scope.row.status === 'ACTIVE'" @click="pauseTask(scope.row)">
+                <span>{{ $t('apiTesting.scheduledTask.pause') }}</span>
+              </el-button>
+              <el-button size="small" class="action-btn resume-btn" v-if="scope.row.status === 'PAUSED'" @click="activateTask(scope.row)">
+                <span>{{ $t('apiTesting.scheduledTask.activate') }}</span>
+              </el-button>
+              <el-button size="small" class="action-btn log-btn" @click="viewTaskLogs(scope.row)">
+                <span>{{ $t('apiTesting.scheduledTask.executionLogs') }}</span>
+              </el-button>
+              <el-button size="small" class="action-btn delete-btn" @click="deleteTask(scope.row)">
+                <span>{{ $t('apiTesting.common.delete') }}</span>
+              </el-button>
+            </div>
           </template>
         </el-table-column>
       </el-table>
-    </div>
 
-    <!-- 分页 -->
-    <div class="pagination">
-      <el-pagination
-        v-model:current-page="pagination.current"
-        v-model:page-size="pagination.size"
-        :total="pagination.total"
-        :page-sizes="[10, 20, 50, 100]"
-        layout="total, sizes, prev, pager, next, jumper"
-        @size-change="loadTasks"
-        @current-change="loadTasks"
-      />
+      <!-- 分页 -->
+      <div class="pagination-container">
+        <el-pagination
+          v-model:current-page="pagination.current"
+          v-model:page-size="pagination.size"
+          :total="pagination.total"
+          :page-sizes="[10, 20, 50, 100]"
+          layout="total, sizes, prev, pager, next, jumper"
+          @size-change="loadTasks"
+          @current-change="loadTasks"
+        />
+      </div>
     </div>
 
     <!-- 创建/编辑对话框 -->
@@ -126,7 +120,9 @@
       v-model="showCreateDialog"
       :title="editingTask ? $t('apiTesting.scheduledTask.editTask') : $t('apiTesting.scheduledTask.createTask')"
       width="800px"
+      :close-on-click-modal="false"
       @close="resetTaskForm"
+      class="task-dialog"
     >
       <el-form :model="taskForm" label-width="120px">
         <el-form-item :label="$t('apiTesting.scheduledTask.taskName')" required>
@@ -153,31 +149,29 @@
         </el-form-item>
 
         <!-- 根据触发器类型显示不同配置 -->
-        <el-form-item v-if="taskForm.trigger_type === 'CRON'" :label="$t('apiTesting.scheduledTask.cronExpression')" required>
-          <el-input v-model="taskForm.cron_expression" placeholder="0 0 * * *" />
-          <div class="cron-help">
-            <el-tooltip
-              raw-content
-              placement="top"
-            >
+        <el-form-item v-if="taskForm.trigger_type === 'CRON'" required>
+          <template #label>
+            <span style="white-space: nowrap;">{{ $t('apiTesting.scheduledTask.cronExpression') }}</span>
+            <el-tooltip raw-content placement="top">
               <template #content>
                 <div style="line-height: 1.6; text-align: left;">
                   <div>{{ $t('apiTesting.scheduledTask.cronHelp.format') }}</div>
-                  <div>• {{ $t('apiTesting.scheduledTask.cronHelp.minute') }}</div>
-                  <div>• {{ $t('apiTesting.scheduledTask.cronHelp.hour') }}</div>
-                  <div>• {{ $t('apiTesting.scheduledTask.cronHelp.day') }}</div>
-                  <div>• {{ $t('apiTesting.scheduledTask.cronHelp.month') }}</div>
-                  <div>• {{ $t('apiTesting.scheduledTask.cronHelp.week') }}</div>
+                  <div>{{ $t('apiTesting.scheduledTask.cronHelp.minute') }}</div>
+                  <div>{{ $t('apiTesting.scheduledTask.cronHelp.hour') }}</div>
+                  <div>{{ $t('apiTesting.scheduledTask.cronHelp.day') }}</div>
+                  <div>{{ $t('apiTesting.scheduledTask.cronHelp.month') }}</div>
+                  <div>{{ $t('apiTesting.scheduledTask.cronHelp.week') }}</div>
                   <div style="margin-top: 8px;">{{ $t('apiTesting.scheduledTask.cronHelp.examples') }}</div>
-                  <div>• {{ $t('apiTesting.scheduledTask.cronHelp.daily') }}</div>
-                  <div>• {{ $t('apiTesting.scheduledTask.cronHelp.hourly') }}</div>
-                  <div>• {{ $t('apiTesting.scheduledTask.cronHelp.weekly') }}</div>
-                  <div>• {{ $t('apiTesting.scheduledTask.cronHelp.monthly') }}</div>
+                  <div>{{ $t('apiTesting.scheduledTask.cronHelp.daily') }}</div>
+                  <div>{{ $t('apiTesting.scheduledTask.cronHelp.hourly') }}</div>
+                  <div>{{ $t('apiTesting.scheduledTask.cronHelp.weekly') }}</div>
+                  <div>{{ $t('apiTesting.scheduledTask.cronHelp.monthly') }}</div>
                 </div>
               </template>
-              <span style="cursor: pointer; color: #409EFF;">{{ $t('apiTesting.scheduledTask.cronHelpLink') }}</span>
+              <el-icon class="cron-help-icon"><Warning /></el-icon>
             </el-tooltip>
-          </div>
+          </template>
+          <el-input v-model="taskForm.cron_expression" placeholder="0 0 * * *" />
         </el-form-item>
 
         <el-form-item v-if="taskForm.trigger_type === 'INTERVAL'" :label="$t('apiTesting.scheduledTask.intervalTime')" required>
@@ -194,7 +188,7 @@
         </el-form-item>
 
         <!-- 根据任务类型显示不同配置 -->
-        <el-form-item v-if="taskForm.task_type === 'TEST_SUITE'" :label="$t('apiTesting.automation.testSuite')" required>
+        <el-form-item v-if="taskForm.task_type === 'TEST_SUITE'" :label="$t('apiTesting.scheduledTask.testSuite')" required>
           <el-select v-model="taskForm.test_suite" :placeholder="$t('apiTesting.scheduledTask.selectTestSuite')">
             <el-option
               v-for="suite in testSuites"
@@ -258,44 +252,46 @@
       </el-form>
 
       <template #footer>
-        <el-button @click="showCreateDialog = false">{{ $t('apiTesting.common.cancel') }}</el-button>
-        <el-button type="primary" @click="submitTaskForm" :loading="submitting">
-          {{ editingTask ? $t('apiTesting.common.update') : $t('apiTesting.common.create') }}
-        </el-button>
+        <div class="dialog-footer">
+          <el-button class="cancel-btn" @click="showCreateDialog = false">{{ $t('apiTesting.common.cancel') }}</el-button>
+          <el-button type="primary" class="save-btn" @click="submitTaskForm" :loading="submitting">
+            {{ editingTask ? $t('apiTesting.common.update') : $t('apiTesting.common.create') }}
+          </el-button>
+        </div>
       </template>
     </el-dialog>
 
     <!-- 执行日志对话框 -->
     <el-dialog v-model="showLogsDialog" :title="$t('apiTesting.scheduledTask.executionLogs')" width="1000px">
-      <el-table :data="executionLogs" v-loading="logsLoading">
-        <el-table-column prop="start_time" :label="$t('apiTesting.scheduledTask.startTime')" width="180">
+      <el-table :data="executionLogs" v-loading="logsLoading" stripe>
+        <el-table-column prop="start_time" :label="$t('apiTesting.scheduledTask.startTime')" width="180" header-align="center" align="center">
           <template #default="scope">
             <div class="time-cell">{{ formatDateTime(scope.row.start_time) }}</div>
           </template>
         </el-table-column>
-        <el-table-column prop="end_time" :label="$t('apiTesting.scheduledTask.endTime')" width="180">
+        <el-table-column prop="end_time" :label="$t('apiTesting.scheduledTask.endTime')" width="180" header-align="center" align="center">
           <template #default="scope">
             <div class="time-cell">{{ formatDateTime(scope.row.end_time) }}</div>
           </template>
         </el-table-column>
-        <el-table-column prop="status" :label="$t('apiTesting.common.status')" width="100">
+        <el-table-column prop="status" :label="$t('apiTesting.common.status')" width="100" header-align="center" align="center">
           <template #default="scope">
-            <el-tag :type="scope.row.status === 'COMPLETED' ? 'success' : 'danger'">
+            <span class="status-badge" :class="scope.row.status === 'COMPLETED' ? 'active' : 'failed'">
               {{ scope.row.status === 'COMPLETED' ? $t('apiTesting.common.success') : $t('apiTesting.common.failed') }}
-            </el-tag>
+            </span>
           </template>
         </el-table-column>
-        <el-table-column prop="error_message" :label="$t('apiTesting.scheduledTask.errorMessage')" width="300" show-overflow-tooltip />
+        <el-table-column prop="error_message" :label="$t('apiTesting.scheduledTask.errorMessage')" min-width="300" show-overflow-tooltip header-align="center" align="center" />
       </el-table>
     </el-dialog>
   </div>
 </template>
 
 <script setup>
-import { ref, reactive, onMounted, computed } from 'vue'
+import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { Plus, Warning } from '@element-plus/icons-vue'
 import { useI18n } from 'vue-i18n'
-import { Plus, ArrowDown } from '@element-plus/icons-vue'
 import api from '@/utils/api'
 import {
   getScheduledTasks,
@@ -323,6 +319,17 @@ const getStatusText = (status) => {
   return statusKey ? t(`apiTesting.scheduledTask.status.${statusKey}`) : status
 }
 
+// 获取状态样式类
+const getStatusClass = (status) => {
+  const classMap = {
+    'ACTIVE': 'active',
+    'PAUSED': 'paused',
+    'COMPLETED': 'completed',
+    'FAILED': 'failed'
+  }
+  return classMap[status] || 'default'
+}
+
 // 获取触发器类型文本
 const getTriggerTypeText = (type) => {
   const typeKey = {
@@ -333,13 +340,26 @@ const getTriggerTypeText = (type) => {
   return typeKey ? t(`apiTesting.scheduledTask.triggerTypes.${typeKey}`) : type
 }
 
+// 获取通知类型样式类
+const getNotificationTypeClass = (typeDisplay) => {
+  const typeMap = {
+    '邮箱通知': 'email',
+    'Email Notification': 'email',
+    'Webhook机器人': 'webhook',
+    'Webhook Robot': 'webhook',
+    '两者都发送': 'both',
+    'Both': 'both'
+  }
+  return typeMap[typeDisplay] || ''
+}
+
 // 数据状态
 const tasks = ref([])
 const executionLogs = ref([])
 const testSuites = ref([])
 const apiRequests = ref([])
 const environments = ref([])
-const users = ref([]) // 添加用户列表
+const users = ref([])
 const loading = ref(false)
 const logsLoading = ref(false)
 const submitting = ref(false)
@@ -375,6 +395,7 @@ const taskForm = reactive({
   environment: '',
   notify_on_success: false,
   notify_on_failure: false,
+  notification_type: 'email',
   notify_emails: []
 })
 
@@ -384,7 +405,7 @@ onMounted(() => {
   loadTestSuites()
   loadApiRequests()
   loadEnvironments()
-  loadUsers() // 加载用户列表
+  loadUsers()
 })
 
 // 加载任务列表
@@ -404,6 +425,12 @@ const loadTasks = async () => {
   } finally {
     loading.value = false
   }
+}
+
+// 处理筛选变化
+const handleFilterChange = () => {
+  pagination.current = 1
+  loadTasks()
 }
 
 // 加载测试套件
@@ -440,7 +467,6 @@ const loadEnvironments = async () => {
 const loadUsers = async () => {
   try {
     const response = await getUsers()
-    // 处理分页数据结构
     const usersData = response.data.results || response.data
     users.value = usersData.map(user => ({
       ...user,
@@ -453,7 +479,6 @@ const loadUsers = async () => {
 
 // 新建按钮点击
 const handleCreateClick = () => {
-  console.log('新建按钮点击')
   editingTask.value = null
   resetTaskForm()
   showCreateDialog.value = true
@@ -479,21 +504,10 @@ const resetTaskForm = () => {
   })
 }
 
-// 重置筛选
-const resetFilters = () => {
-  Object.assign(filters, {
-    task_type: '',
-    trigger_type: '',
-    status: ''
-  })
-  loadTasks()
-}
-
 // 提交任务表单
 const submitTaskForm = async () => {
   submitting.value = true
   try {
-    // 准备提交数据，确保格式正确
     const submitData = {
       name: taskForm.name,
       description: taskForm.description,
@@ -506,7 +520,6 @@ const submitTaskForm = async () => {
       environment: taskForm.environment
     }
 
-    // 根据触发器类型添加对应字段
     if (taskForm.trigger_type === 'CRON') {
       submitData.cron_expression = taskForm.cron_expression
     } else if (taskForm.trigger_type === 'INTERVAL') {
@@ -515,7 +528,6 @@ const submitTaskForm = async () => {
       submitData.execute_at = taskForm.execute_at
     }
 
-    // 根据任务类型添加对应字段
     if (taskForm.task_type === 'TEST_SUITE') {
       submitData.test_suite = taskForm.test_suite
     } else if (taskForm.task_type === 'API_REQUEST') {
@@ -547,7 +559,6 @@ const runTaskNow = async (task) => {
     task.running = true
     await runScheduledTask(task.id)
     ElMessage.success(t('apiTesting.messages.success.taskStarted'))
-    // 等待一段时间后刷新任务状态
     setTimeout(() => {
       loadTasks()
     }, 2000)
@@ -572,16 +583,6 @@ const formatDateTime = (dateString) => {
   }).replace(/\//g, '-')
 }
 
-// 获取通知类型标签样式
-const getNotificationTypeTag = (typeDisplay) => {
-  const typeMap = {
-    '邮箱通知': '',
-    'Webhook机器人': 'primary',
-    '两种都发送': 'warning'
-  }
-  return typeMap[typeDisplay] || 'info'
-}
-
 // 查看执行日志
 const viewTaskLogs = async (task) => {
   logsLoading.value = true
@@ -594,27 +595,6 @@ const viewTaskLogs = async (task) => {
     ElMessage.error(t('apiTesting.messages.error.loadLogsFailed'))
   } finally {
     logsLoading.value = false
-  }
-}
-
-// 处理任务操作
-const handleTaskAction = (command, task) => {
-  switch (command) {
-    case 'pause':
-      pauseTask(task)
-      break
-    case 'activate':
-      activateTask(task)
-      break
-    case 'edit':
-      editTask(task)
-      break
-    case 'logs':
-      viewTaskLogs(task)
-      break
-    case 'delete':
-      deleteTask(task)
-      break
   }
 }
 
@@ -636,12 +616,6 @@ const editTask = (task) => {
     notify_on_failure: task.notify_on_failure,
     notification_type: task.notification_type || 'email',
     notify_emails: task.notify_emails || []
-  })
-  console.log('编辑任务数据回显:', {
-    test_suite: task.test_suite,
-    environment: task.environment,
-    taskForm_test_suite: taskForm.test_suite,
-    taskForm_environment: taskForm.environment
   })
   showCreateDialog.value = true
 }
@@ -692,46 +666,650 @@ const deleteTask = async (task) => {
 }
 </script>
 
-<style scoped>
-.scheduled-tasks {
-  padding: 20px;
-  height: 100%;
+<style lang="scss" scoped>
+// 页面容器
+.page-container {
+  padding: 24px;
+  min-height: calc(100vh - 60px);
+  background: linear-gradient(135deg, #f5f3ff 0%, #ede9fe 100%);
   display: flex;
   flex-direction: column;
+  line-height: 24px;
+  gap: 20px;
 }
 
-.header {
+// 筛选栏
+.filter-bar {
+  padding: 20px 24px;
+  background: #ffffff;
+  border: 1px solid rgba(147, 112, 219, 0.12);
+  border-radius: 12px;
+  box-shadow: 0 4px 16px rgba(147, 112, 219, 0.08);
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  margin-bottom: px;
+  gap: 12px;
+
+  :deep(.el-input__wrapper),
+  :deep(.el-select .el-input__wrapper) {
+    box-shadow: 0 2px 8px rgba(147, 112, 219, 0.08);
+    border-radius: 8px;
+    border: 1px solid rgba(147, 112, 219, 0.2);
+    background: #ffffff;
+
+    &:hover,
+    &:focus {
+      box-shadow: 0 2px 8px rgba(147, 112, 219, 0.15);
+      border-color: #7b42f6;
+    }
+  }
+
+  :deep(.el-input__inner) {
+    color: #5a32a3;
+    font-weight: 500;
+  }
+
+  .filter-bar-spacer {
+    flex: 1;
+  }
+
+  .create-btn {
+    background: linear-gradient(135deg, #7b42f6 0%, #5a32a3 100%) !important;
+    border: none !important;
+    color: white !important;
+    font-weight: 600 !important;
+    padding: 10px 20px !important;
+    border-radius: 8px !important;
+    transition: all 0.3s ease !important;
+    box-shadow: 0 4px 12px rgba(123, 66, 246, 0.3) !important;
+
+    .el-icon {
+      margin-right: 6px;
+    }
+
+    &:hover {
+      background: linear-gradient(135deg, #6d33e6 0%, #4a249c 100%) !important;
+      transform: translateY(-2px) !important;
+      box-shadow: 0 6px 20px rgba(123, 66, 246, 0.4) !important;
+    }
+  }
 }
 
-.filters {
-  margin-bottom: 20px;
-  background: #f8f9fa;
-  padding: 20px;
-  border-radius: 8px;
-}
-
-.task-list {
-  flex: 1;
-  overflow: hidden;
-}
-
-.pagination {
-  margin-top: 20px;
+// 表格容器
+.card-container {
+  background: #ffffff;
+  border: 1px solid rgba(147, 112, 219, 0.12);
+  border-radius: 12px;
+  box-shadow: 0 4px 16px rgba(147, 112, 219, 0.08);
   display: flex;
-  justify-content: flex-end;
+  flex-direction: column;
+  overflow: hidden;
+  padding-top: 16px;
+
+  // 任务类型徽章样式
+  .task-type-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 4px 10px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 500;
+    transition: all 0.3s ease;
+    white-space: nowrap;
+
+    &.test-suite {
+      background: #f6ffed;
+      color: #52c41a;
+    }
+
+    &.api-request {
+      background: #e6f7ff;
+      color: #1890ff;
+    }
+  }
+
+  // 通知类型徽章样式
+  .notification-type-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 4px 10px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 500;
+    transition: all 0.3s ease;
+    white-space: nowrap;
+
+    &.email {
+      background: #f5f5f5;
+      color: #8c8c8c;
+    }
+
+    &.webhook {
+      background: #e6f7ff;
+      color: #1890ff;
+    }
+
+    &.both {
+      background: #fff7e6;
+      color: #fa8c16;
+    }
+  }
+
+  // 触发器类型徽章样式
+  .trigger-type-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 4px 10px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 500;
+    transition: all 0.3s ease;
+    white-space: nowrap;
+    background: #f5f5f5;
+    color: #8c8c8c;
+  }
+
+  // 状态徽章样式
+  .status-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 4px 10px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 500;
+    transition: all 0.3s ease;
+    white-space: nowrap;
+
+    &.active {
+      background: #f6ffed;
+      color: #52c41a;
+    }
+
+    &.paused {
+      background: #fff7e6;
+      color: #fa8c16;
+    }
+
+    &.completed {
+      background: #e6f7ff;
+      color: #1890ff;
+    }
+
+    &.failed {
+      background: #fff1f0;
+      color: #ff4d4f;
+    }
+
+    &.default {
+      background: #f5f5f5;
+      color: #8c8c8c;
+    }
+  }
+
+  // 表格样式
+  .el-table {
+    border: none;
+    border-radius: 8px 8px 0 0;
+    overflow: hidden;
+    min-height: 200px;
+    box-shadow: none;
+    transition: all 0.3s ease;
+    background-color: transparent !important;
+
+    --el-color-primary: #667eea;
+    --el-color-primary-light-3: #9370db;
+    --el-color-primary-light-5: #a888e0;
+    --el-color-primary-light-7: #c2a9f3;
+    --el-color-primary-light-9: #f8f7ff;
+    --el-border-color: #e9ecef;
+    --el-border-color-light: #e9ecef;
+    --el-border-color-lighter: #e9ecef;
+    --el-fill-color-light: #ffffff;
+    --el-fill-color-lighter: #ffffff;
+    --el-fill-color-blank: #ffffff;
+    --el-text-color-primary: #262626;
+    --el-text-color-regular: #595959;
+    --el-text-color-secondary: #8c8c8c;
+    --el-text-color-placeholder: #999;
+    --el-table-header-bg-color: #ffffff;
+    --el-table-row-hover-bg-color: #f8f7ff;
+    --el-table-stripe-bg-color: #fafaff;
+
+    &::before {
+      display: none;
+    }
+
+    :deep(.el-table__header-wrapper) {
+      background-color: #ffffff !important;
+
+      :deep(.el-table__header) {
+        background-color: #ffffff !important;
+
+        :deep(th) {
+          background-color: #ffffff !important;
+          color: #5a32a3;
+          font-weight: 600;
+          font-size: 14px;
+          border-bottom: 1px solid #e9ecef;
+          padding: 16px;
+          text-align: center;
+          line-height: 24px;
+          transition: all 0.3s ease;
+
+          &:hover {
+            background-color: #ffffff !important;
+          }
+
+          :deep(.cell) {
+            background-color: #ffffff !important;
+            color: #5a32a3 !important;
+            font-weight: 600 !important;
+          }
+        }
+      }
+    }
+
+    :deep(.el-table__body-wrapper) {
+      background-color: #ffffff !important;
+
+      :deep(.el-table__row) {
+        transition: all 0.3s ease;
+        background-color: #ffffff !important;
+        line-height: 24px;
+
+        &:hover {
+          background-color: #f8f7ff !important;
+          transform: translateY(-1px);
+          box-shadow: 0 4px 12px rgba(147, 112, 219, 0.1);
+        }
+
+        &.el-table__row--striped {
+          background-color: #fafaff !important;
+        }
+
+        :deep(td) {
+          padding: 14px 8px;
+          border-bottom: 1px solid #e9ecef;
+          color: #595959;
+          font-size: 14px;
+          font-weight: normal;
+          line-height: 24px;
+          transition: all 0.3s ease;
+
+          :deep(.cell) {
+            font-size: 14px;
+            font-weight: normal;
+            color: #595959;
+            line-height: 24px;
+            white-space: nowrap;
+            overflow: visible;
+          }
+        }
+      }
+    }
+
+    :deep(.el-table__empty-block) {
+      padding: 60px 0;
+      background: #ffffff !important;
+
+      :deep(.el-table__empty-text) {
+        color: #666;
+        font-size: 14px;
+        line-height: 24px;
+      }
+    }
+
+    :deep(.el-table__header th) {
+      background-color: #ffffff !important;
+      color: #5a32a3 !important;
+      font-weight: 600 !important;
+    }
+
+    :deep(.el-table__header th .cell) {
+      background-color: #ffffff !important;
+      color: #5a32a3 !important;
+      font-weight: 600 !important;
+    }
+  }
 }
 
-.cron-help {
-  margin-top: 8px;
+// 操作按钮容器
+.action-buttons {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: nowrap;
+}
+
+// 操作按钮样式
+.action-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
   font-size: 12px;
+  font-weight: 500;
+  padding: 4px 10px !important;
+  border-radius: 6px;
+  transition: all 0.3s ease;
+
+  .el-icon {
+    font-size: 14px;
+  }
+
+  span {
+    font-size: 12px;
+  }
+
+  &.run-btn {
+    background: linear-gradient(135deg, #52c41a 0%, #389e0d 100%) !important;
+    border: none !important;
+    color: #ffffff !important;
+    font-weight: 600 !important;
+
+    &:hover {
+      background: linear-gradient(135deg, #73d13d 0%, #52c41a 100%) !important;
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(82, 196, 26, 0.4);
+    }
+  }
+
+  &.edit-btn {
+    background: linear-gradient(135deg, #1890ff 0%, #096dd9 100%) !important;
+    border: none !important;
+    color: #ffffff !important;
+    font-weight: 600 !important;
+
+    &:hover {
+      background: linear-gradient(135deg, #40a9ff 0%, #1890ff 100%) !important;
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(24, 144, 255, 0.4);
+    }
+  }
+
+  &.pause-btn {
+    background: linear-gradient(135deg, #faad14 0%, #d48806 100%) !important;
+    border: none !important;
+    color: #ffffff !important;
+    font-weight: 600 !important;
+
+    &:hover {
+      background: linear-gradient(135deg, #ffc53d 0%, #faad14 100%) !important;
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(250, 173, 20, 0.4);
+    }
+  }
+
+  &.resume-btn {
+    background: linear-gradient(135deg, #52c41a 0%, #389e0d 100%) !important;
+    border: none !important;
+    color: #ffffff !important;
+    font-weight: 600 !important;
+
+    &:hover {
+      background: linear-gradient(135deg, #73d13d 0%, #52c41a 100%) !important;
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(82, 196, 26, 0.4);
+    }
+  }
+
+  &.log-btn {
+    background: linear-gradient(135deg, #722ed1 0%, #531dab 100%) !important;
+    border: none !important;
+    color: #ffffff !important;
+    font-weight: 600 !important;
+
+    &:hover {
+      background: linear-gradient(135deg, #9254de 0%, #722ed1 100%) !important;
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(114, 46, 209, 0.4);
+    }
+  }
+
+  &.delete-btn {
+    background: linear-gradient(135deg, #ff4d4f 0%, #cf1322 100%) !important;
+    border: none !important;
+    color: #ffffff !important;
+    font-weight: 600 !important;
+
+    &:hover {
+      background: linear-gradient(135deg, #ff7875 0%, #ff4d4f 100%) !important;
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(255, 77, 79, 0.4);
+    }
+  }
 }
 
+// 分页容器
+.pagination-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 16px 0;
+  margin-top: 8px;
+  background: transparent;
+  border: none;
+  transition: all 0.3s ease;
+
+  --primary-color: #a78bfa;
+  --primary-dark: #8b5cf6;
+  --primary-light: #f3f0ff;
+  --text-primary: #262626;
+  --text-secondary: #595959;
+  --text-tertiary: #8c8c8c;
+
+  --el-color-primary: var(--primary-color);
+  --el-color-primary-light-3: #c4b5fd;
+  --el-color-primary-light-5: #ddd6fe;
+  --el-color-primary-light-7: #ede9fe;
+  --el-color-primary-light-9: #f5f3ff;
+  --el-border-color: rgba(167, 139, 250, 0.3);
+  --el-border-color-light: rgba(167, 139, 250, 0.2);
+  --el-border-color-lighter: rgba(167, 139, 250, 0.1);
+  --el-fill-color-light: #f5f3ff;
+  --el-fill-color-lighter: #f5f3ff;
+  --el-fill-color-blank: #f5f3ff;
+  --el-text-color-primary: var(--text-primary);
+  --el-text-color-regular: var(--text-secondary);
+  --el-text-color-secondary: var(--text-tertiary);
+
+  :deep(.el-pagination) {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-weight: 500;
+
+    .el-pagination__total {
+      color: #6b7280;
+      font-size: 14px;
+      font-weight: 500;
+      margin-right: 12px;
+    }
+
+    .el-pagination__sizes {
+      margin-right: 12px;
+
+      .el-select {
+        .el-input__wrapper {
+          border-radius: 8px;
+          border: 1px solid #e5e7eb;
+          background: #ffffff;
+          box-shadow: none;
+
+          &:hover {
+            border-color: #a78bfa;
+            box-shadow: 0 0 0 3px rgba(167, 139, 250, 0.1);
+          }
+
+          &.is-focus {
+            border-color: #a78bfa;
+            box-shadow: 0 0 0 3px rgba(167, 139, 250, 0.15);
+          }
+        }
+
+        .el-input__inner {
+          color: #374151;
+          font-weight: 500;
+        }
+      }
+    }
+
+    .btn-prev,
+    .btn-next {
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      border: 1px solid #e5e7eb;
+      background: #ffffff;
+      color: #6b7280;
+      transition: all 0.3s ease;
+
+      &:hover:not(:disabled) {
+        background: #f5f3ff;
+        border-color: #a78bfa;
+        color: #8b5cf6;
+        transform: translateY(-1px);
+        box-shadow: 0 2px 8px rgba(167, 139, 250, 0.2);
+      }
+
+      &:disabled {
+        background: #f5f5f5;
+        border-color: #e0e0e0;
+        color: #c0c0c0;
+      }
+
+      .el-icon {
+        font-size: 14px;
+        font-weight: bold;
+      }
+    }
+
+    .el-pager {
+      display: flex;
+      gap: 8px;
+
+      li {
+        min-width: 32px;
+        height: 32px;
+        padding: 0 8px;
+        border-radius: 8px;
+        border: 1px solid #d1d5db;
+        background: #ffffff;
+        color: #6b7280;
+        font-size: 14px;
+        font-weight: 500;
+        transition: all 0.3s ease;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+
+        &:hover:not(.is-active) {
+          background: #f5f3ff;
+          border-color: #a78bfa;
+          color: #8b5cf6;
+          transform: translateY(-1px);
+        }
+
+        &.is-active {
+          background: #f5f3ff;
+          border-color: #a78bfa;
+          color: #8b5cf6;
+          box-shadow: 0 2px 8px rgba(167, 139, 250, 0.2);
+        }
+
+        &.is-active:hover {
+          background: #ede9fe;
+          border-color: #8b5cf6;
+        }
+      }
+    }
+
+    .el-pagination__jump {
+      color: #6b7280;
+      font-weight: 500;
+      margin-left: 12px;
+
+      .el-input {
+        width: 50px;
+        margin: 0 4px;
+
+        .el-input__wrapper {
+          border-radius: 8px;
+          border: 1px solid #e5e7eb;
+          background: #ffffff;
+          box-shadow: none;
+
+          &:hover {
+            border-color: #a78bfa;
+            box-shadow: 0 0 0 3px rgba(167, 139, 250, 0.1);
+          }
+
+          &.is-focus {
+            border-color: #a78bfa;
+            box-shadow: 0 0 0 3px rgba(167, 139, 250, 0.15);
+          }
+        }
+
+        .el-input__inner {
+          color: #374151;
+          font-weight: 500;
+          text-align: center;
+        }
+      }
+    }
+  }
+}
+
+// Cron帮助图标样式
+:deep(.cron-help-icon) {
+  margin-left: 6px;
+  font-size: 20px;
+  color: #7b42f6;
+  cursor: pointer;
+  padding: 2px;
+  border-radius: 50%;
+  transition: all 0.3s ease;
+  vertical-align: baseline;
+
+  &:hover {
+    background: rgba(123, 66, 246, 0.1);
+    transform: scale(1.1);
+  }
+}
+
+// 单位样式
 .unit {
   margin-left: 8px;
   color: #606266;
+}
+
+// 对话框底部按钮样式
+.dialog-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+
+  .cancel-btn {
+    border-radius: 8px;
+    padding: 10px 24px;
+    font-weight: 500;
+  }
+
+  .save-btn {
+    background: linear-gradient(135deg, #7b42f6 0%, #5a32a3 100%) !important;
+    border: none !important;
+    border-radius: 8px !important;
+    padding: 10px 24px !important;
+    font-weight: 600 !important;
+
+    &:hover {
+      background: linear-gradient(135deg, #6d33e6 0%, #4a249c 100%) !important;
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(123, 66, 246, 0.4);
+    }
+  }
 }
 </style>

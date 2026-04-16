@@ -18,7 +18,7 @@ export default {
 
   // 通用
   common: {
-    create: '创建',
+    create: '确定',
     update: '更新',
     save: '保存',
     cancel: '取消',
@@ -32,6 +32,7 @@ export default {
     copy: '复制',
     more: '更多',
     operation: '操作',
+    sequence: '序号',
     status: '状态',
     name: '名称',
     description: '描述',
@@ -50,6 +51,7 @@ export default {
 
   // 仪表板
   dashboard: {
+    dataOverview: '数据概览',
     apiProjects: '接口项目',
     interfaceCount: '接口数量',
     testSuites: '测试套件',
@@ -332,6 +334,7 @@ export default {
     seconds: '秒',
     executeTime: '执行时间',
     selectExecuteTime: '选择执行时间',
+    testSuite: '测试套件',
     selectTestSuite: '请选择测试套件',
     apiRequest: 'API请求',
     selectApiRequest: '请选择API请求',
@@ -403,8 +406,10 @@ export default {
     currentValue: '当前值',
     addVariable: '添加变量',
     variableCount: '变量数量',
+    status: '状态',
     activated: '激活',
     notActivated: '未激活',
+    activate: '激活',
     createdBy: '创建者',
     createdAt: '创建时间',
     viewVariables: '查看变量',

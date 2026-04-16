@@ -1,27 +1,28 @@
 <template>
-  <div class="interface-management">
-    <div class="interface-layout">
+  <div class="page-container">
+    <div class="filter-bar">
+      <el-select v-model="selectedProject" :placeholder="$t('apiTesting.common.selectProject')" @change="onProjectChange" class="project-select" style="width: 200px;">
+        <el-option
+          v-for="project in projects"
+          :key="project.id"
+          :label="project.name"
+          :value="project.id"
+        />
+      </el-select>
+      <div class="filter-bar-spacer"></div>
+      <el-button type="primary" class="create-btn" @click="showCreateCollectionDialog = true">
+        <el-icon><Folder /></el-icon>
+        {{ $t('apiTesting.interface.createCollection') }}
+      </el-button>
+      <el-button class="btn-secondary add-element-btn" @click="createEmptyRequest">
+        <el-icon><Plus /></el-icon>
+        {{ $t('apiTesting.interface.addInterface') }}
+      </el-button>
+    </div>
+
+    <div class="card-container interface-layout">
       <!-- 左侧集合树 -->
       <div class="sidebar">
-        <div class="sidebar-header">
-          <el-select v-model="selectedProject" :placeholder="$t('apiTesting.common.selectProject')" @change="onProjectChange">
-            <el-option
-              v-for="project in projects"
-              :key="project.id"
-              :label="project.name"
-              :value="project.id"
-            />
-          </el-select>
-          <div class="header-actions">
-            <el-button type="primary" size="small" @click="showCreateCollectionDialog = true" :title="$t('apiTesting.interface.createCollection')">
-              <el-icon><Folder /></el-icon>
-            </el-button>
-            <el-button type="success" size="small" @click="createEmptyRequest" :title="$t('apiTesting.interface.addInterface')">
-              <el-icon><Plus /></el-icon>
-            </el-button>
-          </div>
-        </div>
-        
         <div class="collection-tree">
           <el-tree
             ref="treeRef"
@@ -146,7 +147,7 @@
 
           <!-- 请求配置 -->
           <el-tabs v-model="activeTab" class="request-tabs">
-            <el-tab-pane label="Params" name="params">
+            <el-tab-pane label="参数" name="params">
               <KeyValueEditor
                 v-model="selectedRequest.params"
                 :placeholder-key="$t('apiTesting.interface.paramName')"
@@ -154,7 +155,7 @@
               />
             </el-tab-pane>
 
-            <el-tab-pane label="Headers" name="headers">
+            <el-tab-pane label="请求头" name="headers">
               <KeyValueEditor
                 ref="headersEditorRef"
                 v-model="selectedRequest.headers"
@@ -163,8 +164,8 @@
                 @update:modelValue="onHeadersUpdate"
               />
             </el-tab-pane>
-            
-            <el-tab-pane label="Body" name="body" v-if="hasBody">
+
+            <el-tab-pane label="请求体" name="body" v-if="hasBody">
               <div class="body-container">
                 <el-radio-group v-model="bodyType" @change="onBodyTypeChange">
                   <el-radio value="none">none</el-radio>
@@ -214,22 +215,85 @@
             
             <!-- HTTP接口专用标签页 -->
             <template v-if="!selectedRequest || selectedRequest.request_type !== 'WEBSOCKET'">
-              <el-tab-pane label="Pre-request Script" name="pre-script">
-                <el-input
-                  v-model="selectedRequest.pre_request_script"
-                  type="textarea"
-                  :rows="10"
-                  :placeholder="$t('apiTesting.interface.preRequestScript')"
-                />
-              </el-tab-pane>
-
-              <el-tab-pane label="Tests" name="tests">
-                <el-input
-                  v-model="selectedRequest.post_request_script"
-                  type="textarea"
-                  :rows="10"
-                  :placeholder="$t('apiTesting.interface.postRequestScript')"
-                />
+              <el-tab-pane label="变量提取" name="variable-extractors">
+                <div class="variable-extractors-editor">
+                  <div class="extractors-header">
+                    <el-button size="small" type="primary" @click="addVariableExtractor">
+                      <el-icon><Plus /></el-icon>
+                      添加提取规则
+                    </el-button>
+                  </div>
+                  <div class="extractors-tips">
+                    <el-alert type="info" :closable="false">
+                      <template #title>
+                        <div class="tips-content">
+                          <p>从响应中提取数据并保存到环境变量，供后续接口使用</p>
+                        </div>
+                      </template>
+                    </el-alert>
+                  </div>
+                  <div class="extractors-list" v-if="selectedRequest.variable_extractors && selectedRequest.variable_extractors.length > 0">
+                    <div
+                      v-for="(extractor, index) in selectedRequest.variable_extractors"
+                      :key="index"
+                      class="extractor-item"
+                    >
+                      <div class="extractor-header">
+                        <el-input
+                          v-model="extractor.name"
+                          placeholder="提取规则名称"
+                          size="small"
+                          class="extractor-name"
+                        />
+                        <el-button
+                          size="small"
+                          type="danger"
+                          @click="removeVariableExtractor(index)"
+                          circle
+                        >
+                          <el-icon><Delete /></el-icon>
+                        </el-button>
+                      </div>
+                      <div class="extractor-config">
+                        <el-select
+                          v-model="extractor.source"
+                          placeholder="选择提取来源"
+                          size="small"
+                          style="width: 100%; margin-bottom: 8px;"
+                        >
+                          <el-option label="响应体 (JSON)" value="json_body" />
+                          <el-option label="响应头" value="header" />
+                        </el-select>
+                        <el-input
+                          v-if="extractor.source === 'json_body'"
+                          v-model="extractor.json_path"
+                          placeholder="JSON Path 表达式，如: $.data.token"
+                          size="small"
+                          style="margin-bottom: 8px;"
+                        />
+                        <el-input
+                          v-if="extractor.source === 'header'"
+                          v-model="extractor.header_name"
+                          placeholder="响应头名称，如: X-Auth-Token"
+                          size="small"
+                          style="margin-bottom: 8px;"
+                        />
+                        <el-input
+                          v-model="extractor.variable_name"
+                          placeholder="环境变量名称，如: authToken"
+                          size="small"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                  <div v-else class="no-extractors">
+                    <p>暂无变量提取规则</p>
+                    <el-button size="small" type="primary" @click="addVariableExtractor">
+                      <el-icon><Plus /></el-icon>
+                      添加第一个提取规则
+                    </el-button>
+                  </div>
+                </div>
               </el-tab-pane>
 
               <el-tab-pane :label="$t('apiTesting.interface.assertions')" name="assertions">
@@ -466,19 +530,29 @@
             </div>
 
             <el-tabs v-model="responseActiveTab">
-              <el-tab-pane :label="$t('apiTesting.interface.responseBody')" name="body">
+              <el-tab-pane label="响应体" name="body">
                 <div class="response-body">
                   <div class="response-actions">
                     <el-button-group>
-                      <el-button size="small" @click="formatResponse">{{ $t('apiTesting.interface.format') }}</el-button>
-                      <el-button size="small" @click="copyResponse">{{ $t('apiTesting.common.copy') }}</el-button>
+                      <el-button size="small" @click="formatResponse">格式化</el-button>
+                      <el-button size="small" @click="copyResponse">复制</el-button>
                     </el-button-group>
+                    <el-tag v-if="selectedJsonPath" type="success" size="small" closable @close="selectedJsonPath = ''" style="margin-left: 10px;">
+                      已选择: {{ selectedJsonPath }}
+                    </el-tag>
                   </div>
-                  <pre class="response-content">{{ responseBody }}</pre>
+                  <div class="response-content-wrapper">
+                    <pre class="response-content" @click="handleResponseClick">{{ responseBody }}</pre>
+                    <div v-if="selectedJsonPath" class="json-path-actions">
+                      <el-button size="small" type="primary" @click="useJsonPathForExtractor">
+                        用于变量提取
+                      </el-button>
+                    </div>
+                  </div>
                 </div>
               </el-tab-pane>
 
-              <el-tab-pane :label="$t('apiTesting.interface.responseHeaders')" name="headers">
+              <el-tab-pane label="响应头" name="headers">
                 <div class="response-headers">
                   <div v-for="(value, key) in response.response_data?.headers" :key="key" class="header-row">
                     <strong>{{ key }}:</strong> {{ value }}
@@ -486,7 +560,56 @@
                 </div>
               </el-tab-pane>
 
-              <el-tab-pane :label="$t('apiTesting.interface.assertionResults')" name="assertions" v-if="response.assertions_results && response.assertions_results.length > 0">
+              <el-tab-pane label="提取变量" name="extracted-variables" v-if="response.extraction_results && response.extraction_results.length > 0">
+                <div class="extraction-results">
+                  <div
+                    v-for="(result, index) in response.extraction_results"
+                    :key="index"
+                    class="extraction-result-item"
+                    :class="{ 'success': result.success, 'failed': !result.success }"
+                  >
+                    <div class="extraction-result-header">
+                      <el-tag :type="result.success ? 'success' : 'danger'" size="small">
+                        {{ result.success ? '成功' : '失败' }}
+                      </el-tag>
+                      <span class="extraction-name">{{ result.name }}</span>
+                    </div>
+                    <div class="extraction-result-details">
+                      <div class="result-row" v-if="result.variable_name">
+                        <span class="label">变量名</span>
+                        <span class="value">{{ result.variable_name }}</span>
+                      </div>
+                      <div class="result-row" v-if="result.json_path">
+                        <span class="label">JSON Path</span>
+                        <span class="value">{{ result.json_path }}</span>
+                      </div>
+                      <div class="result-row" v-if="result.header_name">
+                        <span class="label">响应头</span>
+                        <span class="value">{{ result.header_name }}</span>
+                      </div>
+                      <div class="result-row" v-if="result.success">
+                        <span class="label">提取值</span>
+                        <span class="value extraction-value">{{ result.value }}</span>
+                      </div>
+                      <div class="result-row" v-if="result.error">
+                        <span class="label">错误</span>
+                        <span class="value error">{{ result.error }}</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div v-if="response.extracted_variables && Object.keys(response.extracted_variables).length > 0" class="extracted-variables-summary">
+                    <h4>已保存到环境变量</h4>
+                    <div class="variables-list">
+                      <div v-for="(value, key) in response.extracted_variables" :key="key" class="variable-item">
+                        <span class="variable-key">{{ key }}</span>
+                        <span class="variable-value">{{ value }}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </el-tab-pane>
+
+              <el-tab-pane label="断言结果" name="assertions" v-if="response.assertions_results && response.assertions_results.length > 0">
                 <div class="assertions-results">
                   <div
                     v-for="(result, index) in response.assertions_results"
@@ -623,6 +746,7 @@ const editingNodeName = ref('')
 const editInputRef = ref(null)
 const rawBodyInputRef = ref(null)
 const currentHeaders = ref({})
+const selectedJsonPath = ref('')
 
 // 辅助函数：将对象或数组转换为键值对数组（用于KeyValueEditor组件）
 const convertObjectToKeyValueArray = (obj) => {
@@ -699,6 +823,8 @@ const rawType = ref('json')
 const formData = ref({})
 const formUrlEncoded = ref({})
 const rawBody = ref('')
+const variableCategories = ref([])
+const loading = ref(false)
 
 const treeProps = {
   children: 'children',
@@ -1370,6 +1496,94 @@ const removeAssertion = (index) => {
   }
 }
 
+const addVariableExtractor = () => {
+  if (!selectedRequest.value.variable_extractors) {
+    selectedRequest.value.variable_extractors = []
+  }
+
+  selectedRequest.value.variable_extractors.push({
+    name: `提取规则${selectedRequest.value.variable_extractors.length + 1}`,
+    source: 'json_body',
+    json_path: '',
+    header_name: '',
+    variable_name: ''
+  })
+}
+
+const removeVariableExtractor = (index) => {
+  if (selectedRequest.value.variable_extractors) {
+    selectedRequest.value.variable_extractors.splice(index, 1)
+  }
+}
+
+// 处理响应体点击事件，生成 JSON Path
+const handleResponseClick = (event) => {
+  const selection = window.getSelection()
+  const selectedText = selection.toString().trim()
+
+  if (!selectedText || !response.value?.response_data?.body) {
+    return
+  }
+
+  try {
+    const body = typeof response.value.response_data.body === 'string'
+      ? JSON.parse(response.value.response_data.body)
+      : response.value.response_data.body
+
+    const jsonPath = findJsonPath(body, selectedText)
+    if (jsonPath) {
+      selectedJsonPath.value = jsonPath
+      ElMessage.success(`已生成 JSON Path: ${jsonPath}`)
+    }
+  } catch (e) {
+    console.error('Failed to parse response body:', e)
+  }
+}
+
+// 递归查找 JSON Path
+const findJsonPath = (obj, targetValue, currentPath = '$') => {
+  if (obj === targetValue) {
+    return currentPath
+  }
+
+  if (Array.isArray(obj)) {
+    for (let i = 0; i < obj.length; i++) {
+      const result = findJsonPath(obj[i], targetValue, `${currentPath}[${i}]`)
+      if (result) return result
+    }
+  } else if (typeof obj === 'object' && obj !== null) {
+    for (const key in obj) {
+      if (obj.hasOwnProperty(key)) {
+        const result = findJsonPath(obj[key], targetValue, `${currentPath}.${key}`)
+        if (result) return result
+      }
+    }
+  }
+
+  return null
+}
+
+// 将选中的 JSON Path 用于变量提取
+const useJsonPathForExtractor = () => {
+  if (!selectedJsonPath.value) return
+
+  // 切换到变量提取标签
+  activeTab.value = 'variable-extractors'
+
+  // 如果没有提取规则，创建一个
+  if (!selectedRequest.value.variable_extractors || selectedRequest.value.variable_extractors.length === 0) {
+    addVariableExtractor()
+  }
+
+  // 填充到最后一个提取规则中
+  const lastIndex = selectedRequest.value.variable_extractors.length - 1
+  selectedRequest.value.variable_extractors[lastIndex].source = 'json_body'
+  selectedRequest.value.variable_extractors[lastIndex].json_path = selectedJsonPath.value
+
+  ElMessage.success('JSON Path 已填充到变量提取规则')
+  selectedJsonPath.value = ''
+}
+
 const onAssertionTypeChange = (assertion) => {
   // 重置断言参数
   assertion.expected = null
@@ -1584,7 +1798,8 @@ const createEmptyRequest = async () => {
       body: {},
       auth: {},
       pre_request_script: '',
-      post_request_script: ''
+      post_request_script: '',
+      variable_extractors: []
     }
     
     const res = await api.post('/api-testing/requests/', data)
@@ -1608,7 +1823,8 @@ const createEmptyRequest = async () => {
       body: res.data.body || {},
       auth: res.data.auth || {},
       pre_request_script: res.data.pre_request_script || '',
-      post_request_script: res.data.post_request_script || ''
+      post_request_script: res.data.post_request_script || '',
+      variable_extractors: res.data.variable_extractors || []
     }
     
     // 默认进入params标签页
@@ -1629,6 +1845,101 @@ const createEmptyRequest = async () => {
   }
 }
 
+const saveRequest = async () => {
+  if (!selectedRequest.value) return
+
+  // 检查必填字段
+  if (!selectedRequest.value.name) {
+    ElMessage.warning(t('apiTesting.messages.warning.pleaseInputRequestName'))
+    return
+  }
+
+  if (!selectedRequest.value.url) {
+    ElMessage.warning(t('apiTesting.messages.warning.pleaseInputUrl'))
+    return
+  }
+
+  saving.value = true
+  try {
+    // 准备请求体数据
+    let bodyData = {}
+    if (hasBody.value) {
+      if (bodyType.value === 'none') {
+        bodyData = {}
+      } else if (bodyType.value === 'raw' && rawBody.value) {
+        if (rawType.value === 'json') {
+          try {
+            bodyData = {
+              type: 'json',
+              data: JSON.parse(rawBody.value)
+            }
+          } catch (e) {
+            bodyData = {
+              type: 'raw',
+              data: rawBody.value
+            }
+          }
+        } else {
+          bodyData = {
+            type: 'raw',
+            data: rawBody.value
+          }
+        }
+      } else if (bodyType.value === 'form-data') {
+        bodyData = {
+          type: 'form-data',
+          data: formData.value || {}
+        }
+      } else if (bodyType.value === 'x-www-form-urlencoded') {
+        bodyData = {
+          type: 'x-www-form-urlencoded',
+          data: formUrlEncoded.value || {}
+        }
+      } else if (bodyType.value === 'binary') {
+        bodyData = {
+          type: 'binary',
+          data: null
+        }
+      }
+    }
+
+    const requestData = {
+      name: selectedRequest.value.name,
+      method: selectedRequest.value.method,
+      url: selectedRequest.value.url,
+      description: selectedRequest.value.description || '',
+      collection: selectedRequest.value.collection,
+      project: selectedProject.value,
+      request_type: selectedRequest.value.request_type || 'HTTP',
+      params: convertKeyValueArrayToObject(selectedRequest.value.params || []),
+      headers: selectedRequest.value.headers,
+      body: bodyData,
+      auth: selectedRequest.value.auth || {},
+      pre_request_script: selectedRequest.value.pre_request_script || '',
+      post_request_script: selectedRequest.value.post_request_script || '',
+      variable_extractors: selectedRequest.value.variable_extractors || []
+    }
+
+    if (selectedRequest.value.id) {
+      // 更新现有请求
+      await api.put(`/api-testing/requests/${selectedRequest.value.id}/`, requestData)
+      ElMessage.success(t('apiTesting.messages.success.update'))
+    } else {
+      // 创建新请求
+      const res = await api.post('/api-testing/requests/', requestData)
+      selectedRequest.value.id = res.data.id
+      ElMessage.success(t('apiTesting.messages.success.create'))
+    }
+    // 重新加载集合和请求
+    await Promise.all([loadCollections(), loadRequests()])
+  } catch (error) {
+    console.error('Save request error:', error)
+    ElMessage.error(t('apiTesting.messages.error.saveFailed'))
+  } finally {
+    saving.value = false
+  }
+}
+
 const sendRequest = async () => {
   if (!selectedRequest.value) return
 
@@ -1643,7 +1954,7 @@ const sendRequest = async () => {
     ElMessage.warning(t('apiTesting.messages.warning.pleaseSelectEnvironment'))
     return
   }
-  
+
   sending.value = true
   try {
     // 发送请求前先自动保存当前的修改
@@ -1997,6 +2308,54 @@ const insertTextAtCursor = (inputRef, textToInsert) => {
   })
 }
 
+// 获取变量函数（模拟API调用）
+const getVariableFunctions = async () => {
+  // 返回本地定义的变量函数数据
+  return {
+    data: {
+      '随机数': [
+        { name: '${random_int}', description: '随机整数', example: '${random_int(1, 100)}' },
+        { name: '${random_float}', description: '随机浮点数', example: '${random_float(1.0, 100.0)}' },
+      ],
+      '字符串': [
+        { name: '${random_string}', description: '随机字符串', example: '${random_string(10)}' },
+        { name: '${uuid}', description: 'UUID', example: '${uuid()}' },
+      ],
+      '时间日期': [
+        { name: '${timestamp}', description: '当前时间戳', example: '${timestamp()}' },
+        { name: '${datetime}', description: '当前日期时间', example: '${datetime("YYYY-MM-DD HH:mm:ss")}' },
+      ],
+    }
+  }
+}
+
+// 使用本地变量分类数据
+const useLocalVariableCategories = () => {
+  variableCategories.value = [
+    {
+      label: '随机数',
+      variables: [
+        { name: '${random_int}', description: '随机整数', example: '${random_int(1, 100)}' },
+        { name: '${random_float}', description: '随机浮点数', example: '${random_float(1.0, 100.0)}' },
+      ]
+    },
+    {
+      label: '字符串',
+      variables: [
+        { name: '${random_string}', description: '随机字符串', example: '${random_string(10)}' },
+        { name: '${uuid}', description: 'UUID', example: '${uuid()}' },
+      ]
+    },
+    {
+      label: '时间日期',
+      variables: [
+        { name: '${timestamp}', description: '当前时间戳', example: '${timestamp()}' },
+        { name: '${datetime}', description: '当前日期时间', example: '${datetime("YYYY-MM-DD HH:mm:ss")}' },
+      ]
+    },
+  ]
+}
+
 // 加载变量函数
 const loadVariableFunctions = async () => {
   try {
@@ -2037,38 +2396,24 @@ const loadVariableFunctions = async () => {
         // 如果是数组，按分类分组
         const grouped = {}
         
-        // 创建分类名称映射表
-        const categoryMapping = {
-          '随机数': t('apiTesting.component.keyValueEditor.categories.randomNumber'),
-          '测试数据': t('apiTesting.component.keyValueEditor.categories.testData'),
-          '字符串': t('apiTesting.component.keyValueEditor.categories.string'),
-          '编码转换': t('apiTesting.component.keyValueEditor.categories.encodingConversion'),
-          '加密': t('apiTesting.component.keyValueEditor.categories.encryption'),
-          '时间日期': t('apiTesting.component.keyValueEditor.categories.datetime'),
-          'Crontab': t('apiTesting.component.keyValueEditor.categories.crontab'),
-          '未分类': t('apiTesting.component.keyValueEditor.categories.uncategorized')
-        }
-        
         groupedFunctions.forEach(func => {
-          const rawCategory = func.category || '未分类'
-          // 使用映射表获取正确的分类名称
-          const category = categoryMapping[rawCategory] || rawCategory
+          const category = func.category || '未分类'
           if (!grouped[category]) {
             grouped[category] = []
           }
           grouped[category].push(func)
         })
         
-        // 定义固定的分类顺序 ['随机数', '测试数据', '字符串', '编码转换', '加密', '时间日期', 'Crontab', '未分类']
+        // 定义固定的分类顺序
         const categoryOrder = [
-          t('apiTesting.component.keyValueEditor.categories.randomNumber'),
-          t('apiTesting.component.keyValueEditor.categories.testData'),
-          t('apiTesting.component.keyValueEditor.categories.string'),
-          t('apiTesting.component.keyValueEditor.categories.encodingConversion'),
-          t('apiTesting.component.keyValueEditor.categories.encryption'),
-          t('apiTesting.component.keyValueEditor.categories.datetime'),
-          t('apiTesting.component.keyValueEditor.categories.crontab'),
-          t('apiTesting.component.keyValueEditor.categories.uncategorized')
+          '随机数',
+          '测试数据',
+          '字符串',
+          '编码转换',
+          '加密',
+          '时间日期',
+          'Crontab',
+          '未分类'
         ]
         
         // 按固定顺序构建分类列表
@@ -2129,10 +2474,98 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
-.interface-management {
+.page-container {
   height: 100vh;
   display: flex;
   flex-direction: column;
+  padding: 24px;
+  background: linear-gradient(135deg, #f5f3ff 0%, #ede9fe 100%);
+  gap: 20px;
+}
+
+.filter-bar {
+  padding: 16px 20px;
+  background: #ffffff;
+  border: 1px solid rgba(147, 112, 219, 0.12);
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+
+  .project-select {
+    :deep(.el-input__wrapper) {
+      box-shadow: 0 2px 8px rgba(147, 112, 219, 0.08);
+      border-radius: 8px;
+      border: 1px solid rgba(147, 112, 219, 0.2);
+      background: #ffffff;
+
+      &:hover, &.is-focus {
+        box-shadow: 0 2px 8px rgba(147, 112, 219, 0.15);
+        border-color: #7b42f6;
+      }
+    }
+
+    :deep(.el-input__inner) {
+      color: #5a32a3;
+      font-weight: 500;
+    }
+  }
+
+  .filter-bar-spacer {
+    flex: 1;
+  }
+
+  .create-btn {
+    background: linear-gradient(135deg, #7b42f6 0%, #5a32a3 100%) !important;
+    border: none !important;
+    color: white !important;
+    font-weight: 600 !important;
+    padding: 10px 20px !important;
+    border-radius: 8px !important;
+    transition: all 0.3s ease !important;
+    box-shadow: 0 4px 12px rgba(123, 66, 246, 0.3) !important;
+
+    .el-icon {
+      margin-right: 6px;
+    }
+
+    &:hover {
+      background: linear-gradient(135deg, #6d33e6 0%, #4a249c 100%) !important;
+      transform: translateY(-2px) !important;
+      box-shadow: 0 6px 20px rgba(123, 66, 246, 0.4) !important;
+    }
+  }
+
+  .add-element-btn {
+    background: #ffffff !important;
+    border: 1px solid rgba(147, 112, 219, 0.4) !important;
+    color: #5a32a3 !important;
+    font-weight: 500 !important;
+    padding: 10px 20px !important;
+    border-radius: 8px !important;
+    transition: all 0.3s ease !important;
+
+    .el-icon {
+      margin-right: 6px;
+    }
+
+    &:hover {
+      background: #f8f7ff !important;
+      border-color: #7b42f6 !important;
+      color: #7b42f6 !important;
+      transform: translateY(-1px) !important;
+      box-shadow: 0 2px 8px rgba(147, 112, 219, 0.2) !important;
+    }
+  }
+}
+
+.card-container {
+  background: #ffffff;
+  border-radius: 10px;
+  border: 1px solid rgba(147, 112, 219, 0.12);
+  flex: 1;
+  overflow: hidden;
+  display: flex;
 }
 
 .interface-layout {
@@ -2142,71 +2575,101 @@ onBeforeUnmount(() => {
 }
 
 .sidebar {
-  width: 300px;
-  border-right: 1px solid #e4e7ed;
-  background: #f8f9fa;
-  overflow: hidden;
+  width: 260px;
+  border-right: 1px solid rgba(147, 112, 219, 0.15);
   display: flex;
   flex-direction: column;
-}
-
-.sidebar-header {
-  padding: 10px;
-  border-bottom: 1px solid #e4e7ed;
-  display: flex;
-  gap: 10px;
-  align-items: center;
-}
-
-.header-actions {
-  display: flex;
-  gap: 8px;
+  background: transparent;
 }
 
 .collection-tree {
   flex: 1;
-  overflow: auto;
-  padding: 10px;
+  overflow-y: auto;
+  padding: 16px 4px;
+
+  :deep(.el-tree) {
+    background: transparent;
+
+    .el-tree-node__content {
+      height: 40px;
+      border-radius: 8px;
+      margin-bottom: 4px;
+      padding-left: 4px !important;
+      transition: all 0.3s ease;
+
+      &:hover {
+        background: rgba(123, 66, 246, 0.08);
+      }
+    }
+
+    .el-tree-node.is-current > .el-tree-node__content {
+      background: linear-gradient(135deg, rgba(123, 66, 246, 0.15) 0%, rgba(90, 50, 163, 0.1) 100%);
+      border-left: 3px solid #7b42f6;
+    }
+  }
 }
 
 .tree-node {
   display: flex;
   align-items: center;
-  gap: 5px;
-  flex: 1;
-}
+  gap: 8px;
+  width: 100%;
+  padding: 0 8px;
 
-.node-label {
-  flex: 1;
-}
+  .el-icon {
+    font-size: 16px;
+    color: #7b42f6;
+  }
 
-.node-edit {
-  flex: 1;
-}
+  .node-label {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: #5a32a3;
+    font-weight: 500;
+  }
 
-.node-edit .el-input {
-  font-size: 14px;
-}
+  .node-edit {
+    flex: 1;
 
-.method-tag {
-  font-size: 10px;
-  padding: 1px 4px;
-  border-radius: 2px;
-  color: white;
-  font-weight: bold;
-}
+    .el-input {
+      font-size: 14px;
 
-.method-tag.get { background: #67c23a; }
-.method-tag.post { background: #409eff; }
-.method-tag.put { background: #e6a23c; }
-.method-tag.delete { background: #f56c6c; }
-.method-tag.patch { background: #909399; }
+      :deep(.el-input__wrapper) {
+        border-radius: 6px;
+        border: 1px solid rgba(147, 112, 219, 0.3);
+        box-shadow: none;
+
+        &:hover, &.is-focus {
+          border-color: #7b42f6;
+          box-shadow: 0 0 0 2px rgba(123, 66, 246, 0.1);
+        }
+      }
+    }
+  }
+
+  .method-tag {
+    font-size: 10px;
+    padding: 2px 6px;
+    border-radius: 4px;
+    color: white;
+    font-weight: 600;
+
+    &.get { background: linear-gradient(135deg, #67c23a 0%, #85ce61 100%); }
+    &.post { background: linear-gradient(135deg, #409eff 0%, #66b1ff 100%); }
+    &.put { background: linear-gradient(135deg, #e6a23c 0%, #ebb563 100%); }
+    &.delete { background: linear-gradient(135deg, #f56c6c 0%, #f78989 100%); }
+    &.patch { background: linear-gradient(135deg, #909399 0%, #a6a9ad 100%); }
+  }
+}
 
 .main-content {
   flex: 1;
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  background: transparent;
 }
 
 .empty-state {
@@ -2214,38 +2677,170 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   justify-content: center;
+
+  :deep(.el-empty__description) {
+    color: #9370db;
+  }
+
+  .el-button {
+    margin-top: 16px;
+    background: linear-gradient(135deg, #7b42f6 0%, #5a32a3 100%);
+    border: none;
+    border-radius: 8px;
+    padding: 10px 24px;
+
+    &:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 16px rgba(123, 66, 246, 0.4);
+    }
+  }
 }
 
 .request-detail {
   flex: 1;
   display: flex;
   flex-direction: column;
-  padding: 20px;
+  padding: 24px;
   overflow: auto;
+  background: #fafafa;
 }
 
 .request-header {
   margin-bottom: 20px;
+  padding: 20px;
+  background: #ffffff;
+  border-radius: 12px;
+  border: 1px solid rgba(147, 112, 219, 0.1);
+  box-shadow: 0 2px 12px rgba(147, 112, 219, 0.06);
 }
 
 .request-line {
   display: flex;
-  gap: 10px;
-  margin-bottom: 10px;
+  gap: 12px;
+  margin-bottom: 12px;
+
+  .el-select {
+    :deep(.el-input__wrapper) {
+      border-radius: 8px;
+      border: 1px solid rgba(147, 112, 219, 0.2);
+      box-shadow: none;
+
+      &:hover, &.is-focus {
+        border-color: #7b42f6;
+        box-shadow: 0 0 0 3px rgba(123, 66, 246, 0.1);
+      }
+    }
+  }
 }
 
 .url-input {
   flex: 1;
+
+  :deep(.el-input__wrapper) {
+    border-radius: 8px;
+    border: 1px solid rgba(147, 112, 219, 0.2);
+    box-shadow: none;
+
+    &:hover, &.is-focus {
+      border-color: #7b42f6;
+      box-shadow: 0 0 0 3px rgba(123, 66, 246, 0.1);
+    }
+  }
+
+  :deep(.el-input-group__prepend) {
+    background: linear-gradient(135deg, #f8f7ff 0%, #f0edff 100%);
+    border-color: rgba(147, 112, 219, 0.2);
+
+    .el-select {
+      :deep(.el-input__wrapper) {
+        border: none;
+        box-shadow: none;
+        background: transparent;
+      }
+    }
+  }
+
+  &.websocket-url {
+    :deep(.el-input__wrapper) {
+      border-color: rgba(147, 112, 219, 0.4);
+    }
+  }
 }
 
 .request-name {
   display: flex;
-  gap: 10px;
+  gap: 12px;
   align-items: center;
+
+  .el-input {
+    :deep(.el-input__wrapper) {
+      border-radius: 8px;
+      border: 1px solid rgba(147, 112, 219, 0.2);
+      box-shadow: none;
+
+      &:hover, &.is-focus {
+        border-color: #7b42f6;
+        box-shadow: 0 0 0 3px rgba(123, 66, 246, 0.1);
+      }
+    }
+  }
+
+  .el-button {
+    background: linear-gradient(135deg, #7b42f6 0%, #5a32a3 100%);
+    border: none;
+    border-radius: 8px;
+    font-weight: 500;
+
+    &:hover {
+      background: linear-gradient(135deg, #6d33e6 0%, #4a249c 100%);
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(123, 66, 246, 0.3);
+    }
+  }
 }
 
 .request-tabs {
-  margin-bottom: 20px;
+  margin-bottom: 16px;
+
+  :deep(.el-tabs__header) {
+    margin-bottom: 12px;
+  }
+
+  :deep(.el-tabs__nav-wrap::after) {
+    background: rgba(147, 112, 219, 0.1);
+  }
+
+  :deep(.el-tabs__nav) {
+    display: flex;
+    gap: 4px;
+  }
+
+  :deep(.el-tabs__item) {
+    color: #666;
+    font-weight: 500;
+    font-size: 13px;
+    padding: 0 16px;
+    height: 36px;
+    line-height: 36px;
+    border-radius: 6px 6px 0 0;
+    transition: all 0.3s ease;
+
+    &:hover {
+      color: #7b42f6;
+      background: rgba(123, 66, 246, 0.05);
+    }
+
+    &.is-active {
+      color: #7b42f6;
+      background: linear-gradient(135deg, rgba(123, 66, 246, 0.1) 0%, rgba(90, 50, 163, 0.05) 100%);
+    }
+  }
+
+  :deep(.el-tabs__active-bar) {
+    background: linear-gradient(135deg, #7b42f6 0%, #5a32a3 100%);
+    height: 3px;
+    border-radius: 2px;
+  }
 }
 
 .body-container {
@@ -2258,33 +2853,101 @@ onBeforeUnmount(() => {
 
 .raw-options {
   margin-bottom: 10px;
+
+  .el-select {
+    :deep(.el-input__wrapper) {
+      border-radius: 8px;
+      border: 1px solid rgba(147, 112, 219, 0.2);
+      box-shadow: none;
+
+      &:hover, &.is-focus {
+        border-color: #7b42f6;
+        box-shadow: 0 0 0 3px rgba(123, 66, 246, 0.1);
+      }
+    }
+  }
 }
 
 .raw-body {
   font-family: 'Courier New', monospace;
+
+  :deep(.el-textarea__inner) {
+    border-radius: 8px;
+    border: 1px solid rgba(147, 112, 219, 0.2);
+    background: #fafafa;
+
+    &:hover, &:focus {
+      border-color: #7b42f6;
+      box-shadow: 0 0 0 3px rgba(123, 66, 246, 0.1);
+    }
+  }
 }
 
 .response-section {
-  border-top: 1px solid #e4e7ed;
-  padding-top: 20px;
+  margin-top: 24px;
+  padding: 20px;
+  background: #ffffff;
+  border-radius: 12px;
+  border: 1px solid rgba(147, 112, 219, 0.1);
+  box-shadow: 0 2px 12px rgba(147, 112, 219, 0.06);
+
+  :deep(.el-tabs__header) {
+    margin-bottom: 16px;
+  }
+
+  :deep(.el-tabs__nav-wrap::after) {
+    background: rgba(147, 112, 219, 0.08);
+    height: 1px;
+  }
+
+  :deep(.el-tabs__item) {
+    color: #666;
+    font-weight: 500;
+    font-size: 14px;
+    padding: 0 20px;
+    height: 40px;
+    line-height: 40px;
+    transition: all 0.3s ease;
+
+    &:hover {
+      color: #7b42f6;
+    }
+
+    &.is-active {
+      color: #7b42f6;
+      font-weight: 600;
+    }
+  }
+
+  :deep(.el-tabs__active-bar) {
+    background: linear-gradient(135deg, #7b42f6 0%, #5a32a3 100%);
+    height: 3px;
+    border-radius: 2px;
+  }
 }
 
 .response-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 15px;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid rgba(147, 112, 219, 0.08);
 }
 
 .response-info {
   display: flex;
-  gap: 10px;
+  gap: 12px;
   align-items: center;
 }
 
 .response-time {
-  color: #909399;
-  font-size: 12px;
+  color: #7b42f6;
+  font-size: 13px;
+  font-weight: 500;
+  background: linear-gradient(135deg, rgba(123, 66, 246, 0.1) 0%, rgba(90, 50, 163, 0.05) 100%);
+  padding: 4px 12px;
+  border-radius: 20px;
 }
 
 .response-body {
@@ -2292,30 +2955,73 @@ onBeforeUnmount(() => {
 }
 
 .response-actions {
-  margin-bottom: 10px;
+  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+
+  .el-button {
+    border-radius: 6px;
+    font-weight: 500;
+
+    &:hover {
+      transform: translateY(-1px);
+    }
+  }
 }
 
 .response-content {
-  background: #f8f9fa;
+  background: linear-gradient(135deg, #f8f7ff 0%, #f0edff 100%);
   padding: 15px;
-  border-radius: 4px;
+  border-radius: 8px;
   font-family: 'Courier New', monospace;
   font-size: 12px;
   max-height: 400px;
   overflow: auto;
   white-space: pre-wrap;
   word-break: break-all;
+  border: 1px solid rgba(147, 112, 219, 0.1);
+  cursor: text;
+  user-select: text;
+}
+
+.response-content-wrapper {
+  position: relative;
+}
+
+.json-path-actions {
+  position: absolute;
+  bottom: 10px;
+  right: 10px;
+  background: rgba(255, 255, 255, 0.95);
+  padding: 8px;
+  border-radius: 6px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+
+  .el-button {
+    background: linear-gradient(135deg, #7b42f6 0%, #5a32a3 100%);
+    border: none;
+    border-radius: 6px;
+
+    &:hover {
+      background: linear-gradient(135deg, #6d33e6 0%, #4a249c 100%);
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(123, 66, 246, 0.3);
+    }
+  }
 }
 
 .response-headers {
   padding: 15px;
-  background: #f8f9fa;
-  border-radius: 4px;
+  background: linear-gradient(135deg, #f8f7ff 0%, #f0edff 100%);
+  border-radius: 8px;
+  border: 1px solid rgba(147, 112, 219, 0.1);
 }
 
 .header-row {
   margin-bottom: 5px;
   font-size: 12px;
+  color: #5a32a3;
 }
 
 /* 断言样式 */
@@ -2325,42 +3031,92 @@ onBeforeUnmount(() => {
 
 .assertions-header {
   margin-bottom: 15px;
+
+  .el-button {
+    background: linear-gradient(135deg, #7b42f6 0%, #5a32a3 100%);
+    border: none;
+    border-radius: 6px;
+    font-weight: 500;
+
+    &:hover {
+      background: linear-gradient(135deg, #6d33e6 0%, #4a249c 100%);
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(123, 66, 246, 0.3);
+    }
+  }
 }
 
 .assertion-item {
-  border: 1px solid #e4e7ed;
-  border-radius: 4px;
+  border: 1px solid rgba(147, 112, 219, 0.2);
+  border-radius: 8px;
   margin-bottom: 15px;
-  background: #fafafa;
+  background: linear-gradient(135deg, #faf9ff 0%, #f5f3ff 100%);
+  overflow: hidden;
 }
 
 .assertion-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 10px;
-  border-bottom: 1px solid #e4e7ed;
+  padding: 12px;
+  border-bottom: 1px solid rgba(147, 112, 219, 0.15);
   background: white;
 }
 
 .assertion-name {
   flex: 1;
   margin-right: 10px;
+
+  :deep(.el-input__wrapper) {
+    border-radius: 6px;
+    border: 1px solid rgba(147, 112, 219, 0.2);
+    box-shadow: none;
+
+    &:hover, &.is-focus {
+      border-color: #7b42f6;
+      box-shadow: 0 0 0 2px rgba(123, 66, 246, 0.1);
+    }
+  }
 }
 
 .assertion-config {
-  padding: 10px;
-}
+  padding: 12px;
 
-.assertion-config .el-select {
-  width: 100%;
-  margin-bottom: 10px;
+  .el-select {
+    width: 100%;
+    margin-bottom: 10px;
+
+    :deep(.el-input__wrapper) {
+      border-radius: 6px;
+      border: 1px solid rgba(147, 112, 219, 0.2);
+      box-shadow: none;
+
+      &:hover, &.is-focus {
+        border-color: #7b42f6;
+        box-shadow: 0 0 0 2px rgba(123, 66, 246, 0.1);
+      }
+    }
+  }
 }
 
 .assertion-params {
   display: flex;
   flex-direction: column;
   gap: 8px;
+
+  .el-input,
+  .el-input-number {
+    :deep(.el-input__wrapper) {
+      border-radius: 6px;
+      border: 1px solid rgba(147, 112, 219, 0.2);
+      box-shadow: none;
+
+      &:hover, &.is-focus {
+        border-color: #7b42f6;
+        box-shadow: 0 0 0 2px rgba(123, 66, 246, 0.1);
+      }
+    }
+  }
 }
 
 .assertion-input {
@@ -2370,7 +3126,143 @@ onBeforeUnmount(() => {
 .no-assertions {
   text-align: center;
   padding: 30px;
-  color: #909399;
+  color: #9370db;
+
+  .el-button {
+    margin-top: 12px;
+    background: linear-gradient(135deg, #7b42f6 0%, #5a32a3 100%);
+    border: none;
+    border-radius: 6px;
+
+    &:hover {
+      background: linear-gradient(135deg, #6d33e6 0%, #4a249c 100%);
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(123, 66, 246, 0.3);
+    }
+  }
+}
+
+/* 变量提取器样式 */
+.variable-extractors-editor {
+  padding: 10px;
+}
+
+.extractors-header {
+  margin-bottom: 15px;
+
+  .el-button {
+    background: linear-gradient(135deg, #7b42f6 0%, #5a32a3 100%);
+    border: none;
+    border-radius: 6px;
+    font-weight: 500;
+
+    &:hover {
+      background: linear-gradient(135deg, #6d33e6 0%, #4a249c 100%);
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(123, 66, 246, 0.3);
+    }
+  }
+}
+
+.extractors-tips {
+  margin-bottom: 15px;
+
+  .el-alert {
+    background: linear-gradient(135deg, #f8f7ff 0%, #f0edff 100%);
+    border: 1px solid rgba(147, 112, 219, 0.2);
+
+    .tips-content {
+      p {
+        margin: 0;
+        color: #5a32a3;
+        font-size: 13px;
+      }
+    }
+  }
+}
+
+.extractors-list {
+  .extractor-item {
+    border: 1px solid rgba(147, 112, 219, 0.2);
+    border-radius: 8px;
+    margin-bottom: 15px;
+    background: linear-gradient(135deg, #faf9ff 0%, #f5f3ff 100%);
+    overflow: hidden;
+  }
+}
+
+.extractor-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px;
+  border-bottom: 1px solid rgba(147, 112, 219, 0.15);
+  background: white;
+}
+
+.extractor-name {
+  flex: 1;
+  margin-right: 10px;
+
+  :deep(.el-input__wrapper) {
+    border-radius: 6px;
+    border: 1px solid rgba(147, 112, 219, 0.2);
+    box-shadow: none;
+
+    &:hover, &.is-focus {
+      border-color: #7b42f6;
+      box-shadow: 0 0 0 2px rgba(123, 66, 246, 0.1);
+    }
+  }
+}
+
+.extractor-config {
+  padding: 12px;
+
+  .el-select {
+    :deep(.el-input__wrapper) {
+      border-radius: 6px;
+      border: 1px solid rgba(147, 112, 219, 0.2);
+      box-shadow: none;
+
+      &:hover, &.is-focus {
+        border-color: #7b42f6;
+        box-shadow: 0 0 0 2px rgba(123, 66, 246, 0.1);
+      }
+    }
+  }
+
+  .el-input {
+    :deep(.el-input__wrapper) {
+      border-radius: 6px;
+      border: 1px solid rgba(147, 112, 219, 0.2);
+      box-shadow: none;
+
+      &:hover, &.is-focus {
+        border-color: #7b42f6;
+        box-shadow: 0 0 0 2px rgba(123, 66, 246, 0.1);
+      }
+    }
+  }
+}
+
+.no-extractors {
+  text-align: center;
+  padding: 30px;
+  color: #9370db;
+
+  .el-button {
+    margin-top: 12px;
+    background: linear-gradient(135deg, #7b42f6 0%, #5a32a3 100%);
+    border: none;
+    border-radius: 6px;
+
+    &:hover {
+      background: linear-gradient(135deg, #6d33e6 0%, #4a249c 100%);
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(123, 66, 246, 0.3);
+    }
+  }
 }
 
 /* WebSocket信息样式 */
@@ -2381,13 +3273,15 @@ onBeforeUnmount(() => {
 .websocket-tips {
   margin-top: 20px;
   padding: 15px;
-  background-color: #f5f7fa;
-  border-radius: 4px;
+  background: linear-gradient(135deg, #f8f7ff 0%, #f0edff 100%);
+  border-radius: 8px;
+  border: 1px solid rgba(147, 112, 219, 0.15);
 }
 
 .websocket-tips h4 {
   margin-top: 0;
   margin-bottom: 10px;
+  color: #5a32a3;
 }
 
 .websocket-tips ul {
@@ -2397,6 +3291,7 @@ onBeforeUnmount(() => {
 
 .websocket-tips li {
   margin-bottom: 5px;
+  color: #5a32a3;
 }
 
 /* WebSocket消息样式 */
@@ -2406,27 +3301,54 @@ onBeforeUnmount(() => {
 
 .message-input-section {
   margin-bottom: 20px;
+
+  .el-select {
+    :deep(.el-input__wrapper) {
+      border-radius: 8px;
+      border: 1px solid rgba(147, 112, 219, 0.2);
+      box-shadow: none;
+
+      &:hover, &.is-focus {
+        border-color: #7b42f6;
+        box-shadow: 0 0 0 3px rgba(123, 66, 246, 0.1);
+      }
+    }
+  }
+
+  .el-textarea {
+    :deep(.el-textarea__inner) {
+      border-radius: 8px;
+      border: 1px solid rgba(147, 112, 219, 0.2);
+
+      &:hover, &:focus {
+        border-color: #7b42f6;
+        box-shadow: 0 0 0 3px rgba(123, 66, 246, 0.1);
+      }
+    }
+  }
 }
 
 .uploaded-file {
   margin-top: 10px;
   padding: 10px;
-  background-color: #f5f7fa;
-  border-radius: 4px;
+  background: linear-gradient(135deg, #f8f7ff 0%, #f0edff 100%);
+  border-radius: 8px;
   display: flex;
   justify-content: space-between;
   align-items: center;
+  border: 1px solid rgba(147, 112, 219, 0.15);
 }
 
 /* WebSocket响应区域样式 */
 .websocket-response-section {
-  border-top: 1px solid #e4e7ed;
+  border-top: 1px solid rgba(147, 112, 219, 0.15);
   padding-top: 20px;
 }
 
 .websocket-response-section h3 {
   margin-top: 0;
   margin-bottom: 15px;
+  color: #5a32a3;
 }
 
 .websocket-messages {
@@ -2436,14 +3358,15 @@ onBeforeUnmount(() => {
 }
 
 .websocket-message-item {
-  border: 1px solid #e4e7ed;
-  border-radius: 4px;
+  border: 1px solid rgba(147, 112, 219, 0.15);
+  border-radius: 8px;
   margin-bottom: 10px;
-  background-color: #fafafa;
+  background: linear-gradient(135deg, #faf9ff 0%, #f5f3ff 100%);
+  overflow: hidden;
 }
 
 .websocket-message-item.sent {
-  border-left: 3px solid #409eff;
+  border-left: 3px solid #7b42f6;
 }
 
 .websocket-message-item.received {
@@ -2451,7 +3374,7 @@ onBeforeUnmount(() => {
 }
 
 .websocket-message-item.info {
-  border-left: 3px solid #909399;
+  border-left: 3px solid #9370db;
 }
 
 .websocket-message-item.error {
@@ -2466,13 +3389,13 @@ onBeforeUnmount(() => {
   display: flex;
   justify-content: space-between;
   padding: 8px 12px;
-  background-color: #f5f7fa;
-  border-bottom: 1px solid #e4e7ed;
+  background: linear-gradient(135deg, #f8f7ff 0%, #f0edff 100%);
+  border-bottom: 1px solid rgba(147, 112, 219, 0.1);
   font-size: 12px;
 }
 
 .message-type.sent {
-  color: #409eff;
+  color: #7b42f6;
   font-weight: bold;
 }
 
@@ -2482,7 +3405,7 @@ onBeforeUnmount(() => {
 }
 
 .message-type.info {
-  color: #909399;
+  color: #9370db;
   font-weight: bold;
 }
 
@@ -2497,7 +3420,7 @@ onBeforeUnmount(() => {
 }
 
 .message-time {
-  color: #909399;
+  color: #9370db;
 }
 
 .message-content {
@@ -2511,6 +3434,7 @@ onBeforeUnmount(() => {
   font-family: 'Courier New', monospace;
   font-size: 12px;
   line-height: 1.4;
+  color: #5a32a3;
 }
 
 /* WebSocket URL样式 */
@@ -2524,20 +3448,21 @@ onBeforeUnmount(() => {
 }
 
 .assertion-result-item {
-  border: 1px solid #e4e7ed;
-  border-radius: 4px;
+  border: 1px solid rgba(147, 112, 219, 0.2);
+  border-radius: 8px;
   margin-bottom: 10px;
-  padding: 10px;
+  padding: 12px;
+  background: linear-gradient(135deg, #faf9ff 0%, #f5f3ff 100%);
 }
 
 .assertion-result-item.passed {
   border-color: #67c23a;
-  background-color: #f0f9ff;
+  background: linear-gradient(135deg, #f0f9ff 0%, #e8f8e8 100%);
 }
 
 .assertion-result-item.failed {
   border-color: #f56c6c;
-  background-color: #fef0f0;
+  background: linear-gradient(135deg, #fff5f5 0%, #ffe8e8 100%);
 }
 
 .assertion-result-header {
@@ -2549,6 +3474,7 @@ onBeforeUnmount(() => {
 .assertion-name {
   margin-left: 8px;
   font-weight: 500;
+  color: #5a32a3;
 }
 
 .assertion-result-details {
@@ -2564,36 +3490,185 @@ onBeforeUnmount(() => {
 .label {
   width: 50px;
   font-weight: 500;
+  color: #9370db;
 }
 
 .value {
   flex: 1;
   word-break: break-all;
+  color: #5a32a3;
 }
 
 .value.error {
   color: #f56c6c;
 }
 
-.context-menu {
-  position: fixed;
-  background: white;
-  border: 1px solid #e4e7ed;
-  border-radius: 4px;
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.1);
-  padding: 5px 0;
-  margin: 0;
-  list-style: none;
-  z-index: 9999;
+/* 变量提取结果样式 */
+.extraction-results {
+  padding: 0;
 }
 
-.context-menu li {
-  padding: 8px 15px;
-  cursor: pointer;
+.extraction-result-item {
+  border-radius: 10px;
+  margin-bottom: 12px;
+  padding: 16px;
+  background: #ffffff;
+  border: 1px solid #e8e8e8;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+  transition: all 0.3s ease;
+}
+
+.extraction-result-item:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+.extraction-result-item.success {
+  border-color: #67c23a;
+  background: linear-gradient(135deg, #f6fef6 0%, #f0f9f0 100%);
+}
+
+.extraction-result-item.failed {
+  border-color: #f56c6c;
+  background: linear-gradient(135deg, #fff8f8 0%, #fff0f0 100%);
+}
+
+.extraction-result-header {
+  display: flex;
+  align-items: center;
+  margin-bottom: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px dashed rgba(0, 0, 0, 0.06);
+}
+
+.extraction-name {
+  margin-left: 10px;
+  font-weight: 600;
+  color: #333;
   font-size: 14px;
 }
 
+.extraction-result-details {
+  font-size: 13px;
+}
+
+.extraction-result-details .result-row {
+  display: flex;
+  margin-bottom: 8px;
+  align-items: flex-start;
+}
+
+.extraction-result-details .label {
+  width: 80px;
+  font-weight: 500;
+  color: #666;
+  flex-shrink: 0;
+}
+
+.extraction-result-details .value {
+  flex: 1;
+  word-break: break-all;
+  color: #333;
+  font-family: 'Courier New', monospace;
+  background: rgba(0, 0, 0, 0.02);
+  padding: 4px 8px;
+  border-radius: 4px;
+}
+
+.extraction-result-details .value.extraction-value {
+  color: #67c23a;
+  font-weight: 600;
+  background: rgba(103, 194, 58, 0.08);
+}
+
+.extraction-result-details .value.error {
+  color: #f56c6c;
+  background: rgba(245, 108, 108, 0.08);
+}
+
+.extracted-variables-summary {
+  margin-top: 20px;
+  padding: 20px;
+  background: linear-gradient(135deg, #f6fef6 0%, #f0f9f0 100%);
+  border-radius: 10px;
+  border: 1px solid #67c23a;
+
+  h4 {
+    margin: 0 0 16px 0;
+    color: #67c23a;
+    font-size: 15px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+
+    &::before {
+      content: '';
+      width: 4px;
+      height: 16px;
+      background: #67c23a;
+      border-radius: 2px;
+    }
+  }
+}
+
+.variables-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.variable-item {
+  display: flex;
+  align-items: center;
+  padding: 12px 16px;
+  background: white;
+  border-radius: 8px;
+  border: 1px solid rgba(103, 194, 58, 0.2);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+
+  .variable-key {
+    font-weight: 600;
+    color: #67c23a;
+    margin-right: 16px;
+    min-width: 120px;
+    font-size: 14px;
+  }
+
+  .variable-value {
+    flex: 1;
+    color: #333;
+    word-break: break-all;
+    font-family: 'Courier New', monospace;
+    font-size: 13px;
+    background: rgba(103, 194, 58, 0.05);
+    padding: 6px 10px;
+    border-radius: 4px;
+  }
+}
+
+.context-menu {
+  position: fixed;
+  z-index: 9999;
+  background: #ffffff;
+  border: 1px solid rgba(147, 112, 219, 0.2);
+  border-radius: 8px;
+  box-shadow: 0 4px 20px rgba(147, 112, 219, 0.2);
+  padding: 8px 0;
+  margin: 0;
+  list-style: none;
+  min-width: 140px;
+}
+
+.context-menu li {
+  padding: 10px 16px;
+  cursor: pointer;
+  font-size: 14px;
+  color: #5a32a3;
+  transition: all 0.3s ease;
+}
+
 .context-menu li:hover {
-  background: #f5f7fa;
+  background: linear-gradient(135deg, rgba(123, 66, 246, 0.1) 0%, rgba(90, 50, 163, 0.05) 100%);
+  color: #7b42f6;
 }
 </style>

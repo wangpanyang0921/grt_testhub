@@ -43,6 +43,7 @@ logger = logging.getLogger(__name__)
 from .utils import execute_assertions
 from .operation_logger import log_operation
 from .variable_resolver import VariableResolver
+from .variable_extractor import extract_variables, save_variables_to_environment
 from .serializers import (
     ApiProjectSerializer, ApiCollectionSerializer, ApiRequestSerializer,
     EnvironmentSerializer, RequestHistorySerializer, TestSuiteSerializer,
@@ -344,7 +345,35 @@ class ApiRequestViewSet(viewsets.ModelViewSet):
                 if assertion.get('type') == 'response_time':
                     assertion['actual_time'] = response_time
             assertions_results = execute_assertions(response, assertions)
-            
+
+            # 解析响应体为 JSON
+            response_json = None
+            try:
+                if response.headers.get('content-type', '').startswith('application/json'):
+                    response_json = response.json()
+                else:
+                    response_json = json.loads(response.text)
+            except:
+                response_json = None
+
+            # 执行变量提取
+            extractors = request.data.get('variable_extractors', api_request.variable_extractors) or []
+            extraction_result = {'variables': {}, 'results': []}
+            if extractors and response_json is not None:
+                extraction_result = extract_variables(
+                    response_json,
+                    dict(response.headers),
+                    extractors
+                )
+
+                # 保存提取的变量到环境
+                if environment_id and extraction_result['variables']:
+                    save_variables_to_environment(
+                        environment_id,
+                        extraction_result['variables'],
+                        request.user
+                    )
+
             # 保存请求历史
             history = RequestHistory.objects.create(
                 request=api_request,
@@ -359,13 +388,13 @@ class ApiRequestViewSet(viewsets.ModelViewSet):
                 response_data={
                     'headers': dict(response.headers),
                     'body': response.text,
-                    'json': response.json() if response.headers.get('content-type', '').startswith('application/json') else None
+                    'json': response_json
                 },
                 status_code=response.status_code,
                 response_time=response_time,
                 executed_by=request.user
             )
-            
+
             # 记录执行操作
             log_operation(
                 operation_type='execute',
@@ -374,11 +403,13 @@ class ApiRequestViewSet(viewsets.ModelViewSet):
                 resource_name=api_request.name,
                 user=request.user
             )
-            
-            # 返回包含断言结果的数据
+
+            # 返回包含断言结果和变量提取结果的数据
             history_data = RequestHistorySerializer(history).data
             history_data['assertions_results'] = assertions_results
-            
+            history_data['extraction_results'] = extraction_result['results']
+            history_data['extracted_variables'] = extraction_result['variables']
+
             return Response(history_data)
             
         except Exception as e:
@@ -589,19 +620,24 @@ class TestSuiteViewSet(viewsets.ModelViewSet):
             results = []
             passed_count = 0
             failed_count = 0
-            
+
             # 创建变量解析器
             resolver = VariableResolver()
+
+            # 用于存储执行过程中提取的变量
+            extracted_variables = {}
 
             # 执行每个请求
             for suite_request in suite_requests:
                 api_request = suite_request.request
-                
+
                 try:
                     # 解析环境变量
                     variables = {}
                     if test_suite.environment:
                         variables.update(test_suite.environment.variables)
+                    # 添加之前接口提取的变量
+                    variables.update(extracted_variables)
                     
                     # 替换URL中的变量（先解析动态函数，再替换环境变量）
                     url = self._replace_variables(api_request.url, variables)
@@ -682,11 +718,32 @@ class TestSuiteViewSet(viewsets.ModelViewSet):
                                 error_message = f"断言失败: {assertion_result.get('name', '未命名断言')} - {assertion_result.get('error', '断言不通过')}"
                                 break
                     
+                    # 解析响应体为 JSON
+                    response_json = None
+                    try:
+                        if response.headers.get('content-type', '').startswith('application/json'):
+                            response_json = response.json()
+                        else:
+                            response_json = json.loads(response.text)
+                    except:
+                        response_json = None
+
+                    # 执行变量提取
+                    extraction_result = {'variables': {}, 'results': []}
+                    if api_request.variable_extractors and response_json is not None:
+                        extraction_result = extract_variables(
+                            response_json,
+                            dict(response.headers),
+                            api_request.variable_extractors
+                        )
+                        # 将提取的变量添加到执行变量中，供后续接口使用
+                        extracted_variables.update(extraction_result['variables'])
+
                     if passed:
                         passed_count += 1
                     else:
                         failed_count += 1
-                    
+
                     results.append({
                         'name': api_request.name,
                         'method': api_request.method,
@@ -695,9 +752,11 @@ class TestSuiteViewSet(viewsets.ModelViewSet):
                         'response_time': response_time,
                         'passed': passed,
                         'error': error_message,
-                        'assertions_results': assertions_results
+                        'assertions_results': assertions_results,
+                        'extraction_results': extraction_result['results'],
+                        'extracted_variables': extraction_result['variables']
                     })
-                    
+
                     # 保存请求历史
                     RequestHistory.objects.create(
                         request=api_request,
@@ -712,7 +771,7 @@ class TestSuiteViewSet(viewsets.ModelViewSet):
                         response_data={
                             'headers': dict(response.headers),
                             'body': response.text,
-                            'json': response.json() if response.headers.get('content-type', '').startswith('application/json') else None
+                            'json': response_json
                         },
                         status_code=response.status_code,
                         response_time=response_time,
@@ -737,7 +796,15 @@ class TestSuiteViewSet(viewsets.ModelViewSet):
             execution.status = 'COMPLETED' if failed_count == 0 else 'FAILED'
             execution.results = results
             execution.save()
-            
+
+            # 将所有提取的变量保存到环境
+            if test_suite.environment and extracted_variables:
+                save_variables_to_environment(
+                    test_suite.environment.id,
+                    extracted_variables,
+                    request.user
+                )
+
             # 记录执行操作
             log_operation(
                 operation_type='execute',
@@ -746,7 +813,7 @@ class TestSuiteViewSet(viewsets.ModelViewSet):
                 resource_name=test_suite.name,
                 user=request.user
             )
-            
+
             return Response(TestExecutionSerializer(execution).data)
             
         except Exception as e:

@@ -32,6 +32,7 @@ export default {
     copy: 'Copy',
     more: 'More',
     operation: 'Operation',
+    sequence: 'No.',
     status: 'Status',
     name: 'Name',
     description: 'Description',
@@ -50,6 +51,7 @@ export default {
 
   // Dashboard
   dashboard: {
+    dataOverview: 'Data Overview',
     apiProjects: 'API Projects',
     interfaceCount: 'Interfaces',
     testSuites: 'Test Suites',
@@ -403,8 +405,10 @@ export default {
     currentValue: 'Current Value',
     addVariable: 'Add Variable',
     variableCount: 'Variables',
+    status: 'Status',
     activated: 'Activated',
     notActivated: 'Not Activated',
+    activate: 'Activate',
     createdBy: 'Created By',
     createdAt: 'Created At',
     viewVariables: 'View Variables',
