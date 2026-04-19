@@ -44,13 +44,6 @@
             </template>
           </el-table-column>
 
-          <el-table-column label="版本标签" width="160" header-align="center" align="center">
-            <template #default="{ row }">
-              <span v-if="row.version_tag" class="version-badge">{{ row.version_tag }}</span>
-              <span v-else class="text-gray">-</span>
-            </template>
-          </el-table-column>
-
           <el-table-column label="Bug 数量" width="120" header-align="center" align="center">
             <template #default="{ row }">
               <span class="count-badge">{{ row.total_bugs || 0 }}</span>
