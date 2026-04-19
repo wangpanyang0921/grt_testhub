@@ -38,26 +38,26 @@
             </template>
           </el-table-column>
 
-          <el-table-column label="文件名" min-width="180" show-overflow-tooltip header-align="center" align="left">
+          <el-table-column label="文件名" min-width="120" show-overflow-tooltip header-align="center" align="left">
             <template #default="{ row }">
               <span class="file-name">{{ row.file_name || '未命名' }}</span>
             </template>
           </el-table-column>
 
-          <el-table-column label="版本标签" width="140" header-align="center" align="center">
+          <el-table-column label="版本标签" width="160" header-align="center" align="center">
             <template #default="{ row }">
               <span v-if="row.version_tag" class="version-badge">{{ row.version_tag }}</span>
               <span v-else class="text-gray">-</span>
             </template>
           </el-table-column>
 
-          <el-table-column label="Bug 数量" width="100" header-align="center" align="center">
+          <el-table-column label="Bug 数量" width="120" header-align="center" align="center">
             <template #default="{ row }">
               <span class="count-badge">{{ row.total_bugs || 0 }}</span>
             </template>
           </el-table-column>
 
-          <el-table-column label="P0 风险" width="90" header-align="center" align="center">
+          <el-table-column label="P0 风险" width="110" header-align="center" align="center">
             <template #default="{ row }">
               <span v-if="row.meta_data?.p0_count > 0" class="p0-badge">
                 {{ row.meta_data.p0_count }}
