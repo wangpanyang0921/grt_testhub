@@ -17,10 +17,41 @@
           </template>
         </el-input>
         <div class="filter-bar-spacer"></div>
-        <el-button type="primary" @click="showUploadDialog = true">
-          <el-icon><Upload /></el-icon>
-          上传分析
-        </el-button>
+        <!-- 文件选择输入框 -->
+        <input
+          ref="fileInput"
+          type="file"
+          accept=".xlsx,.xls"
+          @change="onFileSelected"
+          class="hidden-input"
+          style="display: none;"
+        />
+        <!-- 未选择文件时显示选择按钮 -->
+        <template v-if="!selectedFile">
+          <el-button type="primary" @click="triggerFileSelect">
+            <el-icon><Upload /></el-icon>
+            选择文件
+          </el-button>
+        </template>
+        <!-- 选择文件后显示文件信息和操作 -->
+        <div v-else class="selected-file-info">
+          <span
+            class="file-name-text clickable"
+            :title="selectedFile.name"
+            @click="triggerFileSelect"
+          >
+            {{ selectedFile.name }}
+          </span>
+          <el-button
+            type="primary"
+            size="small"
+            :loading="analyzing"
+            :disabled="analyzing"
+            @click="startAnalysis"
+          >
+            {{ analyzing ? '分析中' : '开始分析' }}
+          </el-button>
+        </div>
       </div>
 
       <!-- 历史记录列表 -->
@@ -666,6 +697,10 @@ const fileName = ref('')
 const currentRecordId = ref(null)
 const currentRecord = ref(null)
 
+// 文件上传相关
+const fileInput = ref(null)
+const selectedFile = ref(null)
+
 // AI 配置 (V2)
 const aiProvider = ref('qwen')
 const versionTag = ref('')
@@ -891,47 +926,70 @@ function formatAiFocus(t){if(!t)return'';return t.split('\n').filter(l=>l.trim()
 // ==================== 核心方法 ====================
 // ==================== 列表视图方法 ====================
 
-// 处理文件选择（只保存文件，不上传）
-let selectedFile = null
+// 触发文件选择
+const triggerFileSelect = () => {
+  fileInput.value.click()
+}
+
+// 处理文件选择（原生 input 方式）
+const onFileSelected = (event) => {
+  const file = event.target.files[0]
+  if (!file) return
+
+  // 验证文件格式
+  if (!['.xlsx', '.xls'].includes(file.name.substring(file.name.lastIndexOf('.')).toLowerCase())) {
+    ElMessage.error('请上传 .xlsx 或 .xls 格式的 Excel 文件')
+    selectedFile.value = null
+    fileName.value = ''
+    return
+  }
+
+  selectedFile.value = file
+  fileName.value = file.name
+}
+
+// 清除已选文件
+const clearSelectedFile = () => {
+  selectedFile.value = null
+  fileName.value = ''
+  if (fileInput.value) {
+    fileInput.value.value = ''
+  }
+}
+
+// 处理文件选择（el-upload 方式，保留兼容性）
 const handleFileChange = async(file)=>{
   if(!file||!file.raw){
     fileName.value = ''
-    selectedFile = null
+    selectedFile.value = null
     return
   }
   const rawFile=file.raw
   if(!['.xlsx','.xls'].includes(rawFile.name.substring(rawFile.name.lastIndexOf('.')).toLowerCase())){
     ElMessage.error('请上传 .xlsx 或 .xls 格式的 Excel 文件')
     fileName.value = ''
-    selectedFile = null
+    selectedFile.value = null
     return
   }
   fileName.value=rawFile.name
-  selectedFile=rawFile
+  selectedFile.value=rawFile
 }
 
-// 开始分析（从对话框触发）
+// 开始分析
 const startAnalysis = async()=>{
-  if(!selectedFile){
+  if(!selectedFile.value){
     ElMessage.warning('请先选择文件')
-    return
-  }
-  
-  // 校验版本标签（必填）
-  if(!versionTag.value || versionTag.value.trim() === ''){
-    ElMessage.warning('请输入版本标签')
     return
   }
 
   analyzing.value=true
-  showUploadDialog.value=false
 
   try{
     // 第一步：上传并获取基础分析结果（快速返回）
-    const res=await analyzeBugExcel(selectedFile,{
+    const res=await analyzeBugExcel(selectedFile.value,{
       save:true,  // 默认保存到历史记录
       aiProvider:aiProvider.value,
-      versionTag:versionTag.value,
+      versionTag:versionTag.value || '',
       skip_ai: false
     })
     console.log('基础分析API响应:', res)
@@ -1004,7 +1062,11 @@ const startAnalysis = async()=>{
   }
   finally{
     analyzing.value=false
-    selectedFile=null
+    selectedFile.value=null
+    // 清空文件输入框
+    if (fileInput.value) {
+      fileInput.value.value = ''
+    }
   }
 }
 
@@ -1663,6 +1725,45 @@ onMounted(() => {
 
 .filter-bar-spacer {
   flex: 1;
+}
+
+/* 已选文件信息展示 */
+.selected-file-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 6px 6px 14px;
+  background: #f8f7ff;
+  border: 1px solid rgba(123, 66, 246, 0.12);
+  border-radius: 8px;
+  transition: all 0.25s ease;
+}
+
+.selected-file-info:hover {
+  background: #f0edff;
+  border-color: rgba(123, 66, 246, 0.2);
+}
+
+.selected-file-info .file-name-text {
+  font-size: 14px;
+  font-weight: 600;
+  color: #5a32a3;
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.selected-file-info .file-name-text.clickable {
+  cursor: pointer;
+  padding: 4px 8px;
+  margin: -4px -8px;
+  border-radius: 6px;
+  transition: all 0.2s ease;
+}
+
+.selected-file-info .file-name-text.clickable:hover {
+  background: rgba(123, 66, 246, 0.08);
 }
 
 /* ==================== 卡片容器 - 统一风格 ==================== */
