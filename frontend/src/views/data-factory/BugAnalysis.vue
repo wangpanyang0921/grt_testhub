@@ -66,16 +66,7 @@
             </template>
           </el-table-column>
 
-          <el-table-column label="高发模块" min-width="120" show-overflow-tooltip header-align="center" align="center">
-            <template #default="{ row }">
-              <div style="display: flex; justify-content: center; align-items: center;">
-                <span v-if="row.meta_data?.top_module" class="top-module-badge">
-                  {{ row.meta_data.top_module }}
-                </span>
-                <span v-else class="text-gray">-</span>
-              </div>
-            </template>
-          </el-table-column>
+
 
           <el-table-column label="上传时间" width="180" header-align="center" align="center">
             <template #default="{ row }">
