@@ -28,8 +28,13 @@
         />
         <!-- 未选择文件时显示选择按钮 -->
         <template v-if="!selectedFile">
-          <el-button type="primary" @click="triggerFileSelect">
-            <el-icon><Upload /></el-icon>
+          <el-button
+            type="primary"
+            class="select-file-btn"
+            @click="triggerFileSelect"
+            :disabled="analyzing"
+          >
+            <el-icon><FolderOpened /></el-icon>
             选择文件
           </el-button>
         </template>
@@ -679,7 +684,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import * as echarts from 'echarts'
 import { DataAnalysis, UploadFilled, Loading, RefreshLeft, Document, Grid, TrendCharts, User,
-  InfoFilled, Warning, List, Clock, Close, Download, MagicStick, Search, Check, View, Delete, ArrowLeft, Upload, CircleCheck } from '@element-plus/icons-vue'
+  InfoFilled, Warning, List, Clock, Close, Download, MagicStick, Search, Check, View, Delete, ArrowLeft, Upload, CircleCheck, FolderOpened } from '@element-plus/icons-vue'
 import { analyzeBugExcel, enhanceWithAI, getBugAnalysisRecords, getBugAnalysisRecordDetail, getModuleDetail, deleteBugAnalysisRecord, analyzeModuleFocusIntelligent } from '@/api/data-factory'
 
 const route = useRoute()
@@ -1725,6 +1730,30 @@ onMounted(() => {
 
 .filter-bar-spacer {
   flex: 1;
+}
+
+/* 选择文件按钮 */
+.select-file-btn {
+  background: linear-gradient(135deg, #7b42f6 0%, #5a32a3 100%);
+  border: none;
+  font-weight: 600;
+  padding: 10px 20px;
+}
+
+.select-file-btn .el-icon {
+  margin-right: 4px;
+}
+
+.select-file-btn:hover {
+  background: linear-gradient(135deg, #6d33e6 0%, #4a249c 100%);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(123, 66, 246, 0.4);
+}
+
+.select-file-btn:disabled {
+  background: #d1d5db;
+  transform: none;
+  box-shadow: none;
 }
 
 /* 已选文件信息展示 */
