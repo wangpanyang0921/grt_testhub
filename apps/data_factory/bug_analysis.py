@@ -19,56 +19,6 @@ logger = logging.getLogger(__name__)
 # 常量与配置
 # ============================================================
 
-# MODULE_MAP 已移除 - 模块判断完全基于 Bug 标签自然汇总，无预设映射
-
-DEFECT_KEYWORDS = {
-    'UI显示': {'words': {'显示不全': 3, '样式': 3, '排版': 3, '对齐': 3, '颜色': 3, '字体': 3,
-                          '布局': 3, '图标': 3, '超出': 3, '溢出': 3, '遮挡': 3, '重叠': 3,
-                          '空白': 3, '不一致': 3, '样式问题': 3, '展示样式': 3, '显示为空': 3,
-                          '显示异常': 3, '截断': 3, '间距': 3, '换行': 3, '文字超出': 3,
-                          '位置异常': 3, '缩放': 3, '滚动条': 3, '光标定位': 3, '渲染': 3,
-                          '显示': 2, '展示': 2, '展示很多空白': 3}},
-    '功能逻辑': {'words': {'无法': 2, '不能': 2, '不响应': 2, '未更新': 2, '失败': 2, '未生成': 2,
-                           '校验不通过': 2, '冲突': 2, '报错': 2, '无响应': 2, '未展示': 2,
-                           '未显示': 2, '没有': 2, '不触发': 2, '无效': 2, '失效': 2, '丢失': 2,
-                           '不生效': 2, '未生效': 2, '不执行': 2, '功能': 2}},
-    '数据内容': {'words': {'英文': 2, '图片失败': 2, '为空': 2, '错误原因': 2, '乱码': 2, '缺失': 2,
-                           '数据': 2, '统计': 2, '计算错误': 2, '数据不一致': 2, '数据异常': 2,
-                           '有误': 2, '不准确': 2, '不正确': 2, '数量不对': 2, '多出': 2,
-                           '超出限制': 2, '字数': 2, '内容': 2, '空数据': 2}},
-    '交互操作': {'words': {'手势': 2, '切换要素': 2, '下拉': 2, '筛选组件': 2, '滑动': 2, '拖拽': 2,
-                           '键盘遮挡': 2, '输入框': 2, '光标': 2, '选中': 2, '切换': 2, '折叠': 2,
-                           '展开': 2, '滚动': 2, '拖动': 2, '点击无响应': 2, '交互': 2, '操作': 2}},
-    '性能稳定': {'words': {'504': 2, '超时': 2, '白屏': 2, '偶现': 2, '一直': 2, '卡顿': 2,
-                           '闪现': 2, '崩溃': 2, '死循环': 2, '闪退': 2, '频繁': 2, '频发': 2,
-                           '较长时间': 2, '加载慢': 2, '响应慢': 2, '内存': 2}},
-    '跨端兼容': {'words': {'浏览器': 2, 'Safari': 2, '华为浏览器': 2, '小米浏览器': 2,
-                           'Firefox': 2, 'Chrome': 2, 'Edge': 2, '跨端': 2, '兼容': 2,
-                           '微信浏览器': 2, '安卓': 2, '苹果': 2, '鸿蒙': 2, 'APP端': 2,
-                           'H5端': 2, 'PC端': 2}},
-}
-
-P0_WORDS = ['白屏', '504', '崩溃', '死循环', '闪退', '数据丢失']
-P1_WORDS = ['无法', '不能', '不响应', '一直', '超时', '报错', '无响应', '频发']
-
-END_WORDS = ['PC', 'H5', 'APP', '学员端', '运营端', '鸿蒙', '安卓', '苹果',
-             'Safari', '华为浏览器', '小米浏览器', 'Firefox', 'Chrome', 'Edge',
-             '微信浏览器', '偶现', '二期', '一期', '优化']
-
-CROSS_END_WORDS = ['浏览器', 'Safari', '华为', '小米', 'Firefox', 'Chrome', 'Edge',
-                   '跨端', '兼容', '安卓', '苹果', '鸿蒙', 'APP端', 'H5端', 'PC端']
-
-# 预编译正则: 关键词匹配 (性能优化: 38次 in 操作 → 1次正则扫描)
-KEYWORDS_LIST = [
-    '不显示', '报错', '超时', '白屏', '截断', '缺失', '样式', '布局',
-    '加载', '点击', '刷新', '提交', '播放', '登录', '创建', '编辑',
-    '切换', '导出', '下载', '搜索', '筛选', '兼容', '闪退', '卡顿',
-    '校验', '交互', '内容', '文字', '格式', '空数据', '重叠', '遮挡',
-    '异常', '错乱', '渲染', '图标', '颜色', '字体', '响应', '联动',
-    '输入', '删除', '无法', '显示', '展开'
-]
-_KW_REGEX = re.compile('|'.join(re.escape(kw) for kw in KEYWORDS_LIST))
-
 # 严重度原始标签映射 (扁平化 if/elif 链)
 _SEVERITY_ORIG_MAP = {
     '1-致命': '1-致命', '致命': '1-致命',
@@ -98,10 +48,11 @@ def extract_tags(title):
 
 def classify_module(tags, title):
     """
-    分类模块 - 直接返回 Bug 标签本身，不再映射到预定义模块
-    核心逻辑: 基于标签自然汇总，无预设模块映射
+    分类模块 - 直接返回 Bug 标签本身
+    核心逻辑: 基于标签自然汇总，所有标签都参与模块判断
     """
-    feature_tags = [t for t in tags if t not in END_WORDS and len(t) > 1]
+    # 所有长度大于1的标签都视为有效模块标签
+    feature_tags = [t for t in tags if len(t) > 1]
     if not feature_tags:
         # 无标签时，尝试从标题中提取关键词作为模块
         clean = re.sub(r'【.*?】|\[.*?\]', '', title)
@@ -114,56 +65,22 @@ def classify_module(tags, title):
 
 
 def classify_defect(title, desc=''):
-    """基于关键词加权评分分类缺陷类型"""
-    title_text = title
-    desc_text = (desc or '')[:200]
-
-    scores = {}
-    for dtype, kw_info in DEFECT_KEYWORDS.items():
-        score = 0
-        sorted_words = sorted(kw_info['words'].items(), key=lambda x: len(x[0]), reverse=True)
-        covered_ranges = []
-        for word, pts in sorted_words:
-            idx = title_text.find(word)
-            if idx >= 0:
-                overlap = any(s <= idx < e or s < idx + len(word) <= e for s, e in covered_ranges)
-                if not overlap:
-                    score += pts * 3
-                    covered_ranges.append((idx, idx + len(word)))
-            else:
-                idx = desc_text.find(word)
-                if idx >= 0:
-                    overlap = any(s <= idx < e or s < idx + len(word) <= e for s, e in covered_ranges)
-                    if not overlap:
-                        score += pts
-                        covered_ranges.append((idx, idx + len(word)))
-        scores[dtype] = score
-
-    sorted_scores = sorted(scores.items(), key=lambda x: x[1], reverse=True)
-    best_type, best_score = sorted_scores[0]
-
-    if best_score < 2:
-        return '其他'
-
-    if len(sorted_scores) > 1 and sorted_scores[1][1] > 0:
-        gap = best_score - sorted_scores[1][1]
-        if gap < 2:
-            return '其他'
-
-    return best_type
+    """
+    缺陷类型分类 - 由 AI 自动生成，此函数保留接口但返回空值
+    实际分类逻辑移至 AI 增强阶段处理
+    """
+    # 缺陷类型现在由 AI 自动分析生成，不再使用硬编码关键词匹配
+    # 返回空字符串，具体分类由 AI 根据上下文分析决定
+    return ''
 
 
 def infer_severity(title, desc='', original_sev=''):
-    """推断严重度 P0/P1/P2"""
-    text = title + ' ' + desc
-    for w in P0_WORDS:
-        if w in text:
-            return 'P0'
-    for w in P1_WORDS:
-        if w in text:
-            return 'P1'
-
-    # 使用原始严重度映射 (替代原来的 if/elif 链)
+    """
+    推断严重度 P0/P1/P2 - 由 AI 自动生成，此函数简化处理
+    实际推断逻辑移至 AI 增强阶段处理
+    """
+    # 严重度推断现在由 AI 自动分析生成，不再使用硬编码关键词匹配
+    # 仅基于原始严重度做基础映射
     orig_str = str(original_sev)
     for key, label in _SEVERITY_ORIG_MAP.items():
         if key in orig_str:
@@ -256,7 +173,8 @@ def _compute_modules_data(module_counter, module_index, all_modules, total):
     feature_counter = defaultdict(Counter)
     for mod in all_modules:
         for b in module_index.get(mod, []):
-            feature_tags = [t for t in b['tags'] if t not in END_WORDS and len(t) > 1]
+            # 所有长度大于1的标签都视为有效特征标签
+            feature_tags = [t for t in b['tags'] if len(t) > 1]
             if feature_tags:
                 # 直接使用第一个有效标签作为特征
                 matched_feature = feature_tags[0]
@@ -352,8 +270,8 @@ def _compute_test_focus(top10, module_index):
 
 def _build_focus_points(mod_total, online_count, reopened_count, dtype_counter, mod_bugs):
     """
-    构建测试关注点文案列表
-    扁平化: 将原来 testFocusData 中内联的复杂 if/elif 抽取为独立函数
+    构建测试关注点文案列表 - 由 AI 自动生成
+    此函数保留基础逻辑，具体关注点由 AI 根据缺陷分布动态生成
     """
     focus_points = []
 
@@ -369,33 +287,15 @@ def _build_focus_points(mod_total, online_count, reopened_count, dtype_counter, 
                 f"备注: 含{online_count}条(占{pct}%)线上故障(较少)，迭代时顺手覆盖即可"
             )
 
-    # 缺陷类型专项回归
-    type_focus_rules = [
-        ('数据内容', f"数据完整性回归: 占比{{p}}%涉及数据截断/缺失/格式，迭代后重点验证数据展示完整性、特殊字符、空数据"),
-        ('跨端兼容', f"跨端兼容回归: 占比{{p}}%涉及多端差异，迭代后重点验证PC/H5/APP三端一致性"),
-        ('UI显示', f"UI渲染回归: 占比{{p}}%涉及展示/样式/截断，迭代后重点验证页面布局、文字截断、样式错乱"),
-    ]
-
-    for dtype_name, template in type_focus_rules:
-        count_val = dtype_counter.get(dtype_name, 0)
-        if count_val > 0:
-            pct = round(count_val / mod_total * 100)
-            if pct >= 10:
-                focus_points.append(template.replace('{{p}}', str(pct)).format(p=pct, count=count_val))
-
-    # 通用基础回归
-    func_pct = round(dtype_counter.get('功能逻辑', 0) / mod_total * 100)
-    inter_pct = round(dtype_counter.get('交互操作', 0) / mod_total * 100)
-    focus_points.append(
-        f"通用基础回归: 功能逻辑占{func_pct}%+交互操作占{inter_pct}%，迭代后验证核心流程不卡壳不阻塞+按钮响应/筛选联动"
-    )
-
     # 典型Bug举例
     examples = [b['title'] for b in mod_bugs if _is_online_bug(b)][:3]
     if not examples:
         examples = [b['title'] for b in mod_bugs[:3]]
     if examples:
-        focus_points.insert(-1, "典型Bug举例: " + "；".join(examples))
+        focus_points.append("典型Bug举例: " + "；".join(examples))
+
+    # 注意：缺陷类型专项回归建议由 AI 根据实际缺陷分布动态生成
+    # 不再使用硬编码的缺陷类型规则
 
     return focus_points
 
@@ -470,29 +370,12 @@ def _compute_timeline_data(bugs):
 
 def _compute_keyword_data(bugs):
     """
-    计算关键词词频数据 (使用预编译正则优化)
+    计算关键词词频数据 - 由 AI 自动生成，此函数保留接口但返回空值
     返回: (kwData, wufaDetailData)
     """
-    kw_counter = Counter()
-    wufa_patterns = Counter()
-
-    for b in bugs:
-        title = b.get('title', '')
-
-        # 关键词匹配: 使用预编译正则 (性能优化)
-        found_kw = _KW_REGEX.findall(title)
-        for kw in found_kw:
-            kw_counter[kw] += 1
-
-        # 无法XXX 模式提取
-        m = re.search(r'无法(\w{2,4})', title)
-        if m:
-            wufa_patterns[f"无法{m.group(1)}"] += 1
-
-    kw_data = [[kw, cnt] for kw, cnt in kw_counter.most_common(20)]
-    wufa_detail_data = dict(wufa_patterns.most_common(20))
-
-    return kw_data, wufa_detail_data
+    # 关键词提取和词频统计现在由 AI 自动分析生成
+    # 不再使用硬编码关键词正则匹配
+    return [], {}
 
 
 def _compute_risk_data(bugs, p_counts):
