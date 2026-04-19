@@ -141,4 +141,118 @@ export function fillExcelData(file, rowCount = 10, customFields = {}) {
   })
 }
 
-export {}
+// ========== Bug分析 ==========
+
+/**
+ * @typedef {Object} BugAnalysisResult
+ * @property {boolean} success - 是否成功
+ * @property {string} message - 消息
+ * @property {number} [record_id] - 保存的记录ID
+ */
+
+// 上传并分析Bug Excel文件 (V2: 支持AI增强和版本标签)
+export function analyzeBugExcel(file, options = {}) {
+  const formData = new FormData()
+  formData.append('file', file)
+  if (options.save !== undefined) formData.append('save', String(options.save))
+  if (options.aiProvider) formData.append('ai_provider', options.aiProvider)
+  if (options.versionTag) formData.append('version_tag', options.versionTag)
+  if (options.aiConfigId) formData.append('ai_config_id', String(options.aiConfigId))
+  // skip_ai: false 表示需要AI增强，后端会返回 ai_pending=true
+  if (options.skip_ai !== undefined) formData.append('skip_ai', String(options.skip_ai))
+  return request({
+    url: '/data-factory/bug-analysis/analyze/',
+    method: 'post',
+    data: formData,
+    headers: {
+      'Content-Type': 'multipart/form-data'
+    },
+    timeout: 30000  // 基础分析很快，30秒足够
+  })
+}
+
+// 直接分析Bug数据(JSON格式) (V2增强)
+export function analyzeBugData(bugs, filename = 'unknown', options = {}) {
+  return request({
+    url: '/data-factory/bug-analysis/analyze-data/',
+    method: 'post',
+    data: {
+      bugs,
+      filename,
+      save: options.save || false,
+      ai_provider: options.aiProvider || 'none',
+      version_tag: options.versionTag || ''
+    }
+  })
+}
+
+// 获取Bug分析记录列表 (V2新增)
+export function getBugAnalysisRecords(params = {}) {
+  return request({
+    url: '/data-factory/bug-analysis/records/',
+    method: 'get',
+    params
+  })
+}
+
+// 获取单条分析记录详情 (V2新增)
+export function getBugAnalysisRecordDetail(recordId) {
+  return request({
+    url: `/data-factory/bug-analysis/records/${recordId}/`,
+    method: 'get'
+  })
+}
+
+// 删除分析记录 (V2新增)
+export function deleteBugAnalysisRecord(recordId) {
+  return request({
+    url: `/data-factory/bug-analysis/records/${recordId}/delete/`,
+    method: 'delete'
+  })
+}
+
+// 跨版本对比分析记录 (V2新增)
+export function compareBugAnalysis(ids) {
+  return request({
+    url: '/data-factory/bug-analysis/compare/',
+    method: 'get',
+    params: { ids: ids.join(',') }
+  })
+}
+
+// 获取模块详情(含Bug列表) (V2新增)
+export function getModuleDetail(recordId, module, params = {}) {
+  const queryParams = new URLSearchParams({ module, ...params })
+  return request({
+    url: `/data-factory/bug-analysis/module/${recordId}/?${queryParams.toString()}`,
+    method: 'get'
+  })
+}
+
+// AI 增强分析 (渐进式加载)
+export function enhanceWithAI(recordId, options = {}) {
+  return request({
+    url: '/data-factory/bug-analysis/enhance-ai/',
+    method: 'post',
+    data: {
+      record_id: recordId,
+      ai_provider: options.aiProvider || 'qwen',
+      ai_config_id: options.aiConfigId || null
+    },
+    timeout: 300000  // AI分析可能需要较长时间，设置5分钟超时
+  })
+}
+
+// 智能模块测试重点分析 (三层架构)
+export function analyzeModuleFocusIntelligent(recordId, module, options = {}) {
+  return request({
+    url: '/data-factory/bug-analysis/module-focus/',
+    method: 'post',
+    data: {
+      record_id: recordId,
+      module: module,
+      ai_config_id: options.aiConfigId || null
+    },
+    timeout: 120000  // AI分析可能需要较长时间，设置2分钟超时
+  })
+}

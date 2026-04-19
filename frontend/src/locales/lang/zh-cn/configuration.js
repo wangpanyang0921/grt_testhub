@@ -186,7 +186,8 @@ export default {
     roles: {
       writer: '测试用例编写专家',
       reviewer: '测试评审专家',
-      knowledge_base: '知识库问答'
+      knowledge_base: '知识库问答',
+      bug_analyzer: 'Bug 分析专家'
     },
     messages: {
       loadFailed: '加载配置失败',

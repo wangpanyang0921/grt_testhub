@@ -194,6 +194,11 @@ const routes = [
         path: 'xmind-converter',
         name: 'XMindConverter',
         component: UiXMindConverter
+      },
+      {
+        path: 'bug-analysis',
+        name: 'BugAnalysis',
+        component: () => import('@/views/data-factory/BugAnalysis.vue')
       }
     ]
   },

@@ -104,6 +104,7 @@
             <el-option value="writer" :label="$t('configuration.aiModel.roles.writer')" />
             <el-option value="reviewer" :label="$t('configuration.aiModel.roles.reviewer')" />
             <el-option value="knowledge_base" :label="$t('configuration.aiModel.roles.knowledge_base')" />
+            <el-option value="bug_analyzer" :label="$t('configuration.aiModel.roles.bug_analyzer')" />
           </el-select>
           <div v-if="formErrors.role" class="error-message">{{ formErrors.role }}</div>
         </el-form-item>

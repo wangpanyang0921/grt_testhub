@@ -211,6 +211,7 @@ class AIModelConfig(models.Model):
         ('reviewer', '测试评审专家'),
         ('browser_use_text', 'Browser Use - 文本模式'),
         ('knowledge_base', '知识库问答'),
+        ('bug_analyzer', 'Bug 分析专家'),
     ]
 
     name = models.CharField(max_length=100, verbose_name='配置名称')

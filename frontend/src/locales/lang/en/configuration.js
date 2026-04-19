@@ -186,7 +186,8 @@ export default {
     roles: {
       writer: 'Test Case Writer',
       reviewer: 'Test Reviewer',
-      knowledge_base: 'Knowledge Base Q&A'
+      knowledge_base: 'Knowledge Base Q&A',
+      bug_analyzer: 'Bug Analyzer'
     },
     messages: {
       loadFailed: 'Failed to load configurations',

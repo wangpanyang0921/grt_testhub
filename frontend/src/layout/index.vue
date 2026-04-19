@@ -37,6 +37,10 @@
               <el-icon><Tools /></el-icon>
               <span>XMind 转 Excel</span>
             </el-menu-item>
+            <el-menu-item index="/ai-generation/bug-analysis">
+              <el-icon><DataAnalysis /></el-icon>
+              <span>Bug 分析</span>
+            </el-menu-item>
             <!-- 主线用例 - 按端分组 -->
             <el-sub-menu index="testcases">
               <template #title>
@@ -479,6 +483,11 @@ const currentModule = computed(() => {
 })
 
 const moduleName = computed(() => {
+  // Bug 分析详情页特殊处理
+  if (route.path === '/ai-generation/bug-analysis' && route.query.view === 'detail') {
+    return 'Bug 分析'
+  }
+
   const map = {
     'ai-assistant': 'AI 知识库',
     'ai-generation': t('modules.aiGeneration'),
@@ -495,18 +504,23 @@ const moduleName = computed(() => {
 // 模块路由映射，用于面包屑跳转
 const moduleRoute = computed(() => {
   const path = route.path
-  
+
   // AI用例生成模块下的子页面
   // 测试用例相关页面，返回到测试用例列表
   if (path.startsWith('/ai-generation/testcases')) {
     return '/ai-generation/testcases'
   }
-  
+
   // 端详情页，返回到端管理列表
   if (path.match(/^\/ai-generation\/projects\/\d+$/)) {
     return '/ai-generation/projects'
   }
-  
+
+  // Bug 分析详情页，返回到 Bug 分析列表（不带 view 参数）
+  if (path === '/ai-generation/bug-analysis' && route.query.view === 'detail') {
+    return '/ai-generation/bug-analysis'
+  }
+
   // 其他模块可以根据需要添加
   // 默认返回到模块首页
   return `/${currentModule.value}`
@@ -526,10 +540,15 @@ const breadcrumbTitle = computed(() => {
   if (path.match(/^\/ai-generation\/testcases\/\d+$/)) {
     return t('testcase.detail')
   }
-  
+
   // 端详情页
   if (path.match(/^\/ai-generation\/projects\/\d+$/)) {
     return t('project.aiProjectDetail')
+  }
+
+  // Bug 分析详情页
+  if (path === '/ai-generation/bug-analysis' && route.query.view === 'detail') {
+    return '详情'
   }
 
   const routeMap = {
@@ -541,6 +560,7 @@ const breadcrumbTitle = computed(() => {
     '/ai-generation/requirement-analysis': t('menu.aiCaseGeneration'),
     '/ai-generation/generated-testcases': t('menu.aiGeneratedTestcases'),
     '/ai-generation/xmind-converter': 'XMind 转 Excel',
+    '/ai-generation/bug-analysis': 'Bug 分析',
     '/ai-generation/projects': t('menu.aiProjectManagement'),
     '/ai-generation/testcases': t('menu.testCases'),
     '/ai-generation/versions': t('menu.versionManagement'),

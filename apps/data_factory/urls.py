@@ -2,13 +2,43 @@ from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from .views import DataFactoryViewSet
 from .excel_filler_view import analyze_excel_template, fill_excel_data, preview_filled_data
+# Bug 分析相关视图
+from .bug_analysis_view import (
+    analyze_bug_excel,
+    analyze_bug_data,
+    enhance_with_ai,
+    bug_analysis_records,
+    bug_analysis_record_detail,
+    bug_analysis_record_delete,
+    bug_analysis_compare,
+    bug_analysis_module_detail,
+    analyze_module_focus_intelligent,
+)
 
 router = DefaultRouter()
 router.register(r'', DataFactoryViewSet, basename='data-factory')
 
 urlpatterns = [
     path('', include(router.urls)),
+    # Excel 模板填充
     path('excel-filler/analyze/', analyze_excel_template, name='excel-filler-analyze'),
     path('excel-filler/fill/', fill_excel_data, name='excel-filler-fill'),
     path('excel-filler/preview/', preview_filled_data, name='excel-filler-preview'),
+
+    # === Bug 分析核心接口 (原有) ===
+    path('bug-analysis/analyze/', analyze_bug_excel, name='bug-analysis-analyze'),
+    path('bug-analysis/analyze-data/', analyze_bug_data, name='bug-analysis-analyze-data'),
+
+    # === AI 增强分析 (渐进式加载) ===
+    path('bug-analysis/enhance-ai/', enhance_with_ai, name='bug-analysis-enhance-ai'),
+
+    # === Bug 分析记录管理 (新增 V2) ===
+    path('bug-analysis/records/', bug_analysis_records, name='bug-analysis-records'),  # GET 列表
+    path('bug-analysis/records/<int:record_id>/', bug_analysis_record_detail, name='bug-analysis-record-detail'),  # GET 详情
+    path('bug-analysis/records/<int:record_id>/delete/', bug_analysis_record_delete, name='bug-analysis-record-delete'),  # DELETE
+
+    # === Bug 分析增强功能 (新增 V2) ===
+    path('bug-analysis/compare/', bug_analysis_compare, name='bug-analysis-compare'),  # 跨版本对比
+    path('bug-analysis/module/<int:record_id>/', bug_analysis_module_detail, name='bug-analysis-module-detail'),  # 模块详情含Bug列表
+    path('bug-analysis/module-focus/', analyze_module_focus_intelligent, name='bug-analysis-module-focus'),  # 智能模块测试重点分析
 ]
