@@ -838,6 +838,15 @@ def bug_analysis_record_detail(request, record_id):
         record = BugAnalysisRecord.objects.filter(id=record_id).first()
         if not record:
             return _build_error_response(f'记录不存在: id={record_id}', code=status.HTTP_404_NOT_FOUND)
+        
+        # 调试日志
+        analysis_result = record.analysis_result or {}
+        ai_module_focus = analysis_result.get('aiModuleFocus')
+        logger.info(f"[API:record_detail] record_id={record_id}")
+        logger.info(f"[API:record_detail] analysis_result keys: {list(analysis_result.keys())}")
+        logger.info(f"[API:record_detail] aiModuleFocus: {ai_module_focus}")
+        if ai_module_focus:
+            logger.info(f"[API:record_detail] aiModuleFocus keys: {list(ai_module_focus.keys())}")
 
         return _build_api_response({
             'id': record.id,
@@ -846,7 +855,7 @@ def bug_analysis_record_detail(request, record_id):
             'file_name': record.file_name,
             'total_bugs': record.total_bugs,
             'raw_bugs': record.raw_bugs[:100] if record.raw_bugs else [],  # 最多返回前100条原始Bug
-            'analysis_result': record.analysis_result,
+            'analysis_result': analysis_result,
             'created_at': localtime(record.created_at).strftime('%Y-%m-%d %H:%M:%S'),
             'created_by': record.created_by,
         })
@@ -1189,17 +1198,22 @@ def analyze_module_focus_intelligent(request):
             
             # 保存到缓存 - 使用重新读取记录避免并发覆盖问题
             from django.db import transaction
+            from datetime import datetime
             with transaction.atomic():
                 # 重新读取记录以获取最新的 analysis_result
                 record = BugAnalysisRecord.objects.select_for_update().get(id=record_id)
                 analysis_result = record.analysis_result or {}
                 if 'aiModuleFocus' not in analysis_result:
                     analysis_result['aiModuleFocus'] = {}
+                
+                # 确保可序列化，添加时间戳
+                intelligent_result['ai_generated_at'] = datetime.now().isoformat()
                 analysis_result['aiModuleFocus'][module_name] = intelligent_result
                 
                 record.analysis_result = analysis_result
                 record.save(update_fields=['analysis_result'])
                 logger.info(f"[API:analyze_module_focus] 已保存模块 {module_name} 到 aiModuleFocus")
+                logger.info(f"[API:analyze_module_focus] 当前 aiModuleFocus 模块列表: {list(analysis_result['aiModuleFocus'].keys())}")
             
             elapsed = round((time.time() - start_time) * 1000)
             logger.info(f"[API:analyze_module_focus] 成功: {module_name}, 耗时={elapsed}ms")

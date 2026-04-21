@@ -237,19 +237,74 @@
           </el-row>
         </div>
 
-        <!-- AI 总结摘要 (V2新增) - 只在启用AI时显示 -->
-        <el-card class="section-card" v-if="aiSummary || aiLoading">
+        <!-- Tab 标签页导航 -->
+        <div class="tab-navigation">
+          <div 
+            class="tab-item" 
+            :class="{ active: activeTab === 'overview' }"
+            @click="activeTab = 'overview'"
+          >
+            <el-icon><InfoFilled /></el-icon>
+            <span>分析概览</span>
+            <el-tag v-if="riskData && riskData.P0 && riskData.P0.total > 0" type="danger" size="small" class="tab-badge">P0</el-tag>
+          </div>
+          <div 
+            class="tab-item" 
+            :class="{ active: activeTab === 'charts' }"
+            @click="activeTab = 'charts'"
+          >
+            <el-icon><Histogram /></el-icon>
+            <span>图表分析</span>
+            <el-tag type="info" size="small" class="tab-badge">{{ Object.keys(modulesData).length }}</el-tag>
+          </div>
+          <div 
+            class="tab-item" 
+            :class="{ active: activeTab === 'risk' }"
+            @click="activeTab = 'risk'"
+          >
+            <el-icon><Warning /></el-icon>
+            <span>回归风险</span>
+            <el-tag v-if="riskData && (riskData.P0.total + riskData.P1.total + riskData.P2.total) > 0" 
+                    :type="riskData.P0.total > 0 ? 'danger' : 'warning'" 
+                    size="small" 
+                    class="tab-badge">
+              {{ riskData.P0.total + riskData.P1.total + riskData.P2.total }}
+            </el-tag>
+          </div>
+          <div 
+            class="tab-item" 
+            :class="{ active: activeTab === 'focus' }"
+            @click="activeTab = 'focus'"
+          >
+            <el-icon><List /></el-icon>
+            <span>测试重点</span>
+            <el-tag type="info" size="small" class="tab-badge">{{ Object.keys(testFocusData).length }}</el-tag>
+          </div>
+        </div>
+
+        <!-- Tab 内容区域 -->
+        <div class="tab-content">
+          <!-- 概览 Tab -->
+          <div v-show="activeTab === 'overview'" class="tab-panel">
+            <!-- AI 总结摘要 (V2新增) - 只在启用AI时显示 -->
+            <el-card class="section-card collapsible-card" v-if="aiSummary || aiLoading">
           <template #header>
-            <div class="card-header">
+            <div class="card-header collapsible-header" @click="toggleSection('aiSummary')">
               <span class="header-title"><el-icon><MagicStick /></el-icon> AI 智能摘要</span>
-              <el-tag v-if="!aiLoading" type="success" size="small" effect="dark" class="ai-status-tag success">
-                AI 已生成
-              </el-tag>
-              <el-tag v-else size="small" effect="plain" class="ai-status-tag loading">
-                AI 分析中...
-              </el-tag>
+              <div class="header-right">
+                <el-tag v-if="!aiLoading" type="success" size="small" effect="dark" class="ai-status-tag success">
+                  AI 已生成
+                </el-tag>
+                <el-tag v-else size="small" effect="plain" class="ai-status-tag loading">
+                  AI 分析中...
+                </el-tag>
+                <el-icon class="collapse-icon" :class="{ 'is-collapsed': sectionCollapsed.aiSummary }">
+                  <ArrowDown />
+                </el-icon>
+              </div>
             </div>
           </template>
+          <div v-show="!sectionCollapsed.aiSummary" class="collapsible-content">
           <!-- AI 加载状态 - 现代骨架屏 -->
           <div v-if="aiLoading && !aiSummary" class="ai-loading-container">
             <div class="ai-loading-header">
@@ -276,16 +331,23 @@
           </div>
           <!-- AI 结果展示 -->
           <div v-else class="ai-summary-content" v-html="formatAiSummary(aiSummary)"></div>
+          </div>
         </el-card>
 
         <!-- 结论摘要 (原有逻辑, 无AI总结或非AI加载状态时显示) -->
-        <el-card class="section-card" v-else>
+        <el-card class="section-card collapsible-card" v-else>
           <template #header>
-            <div class="card-header">
+            <div class="card-header collapsible-header" @click="toggleSection('aiSummary')">
               <span class="header-title"><el-icon><InfoFilled /></el-icon> 结论摘要</span>
-              <el-tag type="danger" v-if="riskData && riskData.P0 && riskData.P0.total > 0">P0 风险 {{ riskData.P0.total }} 条</el-tag>
+              <div class="header-right">
+                <el-tag type="danger" v-if="riskData && riskData.P0 && riskData.P0.total > 0">P0 风险 {{ riskData.P0.total }} 条</el-tag>
+                <el-icon class="collapse-icon" :class="{ 'is-collapsed': sectionCollapsed.aiSummary }">
+                  <ArrowDown />
+                </el-icon>
+              </div>
             </div>
           </template>
+          <div v-show="!sectionCollapsed.aiSummary" class="collapsible-content">
           <div class="summary-content">
             <div class="summary-section danger" v-if="summaryLines.length > 0">
               <div class="summary-title">关键发现</div>
@@ -296,87 +358,110 @@
               <div class="summary-list"><div v-for="(line, index) in actionLines" :key="index" class="summary-item" v-html="line"></div></div>
             </div>
           </div>
+          </div>
         </el-card>
+          </div>
 
-        <!-- 模块分布图表 -->
-        <el-row :gutter="16" class="chart-row">
-          <el-col :span="24">
-            <el-card class="chart-card">
+          <!-- 图表 Tab -->
+          <div v-show="activeTab === 'charts'" class="tab-panel">
+            <el-card class="section-card">
               <template #header>
-                <span class="chart-title">模块分布
-                  <el-text type="info" size="small" style="margin-left: 8px;">(点击柱状图可定位到下方测试重点卡片)</el-text>
-                </span>
+                <div class="card-header">
+                  <span class="header-title"><el-icon><Histogram /></el-icon> 图表分析</span>
+                  <el-tag type="info" size="small">{{ Object.keys(modulesData).length }} 个模块</el-tag>
+                </div>
               </template>
-              <div ref="moduleChartRef" class="chart-container clickable-chart" @click="onModuleChartClick"></div>
-              <!-- 未归类提示已移除，所有内容都在柱状图中显示 -->
-            </el-card>
-          </el-col>
-        </el-row>
+              <div class="tab-panel-content">
+                <!-- 模块分布图表 -->
+            <el-row :gutter="16" class="chart-row">
+              <el-col :span="24">
+                <el-card class="chart-card">
+                  <template #header>
+                    <span class="chart-title">模块分布
+                      <el-text type="info" size="small" style="margin-left: 8px;">(点击柱状图可定位到下方测试重点卡片)</el-text>
+                    </span>
+                  </template>
+                  <div ref="moduleChartRef" class="chart-container clickable-chart" @click="onModuleChartClick"></div>
+                  <!-- 未归类提示已移除，所有内容都在柱状图中显示 -->
+                </el-card>
+              </el-col>
+            </el-row>
 
-        <!-- 严重度交叉分析 -->
-        <el-row :gutter="16" class="chart-row">
-          <el-col :span="12">
-            <el-card class="chart-card"><template #header><span class="chart-title">原始严重度 → 推断严重度 交叉对照</span></template>
-              <div ref="severityCrossChartRef" class="chart-container"></div>
-            </el-card>
-          </el-col>
-          <el-col :span="12">
-            <el-card class="chart-card"><template #header><span class="chart-title">推断严重度分布</span></template>
-              <div ref="severityPieChartRef" class="chart-container"></div>
-            </el-card>
-          </el-col>
-        </el-row>
+            <!-- 严重度交叉分析 -->
+            <el-row :gutter="16" class="chart-row">
+              <el-col :span="12">
+                <el-card class="chart-card"><template #header><span class="chart-title">原始严重度 → 推断严重度 交叉对照</span></template>
+                  <div ref="severityCrossChartRef" class="chart-container"></div>
+                </el-card>
+              </el-col>
+              <el-col :span="12">
+                <el-card class="chart-card"><template #header><span class="chart-title">推断严重度分布</span></template>
+                  <div ref="severityPieChartRef" class="chart-container"></div>
+                </el-card>
+              </el-col>
+            </el-row>
 
-        <!-- 状态与优先级 -->
-        <el-row :gutter="16" class="chart-row">
-          <el-col :span="12">
-            <el-card class="chart-card"><template #header><span class="chart-title">Bug 状态分布</span></template>
-              <div ref="statusChartRef" class="chart-container"></div>
-            </el-card>
-          </el-col>
-          <el-col :span="12">
-            <el-card class="chart-card"><template #header><span class="chart-title">优先级分布</span></template>
-              <div ref="priorityChartRef" class="chart-container"></div>
-            </el-card>
-          </el-col>
-        </el-row>
+            <!-- 状态与优先级 -->
+            <el-row :gutter="16" class="chart-row">
+              <el-col :span="12">
+                <el-card class="chart-card"><template #header><span class="chart-title">Bug 状态分布</span></template>
+                  <div ref="statusChartRef" class="chart-container"></div>
+                </el-card>
+              </el-col>
+              <el-col :span="12">
+                <el-card class="chart-card"><template #header><span class="chart-title">优先级分布</span></template>
+                  <div ref="priorityChartRef" class="chart-container"></div>
+                </el-card>
+              </el-col>
+            </el-row>
 
-        <!-- 关键词词频 -->
-        <el-row :gutter="16" class="chart-row">
-          <el-col :span="24">
-            <el-card class="chart-card"><template #header><span class="chart-title">关键词词频 Top 20</span></template>
-              <div ref="keywordChartRef" class="chart-container"></div>
-            </el-card>
-          </el-col>
-        </el-row>
+            <!-- 关键词词频 -->
+            <el-row :gutter="16" class="chart-row">
+              <el-col :span="24">
+                <el-card class="chart-card"><template #header><span class="chart-title">关键词词频 Top 20</span></template>
+                  <div ref="keywordChartRef" class="chart-container"></div>
+                </el-card>
+              </el-col>
+            </el-row>
 
-        <!-- 创建者分布 -->
-        <el-row :gutter="16" class="chart-row">
-          <el-col :span="24">
-            <el-card class="chart-card"><template #header><span class="chart-title">创建者 × 模块分布</span></template>
-              <div ref="creatorChartRef" class="chart-container" style="height: 400px;"></div>
-            </el-card>
-          </el-col>
-        </el-row>
+            <!-- 创建者分布 -->
+            <el-row :gutter="16" class="chart-row">
+              <el-col :span="24">
+                <el-card class="chart-card"><template #header><span class="chart-title">创建者 × 模块分布</span></template>
+                  <div ref="creatorChartRef" class="chart-container" style="height: 400px;"></div>
+                </el-card>
+              </el-col>
+            </el-row>
 
-        <!-- 时间趋势 -->
-        <el-row :gutter="16" class="chart-row">
-          <el-col :span="24">
-            <el-card class="chart-card">
+            <!-- 时间趋势 -->
+            <el-row :gutter="16" class="chart-row">
+              <el-col :span="24">
+                <el-card class="chart-card">
+                  <template #header>
+                    <span class="chart-title">Bug 创建时间趋势
+                      <el-tag v-if="metaData && metaData.import_count > 0" size="small" type="info">已排除 {{ metaData.import_count }} 条平台导入数据</el-tag>
+                    </span>
+                  </template>
+                  <div ref="timelineChartRef" class="chart-container" style="height: 300px;"></div>
+                </el-card>
+              </el-col>
+            </el-row>
+              </div>
+            </el-card>
+          </div>
+
+          <!-- 风险 Tab -->
+          <div v-show="activeTab === 'risk'" class="tab-panel">
+            <el-card class="section-card">
               <template #header>
-                <span class="chart-title">Bug 创建时间趋势
-                  <el-tag v-if="metaData && metaData.import_count > 0" size="small" type="info">已排除 {{ metaData.import_count }} 条平台导入数据</el-tag>
-                </span>
+                <div class="card-header">
+                  <span class="header-title"><el-icon><Warning /></el-icon>回归风险分析</span>
+                  <el-tag v-if="riskData && riskData.P0 && riskData.P0.total > 0" type="danger" size="small">P0: {{ riskData.P0.total }}</el-tag>
+                  <el-tag v-else type="success" size="small">低风险</el-tag>
+                </div>
               </template>
-              <div ref="timelineChartRef" class="chart-container" style="height: 300px;"></div>
-            </el-card>
-          </el-col>
-        </el-row>
-
-        <!-- 风险分析表格 -->
-        <el-card class="section-card">
-          <template #header><div class="card-header"><span class="header-title"><el-icon><Warning /></el-icon>回归风险分析</span></div></template>
-          <div class="risk-section">
+              <div class="tab-panel-content">
+                <div class="risk-section">
             <h4 class="risk-title p0">P0 — 必须回归 (服务中断/应用崩溃)</h4>
             <el-table :data="p0RiskData" border style="width: 100%">
               <el-table-column prop="type" label="风险类型" min-width="180"><template #default="{ row }"><el-tag :type="row.tagType" effect="dark">{{ row.type }}</el-tag></template></el-table-column>
@@ -400,35 +485,35 @@
               <el-table-column prop="rule" label="计算规则" min-width="180" /><el-table-column prop="desc" label="说明" />
             </el-table>
           </div>
-        </el-card>
-
-        <!-- 模块测试重点 - AI智能分析版 -->
-        <el-card class="section-card" v-if="Object.keys(testFocusData).length > 0">
-          <template #header>
-            <div class="card-header">
-              <span class="header-title"><el-icon><List /></el-icon>模块迭代测试重点</span>
-              <div class="header-actions">
-                <el-text type="info" size="small">(基于AI三层架构智能分析)</el-text>
-                <el-button
-                  type="primary"
-                  size="small"
-                  :loading="isAnalyzingAllModules"
-                  :disabled="isAllModulesAnalyzed"
-                  @click="analyzeAllModules"
-                  class="ai-analyze-btn"
-                >
-                  <el-icon><MagicStick /></el-icon>
-                  {{ isAllModulesAnalyzed ? 'AI分析完成' : 'AI智能分析' }}
-                </el-button>
               </div>
-            </div>
-          </template>
-          <el-row :gutter="16">
+            </el-card>
+          </div>
+
+          <!-- 测试重点 Tab -->
+          <div v-show="activeTab === 'focus'" class="tab-panel">
+            <el-card class="section-card" v-if="Object.keys(testFocusData).length > 0">
+              <template #header>
+                <div class="card-header">
+                  <span class="header-title"><el-icon><List /></el-icon>模块迭代测试重点</span>
+                  <div class="header-actions">
+                    <el-text type="info" size="small" style="margin-right: 8px;">{{ Object.keys(testFocusData).length }} 个模块</el-text>
+                    <el-tag v-if="currentAnalyzingModule" type="warning" size="small" effect="dark">
+                      <el-icon class="is-loading"><Loading /></el-icon>
+                      分析中
+                    </el-tag>
+                    <el-tag v-else-if="analyzeQueue.length > 0" type="info" size="small">
+                      队列: {{ analyzeQueue.length }}
+                    </el-tag>
+                  </div>
+                </div>
+              </template>
+              <div class="tab-panel-content">
+                <el-row :gutter="16">
             <el-col :span="12" v-for="(info, module) in testFocusData" :key="module">
               <div :ref="el => setModuleCardRef(el, module)" 
-                   :id="`module-card-${module}`"
+                    :id="`module-card-${module}`"
                    class="focus-card" 
-                   @click="openModuleDetail(module)" 
+                   @click="handleCardClick($event, module)" 
                    :class="{ clickable: currentRecordId, highlighted: highlightedModule === module }">
                 <!-- AI分析结果展示 -->
                 <div v-if="aiModuleFocus[module]" class="ai-focus-card">
@@ -470,13 +555,20 @@
                 <div v-else-if="moduleFocusLoading[module]" class="ai-loading-card">
                   <div class="focus-header">
                     <span class="focus-name">{{ module }}</span>
+                    <el-tag v-if="currentAnalyzingModule === module" type="warning" size="small" effect="dark" class="analyzing-tag">
+                      <el-icon class="is-loading"><Loading /></el-icon>
+                      <span>分析中</span>
+                    </el-tag>
+                    <el-tag v-else type="info" size="small" class="queue-tag">排队中</el-tag>
                   </div>
                   <div class="ai-loading-body">
                     <el-skeleton :rows="2" animated />
-                    <div class="ai-loading-text">AI分析中...</div>
+                    <div class="ai-loading-text">
+                      {{ currentAnalyzingModule === module ? 'AI分析中...' : '等待分析...' }}
+                    </div>
                   </div>
                 </div>
-                <!-- 基础统计（降级显示） -->
+                <!-- 基础统计（降级显示）+ AI分析按钮 -->
                 <div v-else>
                   <div class="focus-header">
                     <span class="focus-name">{{ module }}</span>
@@ -488,13 +580,39 @@
                   </div>
                   <div class="focus-body">
                     <div class="focus-stats"><span>总计: {{ info.total }} 条</span><span>Top缺陷: {{ info.top_types.map(t => t[0]).slice(0, 2).join(', ') }}</span></div>
-                    <ul class="focus-points"><li v-for="(point, idx) in info.focus_points" :key="idx">{{ point }}</li></ul>
+                    <ul class="focus-points">
+                      <li v-for="(point, idx) in info.focus_points" :key="idx" class="focus-point-item-with-icon">
+                        <template v-if="parseFocusPoint(point).icon">
+                          <el-icon :class="'focus-icon-' + parseFocusPoint(point).type" class="focus-point-icon">
+                            <component :is="parseFocusPoint(point).icon" />
+                          </el-icon>
+                          <span class="focus-point-text">{{ parseFocusPoint(point).text }}</span>
+                        </template>
+                        <template v-else>{{ point }}</template>
+                      </li>
+                    </ul>
+                    <!-- AI分析按钮 -->
+                    <div class="ai-analyze-action" @click.stop @mousedown.stop @mouseup.stop>
+                      <el-button
+                        type="primary"
+                        size="small"
+                        :loading="currentAnalyzingModule === module"
+                        :disabled="(currentAnalyzingModule && currentAnalyzingModule !== module) || analyzeQueue.includes(module)"
+                        @click.stop="analyzeSingleModule(module)"
+                      >
+                        <el-icon><MagicStick /></el-icon>
+                        {{ analyzeQueue.includes(module) ? '排队中' : 'AI智能分析' }}
+                      </el-button>
+                    </div>
                   </div>
                 </div>
               </div>
             </el-col>
           </el-row>
-        </el-card>
+              </div>
+            </el-card>
+          </div>
+        </div><!-- end tab-content -->
       </div><!-- end main-content -->
 
       <!-- ===== 模块详情抽屉 (V2新增) ===== -->
@@ -575,7 +693,17 @@
           <!-- 基础测试关注点 -->
           <div class="detail-section" v-if="selectedModuleStats.focus_points">
             <h4 class="detail-section-title">基础测试关注点</h4>
-            <ul class="focus-points-list"><li v-for="(point, idx) in selectedModuleStats.focus_points" :key="idx">{{ point }}</li></ul>
+            <ul class="focus-points-list">
+              <li v-for="(point, idx) in selectedModuleStats.focus_points" :key="idx" class="focus-point-item-with-icon">
+                <template v-if="parseFocusPoint(point).icon">
+                  <el-icon :class="'focus-icon-' + parseFocusPoint(point).type" class="focus-point-icon">
+                    <component :is="parseFocusPoint(point).icon" />
+                  </el-icon>
+                  <span class="focus-point-text">{{ parseFocusPoint(point).text }}</span>
+                </template>
+                <template v-else>{{ point }}</template>
+              </li>
+            </ul>
           </div>
           <!-- Bug 明细表格 -->
           <div class="detail-section bug-list-section">
@@ -679,12 +807,13 @@
 </template>
 
 <script setup>
-import { ref, computed, nextTick, onMounted, watch } from 'vue'
+import { ref, computed, nextTick, onMounted, onUnmounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import * as echarts from 'echarts'
 import { DataAnalysis, UploadFilled, Loading, RefreshLeft, Document, Grid, TrendCharts, User,
-  InfoFilled, Warning, List, Clock, Close, Download, MagicStick, Search, Check, View, Delete, ArrowLeft, Upload, CircleCheck, FolderOpened } from '@element-plus/icons-vue'
+  InfoFilled, Warning, List, Clock, Close, Download, MagicStick, Search, Check, View, Delete, ArrowLeft, Upload, CircleCheck, FolderOpened,
+  CircleClose, Refresh, Flag, Lightning, AlarmClock, ArrowDown, Histogram } from '@element-plus/icons-vue'
 import { analyzeBugExcel, enhanceWithAI, getBugAnalysisRecords, getBugAnalysisRecordDetail, getModuleDetail, deleteBugAnalysisRecord, analyzeModuleFocusIntelligent } from '@/api/data-factory'
 
 const route = useRoute()
@@ -755,7 +884,22 @@ const summaryLines = ref([]), actionLines = ref([])
 // 智能模块分析结果 (三层架构)
 const aiModuleFocus = ref({})
 const moduleFocusLoading = ref({})
+
+// 板块折叠展开状态
+const sectionCollapsed = ref({
+  aiSummary: false,      // AI智能摘要
+  charts: false,         // 图表区域
+  riskAnalysis: false,   // 回归风险分析
+  testFocus: false       // 模块迭代测试重点
+})
+
+// Tab 标签页状态
+const activeTab = ref('overview')  // overview | charts | risk | focus
 const isAnalyzingAllModules = ref(false)
+// 全局分析状态锁和队列
+const currentAnalyzingModule = ref('')
+const analyzeQueue = ref([])
+const isProcessingQueue = ref(false)
 const isAllModulesAnalyzed = computed(() => {
   const modules = Object.keys(testFocusData.value)
   if (modules.length === 0) return false
@@ -869,7 +1013,7 @@ function formatAiSummary(t){
     
     // 跳过空行，但用空行来判断列表边界
     if (!trimmed) {
-      // 如果当前在风险列表中，且遇到了空行，后面又是1.开头，则关闭风险列表
+      // 如果当前在风险列表中，且遇到了空行，后面又是1.开头，则关闭风险列表并准备开启行动建议
       if (inRiskList && i + 1 < lines.length) {
         let nextNonEmptyIdx = i + 1
         while (nextNonEmptyIdx < lines.length && !lines[nextNonEmptyIdx].trim()) {
@@ -877,6 +1021,7 @@ function formatAiSummary(t){
         }
         if (nextNonEmptyIdx < lines.length && /^1[\.\、]/.test(lines[nextNonEmptyIdx].trim())) {
           inRiskList = false
+          inActionList = true  // 标记接下来是行动建议列表
           html += '</div></div>'
         }
       }
@@ -905,6 +1050,13 @@ function formatAiSummary(t){
         actionCounter = 0
         html += `<div class="ai-summary-section"><div class="ai-summary-section-title">${checkIcon}行动建议</div><div class="ai-summary-list action-list">`
       }
+      // 检测是否是通过空行预判后的行动建议列表开始
+      else if (num === 1 && !inRiskList && inActionList && actionCounter === 0) {
+        // 空行处理已设置 inActionList=true，这里创建行动建议标题
+        lastNum = 1
+        actionCounter = 0
+        html += `<div class="ai-summary-section"><div class="ai-summary-section-title">${checkIcon}行动建议</div><div class="ai-summary-list action-list">`
+      }
       
       // 添加列表项
       if (inRiskList) {
@@ -927,6 +1079,34 @@ function formatAiSummary(t){
   return html
 }
 function formatAiFocus(t){if(!t)return'';return t.split('\n').filter(l=>l.trim()).map(l=>`<div class="ai-focus-item">${l}</div>`).join('')}
+
+// 解析测试关注点文本，返回对应的图标组件和清理后的文本
+function parseFocusPoint(point) {
+  if (!point) return { icon: null, text: '', type: 'default' }
+  
+  const iconMap = [
+    { emoji: '🔴', icon: 'CircleClose', type: 'danger', label: '线上故障' },
+    { emoji: '🔄', icon: 'Refresh', type: 'warning', label: '二次打开' },
+    { emoji: '📌', icon: 'Flag', type: 'primary', label: '专项回归' },
+    { emoji: '🚨', icon: 'AlarmClock', type: 'danger', label: '高危问题' },
+    { emoji: '⚡', icon: 'Lightning', type: 'warning', label: '严重问题' },
+    { emoji: '📝', icon: 'Document', type: 'info', label: '典型Bug' },
+    { emoji: '⚠️', icon: 'Warning', type: 'warning', label: '警告' },
+  ]
+  
+  for (const mapping of iconMap) {
+    if (point.startsWith(mapping.emoji)) {
+      return {
+        icon: mapping.icon,
+        text: point.slice(mapping.emoji.length).trim(),
+        type: mapping.type,
+        label: mapping.label
+      }
+    }
+  }
+  
+  return { icon: null, text: point, type: 'default', label: '' }
+}
 
 // ==================== 核心方法 ====================
 // ==================== 列表视图方法 ====================
@@ -1089,10 +1269,23 @@ const viewAnalysisDetail = async(record)=>{
   try{
     analyzing.value = true
     const res = await getBugAnalysisRecordDetail(record.id)
-    const result = res.data||res
+    console.log('[viewAnalysisDetail] 完整API响应:', res)
+    console.log('[viewAnalysisDetail] res.data:', res.data)
+    
+    // 正确解析响应 - API返回的数据结构可能是：res 或 res.data
+    let result
+    if (res.data && res.data.analysis_result) {
+      result = res.data
+    } else if (res.analysis_result) {
+      result = res
+    } else {
+      result = res.data || res
+    }
+    console.log('[viewAnalysisDetail] 解析后的result:', result)
     
     if(result?.analysis_result){
       _rawAnalysisResult = result.analysis_result
+      console.log('[viewAnalysisDetail] analysis_result keys:', Object.keys(result.analysis_result))
       try{
         applyAnalysisResult(result.analysis_result)
         console.log('applyAnalysisResult完成')
@@ -1106,11 +1299,16 @@ const viewAnalysisDetail = async(record)=>{
       const cachedAiModuleFocus = result.analysis_result?.aiModuleFocus
       console.log('[viewAnalysisDetail] 检查aiModuleFocus缓存:', {
         hasCached: !!cachedAiModuleFocus,
-        keys: cachedAiModuleFocus ? Object.keys(cachedAiModuleFocus) : []
+        keys: cachedAiModuleFocus ? Object.keys(cachedAiModuleFocus) : [],
+        fullData: cachedAiModuleFocus
       })
       if(cachedAiModuleFocus && Object.keys(cachedAiModuleFocus).length > 0){
-        aiModuleFocus.value = cachedAiModuleFocus
+        // 创建一个新的对象来触发Vue的响应式更新 - 先清空再赋值
+        aiModuleFocus.value = {}
+        Object.assign(aiModuleFocus.value, cachedAiModuleFocus)
         console.log('[viewAnalysisDetail] ✅ 已恢复AI模块分析缓存:', Object.keys(cachedAiModuleFocus))
+        console.log('[viewAnalysisDetail] 恢复后aiModuleFocus:', aiModuleFocus.value)
+        console.log('[viewAnalysisDetail] aiModuleFocus的keys:', Object.keys(aiModuleFocus.value))
       } else {
         console.log('[viewAnalysisDetail] ⚠️ 没有可用的AI模块分析缓存')
       }
@@ -1252,6 +1450,11 @@ const fetchAIEnhancement = async(recordId)=>{
   }
 }
 
+// 切换板块展开/收起状态
+function toggleSection(sectionKey){
+  sectionCollapsed.value[sectionKey] = !sectionCollapsed.value[sectionKey]
+}
+
 function applyAnalysisResult(result){
   modulesData.value=result.modulesData||{}; featureDetailData.value=result.featureDetailData||[]; severityCrossData.value=result.severityCrossData||{}
   sevInfData.value=result.sevInfData||{}; sevData.value=result.sevData||{}; statusData.value=result.statusData||{}; priorityData.value=result.priorityData||{}
@@ -1260,9 +1463,15 @@ function applyAnalysisResult(result){
   clusterData.value=result.clusterData||[]; rootCauseData.value=result.rootCauseData||[]; testFocusData.value=result.testFocusData||{}; metaData.value=result.metaData||{}
   aiSummary.value=result.aiSummary||''; aiTestFocus.value=result.aiTestFocus||{}; aiRootCause.value=result.aiRootCause||[]; aiRisks.value=result.aiRisks||{}; aiKeywords.value=result.aiKeywords||[]
   // 恢复AI模块分析缓存
+  console.log('[applyAnalysisResult] 检查aiModuleFocus:', result.aiModuleFocus)
   if(result.aiModuleFocus && Object.keys(result.aiModuleFocus).length > 0){
-    aiModuleFocus.value = result.aiModuleFocus
-    console.log('[applyAnalysisResult] 已恢复aiModuleFocus:', Object.keys(result.aiModuleFocus))
+    // 创建一个新的对象来触发Vue的响应式更新
+    aiModuleFocus.value = {}
+    Object.assign(aiModuleFocus.value, result.aiModuleFocus)
+    console.log('[applyAnalysisResult] ✅ 已恢复aiModuleFocus:', Object.keys(result.aiModuleFocus))
+    console.log('[applyAnalysisResult] 恢复后aiModuleFocus:', aiModuleFocus.value)
+  } else {
+    console.log('[applyAnalysisResult] ⚠️ 没有aiModuleFocus数据')
   }
   // 只在 record_id 存在时才更新，避免覆盖已设置的值
   if(result.record_id){
@@ -1302,13 +1511,25 @@ const handleCurrentChange = (val) => {
 async function loadHistoryRecord(rec){
   loadingModuleDetail.value=true
   try{
-    const r=await getBugAnalysisRecordDetail(rec.id); const result=r.data||r
+    const r=await getBugAnalysisRecordDetail(rec.id)
     console.log('[加载历史记录] API原始响应:', r)
+    console.log('[加载历史记录] r.data:', r.data)
+    
+    // 正确解析响应
+    let result
+    if (r.data && r.data.analysis_result) {
+      result = r.data
+    } else if (r.analysis_result) {
+      result = r
+    } else {
+      result = r.data || r
+    }
     console.log('[加载历史记录] result对象:', result)
     console.log('[加载历史记录] result.analysis_result:', result?.analysis_result)
     if(result.analysis_result){
       _rawAnalysisResult=result.analysis_result
       console.log('[加载历史记录] analysis_result:', result.analysis_result)
+      console.log('[加载历史记录] analysis_result keys:', Object.keys(result.analysis_result))
       console.log('[加载历史记录] aiKeywords:', result.analysis_result?.aiKeywords)
       // 先设置 currentRecordId，再 applyAnalysisResult
       currentRecordId.value=rec.id
@@ -1324,11 +1545,20 @@ async function loadHistoryRecord(rec){
         fullData: cachedAiModuleFocus
       })
       if(cachedAiModuleFocus && Object.keys(cachedAiModuleFocus).length > 0){
-        aiModuleFocus.value = cachedAiModuleFocus
+        // 创建一个新的对象来触发Vue的响应式更新
+        aiModuleFocus.value = {}
+        Object.assign(aiModuleFocus.value, cachedAiModuleFocus)
         console.log('[加载历史记录] ✅ 已恢复AI模块分析缓存:', Object.keys(cachedAiModuleFocus))
+        console.log('[加载历史记录] 恢复后aiModuleFocus:', aiModuleFocus.value)
+        console.log('[加载历史记录] aiModuleFocus的keys:', Object.keys(aiModuleFocus.value))
       } else {
         console.log('[加载历史记录] ⚠️ 没有可用的AI模块分析缓存')
       }
+      
+      // 切换到详情视图并更新URL
+      viewMode.value = 'detail'
+      currentRecord.value = rec
+      router.replace({ query: { ...route.query, view: 'detail', record_id: rec.id } })
       
       nextTick(()=>{
         renderCharts()
@@ -1354,28 +1584,24 @@ async function openModuleDetail(modName){
   }catch(e){console.warn('获取模块详情API失败:',e); moduleBugs.value=[]}finally{loadingModuleDetail.value=false}
 }
 
-// 加载智能模块分析 (三层架构)
+// 加载智能模块分析 (三层架构) - 使用队列机制避免并行
 async function loadIntelligentModuleFocus(modName){
   if(!currentRecordId.value||!modName)return
   // 检查缓存
   if(aiModuleFocus.value[modName])return
   
-  moduleFocusLoading.value[modName]=true
-  try{
-    const res=await analyzeModuleFocusIntelligent(currentRecordId.value,modName)
-    const data=res.data||res
-    if(data&&data.focus_points){
-      aiModuleFocus.value[modName]=data
-      console.log(`[AI] 模块 ${modName} 智能分析完成:`, data.risk_level)
-    }
-  }catch(e){
-    console.warn(`[AI] 模块 ${modName} 智能分析失败:`,e)
-  }finally{
-    moduleFocusLoading.value[modName]=false
+  // 如果已在队列或正在分析，直接返回
+  if(analyzeQueue.value.includes(modName) || currentAnalyzingModule.value === modName){
+    return
   }
+  
+  // 添加到队列等待处理
+  analyzeQueue.value.push(modName)
+  moduleFocusLoading.value[modName] = true
+  processAnalyzeQueue()
 }
 
-// 为所有模块批量生成智能分析
+// 为所有模块批量生成智能分析（使用队列机制）
 async function fetchAllModulesIntelligentFocus(recordId){
   const modules = Object.keys(testFocusData.value)
   if(!modules.length || !recordId){
@@ -1393,68 +1619,157 @@ async function fetchAllModulesIntelligentFocus(recordId){
     return
   }
   
-  // 限制并发数量，避免同时请求过多
-  const batchSize = 3
-  const batches = []
-  
-  for(let i = 0; i < modulesToAnalyze.length; i += batchSize){
-    batches.push(modulesToAnalyze.slice(i, i + batchSize))
-  }
-  
-  // 串行处理 - 避免并发导致数据覆盖
-  for(const batch of batches){
-    for(const modName of batch){
+  // 将所有模块添加到队列
+  for(const modName of modulesToAnalyze){
+    if(!analyzeQueue.value.includes(modName) && currentAnalyzingModule.value !== modName){
+      analyzeQueue.value.push(modName)
       moduleFocusLoading.value[modName] = true
-      try{
-        const res = await analyzeModuleFocusIntelligent(recordId, modName)
-        const data = res.data || res
-        if(data && data.focus_points){
-          aiModuleFocus.value[modName] = data
-          console.log(`[AI] 模块 ${modName} 智能分析完成`)
-        }
-      }catch(e){
-        console.warn(`[AI] 模块 ${modName} 智能分析失败:`, e)
-      }finally{
-        moduleFocusLoading.value[modName] = false
-      }
     }
   }
   
-  console.log(`[AI] 批量分析完成`)
+  // 触发队列处理
+  processAnalyzeQueue()
+  
+  console.log(`[AI] 已将 ${modulesToAnalyze.length} 个模块加入分析队列`)
 }
 
-// 用户手动触发AI分析所有模块
-async function analyzeAllModules(){
+// 分析单个模块（带全局锁和队列机制）
+async function analyzeSingleModule(moduleName) {
+  console.log('[AI] analyzeSingleModule被调用，模块名:', moduleName)
+  console.log('[AI] 当前状态:', {
+    currentRecordId: currentRecordId.value,
+    analyzeQueue: analyzeQueue.value,
+    currentAnalyzingModule: currentAnalyzingModule.value,
+    aiModuleFocus: aiModuleFocus.value
+  })
+  
   if(!currentRecordId.value){
     ElMessage.warning('请先选择一个分析记录')
     return
   }
   
-  const modules = Object.keys(testFocusData.value)
-  if(!modules.length){
-    ElMessage.info('暂无可分析的模块')
+  // 如果该模块已在队列中，提示用户
+  if(analyzeQueue.value.includes(moduleName) || moduleName === currentAnalyzingModule.value){
+    ElMessage.info(`模块 "${moduleName}" 已在分析队列中`)
     return
   }
   
-  // 检查是否已全部分析完成
-  const pendingModules = modules.filter(m => !aiModuleFocus.value[m])
-  if(!pendingModules.length){
-    ElMessage.success('所有模块已完成AI分析')
+  // 如果该模块已分析完成，提示用户
+  if(aiModuleFocus.value[moduleName]){
+    ElMessage.success(`模块 "${moduleName}" 已完成AI分析`)
     return
   }
   
-  isAnalyzingAllModules.value = true
-  ElMessage.info(`开始AI分析 ${pendingModules.length} 个模块，请稍候...`)
+  // 添加到队列
+  analyzeQueue.value.push(moduleName)
+  moduleFocusLoading.value[moduleName] = true
+  console.log('[AI] 模块已加入队列，当前队列:', analyzeQueue.value)
   
-  try{
-    await fetchAllModulesIntelligentFocus(currentRecordId.value)
+  // 触发队列处理
+  processAnalyzeQueue()
+}
+
+// 处理分析队列（串行执行，防止并行覆盖）
+async function processAnalyzeQueue() {
+  // 如果正在处理中，等待当前分析完成
+  if(isProcessingQueue.value || currentAnalyzingModule.value) {
+    console.log('[AI] 队列正在处理中或已有模块在分析，跳过此次触发')
+    return
+  }
+  
+  isProcessingQueue.value = true
+  console.log('[AI] 开始处理队列，当前队列长度:', analyzeQueue.value.length)
+  
+  while(analyzeQueue.value.length > 0) {
+    // 取出队列中的第一个模块
+    const moduleName = analyzeQueue.value.shift()
+    currentAnalyzingModule.value = moduleName
+    console.log(`[AI] 开始分析模块: ${moduleName}`)
+    
+    try {
+      const res = await analyzeModuleFocusIntelligent(currentRecordId.value, moduleName)
+      console.log('[AI] 收到API响应:', res)
+      // 解析返回数据 - 注意API返回的是 {success: true, ...data} 格式
+      let resultData
+      if (res.data && res.data.success) {
+        resultData = res.data
+      } else if (res.success) {
+        resultData = res
+      } else {
+        resultData = res.data || res
+      }
+      console.log('[AI] 解析后的数据:', resultData)
+      
+      // 检查是否有有效数据
+      const hasFocusPoints = 
+        resultData?.focus_points || 
+        resultData?.data?.focus_points ||
+        (resultData?.success && resultData?.module_name)
+      
+      if(hasFocusPoints){
+        // 确保响应式更新 - 创建新对象
+        const newAiModuleFocus = { ...aiModuleFocus.value }
+        newAiModuleFocus[moduleName] = resultData
+        aiModuleFocus.value = newAiModuleFocus
+        console.log(`[AI] 模块 ${moduleName} 分析完成:`, resultData.risk_level || '未知')
+        console.log('[AI] 保存到aiModuleFocus:', aiModuleFocus.value[moduleName])
+        console.log('[AI] 当前aiModuleFocus:', aiModuleFocus.value)
+      } else {
+        console.warn(`[AI] 模块 ${moduleName} 返回数据异常:`, resultData)
+        ElMessage.warning(`模块 "${moduleName}" 分析返回数据异常`)
+      }
+    } catch(e) {
+      console.error(`[AI] 模块 ${moduleName} 分析失败:`, e)
+      ElMessage.error(`模块 "${moduleName}" 分析失败: ${e.message || '未知错误'}`)
+    } finally {
+      moduleFocusLoading.value[moduleName] = false
+      currentAnalyzingModule.value = ''
+      console.log(`[AI] 模块 ${moduleName} 处理完成，当前队列长度:`, analyzeQueue.value.length)
+    }
+    
+    // 小延迟，避免请求过快
+    if(analyzeQueue.value.length > 0) {
+      await new Promise(resolve => setTimeout(resolve, 500))
+    }
+  }
+  
+  isProcessingQueue.value = false
+  
+  // 队列处理完成后，如果有已完成的分析，给出提示
+  if(Object.keys(aiModuleFocus.value).length > 0) {
     ElMessage.success('AI分析完成')
-  }catch(e){
-    console.error('[AI] 批量分析失败:', e)
-    ElMessage.error('AI分析过程中出现错误')
-  }finally{
-    isAnalyzingAllModules.value = false
   }
+}
+
+// 用户手动触发AI分析所有模块（已弃用，保留兼容）
+async function analyzeAllModules(){
+  ElMessage.info('请使用各模块卡片上的"AI智能分析"按钮进行单独分析')
+}
+
+function handleCardClick(event, moduleName) {
+  // 检查点击事件是否来自于AI按钮区域
+  const target = event.target
+  const isButtonClick = 
+    target.closest('.ai-analyze-action') || 
+    target.closest('.el-button') ||
+    target.tagName === 'BUTTON'
+  
+  console.log('[CardClick] 点击事件:', {
+    isButtonClick,
+    target: target.tagName,
+    moduleName
+  })
+  
+  // 如果是AI按钮区域，不打开详情页面
+  if (isButtonClick) {
+    console.log('[CardClick] 点击了AI按钮区域，不打开详情')
+    event.stopPropagation()
+    return
+  }
+  
+  // 否则正常打开详情页面
+  console.log('[CardClick] 点击了卡片非按钮区域，打开详情')
+  openModuleDetail(moduleName)
 }
 
 function onModuleChartClick(event){
@@ -1536,7 +1851,11 @@ const generateSummary=()=>{
 const renderCharts=()=>{renderModuleChart();renderSeverityCrossChart();renderSeverityPieChart();renderStatusChart();renderPriorityChart();renderKeywordChart();renderCreatorChart();renderTimelineChart()}
 
 const renderModuleChart=()=>{
-  if(!moduleChartRef.value)return; const chart=echarts.init(moduleChartRef.value)
+  if(!moduleChartRef.value)return
+  // 检查是否已有实例，有则先销毁
+  let existingChart = echarts.getInstanceByDom(moduleChartRef.value)
+  if(existingChart){existingChart.dispose()}
+  const chart=echarts.init(moduleChartRef.value)
   const d=modulesData.value
   // 按Bug数量从高到低排序
   const sortedEntries=Object.entries(d).sort((a,b)=>b[1]-a[1])
@@ -1557,7 +1876,10 @@ const renderModuleChart=()=>{
   })
 }
 const renderSeverityCrossChart=()=>{
-  if(!severityCrossChartRef.value)return; const chart=echarts.init(severityCrossChartRef.value)
+  if(!severityCrossChartRef.value)return
+  let existingChart = echarts.getInstanceByDom(severityCrossChartRef.value)
+  if(existingChart){existingChart.dispose()}
+  const chart=echarts.init(severityCrossChartRef.value)
   const d=severityCrossData.value, labels=Object.keys(d).sort()
   // P0/P1/P2 对应中文严重度
   const typeMap={'P0':'致命','P1':'严重','P2':'一般'}
@@ -1566,25 +1888,33 @@ const renderSeverityCrossChart=()=>{
   chart.setOption({backgroundColor:'#fff',tooltip:{trigger:'axis',axisPointer:{type:'shadow'}},legend:{data:typeLabels,textStyle:{color:'#333'},top:10},xAxis:{type:'category',data:labels,axisLabel:{color:'#333',fontSize:12},axisLine:{lineStyle:{color:'#ccc'}}},yAxis:{type:'value',axisLabel:{color:'#333'},axisLine:{lineStyle:{color:'#ccc'}},splitLine:{lineStyle:{color:'#e0e0e0'}}},series,grid:{left:'15%',right:'5%',top:'20%',bottom:'10%'}})
 }
 const renderSeverityPieChart=()=>{
-  if(!severityPieChartRef.value)return; const chart=echarts.init(severityPieChartRef.value)
+  if(!severityPieChartRef.value)return
+  let existingChart = echarts.getInstanceByDom(severityPieChartRef.value)
+  if(existingChart){existingChart.dispose()}
+  const chart=echarts.init(severityPieChartRef.value)
   const data=Object.entries(sevInfData.value).map(([k,v])=>({name:k,value:v}))
   chart.setOption({backgroundColor:'#fff',tooltip:{trigger:'item',formatter:'{b}: {c}条 ({d}%)'},series:[{type:'pie',radius:['40%','60%'],center:['50%','50%'],avoidLabelOverlap:true,data,label:{show:true,position:'outside',color:'#333',fontSize:11,formatter:'{b}: {c}条 ({d}%)',minMargin:5,edgeDistance:10},labelLine:{show:true,length:15,length2:20,smooth:true},itemStyle:{borderColor:'#fff',borderWidth:2},color:['#e74c3c','#e94560','#f39c12','#3498db']}]})}
 const renderStatusChart=()=>{
-  if(!statusChartRef.value)return; const chart=echarts.init(statusChartRef.value)
+  if(!statusChartRef.value)return
+  let existingChart = echarts.getInstanceByDom(statusChartRef.value)
+  if(existingChart){existingChart.dispose()}
+  const chart=echarts.init(statusChartRef.value)
   const data=Object.entries(statusData.value).sort((a,b)=>b[1]-a[1]).map(([k,v])=>({name:k,value:v}))
   chart.setOption({backgroundColor:'#fff',tooltip:{trigger:'item',formatter:'{b}: {c}条 ({d}%)'},series:[{type:'pie',radius:['40%','60%'],center:['50%','50%'],avoidLabelOverlap:true,data,label:{show:true,position:'outside',color:'#333',fontSize:11,formatter:'{b}: {c}条 ({d}%)',minMargin:5,edgeDistance:10},labelLine:{show:true,length:15,length2:20,smooth:true},itemStyle:{borderColor:'#fff',borderWidth:2},color:['#27ae60','#95a5a6','#f39c12','#3498db','#e94560','#9b59b6','#e74c3c','#1abc9c','#34495e']}]})}
 const renderPriorityChart=()=>{
-  if(!priorityChartRef.value)return; const chart=echarts.init(priorityChartRef.value)
+  if(!priorityChartRef.value)return
+  let existingChart = echarts.getInstanceByDom(priorityChartRef.value)
+  if(existingChart){existingChart.dispose()}
+  const chart=echarts.init(priorityChartRef.value)
   const colors=['#e74c3c','#e94560','#f39c12','#3498db','#9b59b6','#95a5a6']
   const data=Object.entries(priorityData.value).sort((a,b)=>b[1]-a[1]).filter(([_,v])=>v>0).map(([k,v],i)=>({name:k,value:v,itemStyle:{color:colors[i%6]}}))
   chart.setOption({backgroundColor:'#fff',tooltip:{trigger:'item',formatter:'{b}: {c}条 ({d}%)'},series:[{type:'pie',radius:['40%','60%'],center:['50%','50%'],avoidLabelOverlap:true,data,label:{show:true,position:'outside',color:'#333',fontSize:11,formatter:'{b}: {c}条 ({d}%)',minMargin:5,edgeDistance:10},labelLine:{show:true,length:15,length2:20,smooth:true},itemStyle:{borderColor:'#fff',borderWidth:2}}]})}
 const renderKeywordChart=()=>{
   if(!keywordChartRef.value)return
-  // 获取或创建图表实例
-  let chart = echarts.getInstanceByDom(keywordChartRef.value)
-  if(!chart){
-    chart = echarts.init(keywordChartRef.value)
-  }
+  // 销毁已有实例
+  let existingChart = echarts.getInstanceByDom(keywordChartRef.value)
+  if(existingChart){existingChart.dispose()}
+  const chart = echarts.init(keywordChartRef.value)
   // 优先使用 AI 生成的关键词，没有则显示空
   const data = aiKeywords.value && aiKeywords.value.length > 0 ? aiKeywords.value : []
   console.log('[关键词图表] 数据:', data, 'aiKeywords:', aiKeywords.value)
@@ -1593,7 +1923,10 @@ const renderKeywordChart=()=>{
   chart.setOption({backgroundColor:'#fff',title:{text:titleText,textStyle:{color:'#e94560',fontSize:14}},tooltip:{formatter:p=>`${p.name}: ${p.value}条相关Bug`},xAxis:{type:'value',axisLabel:{color:'#333'},axisLine:{lineStyle:{color:'#ccc'}},splitLine:{lineStyle:{color:'#e0e0e0'}}},yAxis:{type:'category',data:names,inverse:true,axisLabel:{color:'#333',fontSize:12},axisLine:{lineStyle:{color:'#ccc'}}},series:[{type:'bar',data:values,itemStyle:{color:new echarts.graphic.LinearGradient(0,0,1,0,[{offset:0,color:'#e0e0e0'},{offset:1,color:'#e94560'}])},label:{show:true,position:'right',color:'#333'}}],grid:{left:'15%',right:'10%'}})
 }
 const renderCreatorChart=()=>{
-  if(!creatorChartRef.value)return; const chart=echarts.init(creatorChartRef.value)
+  if(!creatorChartRef.value)return
+  let existingChart = echarts.getInstanceByDom(creatorChartRef.value)
+  if(existingChart){existingChart.dispose()}
+  const chart=echarts.init(creatorChartRef.value)
   const data=creatorModuleData.value, modules=Object.keys(modulesData.value)
   const colors=['#e94560','#3498db','#f39c12','#9b59b6','#27ae60','#FF69B4','#1abc9c','#e74c3c','#34495e','#2ecc71','#e67e22','#8e44ad']
   const series=modules.map((mod,i)=>({name:mod,type:'bar',stack:'module',data:data.map(d=>(d.modules&&d.modules[mod])||0),itemStyle:{color:colors[i%colors.length],borderColor:'#fff',borderWidth:1}}))
@@ -1601,7 +1934,10 @@ const renderCreatorChart=()=>{
   chart.setOption({backgroundColor:'#fff',title:{text:'创建者×模块分布(堆叠)',textStyle:{color:'#e94560',fontSize:14},left:'center'},tooltip:{trigger:'axis',axisPointer:{type:'shadow'},formatter:params=>{const d=data[params[0].dataIndex];let l=`${d.creator}(总${d.total}条,线上${d.online}条/${d.online_pct}%)<br/>`;params.forEach(p=>{if(p.value>0)l+=`${p.seriesName}:${p.value}条<br/>`});return l}},legend:{data:[...modules,'其他(低频/无标签)'],textStyle:{color:'#333'},top:30,type:'scroll'},xAxis:{type:'value',axisLabel:{color:'#333'},axisLine:{lineStyle:{color:'#ccc'}},splitLine:{lineStyle:{color:'#e0e0e0'}}},yAxis:{type:'category',data:data.map(d=>`${d.creator}(${d.total}条,线上${d.online_pct}%)`),inverse:true,axisLabel:{color:'#333',fontSize:11},axisLine:{lineStyle:{color:'#ccc'}}},series,grid:{left:'25%',right:'5%',top:80}})
 }
 const renderTimelineChart=()=>{
-  if(!timelineChartRef.value)return; const chart=echarts.init(timelineChartRef.value)
+  if(!timelineChartRef.value)return
+  let existingChart = echarts.getInstanceByDom(timelineChartRef.value)
+  if(existingChart){existingChart.dispose()}
+  const chart=echarts.init(timelineChartRef.value)
   const d=timelineCleanData.value, hasImport=metaData.value?.import_count>0
   chart.setOption({backgroundColor:'#fff',title:{text:`Bug创建时间趋势${hasImport?'(已排除平台迁移导入)':''}`,textStyle:{color:'#e94560',fontSize:14},left:'center'},tooltip:{trigger:'axis',formatter:p=>`${p[0].name}<br/>新增Bug:${p[0].value}条`},xAxis:{type:'category',data:Object.keys(d),axisLabel:{color:'#333',rotate:30},axisLine:{lineStyle:{color:'#ccc'}}},yAxis:{type:'value',axisLabel:{color:'#333'},axisLine:{lineStyle:{color:'#ccc'}},splitLine:{lineStyle:{color:'#e0e0e0'}}},series:[{type:'line',data:Object.values(d),smooth:true,itemStyle:{color:'#e94560'},lineStyle:{color:'#e94560',width:3},areaStyle:{color:new echarts.graphic.LinearGradient(0,0,0,1,[{offset:0,color:'rgba(233,69,96,0.15)'},{offset:1,color:'rgba(233,69,96,0.02)'}])},markPoint:{data:[{type:'max',name:'峰值',label:{color:'#333'}}],itemStyle:{color:'#e94560'}}}],grid:{left:'10%',bottom:'18%',top:50}})
 }
@@ -1649,6 +1985,23 @@ watch(() => route.query.view, (newView) => {
   }
 }, { immediate: true })
 
+// 监听 Tab 切换，当切换到图表 Tab 时重新渲染图表
+watch(() => activeTab.value, async (newTab) => {
+  if (newTab === 'charts' && analysisResult.value) {
+    // 等待 DOM 更新完成
+    await nextTick()
+    // 延迟一下确保容器已经可见
+    setTimeout(() => {
+      try {
+        renderCharts()
+        console.log('[Tab切换] 图表重新渲染完成')
+      } catch (e) {
+        console.error('[Tab切换] 图表渲染错误:', e)
+      }
+    }, 100)
+  }
+})
+
 // 详情页刷新时恢复数据
 const restoreDetailView = async () => {
   console.log('[restoreDetailView] 开始恢复, 状态:', {
@@ -1658,36 +2011,128 @@ const restoreDetailView = async () => {
     recordIdFromUrl: route.query.record_id,
     query: route.query
   })
-  // 如果当前是详情视图但没有数据，尝试从历史记录中恢复
-  if (viewMode.value === 'detail' && !analysisResult.value && historyRecords.value.length > 0) {
-    // 尝试从URL获取记录ID
+  
+  // 如果当前是详情视图但没有数据，尝试恢复
+  if (viewMode.value === 'detail' && !analysisResult.value) {
     const recordIdFromUrl = route.query.record_id
+    
     if (recordIdFromUrl) {
-      const record = historyRecords.value.find(r => r.id === parseInt(recordIdFromUrl))
+      // 先尝试从历史记录列表中找
+      let record = historyRecords.value.find(r => r.id === parseInt(recordIdFromUrl))
+      
       if (record) {
-        console.log('[恢复详情页] 从URL加载记录:', recordIdFromUrl)
+        console.log('[恢复详情页] 从历史列表加载记录:', recordIdFromUrl)
         await loadHistoryRecord(record)
         return
       } else {
-        console.warn('[恢复详情页] 找不到记录:', recordIdFromUrl, '可用记录:', historyRecords.value.map(r => r.id))
+        // 如果历史记录列表中没有，直接通过ID加载
+        console.log('[恢复详情页] 通过API加载记录:', recordIdFromUrl)
+        try {
+          const r = await getBugAnalysisRecordDetail(parseInt(recordIdFromUrl))
+          const result = r.data || r
+          if (result && result.analysis_result) {
+            // 构造一个模拟的记录对象
+            record = {
+              id: parseInt(recordIdFromUrl),
+              file_name: result.file_name || result.version_tag || `记录#${recordIdFromUrl}`,
+              version_tag: result.version_tag || '',
+              ...result
+            }
+            await loadHistoryRecord(record)
+            return
+          }
+        } catch (e) {
+          console.error('[恢复详情页] API加载记录失败:', e)
+        }
       }
     }
-    // 如果没有URL参数或找不到记录，加载第一条历史记录
-    console.log('[恢复详情页] 加载第一条历史记录')
-    await loadHistoryRecord(historyRecords.value[0])
+    
+    // 如果没有URL参数或加载失败，但有历史记录，加载第一条
+    if (historyRecords.value.length > 0) {
+      console.log('[恢复详情页] 加载第一条历史记录')
+      await loadHistoryRecord(historyRecords.value[0])
+    } else {
+      console.log('[restoreDetailView] 无法恢复详情页:', {
+        isDetail: viewMode.value === 'detail',
+        noAnalysis: !analysisResult.value,
+        hasRecordId: !!recordIdFromUrl,
+        hasHistory: historyRecords.value.length > 0
+      })
+    }
   } else {
     console.log('[restoreDetailView] 条件不满足, 跳过恢复:', {
       isDetail: viewMode.value === 'detail',
-      noAnalysis: !analysisResult.value,
-      hasHistory: historyRecords.value.length > 0
+      noAnalysis: !analysisResult.value
     })
   }
+}
+
+// 所有图表resize
+const resizeAllCharts = () => {
+  const chartRefs = [
+    moduleChartRef.value,
+    severityCrossChartRef.value,
+    severityPieChartRef.value,
+    statusChartRef.value,
+    priorityChartRef.value,
+    keywordChartRef.value,
+    creatorChartRef.value,
+    timelineChartRef.value
+  ]
+  chartRefs.forEach(ref => {
+    if (ref) {
+      const chart = echarts.getInstanceByDom(ref)
+      if (chart) {
+        chart.resize()
+      }
+    }
+  })
+}
+
+// resize防抖
+let resizeTimer = null
+const handleResize = () => {
+  if (resizeTimer) {
+    clearTimeout(resizeTimer)
+  }
+  resizeTimer = setTimeout(() => {
+    resizeAllCharts()
+  }, 200)
 }
 
 onMounted(() => {
   loadHistoryRecords().then(() => {
     // 历史记录加载完成后，如果是详情视图则恢复数据
     restoreDetailView()
+  })
+  // 监听窗口resize
+  window.addEventListener('resize', handleResize)
+})
+
+onUnmounted(() => {
+  // 移除resize监听
+  window.removeEventListener('resize', handleResize)
+  if (resizeTimer) {
+    clearTimeout(resizeTimer)
+  }
+  // 销毁所有图表实例
+  const chartRefs = [
+    moduleChartRef.value,
+    severityCrossChartRef.value,
+    severityPieChartRef.value,
+    statusChartRef.value,
+    priorityChartRef.value,
+    keywordChartRef.value,
+    creatorChartRef.value,
+    timelineChartRef.value
+  ]
+  chartRefs.forEach(ref => {
+    if (ref) {
+      const chart = echarts.getInstanceByDom(ref)
+      if (chart) {
+        chart.dispose()
+      }
+    }
   })
 })
 </script>
@@ -2013,6 +2458,26 @@ onMounted(() => {
   display: flex;
   align-items: center;
   gap: 12px;
+  flex-shrink: 0;
+}
+.header-actions .el-tag {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  white-space: nowrap !important;
+  flex-shrink: 0 !important;
+  gap: 4px !important;
+  line-height: 1 !important;
+}
+.header-actions .el-tag .el-icon {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+.header-actions .el-tag span {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
 }
 
 .ai-analyze-btn {
@@ -2358,62 +2823,108 @@ onMounted(() => {
 .risk-section{margin-bottom:20px}.risk-section:last-child{margin-bottom:0}.risk-title{font-size:15px;margin-bottom:10px;padding-left:4px}
 .risk-title.p0{color:#ef4444;border-left:3px solid #ef4444}.risk-title.p1{color:#f59e0b;border-left:3px solid #f59e0b}.risk-title.p2{color:#3b82f6;border-left:3px solid #3b82f6}
 
-.focus-card{border:1px solid rgba(147,112,219,0.15);border-radius:12px;padding:16px;cursor:pointer;transition:all 0.25s ease;margin-bottom:16px;background:#fff;height:280px;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 2px 8px rgba(147,112,219,0.06)}
-.focus-card:hover{border-color:#7b42f6;box-shadow:0 8px 24px rgba(147,112,219,0.15);transform:translateY(-2px)}.focus-card.clickable{cursor:pointer}
-.focus-card.highlighted{border-color:#f59e0b;box-shadow:0 0 0 3px rgba(245,158,11,0.3),0 8px 16px -4px rgba(245,158,11,0.2);transform:translateY(-2px);animation:pulse-highlight 1.5s ease-in-out}
-.focus-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-shrink:0}
-.focus-name{font-weight:600;font-size:15px;color:#5a32a3}.focus-badges{display:flex;gap:4px;flex-wrap:wrap}
-.focus-body{font-size:13px;color:#64748b;flex:1;overflow-y:auto;padding-right:4px}.focus-body::-webkit-scrollbar{width:4px}.focus-body::-webkit-scrollbar-track{background:transparent}.focus-body::-webkit-scrollbar-thumb{background:#cbd5e1;border-radius:2px}.focus-stats{display:flex;gap:16px;margin-bottom:8px;font-size:12px;color:#94a3b8;flex-shrink:0}
-.focus-points{padding-left:18px;margin:6px 0}.focus-points li{line-height:1.7}
-.base-focus-points{margin-top:4px}
-.ai-section-title{font-size:12px;font-weight:600;color:#7b42f6;margin:8px 0 6px;padding-bottom:4px;border-bottom:1px dashed rgba(147,112,219,0.2)}
-.base-section-title{font-size:12px;font-weight:600;color:#64748b;margin:12px 0 6px;padding-bottom:4px;border-bottom:1px dashed #e2e8f0}
-.ai-focus-preview{margin-top:8px;padding:8px 12px;background:#f0fdf4;border-radius:6px;border:1px solid #bbf7d0}
-.ai-focus-label{font-size:12px;color:#16a34a;font-weight:600;display:flex;align-items:center;gap:4px}
-.ai-focus-text{font-size:12px;color:#15803d;margin-top:4px;line-height:1.6}
+.focus-card{border:1px solid rgba(147,112,219,0.12);border-radius:16px;padding:20px;cursor:pointer;transition:all 0.3s cubic-bezier(0.4,0,0.2,1);margin-bottom:20px;background:#fff;display:flex;flex-direction:column;box-shadow:0 1px 3px rgba(147,112,219,0.08),0 1px 2px rgba(0,0,0,0.04)}
+.focus-card:hover{border-color:rgba(123,66,246,0.3);box-shadow:0 10px 40px -10px rgba(123,66,246,0.2),0 4px 12px rgba(0,0,0,0.08);transform:translateY(-4px)}.focus-card.clickable{cursor:pointer}
+.focus-card.highlighted{border-color:#f59e0b;box-shadow:0 0 0 4px rgba(245,158,11,0.15),0 12px 24px -8px rgba(245,158,11,0.25);transform:translateY(-2px);animation:pulse-highlight 1.5s ease-in-out}
+.focus-header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px;min-width:0;gap:12px}.focus-header .el-tag{display:inline-flex;align-items:center;flex-shrink:0;margin-top:2px}
+.focus-name{font-weight:700;font-size:16px;color:#1e1b4b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1;min-width:0;letter-spacing:-0.3px}.focus-badges{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+.focus-body{font-size:14px;color:#475569;display:flex;flex-direction:column;gap:12px}.focus-stats{display:flex;gap:20px;margin-bottom:4px;font-size:13px;color:#64748b;font-weight:500}.focus-stats span{display:flex;align-items:center;gap:6px}.focus-points{padding-left:0;margin:0;list-style:none}.focus-points li{line-height:1.6;padding:8px 0;border-bottom:1px solid rgba(226,232,240,0.6);display:flex;align-items:flex-start;gap:8px}.focus-points li:last-child{border-bottom:none;padding-bottom:0}.focus-points li:first-child{padding-top:0}
+.base-focus-points{margin-top:8px}
+/* 带图标的测试关注点样式 - 现代风格 */
+.focus-point-item-with-icon{display:flex;align-items:flex-start;gap:10px;padding:10px 0;border-bottom:1px solid rgba(226,232,240,0.5)}
+.focus-point-item-with-icon:last-child{border-bottom:none;padding-bottom:0}
+.focus-point-icon{margin-top:2px;font-size:16px;flex-shrink:0;width:20px;height:20px;display:flex;align-items:center;justify-content:center}
+.focus-point-text{flex:1;line-height:1.6;color:#475569}
+/* 图标颜色样式 */
+.focus-icon-danger{color:#ef4444}
+.focus-icon-warning{color:#f59e0b}
+.focus-icon-success{color:#22c55e}
+.focus-icon-info{color:#3b82f6}
+.focus-icon-primary{color:#7b42f6}
+.ai-section-title{font-size:13px;font-weight:700;color:#7b42f6;margin:0 0 12px;padding-bottom:8px;border-bottom:2px solid rgba(123,66,246,0.15);display:flex;align-items:center;gap:6px}
+.base-section-title{font-size:13px;font-weight:600;color:#475569;margin:16px 0 10px;padding-bottom:8px;border-bottom:1px solid rgba(226,232,240,0.8)}
+.ai-focus-preview{margin-top:12px;padding:12px 16px;background:#f0fdf4;border-radius:10px;border:1px solid #bbf7d0}
+.ai-focus-label{font-size:13px;color:#16a34a;font-weight:600;display:flex;align-items:center;gap:6px}
+.ai-focus-text{font-size:13px;color:#15803d;margin-top:6px;line-height:1.7}
 
-.detail-section{margin-bottom:20px}.detail-section-title{font-size:14px;font-weight:600;color:#5a32a3;margin-bottom:10px;display:flex;align-items:center;gap:6px}
-.module-stats-desc{margin-bottom:16px}
-.dtype-tags{display:flex;flex-wrap:wrap;gap:4px}
-.ai-section{background:#f8f7ff;border-radius:8px;padding:12px;border:1px solid rgba(147,112,219,0.15)}
-.ai-title{color:#7b42f6!important}.ai-content{font-size:13px;line-height:1.8;color:#64748b}.cause-content{font-style:italic;color:#94a3b8}
-.focus-points-list{padding-left:18px}.focus-points-list li{line-height:1.7;font-size:13px}
-.bug-filter-bar{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap}
-.bug-list-section{margin-top:8px}
+.detail-section{margin-bottom:24px}.detail-section-title{font-size:15px;font-weight:700;color:#1e1b4b;margin-bottom:12px;display:flex;align-items:center;gap:8px}
+.module-stats-desc{margin-bottom:20px}
+.dtype-tags{display:flex;flex-wrap:wrap;gap:6px}
+.ai-section{background:linear-gradient(135deg,#f8f7ff 0%,#f5f3ff 100%);border-radius:12px;padding:16px;border:1px solid rgba(147,112,219,0.12)}
+.ai-title{color:#7b42f6!important}.ai-content{font-size:14px;line-height:1.8;color:#475569}.cause-content{font-style:italic;color:#64748b}
+.focus-points-list{padding-left:0;list-style:none}.focus-points-list li{line-height:1.7;font-size:14px;padding:8px 0;border-bottom:1px solid rgba(226,232,240,0.5)}.focus-points-list li:last-child{border-bottom:none}
+.focus-points-list .focus-point-item-with-icon{padding-left:0;margin-bottom:10px}
+.bug-filter-bar{display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap}
+.bug-list-section{margin-top:12px}
 
 /* 智能模块分析样式 */
-.intelligent-focus{background:linear-gradient(135deg,#f8fafc 0%,#f1f5f9 100%);border:1px solid #cbd5e1}
+.intelligent-focus{background:linear-gradient(135deg,#f8fafc 0%,#f8f7ff 100%);border:1px solid rgba(147,112,219,0.15);border-radius:12px}
 .intelligent-focus-content{min-height:80px}
-.focus-points-intelligent{display:flex;flex-direction:column;gap:12px}
-.focus-point-item{padding:12px;background:#fff;border-radius:8px;border-left:3px solid #cbd5e1;transition:all 0.2s ease}
+.focus-points-intelligent{display:flex;flex-direction:column;gap:16px}
+.focus-point-item{padding:16px;background:#fff;border-radius:12px;border-left:4px solid #cbd5e1;transition:all 0.2s ease;box-shadow:0 1px 3px rgba(0,0,0,0.05)}
+.focus-point-item:hover{transform:translateX(4px);box-shadow:0 4px 12px rgba(0,0,0,0.08)}
 .focus-point-item.high{border-left-color:#ef4444;background:#fef2f2}
 .focus-point-item.medium{border-left-color:#f59e0b;background:#fffbeb}
 .focus-point-item.low{border-left-color:#3b82f6;background:#eff6ff}
-.point-header{display:flex;align-items:center;gap:8px;margin-bottom:6px}
-.point-source{font-size:11px;color:#94a3b8;background:#f1f5f9;padding:2px 6px;border-radius:4px}
-.point-source.ai{color:#7c3aed;background:#ede9fe;font-weight:500}
-.point-desc{font-size:13px;color:#334155;line-height:1.6;margin-bottom:6px}
-.point-suggestion{font-size:12px;color:#059669;display:flex;align-items:flex-start;gap:4px;line-height:1.5}
-.point-root-cause{margin-top:4px}
-.focus-loading-hint{text-align:center;color:#94a3b8;font-size:13px;padding:20px}
-.technical-insights{margin-top:12px}
+.point-header{display:flex;align-items:center;gap:10px;margin-bottom:8px}
+.point-source{font-size:12px;color:#64748b;background:#f1f5f9;padding:4px 10px;border-radius:20px;font-weight:500}
+.point-source.ai{color:#7c3aed;background:#ede9fe;font-weight:600}
+.point-desc{font-size:14px;color:#334155;line-height:1.7;margin-bottom:8px}
+.point-suggestion{font-size:13px;color:#059669;display:flex;align-items:flex-start;gap:6px;line-height:1.6;font-weight:500}
+.point-root-cause{margin-top:6px}
+.focus-loading-hint{text-align:center;color:#64748b;font-size:14px;padding:24px;font-weight:500}
+.technical-insights{margin-top:16px}
 
-/* AI卡片样式 */
-.ai-focus-card{height:100%;display:flex;flex-direction:column}
-.ai-body{flex:1;display:flex;flex-direction:column;gap:8px}
-.ai-point-item{padding:8px 10px;background:#f8fafc;border-radius:6px;border-left:3px solid #cbd5e1}
+/* AI卡片样式 - 现代风格 */
+.ai-focus-card{display:flex;flex-direction:column;gap:12px}
+.ai-body{display:flex;flex-direction:column;gap:12px}
+.ai-point-item{padding:12px 14px;background:#f8fafc;border-radius:10px;border-left:3px solid #cbd5e1;transition:all 0.2s ease}
+.ai-point-item:hover{transform:translateX(2px)}
 .ai-point-item.high{border-left-color:#ef4444;background:#fef2f2}
 .ai-point-item.medium{border-left-color:#f59e0b;background:#fffbeb}
 .ai-point-item.low{border-left-color:#3b82f6;background:#eff6ff}
 .ai-point-type{margin-bottom:4px}
 .ai-point-desc{font-size:12px;color:#475569;line-height:1.5;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 .more-points-hint{text-align:center;font-size:12px;color:#94a3b8;padding:4px}
-.ai-loading-card{height:100%}
-.ai-loading-body{flex:1;display:flex;flex-direction:column;justify-content:center;align-items:center;padding:20px}
-.ai-loading-text{font-size:12px;color:#94a3b8;margin-top:8px}
+.ai-loading-card{display:flex;flex-direction:column;padding:4px}
+.ai-loading-body{display:flex;flex-direction:column;justify-content:center;align-items:center;padding:32px 20px;background:#f8fafc;border-radius:12px;margin-top:12px}
+.ai-loading-text{font-size:14px;color:#64748b;margin-top:12px;font-weight:500}
+/* 分析中标签样式 - 防止换行 */
+.analyzing-tag{display:inline-flex!important;align-items:center!important;justify-content:center!important;white-space:nowrap!important;flex-shrink:0!important;gap:4px!important;line-height:1!important}
+.analyzing-tag .el-icon{display:inline-flex!important;align-items:center!important;justify-content:center!important}
+.analyzing-tag span{display:inline-flex!important;align-items:center!important;justify-content:center!important}
+.queue-tag{display:inline-flex!important;align-items:center!important;justify-content:center!important;white-space:nowrap!important;flex-shrink:0!important;line-height:1!important}
+/* 模块卡片中的AI分析按钮 - 现代风格 */
+.ai-analyze-action{margin-top:16px;padding-top:16px;border-top:1px solid rgba(226,232,240,0.8);display:flex;justify-content:center;pointer-events:auto;position:relative;z-index:100;cursor:default}
+.ai-analyze-action .el-button{width:100%;pointer-events:auto;z-index:101;border-radius:10px;height:40px;font-weight:600;font-size:14px;letter-spacing:0.3px;transition:all 0.2s ease;background:linear-gradient(135deg,#7b42f6 0%,#6d33e6 100%);border:none;box-shadow:0 4px 12px rgba(123,66,246,0.3)}
+.ai-analyze-action .el-button:hover{transform:translateY(-1px);box-shadow:0 6px 16px rgba(123,66,246,0.4)}
+.ai-analyze-action .el-button:active{transform:translateY(0)}
+.ai-analyze-action .el-button.is-disabled{opacity:0.6;background:#cbd5e1;box-shadow:none}
 
 .slide-fade-enter-active,.slide-fade-leave-active{transition:all 0.3s ease}
 .slide-fade-enter-from{transform:translateX(30px);opacity:0}.slide-fade-leave-to{transform:translateX(30px);opacity:0}
+
+/* Tab 标签页导航样式 */
+.tab-navigation{display:flex;gap:12px;margin-bottom:24px;background:#fff;padding:8px;border-radius:12px;box-shadow:0 2px 12px rgba(0,0,0,0.06);border:1px solid rgba(147,112,219,0.1)}
+.tab-item{flex:1;display:flex;align-items:center;justify-content:center;gap:8px;padding:14px 20px;border-radius:10px;cursor:pointer;transition:all 0.3s cubic-bezier(0.4,0,0.2,1);font-weight:500;color:#64748b;position:relative;overflow:hidden}
+.tab-item:hover{background:rgba(123,66,246,0.04);color:#7b42f6}
+.tab-item.active{background:linear-gradient(135deg,#7b42f6 0%,#6d33e6 100%);color:#fff;box-shadow:0 4px 14px rgba(123,66,246,0.35)}
+.tab-item .el-icon{font-size:18px}
+.tab-item span{font-size:14px}
+.tab-badge{margin-left:4px}
+.tab-content{min-height:400px}
+.tab-panel{animation:fadeIn 0.4s ease}
+.tab-panel-content{padding:4px}
+
+/* 可折叠卡片样式 */
+.collapsible-card{transition:all 0.3s ease}
+.collapsible-header{cursor:pointer;user-select:none;display:flex;justify-content:space-between;align-items:center;transition:background-color 0.2s ease;padding:8px 12px;margin:-12px -20px;border-radius:8px}
+.collapsible-header:hover{background-color:rgba(123,66,246,0.04)}
+.header-right{display:flex;align-items:center;gap:12px}
+.collapse-icon{font-size:16px;color:#94a3b8;transition:transform 0.3s cubic-bezier(0.4,0,0.2,1)}
+.collapse-icon.is-collapsed{transform:rotate(-90deg)}
+.collapsible-content{animation:fadeIn 0.3s ease}
+@keyframes fadeIn{from{opacity:0;transform:translateY(-10px)}to{opacity:1;transform:translateY(0)}}
 
 .export-options{padding:8px 0}
 .drawer-header{display:flex;justify-content:space-between;align-items:center;width:100%}

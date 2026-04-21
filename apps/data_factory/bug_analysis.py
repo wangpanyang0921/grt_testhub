@@ -48,8 +48,11 @@ def extract_tags(title):
 
 def classify_module(tags, title):
     """
-    分类模块 - 直接返回 Bug 标签本身
-    核心逻辑: 基于标签自然汇总，所有标签都参与模块判断
+    分类模块 - 智能合并相似模块
+    核心逻辑:
+    1. 优先使用标签
+    2. 智能合并前缀相同的模块（如"RMS资讯"→"RMS"）
+    3. 支持常见后缀去重（资讯、服务、管理、模块、功能等）
     """
     # 所有长度大于1的标签都视为有效模块标签
     feature_tags = [t for t in tags if len(t) > 1]
@@ -59,19 +62,155 @@ def classify_module(tags, title):
         # 返回标题前10个字符作为兜底
         return clean[:10] if clean else '其他'
 
-    # 直接返回第一个有效标签（通常是主要模块标识）
-    # 这样模块分布完全基于实际标签的自然汇总
-    return feature_tags[0]
+    # 获取第一个有效标签作为基础
+    base_module = feature_tags[0]
+    
+    # 智能合并：去除常见后缀，合并相似模块
+    # 常见后缀列表（按优先级排序）
+    common_suffixes = [
+        '资讯', '服务', '管理', '模块', '功能', '页面', '组件', 
+        '接口', 'API', 'PC端', '移动端', '小程序', 'H5', 
+        '系统', '平台', '中心', '板块', '区域', '部分'
+    ]
+    
+    # 尝试去除后缀，合并到主模块
+    normalized_module = base_module
+    for suffix in common_suffixes:
+        if normalized_module.endswith(suffix) and len(normalized_module) > len(suffix):
+            normalized_module = normalized_module[:-len(suffix)]
+            # 继续检查是否还有可去除的后缀（防止多层后缀）
+            for suffix2 in common_suffixes:
+                if normalized_module.endswith(suffix2) and len(normalized_module) > len(suffix2):
+                    normalized_module = normalized_module[:-len(suffix2)]
+            break
+    
+    # 如果去除后缀后为空，保留原始模块名
+    if not normalized_module:
+        normalized_module = base_module
+    
+    return normalized_module
 
 
 def classify_defect(title, desc=''):
     """
-    缺陷类型分类 - 由 AI 自动生成，此函数保留接口但返回空值
-    实际分类逻辑移至 AI 增强阶段处理
+    缺陷类型分类 - 基于语义分析的智能分类
+
+    通过分析Bug标题和描述中的关键词语义，自动识别缺陷类型。
+    使用多维度语义匹配，支持同义词识别和上下文理解。
+
+    Args:
+        title: Bug标题
+        desc: Bug描述
+
+    Returns:
+        str: 缺陷类型 (UI显示/功能逻辑/数据内容/交互操作/性能稳定/跨端兼容/其他)
     """
-    # 缺陷类型现在由 AI 自动分析生成，不再使用硬编码关键词匹配
-    # 返回空字符串，具体分类由 AI 根据上下文分析决定
-    return ''
+    text = f"{title} {desc}".lower() if desc else title.lower()
+
+    # 语义模式定义: 每个类型包含核心词、扩展词和模式
+    _DEFECT_PATTERNS = {
+        'UI显示': {
+            'core': ['ui', '界面', '显示', '样式', 'css', '布局', '文字', '字体', '颜色', '图标', '按钮', '弹窗', '弹框', '页面', '展示'],
+            'extend': ['错位', '重叠', '遮挡', '截断', '换行', '对齐', '间距', '大小', '宽度', '高度', '滚动', '空白', '黑屏', '白屏', '闪烁', '模糊', '变形'],
+            'patterns': [
+                r'(显示|展示).{0,5}(异常|错误|不对|问题)',
+                r'(样式|布局|界面).{0,5}(错乱|混乱|异常)',
+                r'(文字|字体).{0,5}(截断|省略|重叠)',
+                r'(按钮|图标).{0,5}(不显示|看不见|消失)',
+                r'(页面|界面).{0,5}(空白|白屏|黑屏)',
+            ]
+        },
+        '功能逻辑': {
+            'core': ['功能', '逻辑', '业务', '流程', '计算', '校验', '验证', '判断', '保存', '提交', '查询', '搜索'],
+            'extend': ['无法', '不能', '失败', '报错', '错误', '不正确', '异常', '无效', '失效', '不生效', '没生效', '未生效', '不起作用'],
+            'patterns': [
+                r'(无法|不能|没).{0,5}(保存|提交|查询|搜索|删除|修改|编辑|新增|添加)',
+                r'(保存|提交|查询).{0,5}(失败|报错|错误|异常)',
+                r'(数据|结果).{0,5}(不对|错误|异常|不正确)',
+                r'(逻辑|流程|业务).{0,5}(错误|异常|问题)',
+                r'(校验|验证).{0,5}(失败|不通过|错误)',
+            ]
+        },
+        '数据内容': {
+            'core': ['数据', '内容', '字段', '值', '信息', '文本', '数字', '金额', '日期', '时间', '状态'],
+            'extend': ['缺失', '丢失', '缺少', '为空', 'null', 'nil', 'undefined', '不一致', '不同步', '重复', '冗余', '错误', '不对', '异常'],
+            'patterns': [
+                r'(数据|字段|值|内容).{0,5}(缺失|丢失|为空|null|不对|错误)',
+                r'(显示|展示).{0,5}(数据|内容|值).{0,5}(不对|错误|异常)',
+                r'(数据|内容).{0,5}(不一致|不同步|重复|冗余)',
+                r'(金额|价格|数字).{0,5}(不对|错误|异常|计算)',
+                r'(状态|信息).{0,5}(不对|错误|异常|未更新)',
+            ]
+        },
+        '交互操作': {
+            'core': ['点击', '跳转', '跳转', '刷新', '加载', '上传', '下载', '输入', '选择', '勾选', '滑动', '拖拽', '滚动', '返回', '关闭'],
+            'extend': ['无响应', '没反应', '卡死', '卡顿', '卡住', '假死', '延迟', '缓慢', '慢', '不流畅', '闪退', '崩溃', '退出'],
+            'patterns': [
+                r'(点击|选择|输入).{0,5}(无响应|没反应|无效|不生效)',
+                r'(页面|界面|操作).{0,5}(卡死|卡顿|卡住|假死)',
+                r'(跳转|刷新|加载).{0,5}(失败|异常|卡住|慢)',
+                r'(上传|下载).{0,5}(失败|异常|卡住|超时)',
+                r'(滑动|拖拽|滚动).{0,5}(不流畅|卡顿|异常)',
+            ]
+        },
+        '性能稳定': {
+            'core': ['性能', '慢', '卡顿', '延迟', '加载', '响应', '超时', 'timeout', '内存', 'cpu', '并发', '死锁', '崩溃', '闪退', 'oom'],
+            'extend': ['缓慢', '慢', '太久', '长时间', '等待', '超时', '占用', '过高', '泄漏', '泄露', '溢出', '过载', '高负载'],
+            'patterns': [
+                r'(加载|响应|打开).{0,5}(慢|缓慢|延迟|太久|超时)',
+                r'(内存|cpu|资源).{0,5}(占用|过高|泄漏|泄露|溢出)',
+                r'(操作|请求).{0,5}(超时|timeout)',
+                r'(并发|多用户).{0,5}(问题|异常|慢|卡顿)',
+                r'(崩溃|闪退|oom).{0,5}(问题|异常|频繁)',
+            ]
+        },
+        '跨端兼容': {
+            'core': ['兼容', '适配', 'ios', 'android', '移动端', 'pc端', 'web端', 'app', 'h5', '小程序', '浏览器', 'safari', 'chrome', 'firefox', 'ie', 'edge', '华为', '小米', 'iphone', 'ipad'],
+            'extend': ['不兼容', '不支持', '显示异常', '表现不一致', '区别', '差异', '机型', '分辨率', '屏幕', '尺寸'],
+            'patterns': [
+                r'(ios|android|h5|小程序).{0,5}(问题|异常|不兼容|显示异常)',
+                r'(移动端|pc端|app).{0,5}(显示|表现).{0,5}(异常|不一致|不同)',
+                r'(safari|chrome|浏览器).{0,5}(兼容|显示|异常)',
+                r'(华为|小米|iphone).{0,5}(机型|设备).{0,5}(问题|异常)',
+                r'(分辨率|屏幕).{0,5}(适配|显示|异常)',
+            ]
+        },
+    }
+
+    # 计算每个类型的匹配分数
+    scores = {}
+    for dtype, patterns in _DEFECT_PATTERNS.items():
+        score = 0
+
+        # 1. 核心词匹配 (权重: 3)
+        for word in patterns['core']:
+            if word in text:
+                score += 3
+                # 标题中出现权重更高
+                if word in title.lower():
+                    score += 2
+
+        # 2. 扩展词匹配 (权重: 1)
+        for word in patterns['extend']:
+            if word in text:
+                score += 1
+                if word in title.lower():
+                    score += 1
+
+        # 3. 正则模式匹配 (权重: 5)
+        for pattern in patterns['patterns']:
+            if re.search(pattern, text):
+                score += 5
+
+        scores[dtype] = score
+
+    # 选择得分最高的类型
+    if scores:
+        best_match = max(scores, key=scores.get)
+        if scores[best_match] > 0:
+            return best_match
+
+    return '其他'
 
 
 def infer_severity(title, desc='', original_sev=''):
@@ -270,32 +409,97 @@ def _compute_test_focus(top10, module_index):
 
 def _build_focus_points(mod_total, online_count, reopened_count, dtype_counter, mod_bugs):
     """
-    构建测试关注点文案列表 - 由 AI 自动生成
-    此函数保留基础逻辑，具体关注点由 AI 根据缺陷分布动态生成
+    构建测试关注点文案列表 - 基于语义分析的缺陷类型智能生成
+
+    根据缺陷类型分布、严重程度和业务语义，自动生成针对性的测试关注点
     """
     focus_points = []
 
-    # 线上故障关注点
+    # 1. 线上故障关注点
     if online_count > 0:
         pct = round(online_count / mod_total * 100)
         if pct >= 10:
             focus_points.append(
-                f"线上故障回归: {online_count}条(占{pct}%)线上故障，迭代后必须逐条验证线上已发生的场景不会复现"
+                f"🔴 线上故障回归: {online_count}条(占{pct}%)线上故障，迭代后必须逐条验证线上已发生的场景不会复现"
             )
         else:
             focus_points.append(
-                f"备注: 含{online_count}条(占{pct}%)线上故障(较少)，迭代时顺手覆盖即可"
+                f"⚠️ 含{online_count}条(占{pct}%)线上故障，迭代时顺手覆盖"
             )
 
-    # 典型Bug举例
-    examples = [b['title'] for b in mod_bugs if _is_online_bug(b)][:3]
-    if not examples:
-        examples = [b['title'] for b in mod_bugs[:3]]
-    if examples:
-        focus_points.append("典型Bug举例: " + "；".join(examples))
+    # 2. 二次打开关注点
+    if reopened_count > 0:
+        pct = round(reopened_count / mod_total * 100)
+        focus_points.append(
+            f"🔄 修复质量关注: {reopened_count}条(占{pct}%)Bug被二次打开，需加强回归验证"
+        )
 
-    # 注意：缺陷类型专项回归建议由 AI 根据实际缺陷分布动态生成
-    # 不再使用硬编码的缺陷类型规则
+    # 3. 基于缺陷类型的智能分析 - 语义驱动的测试建议
+    if dtype_counter:
+        # 计算各类型占比
+        dtype_ratios = {dtype: count / mod_total for dtype, count in dtype_counter.items()}
+        sorted_types = sorted(dtype_ratios.items(), key=lambda x: x[1], reverse=True)
+
+        # 测试建议映射表 - 基于语义分类的针对性建议
+        type_test_suggestions = {
+            'UI显示': {
+                'high': ('UI专项回归', '重点检查多端样式一致性、响应式布局、文字截断、图片加载等视觉问题'),
+                'medium': ('UI兼容性检查', '关注主流浏览器和机型的显示效果'),
+            },
+            '功能逻辑': {
+                'high': ('核心流程回归', '重点验证业务主流程、边界条件、异常处理逻辑'),
+                'medium': ('功能完整性检查', '关注核心功能的正常使用场景'),
+            },
+            '数据内容': {
+                'high': ('数据质量专项', '重点验证数据准确性、完整性、同步机制、特殊字符处理'),
+                'medium': ('数据一致性检查', '关注关键业务数据的正确性'),
+            },
+            '交互操作': {
+                'high': ('交互体验回归', '重点验证用户操作反馈、状态变更、异常提示'),
+                'medium': ('操作流畅度检查', '关注常见用户操作的响应和反馈'),
+            },
+            '性能稳定': {
+                'high': ('性能稳定性专项', '重点进行压力测试、内存检测、长时间稳定性验证'),
+                'medium': ('性能基线检查', '关注核心操作的响应时间'),
+            },
+            '跨端兼容': {
+                'high': ('多端兼容性回归', '必须在iOS/Android/PC/小程序各端分别验证'),
+                'medium': ('主流设备检查', '关注主流机型和浏览器的兼容性'),
+            },
+        }
+
+        # 为占比最高的1-2个缺陷类型生成测试建议
+        for dtype, ratio in sorted_types[:2]:
+            if dtype == '其他' or ratio < 0.1:  # 忽略"其他"类型和占比过低的类型
+                continue
+
+            level = 'high' if ratio >= 0.3 else ('medium' if ratio >= 0.15 else 'low')
+            count = dtype_counter.get(dtype, 0)
+
+            if dtype in type_test_suggestions and level in type_test_suggestions[dtype]:
+                title, suggestion = type_test_suggestions[dtype][level]
+                focus_points.append(f"📌 {title}({dtype}{count}条/{ratio*100:.0f}%): {suggestion}")
+
+    # 4. 基于严重度的关注点
+    p0_count = sum(1 for b in mod_bugs if b.get('inferred_sev') == 'P0')
+    p1_count = sum(1 for b in mod_bugs if b.get('inferred_sev') == 'P1')
+
+    if p0_count > 0:
+        focus_points.append(f"🚨 P0高危问题: 含{p0_count}条致命缺陷，需优先验证修复并评估影响范围")
+    elif p1_count >= 3:
+        focus_points.append(f"⚡ P1严重问题集中: 含{p1_count}条严重缺陷，建议专项回归")
+
+    # 5. 典型Bug举例（限制数量，避免过多）
+    if len(focus_points) < 4:
+        examples = [b['title'] for b in mod_bugs if _is_online_bug(b)][:2]
+        if not examples:
+            # 优先选择严重度高的Bug作为示例
+            severe_bugs = [b for b in mod_bugs if b.get('inferred_sev') in ['P0', 'P1']]
+            examples = [b['title'] for b in severe_bugs[:2]]
+        if not examples:
+            examples = [b['title'] for b in mod_bugs[:2]]
+        if examples:
+            focus_points.append("📝 典型Bug: " + "；".join(examples[:2]))
 
     return focus_points
 
