@@ -1248,3 +1248,388 @@ def analyze_module_focus_intelligent(request):
         logger.error(f'[API:analyze_module_focus] 未预期错误: {e}', exc_info=True)
         return _build_error_response(f'分析失败: {str(e)}',
                                      code=status.HTTP_500_INTERNAL_SERVER_ERROR, log_level='error')
+
+
+# ============================================================
+# Bug 分析汇总统计 (新增)
+# ============================================================
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def bug_analysis_summary(request):
+    """
+    Bug 分析汇总统计
+    
+    请求体:
+    {
+        "record_ids": [1, 2, 3],
+        "group_by": "week" | "month" | "quarter" | "half_year" | "year"
+    }
+    
+    响应:
+    {
+        "metrics": {
+            "total_bugs": 1234,
+            "total_modules": 28,
+            "record_count": 12,
+            "online_bugs": 156,
+            "defect_bugs": 1078
+        },
+        "trends": [
+            {"date": "2026-Q1", "total": 172, "online": 12, "defect": 160}
+        ],
+        "module_ranking": [
+            {"module": "用户中心", "count": 45, "trend": "up"}
+        ],
+        "risk_modules": [
+            {"module": "支付系统", "growth_rate": 2.5, "current": 25, "trend_data": [...]}
+        ]
+    }
+    """
+    try:
+        record_ids = request.data.get('record_ids', [])
+        group_by = request.data.get('group_by', 'month')
+        
+        if not record_ids:
+            return _build_error_response('请选择至少一个分析记录')
+        
+        if not _DB_RECORDS_AVAILABLE:
+            return _build_error_response('历史记录功能暂不可用', code=status.HTTP_503_SERVICE_UNAVAILABLE)
+        
+        # 获取选中的记录（不使用order_by避免大数据排序内存问题）
+        records = BugAnalysisRecord.objects.filter(id__in=record_ids)
+        if not records.exists():
+            return _build_error_response('未找到指定的分析记录')
+        
+        # 在Python中按时间排序
+        records = sorted(records, key=lambda r: r.created_at)
+        
+        logger.info(f"[API:bug_analysis_summary] 用户={request.user.username}, 记录数={len(record_ids)}, 聚合维度={group_by}")
+        
+        # 计算基础指标
+        total_bugs = sum(r.total_bugs for r in records)
+        record_count = len(records)
+        
+        # 收集所有模块
+        all_modules = set()
+        online_bugs = 0
+        defect_bugs = 0
+        
+        for record in records:
+            analysis_result = record.analysis_result or {}
+            modules_data = analysis_result.get('modulesData', {})
+            all_modules.update(modules_data.keys())
+            
+            # 统计 Bug 类型
+            work_types = analysis_result.get('metaData', {}).get('work_types', {})
+            online_bugs += work_types.get('线上故障', 0) + work_types.get('线上', 0)
+            defect_bugs += work_types.get('缺陷', 0) + work_types.get('缺陷Bug', 0)
+        
+        # 按时间聚合趋势数据
+        trends = _aggregate_trends(records, group_by)
+        
+        # 模块排名统计
+        module_stats = _calculate_module_stats(records)
+        module_ranking = sorted(module_stats.items(), key=lambda x: x[1]['count'], reverse=True)[:10]
+        module_ranking = [
+            {
+                'module': name,
+                'count': stats['count'],
+                'trend': stats['trend']
+            }
+            for name, stats in module_ranking
+        ]
+        
+        # 风险预警模块（复杂方案：计算增长率趋势）
+        risk_modules = _calculate_risk_modules(records, module_stats)
+        
+        result = {
+            'metrics': {
+                'total_bugs': total_bugs,
+                'total_modules': len(all_modules),
+                'record_count': record_count,
+                'online_bugs': online_bugs,
+                'defect_bugs': defect_bugs
+            },
+            'trends': trends,
+            'module_ranking': module_ranking,
+            'risk_modules': risk_modules
+        }
+        
+        logger.info(f"[API:bug_analysis_summary] 汇总完成: 总Bug={total_bugs}, 模块数={len(all_modules)}, 风险模块={len(risk_modules)}")
+        
+        return _build_api_response(result, '汇总分析完成')
+        
+    except Exception as e:
+        logger.error(f'[API:bug_analysis_summary] 未预期错误: {e}', exc_info=True)
+        return _build_error_response(f'汇总分析失败: {str(e)}',
+                                     code=status.HTTP_500_INTERNAL_SERVER_ERROR, log_level='error')
+
+
+def _aggregate_trends(records, group_by):
+    """按时间维度聚合趋势数据"""
+    from collections import defaultdict
+    
+    # 按时间分组
+    groups = defaultdict(lambda: {'total': 0, 'online': 0, 'defect': 0, 'count': 0})
+    
+    for record in records:
+        date_key = _get_date_key(record.created_at, group_by)
+        
+        groups[date_key]['total'] += record.total_bugs
+        groups[date_key]['count'] += 1
+        
+        # 统计类型
+        analysis_result = record.analysis_result or {}
+        work_types = analysis_result.get('metaData', {}).get('work_types', {})
+        groups[date_key]['online'] += work_types.get('线上故障', 0) + work_types.get('线上', 0)
+        groups[date_key]['defect'] += work_types.get('缺陷', 0) + work_types.get('缺陷Bug', 0)
+    
+    # 转换为列表并排序
+    trends = [
+        {
+            'date': key,
+            'total': data['total'],
+            'online': data['online'],
+            'defect': data['defect'],
+            'record_count': data['count']
+        }
+        for key, data in sorted(groups.items())
+    ]
+    
+    return trends
+
+
+def _get_date_key(dt, group_by):
+    """根据聚合维度生成日期键"""
+    year = dt.year
+    month = dt.month
+    
+    if group_by == 'week':
+        # 返回周标识：2026-W15
+        week = dt.isocalendar()[1]
+        return f"{year}-W{week:02d}"
+    elif group_by == 'month':
+        # 返回月份：2026-04
+        return f"{year}-{month:02d}"
+    elif group_by == 'quarter':
+        # 返回季度：2026-Q1
+        quarter = (month - 1) // 3 + 1
+        return f"{year}-Q{quarter}"
+    elif group_by == 'half_year':
+        # 返回半年：2026-H1
+        half = 1 if month <= 6 else 2
+        return f"{year}-H{half}"
+    elif group_by == 'year':
+        # 返回年份：2026
+        return str(year)
+    else:
+        return f"{year}-{month:02d}"
+
+
+def _calculate_module_stats(records):
+    """计算各模块的统计数据"""
+    from collections import defaultdict
+    
+    # 模块 -> 各时间点的数量
+    module_timeline = defaultdict(lambda: [])
+    
+    for record in records:
+        analysis_result = record.analysis_result or {}
+        modules_data = analysis_result.get('modulesData', {})
+        date_str = record.created_at.strftime('%Y-%m-%d')
+        
+        for module, count in modules_data.items():
+            module_timeline[module].append({
+                'date': date_str,
+                'count': count
+            })
+    
+    # 计算趋势
+    stats = {}
+    for module, timeline in module_timeline.items():
+        total = sum(t['count'] for t in timeline)
+        
+        # 判断趋势
+        trend = 'stable'
+        if len(timeline) >= 2:
+            first = timeline[0]['count']
+            last = timeline[-1]['count']
+            if last > first * 1.2:
+                trend = 'up'
+            elif last < first * 0.8:
+                trend = 'down'
+        
+        stats[module] = {
+            'count': total,
+            'trend': trend,
+            'timeline': timeline
+        }
+    
+    return stats
+
+
+def _calculate_risk_modules(records, module_stats):
+    """计算风险预警模块（复杂方案：增长率趋势分析）"""
+    risk_modules = []
+    
+    for module, stats in module_stats.items():
+        timeline = stats['timeline']
+        if len(timeline) < 2:
+            continue
+        
+        # 复杂方案：计算加权增长率
+        # 最近的数据权重更高
+        weights = []
+        counts = []
+        for i, t in enumerate(timeline):
+            weight = (i + 1) / len(timeline)  # 线性递增权重
+            weights.append(weight)
+            counts.append(t['count'])
+        
+        # 计算加权平均增长率
+        if len(counts) >= 2:
+            growth_rates = []
+            for i in range(1, len(counts)):
+                if counts[i-1] > 0:
+                    rate = (counts[i] - counts[i-1]) / counts[i-1]
+                    growth_rates.append(rate * weights[i])
+            
+            if growth_rates:
+                avg_growth = sum(growth_rates) / sum(weights[1:])
+                
+                # 增长超过 30% 且当前数量 >= 5 标记为风险
+                if avg_growth > 0.3 and counts[-1] >= 5:
+                    risk_modules.append({
+                        'module': module,
+                        'growth_rate': round(avg_growth, 2),
+                        'current': counts[-1],
+                        'previous': counts[0],
+                        'trend_data': timeline
+                    })
+    
+    # 按增长率排序，取前10
+    risk_modules.sort(key=lambda x: x['growth_rate'], reverse=True)
+    return risk_modules[:10]
+
+
+# ============================================================
+# API 端点：直接调用 AI 生成汇总洞察报告
+# ============================================================
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def generate_summary_insight(request):
+    """
+    直接调用 AI 生成 Bug 汇总洞察报告
+    
+    请求体:
+    {
+        "summary_data": {
+            "metrics": {...},
+            "trends": [...],
+            "module_ranking": [...],
+            "risk_modules": [...]
+        }
+    }
+    
+    响应:
+    {
+        "insight": "AI 生成的洞察报告 (Markdown 格式)"
+    }
+    """
+    try:
+        summary_data = request.data.get('summary_data', {})
+        
+        if not summary_data:
+            return _build_error_response('请提供汇总数据')
+        
+        # 构造分析提示词
+        metrics = summary_data.get('metrics', {})
+        risk_modules = summary_data.get('risk_modules', [])
+        module_ranking = summary_data.get('module_ranking', [])
+        top_modules = module_ranking[:5]
+        
+        prompt = f"""请作为测试质量分析师，基于以下 Bug 汇总数据生成专业的质量洞察报告：
+
+【汇总概览】
+- 总 Bug 数：{metrics.get('total_bugs', 0)}
+- 涉及模块：{metrics.get('total_modules', 0)} 个
+- 分析记录：{metrics.get('record_count', 0)} 条
+- 线上故障：{metrics.get('online_bugs', 0)} 个
+- 缺陷数量：{metrics.get('defect_bugs', 0)} 个
+
+【热点模块 Top5】
+"""
+        for i, m in enumerate(top_modules, 1):
+            trend_text = '上升趋势' if m.get('trend') == 'up' else '下降趋势' if m.get('trend') == 'down' else '稳定'
+            prompt += f"{i}. {m.get('module', '')}: {m.get('count', 0)} 个 ({trend_text})\n"
+        
+        prompt += "\n【风险预警】\n"
+        if risk_modules:
+            for i, m in enumerate(risk_modules[:5], 1):
+                prompt += f"{i}. {m.get('module', '')}: 增长率 {m.get('growth_rate', 0) * 100:.0f}%\n"
+        else:
+            prompt += "无明显风险模块\n"
+        
+        prompt += """
+请从以下维度进行分析并给出建议：
+1. 整体质量趋势评估
+2. 高风险模块分析
+3. 改进建议和行动项
+
+请以 Markdown 格式输出，包含表格和列表，便于阅读。"""
+
+        # 调用 AI
+        try:
+            # 导入 AIModelService
+            from apps.requirement_analysis.ai_models import AIModelService
+            from apps.requirement_analysis.models import AIModelConfig
+            
+            # 获取 Bug 分析专家的 AI 配置
+            config = AIModelConfig.objects.filter(
+                role='bug_analyzer',
+                is_active=True
+            ).first()
+            
+            if not config:
+                # 如果没有专门的 bug_analyzer 配置，使用任意活跃配置
+                config = AIModelConfig.objects.filter(is_active=True).first()
+            
+            if not config:
+                return _build_error_response('未找到可用的 AI 模型配置，请先在配置中心配置 AI 模型')
+            
+            logger.info(f"[API:generate_summary_insight] 使用 AI 配置: {config.model_type} - {config.model_name}")
+            
+            # 调用 AI API
+            messages = [
+                {'role': 'system', 'content': '你是专业的测试质量分析师，擅长分析 Bug 数据并提供改进建议。'},
+                {'role': 'user', 'content': prompt}
+            ]
+            
+            response_data = async_to_sync(AIModelService.call_openai_compatible_api)(config, messages)
+            
+            # 提取 AI 回复
+            insight = response_data.get('choices', [{}])[0].get('message', {}).get('content', '')
+            
+            if not insight:
+                return _build_error_response('AI 未返回有效内容')
+            
+            logger.info(f"[API:generate_summary_insight] AI 洞察生成成功，长度: {len(insight)} 字符")
+
+            return Response({
+                'success': True,
+                'data': {
+                    'insight': insight
+                },
+                'message': 'AI 洞察生成成功'
+            })
+            
+        except Exception as e:
+            logger.error(f"AI 调用失败: {e}", exc_info=True)
+            return _build_error_response(f'AI 调用失败: {str(e)}')
+            
+    except Exception as e:
+        logger.error(f'[API:generate_summary_insight] 错误: {e}', exc_info=True)
+        return _build_error_response(f'生成洞察失败: {str(e)}',
+                                     code=status.HTTP_500_INTERNAL_SERVER_ERROR, log_level='error')

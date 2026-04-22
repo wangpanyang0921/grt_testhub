@@ -37,10 +37,21 @@
               <el-icon><Tools /></el-icon>
               <span>XMind 转 Excel</span>
             </el-menu-item>
-            <el-menu-item index="/ai-generation/bug-analysis">
-              <el-icon><DataAnalysis /></el-icon>
-              <span>Bug 分析</span>
-            </el-menu-item>
+            <!-- Bug 分析 - 子菜单 -->
+            <el-sub-menu index="bug-analysis">
+              <template #title>
+                <el-icon><DataAnalysis /></el-icon>
+                <span>Bug 分析</span>
+              </template>
+              <el-menu-item index="/ai-generation/bug-analysis/history">
+                <el-icon><Clock /></el-icon>
+                <span>历史记录</span>
+              </el-menu-item>
+              <el-menu-item index="/ai-generation/bug-analysis/summary">
+                <el-icon><TrendCharts /></el-icon>
+                <span>汇总分析</span>
+              </el-menu-item>
+            </el-sub-menu>
             <!-- 主线用例 - 按端分组 -->
             <el-sub-menu index="testcases">
               <template #title>
@@ -414,7 +425,7 @@ import {
   Monitor, Folder, Document, Flag, Check, Collection, VideoPlay,
   DataAnalysis, ChatDotRound, DocumentCopy, Link, MagicStick, Promotion,
   Odometer, Timer, Setting, AlarmClock, Bell, Aim, Edit, Cpu, ArrowDown, Cellphone, Connection, FolderOpened, Box, Tools, Grid, Menu,
-  DocumentChecked
+  DocumentChecked, Clock, TrendCharts
 } from '@element-plus/icons-vue'
 
 const router = useRouter()
@@ -483,8 +494,8 @@ const currentModule = computed(() => {
 })
 
 const moduleName = computed(() => {
-  // Bug 分析详情页特殊处理
-  if (route.path === '/ai-generation/bug-analysis' && route.query.view === 'detail') {
+  // Bug 分析相关页面特殊处理
+  if (route.path.startsWith('/ai-generation/bug-analysis')) {
     return 'Bug 分析'
   }
 
@@ -516,9 +527,9 @@ const moduleRoute = computed(() => {
     return '/ai-generation/projects'
   }
 
-  // Bug 分析详情页，返回到 Bug 分析列表（不带 view 参数）
-  if (path === '/ai-generation/bug-analysis' && route.query.view === 'detail') {
-    return '/ai-generation/bug-analysis'
+  // Bug 分析相关页面，返回到 Bug 分析历史记录
+  if (path.startsWith('/ai-generation/bug-analysis')) {
+    return '/ai-generation/bug-analysis/history'
   }
 
   // 其他模块可以根据需要添加
@@ -547,7 +558,7 @@ const breadcrumbTitle = computed(() => {
   }
 
   // Bug 分析详情页
-  if (path === '/ai-generation/bug-analysis' && route.query.view === 'detail') {
+  if (path === '/ai-generation/bug-analysis/history' && route.query.view === 'detail') {
     return '详情'
   }
 
@@ -561,6 +572,8 @@ const breadcrumbTitle = computed(() => {
     '/ai-generation/generated-testcases': t('menu.aiGeneratedTestcases'),
     '/ai-generation/xmind-converter': 'XMind 转 Excel',
     '/ai-generation/bug-analysis': 'Bug 分析',
+    '/ai-generation/bug-analysis/history': '历史记录',
+    '/ai-generation/bug-analysis/summary': '汇总分析',
     '/ai-generation/projects': t('menu.aiProjectManagement'),
     '/ai-generation/testcases': t('menu.testCases'),
     '/ai-generation/versions': t('menu.versionManagement'),

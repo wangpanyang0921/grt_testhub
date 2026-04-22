@@ -4,7 +4,7 @@ import { useUserStore } from '@/stores/user'
 
 const api = axios.create({
   baseURL: '/api',
-  timeout: 30000,
+  timeout: 120000,  // 120 秒超时，支持 AI 生成等长时间操作
   headers: {
     'Content-Type': 'application/json',
   },

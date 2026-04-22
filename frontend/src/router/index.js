@@ -197,8 +197,19 @@ const routes = [
       },
       {
         path: 'bug-analysis',
-        name: 'BugAnalysis',
-        component: () => import('@/views/data-factory/BugAnalysis.vue')
+        redirect: 'bug-analysis/history',
+        children: [
+          {
+            path: 'history',
+            name: 'BugAnalysisHistory',
+            component: () => import('@/views/data-factory/BugAnalysis.vue')
+          },
+          {
+            path: 'summary',
+            name: 'BugAnalysisSummary',
+            component: () => import('@/views/data-factory/BugAnalysisSummary.vue')
+          }
+        ]
       }
     ]
   },

@@ -13,6 +13,8 @@ from .bug_analysis_view import (
     bug_analysis_compare,
     bug_analysis_module_detail,
     analyze_module_focus_intelligent,
+    bug_analysis_summary,
+    generate_summary_insight,
 )
 
 router = DefaultRouter()
@@ -41,4 +43,6 @@ urlpatterns = [
     path('bug-analysis/compare/', bug_analysis_compare, name='bug-analysis-compare'),  # 跨版本对比
     path('bug-analysis/module/<int:record_id>/', bug_analysis_module_detail, name='bug-analysis-module-detail'),  # 模块详情含Bug列表
     path('bug-analysis/module-focus/', analyze_module_focus_intelligent, name='bug-analysis-module-focus'),  # 智能模块测试重点分析
+    path('bug-analysis/summary/', bug_analysis_summary, name='bug-analysis-summary'),  # 汇总分析
+    path('bug-analysis/generate-insight/', generate_summary_insight, name='bug-analysis-generate-insight'),  # AI 洞察生成
 ]
