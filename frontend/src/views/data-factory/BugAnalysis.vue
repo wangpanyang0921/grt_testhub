@@ -6,7 +6,7 @@
       <div class="filter-bar">
         <el-input
           v-model="searchQuery"
-          placeholder="搜索文件名或版本标签"
+          placeholder="搜索文件名"
           clearable
           @clear="handleSearch"
           @keyup.enter="handleSearch"
@@ -144,8 +144,8 @@
 
     <!-- ==================== 分析结果详情视图 ==================== -->
     <template v-else-if="viewMode === 'detail'">
-      <!-- 页面标题 -->
-      <div class="detail-header">
+      <!-- 页面标题（临时隐藏，后续可能重新启用） -->
+      <div v-show="showDetailHeader" class="detail-header">
         <div class="detail-header-left">
           <!-- 返回列表按钮已隐藏 -->
           <div class="detail-title">
@@ -198,9 +198,19 @@
               <div class="summary-card">
                 <div class="summary-icon" style="background: #fef0f0; color: #e94560;"><el-icon><Document /></el-icon></div>
                 <div class="summary-info">
-                  <div class="summary-value">{{ (metaData && metaData.total_bugs) || 0 }}</div>
-                  <div class="summary-label">Bug 总数</div>
-                  <div class="summary-sub">{{ workTypesText }}</div>
+                  <div class="summary-value">{{ defectCount }}</div>
+                  <div class="summary-label">缺陷</div>
+                  <div class="summary-sub">功能缺陷/体验问题</div>
+                </div>
+              </div>
+            </el-col>
+            <el-col :span="6">
+              <div class="summary-card">
+                <div class="summary-icon" style="background: #fff2f0; color: #ff4d4f;"><el-icon><Warning /></el-icon></div>
+                <div class="summary-info">
+                  <div class="summary-value">{{ onlineBugCount }}</div>
+                  <div class="summary-label">线上故障</div>
+                  <div class="summary-sub">生产环境问题</div>
                 </div>
               </div>
             </el-col>
@@ -221,16 +231,6 @@
                   <div class="summary-value">{{ clusterData.length }}</div>
                   <div class="summary-label">缺陷聚集点</div>
                   <div class="summary-sub">>=5条的功能聚簇</div>
-                </div>
-              </div>
-            </el-col>
-            <el-col :span="6">
-              <div class="summary-card">
-                <div class="summary-icon" style="background: #fff7e6; color: #fa8c16;"><el-icon><User /></el-icon></div>
-                <div class="summary-info">
-                  <div class="summary-value">{{ (metaData && metaData.creators) || 0 }}</div>
-                  <div class="summary-label">参与人员</div>
-                  <div class="summary-sub">Bug 提交者</div>
                 </div>
               </div>
             </el-col>
@@ -277,7 +277,7 @@
             @click="activeTab = 'focus'"
           >
             <el-icon><List /></el-icon>
-            <span>测试重点</span>
+            <span>模块测试重点</span>
             <el-tag type="info" size="small" class="tab-badge">{{ Object.keys(testFocusData).length }}</el-tag>
           </div>
         </div>
@@ -364,22 +364,15 @@
 
           <!-- 图表 Tab -->
           <div v-show="activeTab === 'charts'" class="tab-panel">
-            <el-card class="section-card">
-              <template #header>
-                <div class="card-header">
-                  <span class="header-title"><el-icon><Histogram /></el-icon> 图表分析</span>
-                  <el-tag type="info" size="small">{{ Object.keys(modulesData).length }} 个模块</el-tag>
-                </div>
-              </template>
-              <div class="tab-panel-content">
-                <!-- 模块分布图表 -->
+            <!-- 模块分布图表 -->
             <el-row :gutter="16" class="chart-row">
               <el-col :span="24">
                 <el-card class="chart-card">
                   <template #header>
-                    <span class="chart-title">模块分布
-                      <el-text type="info" size="small" style="margin-left: 8px;">(点击柱状图可定位到下方测试重点卡片)</el-text>
-                    </span>
+                    <div class="chart-header-flex">
+                      <span class="chart-title">模块分布</span>
+                      <el-text type="info" size="small">(点击柱状图可定位到测试重点卡片对应模块)</el-text>
+                    </div>
                   </template>
                   <div ref="moduleChartRef" class="chart-container clickable-chart" @click="onModuleChartClick"></div>
                   <!-- 未归类提示已移除，所有内容都在柱状图中显示 -->
@@ -446,8 +439,6 @@
                 </el-card>
               </el-col>
             </el-row>
-              </div>
-            </el-card>
           </div>
 
           <!-- 风险 Tab -->
@@ -491,126 +482,108 @@
 
           <!-- 测试重点 Tab -->
           <div v-show="activeTab === 'focus'" class="tab-panel">
-            <el-card class="section-card" v-if="Object.keys(testFocusData).length > 0">
-              <template #header>
-                <div class="card-header">
-                  <span class="header-title"><el-icon><List /></el-icon>模块迭代测试重点</span>
-                  <div class="header-actions">
-                    <el-text type="info" size="small" style="margin-right: 8px;">{{ Object.keys(testFocusData).length }} 个模块</el-text>
-                    <el-tag v-if="currentAnalyzingModule" type="warning" size="small" effect="dark">
-                      <el-icon class="is-loading"><Loading /></el-icon>
-                      分析中
-                    </el-tag>
-                    <el-tag v-else-if="analyzeQueue.length > 0" type="info" size="small">
-                      队列: {{ analyzeQueue.length }}
-                    </el-tag>
-                  </div>
-                </div>
-              </template>
-              <div class="tab-panel-content">
-                <el-row :gutter="16">
-            <el-col :span="12" v-for="(info, module) in testFocusData" :key="module">
-              <div :ref="el => setModuleCardRef(el, module)" 
-                    :id="`module-card-${module}`"
-                   class="focus-card" 
-                   @click="handleCardClick($event, module)" 
-                   :class="{ clickable: currentRecordId, highlighted: highlightedModule === module }">
-                <!-- AI分析结果展示 -->
-                <div v-if="aiModuleFocus[module]" class="ai-focus-card">
-                  <div class="focus-header">
-                    <span class="focus-name">{{ module }}</span>
-                    <div class="focus-badges">
-                      <el-tag v-if="aiModuleFocus[module].risk_level === 'high'" type="danger" size="small" effect="light">高风险</el-tag>
-                      <el-tag v-else-if="aiModuleFocus[module].risk_level === 'medium'" type="warning" size="small" effect="light">中风险</el-tag>
-                      <el-tag v-else type="success" size="small" effect="light">低风险</el-tag>
-                      <el-tag type="info" size="small" effect="plain" style="margin-left: 4px;">{{ aiModuleFocus[module].total_count }}条</el-tag>
-                    </div>
-                  </div>
-                  <div class="focus-body ai-body">
-                    <!-- AI智能分析点 -->
-                    <div class="ai-section-title">智能分析</div>
-                    <div v-for="(point, idx) in aiModuleFocus[module].focus_points?.slice(0, 3)" :key="idx" 
-                         class="ai-point-item" :class="point.level">
-                      <div class="ai-point-type">
-                        <el-tag :type="point.level==='high'?'danger':point.level==='medium'?'warning':'info'" size="small" effect="light">
-                          {{ point.type }}
-                        </el-tag>
+            <!-- 模块卡片网格 -->
+            <div class="focus-cards-grid" v-if="Object.keys(testFocusData).length > 0">
+              <div class="focus-card-wrapper" v-for="(info, module) in testFocusData" :key="module">
+                <div :ref="el => setModuleCardRef(el, module)" 
+                      :id="`module-card-${module}`"
+                     class="focus-card" 
+                     @click="handleCardClick($event, module)" 
+                     :class="{ clickable: currentRecordId, highlighted: highlightedModule === module }">
+                  <!-- AI分析结果展示 -->
+                  <div v-if="aiModuleFocus[module]" class="ai-focus-card">
+                    <div class="focus-header">
+                      <span class="focus-name">{{ module }}</span>
+                      <div class="focus-badges">
+                        <el-tag v-if="aiModuleFocus[module].risk_level === 'high'" type="danger" size="small" effect="light">高风险</el-tag>
+                        <el-tag v-else-if="aiModuleFocus[module].risk_level === 'medium'" type="warning" size="small" effect="light">中风险</el-tag>
+                        <el-tag v-else type="success" size="small" effect="light">低风险</el-tag>
+                        <el-tag type="info" size="small" effect="plain" style="margin-left: 4px;">{{ aiModuleFocus[module].total_count }}条</el-tag>
                       </div>
-                      <div class="ai-point-desc">{{ point.description }}</div>
                     </div>
-                    <div v-if="aiModuleFocus[module].focus_points?.length > 3" class="more-points-hint">
-                      +{{ aiModuleFocus[module].focus_points.length - 3 }} 更多...
-                    </div>
-                    <!-- 基础测试关注点 -->
-                    <div class="base-section-title">基础关注点</div>
-                    <ul class="focus-points base-focus-points">
-                      <li v-for="(point, idx) in info.focus_points?.slice(0, 3)" :key="idx">{{ point }}</li>
-                    </ul>
-                    <div v-if="info.focus_points?.length > 3" class="more-points-hint">
-                      +{{ info.focus_points.length - 3 }} 更多...
-                    </div>
-                  </div>
-                </div>
-                <!-- AI分析加载中 -->
-                <div v-else-if="moduleFocusLoading[module]" class="ai-loading-card">
-                  <div class="focus-header">
-                    <span class="focus-name">{{ module }}</span>
-                    <el-tag v-if="currentAnalyzingModule === module" type="warning" size="small" effect="dark" class="analyzing-tag">
-                      <el-icon class="is-loading"><Loading /></el-icon>
-                      <span>分析中</span>
-                    </el-tag>
-                    <el-tag v-else type="info" size="small" class="queue-tag">排队中</el-tag>
-                  </div>
-                  <div class="ai-loading-body">
-                    <el-skeleton :rows="2" animated />
-                    <div class="ai-loading-text">
-                      {{ currentAnalyzingModule === module ? 'AI分析中...' : '等待分析...' }}
+                    <div class="focus-body ai-body">
+                      <!-- AI智能分析点 -->
+                      <div class="ai-section-title">智能分析</div>
+                      <div v-for="(point, idx) in aiModuleFocus[module].focus_points?.slice(0, 3)" :key="idx" 
+                           class="ai-point-item" :class="point.level">
+                        <div class="ai-point-type">
+                          <el-tag :type="point.level==='high'?'danger':point.level==='medium'?'warning':'info'" size="small" effect="light">
+                            {{ point.type }}
+                          </el-tag>
+                        </div>
+                        <div class="ai-point-desc">{{ point.description }}</div>
+                      </div>
+                      <div v-if="aiModuleFocus[module].focus_points?.length > 3" class="more-points-hint">
+                        +{{ aiModuleFocus[module].focus_points.length - 3 }} 更多...
+                      </div>
+                      <!-- 基础测试关注点 -->
+                      <div class="base-section-title">基础关注点</div>
+                      <ul class="focus-points base-focus-points">
+                        <li v-for="(point, idx) in info.focus_points?.slice(0, 3)" :key="idx">{{ point }}</li>
+                      </ul>
+                      <div v-if="info.focus_points?.length > 3" class="more-points-hint">
+                        +{{ info.focus_points.length - 3 }} 更多...
+                      </div>
                     </div>
                   </div>
-                </div>
-                <!-- 基础统计（降级显示）+ AI分析按钮 -->
-                <div v-else>
-                  <div class="focus-header">
-                    <span class="focus-name">{{ module }}</span>
-                    <div class="focus-badges">
-                      <el-tag v-if="info.online >= 20" type="danger" size="small">线上故障多({{ info.online }}条)</el-tag>
-                      <el-tag v-else-if="info.online >= 5" type="warning" size="small">有线上故障({{ info.online }}条)</el-tag>
-                      <el-tag v-if="info.reopened > 0" type="danger" size="small" style="margin-left: 8px;">二次回归({{ info.reopened }}条)</el-tag>
+                  <!-- AI分析加载中 -->
+                  <div v-else-if="moduleFocusLoading[module]" class="ai-loading-card">
+                    <div class="focus-header">
+                      <span class="focus-name">{{ module }}</span>
+                      <el-tag v-if="currentAnalyzingModule === module" type="warning" size="small" effect="dark" class="analyzing-tag">
+                        <el-icon class="is-loading"><Loading /></el-icon>
+                        <span>分析中</span>
+                      </el-tag>
+                      <el-tag v-else type="info" size="small" class="queue-tag">排队中</el-tag>
+                    </div>
+                    <div class="ai-loading-body">
+                      <el-skeleton :rows="2" animated />
+                      <div class="ai-loading-text">
+                        {{ currentAnalyzingModule === module ? 'AI分析中...' : '等待分析...' }}
+                      </div>
                     </div>
                   </div>
-                  <div class="focus-body">
-                    <div class="focus-stats"><span>总计: {{ info.total }} 条</span><span>Top缺陷: {{ info.top_types.map(t => t[0]).slice(0, 2).join(', ') }}</span></div>
-                    <ul class="focus-points">
-                      <li v-for="(point, idx) in info.focus_points" :key="idx" class="focus-point-item-with-icon">
-                        <template v-if="parseFocusPoint(point).icon">
-                          <el-icon :class="'focus-icon-' + parseFocusPoint(point).type" class="focus-point-icon">
-                            <component :is="parseFocusPoint(point).icon" />
-                          </el-icon>
-                          <span class="focus-point-text">{{ parseFocusPoint(point).text }}</span>
-                        </template>
-                        <template v-else>{{ point }}</template>
-                      </li>
-                    </ul>
-                    <!-- AI分析按钮 -->
-                    <div class="ai-analyze-action" @click.stop @mousedown.stop @mouseup.stop>
-                      <el-button
-                        type="primary"
-                        size="small"
-                        :loading="currentAnalyzingModule === module"
-                        :disabled="(currentAnalyzingModule && currentAnalyzingModule !== module) || analyzeQueue.includes(module)"
-                        @click.stop="analyzeSingleModule(module)"
-                      >
-                        <el-icon><MagicStick /></el-icon>
-                        {{ analyzeQueue.includes(module) ? '排队中' : 'AI智能分析' }}
-                      </el-button>
+                  <!-- 基础统计（降级显示）+ AI分析按钮 -->
+                  <div v-else>
+                    <div class="focus-header">
+                      <span class="focus-name">{{ module }}</span>
+                      <div class="focus-badges">
+                        <el-tag v-if="info.online >= 20" type="danger" size="small">线上故障多({{ info.online }}条)</el-tag>
+                        <el-tag v-else-if="info.online >= 5" type="warning" size="small">有线上故障({{ info.online }}条)</el-tag>
+                        <el-tag v-if="info.reopened > 0" type="danger" size="small" style="margin-left: 8px;">二次回归({{ info.reopened }}条)</el-tag>
+                      </div>
+                    </div>
+                    <div class="focus-body">
+                      <div class="focus-stats"><span>总计: {{ info.total }} 条</span><span>Top缺陷: {{ info.top_types.map(t => t[0]).slice(0, 2).join(', ') }}</span></div>
+                      <ul class="focus-points">
+                        <li v-for="(point, idx) in info.focus_points" :key="idx" class="focus-point-item-with-icon">
+                          <template v-if="parseFocusPoint(point).icon">
+                            <el-icon :class="'focus-icon-' + parseFocusPoint(point).type" class="focus-point-icon">
+                              <component :is="parseFocusPoint(point).icon" />
+                            </el-icon>
+                            <span class="focus-point-text">{{ parseFocusPoint(point).text }}</span>
+                          </template>
+                          <template v-else>{{ point }}</template>
+                        </li>
+                      </ul>
+                      <!-- AI分析按钮 -->
+                      <div class="ai-analyze-action" @click.stop @mousedown.stop @mouseup.stop>
+                        <el-button
+                          type="primary"
+                          size="small"
+                          :loading="currentAnalyzingModule === module"
+                          :disabled="(currentAnalyzingModule && currentAnalyzingModule !== module) || analyzeQueue.includes(module)"
+                          @click.stop="analyzeSingleModule(module)"
+                        >
+                          <el-icon><MagicStick /></el-icon>
+                          {{ analyzeQueue.includes(module) ? '排队中' : 'AI智能分析' }}
+                        </el-button>
+                      </div>
                     </div>
                   </div>
                 </div>
               </div>
-            </el-col>
-          </el-row>
-              </div>
-            </el-card>
+            </div>
           </div>
         </div><!-- end tab-content -->
       </div><!-- end main-content -->
@@ -738,7 +711,12 @@
             </el-form-item>
           </el-form>
         </div>
-        <template #footer><el-button @click="showExportDialog = false">取消</el-button><el-button type="primary" @click="doExport" :loading="exporting"><el-icon><Download /></el-icon> 导出</el-button></template>
+        <template #footer>
+          <el-button @click="showExportDialog = false">取消</el-button>
+          <el-button class="export-confirm-btn" type="primary" @click="doExport" :loading="exporting">
+            <el-icon><Download /></el-icon> 导出
+          </el-button>
+        </template>
       </el-dialog>
 
     </template>
@@ -868,6 +846,9 @@ const exportScope = ref('top5')
 const exportCustomModules = ref([])
 const exporting = ref(false)
 
+// 控制详情页头部显示（临时隐藏，后续可能重新启用）
+const showDetailHeader = ref(false)
+
 // 图表引用
 const moduleChartRef = ref(null), severityCrossChartRef = ref(null), severityPieChartRef = ref(null)
 const statusChartRef = ref(null), priorityChartRef = ref(null), keywordChartRef = ref(null)
@@ -919,10 +900,20 @@ const setModuleCardRef = (el, moduleName) => {
 
 let _rawAnalysisResult = null
 
-// ==================== 计算属性 ====================
+// ==================== 计算属性 ================= ===
 const workTypesText = computed(() => {
   const types = metaData.value?.work_types || {}
   return Object.entries(types).map(([k, v]) => `${k}${v}`).join('+') || '缺陷+线上故障'
+})
+// 缺陷数量
+const defectCount = computed(() => {
+  const types = metaData.value?.work_types || {}
+  return types['缺陷'] || types['缺陷Bug'] || 0
+})
+// 线上故障数量
+const onlineBugCount = computed(() => {
+  const types = metaData.value?.work_types || {}
+  return types['线上故障'] || types['线上'] || 0
 })
 const hasAiData = computed(() => !!aiSummary.value || Object.keys(aiTestFocus.value).length > 0)
 const filteredModuleBugs = computed(() => {
@@ -1195,6 +1186,12 @@ const startAnalysis = async()=>{
       analysisResult.value=true
       viewMode.value='detail'
       currentRecordId.value=result.record_id
+      // 设置 currentRecord 以便页面标题正确显示文件名
+      currentRecord.value = {
+        id: result.record_id,
+        file_name: result.file_name || selectedFile.value?.name || '未命名',
+        version_tag: result.version_tag || versionTag.value || ''
+      }
       // 更新URL，添加view和record_id参数
       router.replace({ query: { ...route.query, view: 'detail', record_id: result.record_id } })
       console.log('基础分析结果已显示')
@@ -1785,7 +1782,17 @@ function onModuleChartClick(event){
 }
 
 // 滚动到指定模块卡片
-function scrollToModuleCard(moduleName){
+async function scrollToModuleCard(moduleName){
+  // 先切换到测试重点Tab
+  if(activeTab.value !== 'focus'){
+    console.log('[联动] 切换到测试重点Tab:', moduleName)
+    activeTab.value = 'focus'
+    // 等待DOM更新
+    await nextTick()
+    // 给一点时间让卡片渲染完成
+    await new Promise(resolve => setTimeout(resolve, 100))
+  }
+  
   const cardEl = moduleCardRefs.value[moduleName]
   if(!cardEl){
     console.warn('[联动] 未找到模块卡片:', moduleName)
@@ -2527,6 +2534,12 @@ onUnmounted(() => {
   gap: 8px;
 }
 
+.chart-header-flex {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
 /* ==================== AI 智能摘要样式 - 现代简约风格 ==================== */
 :deep(.ai-summary-content) {
   padding: 8px 4px;
@@ -2823,26 +2836,253 @@ onUnmounted(() => {
 .risk-section{margin-bottom:20px}.risk-section:last-child{margin-bottom:0}.risk-title{font-size:15px;margin-bottom:10px;padding-left:4px}
 .risk-title.p0{color:#ef4444;border-left:3px solid #ef4444}.risk-title.p1{color:#f59e0b;border-left:3px solid #f59e0b}.risk-title.p2{color:#3b82f6;border-left:3px solid #3b82f6}
 
-.focus-card{border:1px solid rgba(147,112,219,0.12);border-radius:16px;padding:20px;cursor:pointer;transition:all 0.3s cubic-bezier(0.4,0,0.2,1);margin-bottom:20px;background:#fff;display:flex;flex-direction:column;box-shadow:0 1px 3px rgba(147,112,219,0.08),0 1px 2px rgba(0,0,0,0.04)}
-.focus-card:hover{border-color:rgba(123,66,246,0.3);box-shadow:0 10px 40px -10px rgba(123,66,246,0.2),0 4px 12px rgba(0,0,0,0.08);transform:translateY(-4px)}.focus-card.clickable{cursor:pointer}
-.focus-card.highlighted{border-color:#f59e0b;box-shadow:0 0 0 4px rgba(245,158,11,0.15),0 12px 24px -8px rgba(245,158,11,0.25);transform:translateY(-2px);animation:pulse-highlight 1.5s ease-in-out}
-.focus-header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px;min-width:0;gap:12px}.focus-header .el-tag{display:inline-flex;align-items:center;flex-shrink:0;margin-top:2px}
-.focus-name{font-weight:700;font-size:16px;color:#1e1b4b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1;min-width:0;letter-spacing:-0.3px}.focus-badges{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
-.focus-body{font-size:14px;color:#475569;display:flex;flex-direction:column;gap:12px}.focus-stats{display:flex;gap:20px;margin-bottom:4px;font-size:13px;color:#64748b;font-weight:500}.focus-stats span{display:flex;align-items:center;gap:6px}.focus-points{padding-left:0;margin:0;list-style:none}.focus-points li{line-height:1.6;padding:8px 0;border-bottom:1px solid rgba(226,232,240,0.6);display:flex;align-items:flex-start;gap:8px}.focus-points li:last-child{border-bottom:none;padding-bottom:0}.focus-points li:first-child{padding-top:0}
-.base-focus-points{margin-top:8px}
-/* 带图标的测试关注点样式 - 现代风格 */
-.focus-point-item-with-icon{display:flex;align-items:flex-start;gap:10px;padding:10px 0;border-bottom:1px solid rgba(226,232,240,0.5)}
-.focus-point-item-with-icon:last-child{border-bottom:none;padding-bottom:0}
-.focus-point-icon{margin-top:2px;font-size:16px;flex-shrink:0;width:20px;height:20px;display:flex;align-items:center;justify-content:center}
-.focus-point-text{flex:1;line-height:1.6;color:#475569}
+/* ==================== 测试重点卡片网格布局 - 等高设计 ==================== */
+.focus-section-header {
+  margin-bottom: 20px;
+  padding: 16px 20px;
+  background: #fff;
+  border-radius: 12px;
+  border: 1px solid rgba(147, 112, 219, 0.12);
+  box-shadow: 0 4px 16px rgba(147, 112, 219, 0.08);
+}
+
+.focus-section-header .card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.focus-cards-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 20px;
+  align-items: stretch;
+}
+
+.focus-card-wrapper {
+  display: flex;
+  height: 100%;
+}
+
+.focus-card {
+  border: 1px solid rgba(147, 112, 219, 0.1);
+  border-radius: 16px;
+  padding: 20px;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  background: #fff;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 2px 8px rgba(147, 112, 219, 0.06), 0 1px 3px rgba(0, 0, 0, 0.04);
+  flex: 1;
+  min-height: 320px;
+  max-height: 420px;
+  overflow: hidden;
+}
+
+.focus-card:hover {
+  border-color: rgba(123, 66, 246, 0.25);
+  box-shadow: 0 12px 40px -10px rgba(123, 66, 246, 0.18), 0 4px 16px rgba(0, 0, 0, 0.06);
+  transform: translateY(-3px);
+}
+
+.focus-card.clickable {
+  cursor: pointer;
+}
+
+.focus-card.highlighted {
+  border-color: #f59e0b;
+  box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.12), 0 12px 32px -8px rgba(245, 158, 11, 0.2);
+  transform: translateY(-2px);
+  animation: pulse-highlight 1.5s ease-in-out;
+}
+
+@keyframes pulse-highlight {
+  0%, 100% { box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.12), 0 12px 32px -8px rgba(245, 158, 11, 0.2); }
+  50% { box-shadow: 0 0 0 5px rgba(245, 158, 11, 0.18), 0 12px 32px -8px rgba(245, 158, 11, 0.25); }
+}
+
+/* ==================== 卡片头部 - 更突出的设计 ==================== */
+.focus-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid rgba(147, 112, 219, 0.08);
+  min-width: 0;
+  gap: 12px;
+  flex-shrink: 0;
+}
+
+.focus-header .el-tag {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.focus-name {
+  font-weight: 700;
+  font-size: 17px;
+  color: #1e1b4b;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+  min-width: 0;
+  letter-spacing: -0.3px;
+}
+
+.focus-badges {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+}
+
+/* ==================== 卡片内容区域 - 固定高度可滚动 ==================== */
+.focus-body {
+  font-size: 13px;
+  color: #475569;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-right: 4px;
+}
+
+.focus-body::-webkit-scrollbar {
+  width: 4px;
+}
+
+.focus-body::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.focus-body::-webkit-scrollbar-thumb {
+  background: rgba(147, 112, 219, 0.2);
+  border-radius: 2px;
+}
+
+.focus-body::-webkit-scrollbar-thumb:hover {
+  background: rgba(147, 112, 219, 0.35);
+}
+
+.focus-stats {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 4px;
+  font-size: 12px;
+  color: #64748b;
+  font-weight: 500;
+  flex-shrink: 0;
+}
+
+.focus-stats span {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.focus-points {
+  padding-left: 0;
+  margin: 0;
+  list-style: none;
+}
+
+.focus-points li {
+  line-height: 1.5;
+  padding: 6px 0;
+  border-bottom: 1px solid rgba(226, 232, 240, 0.5);
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.focus-points li:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.focus-points li:first-child {
+  padding-top: 0;
+}
+
+.base-focus-points {
+  margin-top: 0;
+}
+/* ==================== 带图标的测试关注点样式 - 优化版 ==================== */
+.focus-point-item-with-icon {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px 0;
+  border-bottom: 1px solid rgba(226, 232, 240, 0.4);
+}
+
+.focus-point-item-with-icon:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.focus-point-icon {
+  margin-top: 1px;
+  font-size: 14px;
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.focus-point-text {
+  flex: 1;
+  line-height: 1.5;
+  color: #475569;
+  font-size: 13px;
+}
 /* 图标颜色样式 */
-.focus-icon-danger{color:#ef4444}
-.focus-icon-warning{color:#f59e0b}
-.focus-icon-success{color:#22c55e}
-.focus-icon-info{color:#3b82f6}
-.focus-icon-primary{color:#7b42f6}
-.ai-section-title{font-size:13px;font-weight:700;color:#7b42f6;margin:0 0 12px;padding-bottom:8px;border-bottom:2px solid rgba(123,66,246,0.15);display:flex;align-items:center;gap:6px}
-.base-section-title{font-size:13px;font-weight:600;color:#475569;margin:16px 0 10px;padding-bottom:8px;border-bottom:1px solid rgba(226,232,240,0.8)}
+.focus-icon-danger { color: #ef4444 }
+.focus-icon-warning { color: #f59e0b }
+.focus-icon-success { color: #22c55e }
+.focus-icon-info { color: #3b82f6 }
+.focus-icon-primary { color: #7b42f6 }
+
+/* ==================== AI智能分析区域标题 ==================== */
+.ai-section-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: #7b42f6;
+  margin: 0 0 10px;
+  padding: 6px 10px;
+  background: linear-gradient(135deg, #f8f7ff 0%, #f5f3ff 100%);
+  border-radius: 8px;
+  border-left: 3px solid #7b42f6;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.base-section-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: #475569;
+  margin: 12px 0 8px;
+  padding: 6px 10px;
+  background: #f8fafc;
+  border-radius: 8px;
+  border-left: 3px solid #94a3b8;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
 .ai-focus-preview{margin-top:12px;padding:12px 16px;background:#f0fdf4;border-radius:10px;border:1px solid #bbf7d0}
 .ai-focus-label{font-size:13px;color:#16a34a;font-weight:600;display:flex;align-items:center;gap:6px}
 .ai-focus-text{font-size:13px;color:#15803d;margin-top:6px;line-height:1.7}
@@ -2875,31 +3115,171 @@ onUnmounted(() => {
 .focus-loading-hint{text-align:center;color:#64748b;font-size:14px;padding:24px;font-weight:500}
 .technical-insights{margin-top:16px}
 
-/* AI卡片样式 - 现代风格 */
-.ai-focus-card{display:flex;flex-direction:column;gap:12px}
-.ai-body{display:flex;flex-direction:column;gap:12px}
-.ai-point-item{padding:12px 14px;background:#f8fafc;border-radius:10px;border-left:3px solid #cbd5e1;transition:all 0.2s ease}
-.ai-point-item:hover{transform:translateX(2px)}
-.ai-point-item.high{border-left-color:#ef4444;background:#fef2f2}
-.ai-point-item.medium{border-left-color:#f59e0b;background:#fffbeb}
-.ai-point-item.low{border-left-color:#3b82f6;background:#eff6ff}
-.ai-point-type{margin-bottom:4px}
-.ai-point-desc{font-size:12px;color:#475569;line-height:1.5;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
-.more-points-hint{text-align:center;font-size:12px;color:#94a3b8;padding:4px}
-.ai-loading-card{display:flex;flex-direction:column;padding:4px}
-.ai-loading-body{display:flex;flex-direction:column;justify-content:center;align-items:center;padding:32px 20px;background:#f8fafc;border-radius:12px;margin-top:12px}
-.ai-loading-text{font-size:14px;color:#64748b;margin-top:12px;font-weight:500}
+/* ==================== AI分析卡片样式 - 优化版 ==================== */
+.ai-focus-card {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.ai-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-right: 4px;
+}
+
+.ai-body::-webkit-scrollbar {
+  width: 4px;
+}
+
+.ai-body::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.ai-body::-webkit-scrollbar-thumb {
+  background: rgba(147, 112, 219, 0.2);
+  border-radius: 2px;
+}
+
+.ai-body::-webkit-scrollbar-thumb:hover {
+  background: rgba(147, 112, 219, 0.35);
+}
+
+/* AI智能分析点 - 紧凑卡片设计 */
+.ai-point-item {
+  padding: 10px 12px;
+  background: #f8fafc;
+  border-radius: 10px;
+  border-left: 3px solid #cbd5e1;
+  transition: all 0.2s ease;
+  margin-bottom: 6px;
+}
+
+.ai-point-item:last-child {
+  margin-bottom: 0;
+}
+
+.ai-point-item:hover {
+  transform: translateX(2px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+}
+
+.ai-point-item.high {
+  border-left-color: #ef4444;
+  background: linear-gradient(135deg, #fef2f2 0%, #fff5f5 100%);
+}
+
+.ai-point-item.medium {
+  border-left-color: #f59e0b;
+  background: linear-gradient(135deg, #fffbeb 0%, #fffdf5 100%);
+}
+
+.ai-point-item.low {
+  border-left-color: #3b82f6;
+  background: linear-gradient(135deg, #eff6ff 0%, #f5f9ff 100%);
+}
+
+.ai-point-type {
+  margin-bottom: 4px;
+}
+
+.ai-point-desc {
+  font-size: 12px;
+  color: #475569;
+  line-height: 1.5;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.more-points-hint {
+  text-align: center;
+  font-size: 11px;
+  color: #94a3b8;
+  padding: 6px;
+  background: #f8fafc;
+  border-radius: 6px;
+  margin-top: 4px;
+}
+/* ==================== AI加载中卡片样式 ==================== */
+.ai-loading-card {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.ai-loading-body {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  padding: 40px 20px;
+  background: linear-gradient(135deg, #f8fafc 0%, #f8f7ff 100%);
+  border-radius: 12px;
+  margin-top: 12px;
+  flex: 1;
+  border: 1px dashed rgba(147, 112, 219, 0.2);
+}
+
+.ai-loading-text {
+  font-size: 13px;
+  color: #64748b;
+  margin-top: 12px;
+  font-weight: 500;
+}
 /* 分析中标签样式 - 防止换行 */
 .analyzing-tag{display:inline-flex!important;align-items:center!important;justify-content:center!important;white-space:nowrap!important;flex-shrink:0!important;gap:4px!important;line-height:1!important}
 .analyzing-tag .el-icon{display:inline-flex!important;align-items:center!important;justify-content:center!important}
 .analyzing-tag span{display:inline-flex!important;align-items:center!important;justify-content:center!important}
 .queue-tag{display:inline-flex!important;align-items:center!important;justify-content:center!important;white-space:nowrap!important;flex-shrink:0!important;line-height:1!important}
-/* 模块卡片中的AI分析按钮 - 现代风格 */
-.ai-analyze-action{margin-top:16px;padding-top:16px;border-top:1px solid rgba(226,232,240,0.8);display:flex;justify-content:center;pointer-events:auto;position:relative;z-index:100;cursor:default}
-.ai-analyze-action .el-button{width:100%;pointer-events:auto;z-index:101;border-radius:10px;height:40px;font-weight:600;font-size:14px;letter-spacing:0.3px;transition:all 0.2s ease;background:linear-gradient(135deg,#7b42f6 0%,#6d33e6 100%);border:none;box-shadow:0 4px 12px rgba(123,66,246,0.3)}
-.ai-analyze-action .el-button:hover{transform:translateY(-1px);box-shadow:0 6px 16px rgba(123,66,246,0.4)}
-.ai-analyze-action .el-button:active{transform:translateY(0)}
-.ai-analyze-action .el-button.is-disabled{opacity:0.6;background:#cbd5e1;box-shadow:none}
+/* ==================== 模块卡片中的AI分析按钮 - 优化版 ==================== */
+.ai-analyze-action {
+  margin-top: auto;
+  padding-top: 12px;
+  border-top: 1px solid rgba(226, 232, 240, 0.6);
+  display: flex;
+  justify-content: center;
+  pointer-events: auto;
+  position: relative;
+  z-index: 100;
+  cursor: default;
+  flex-shrink: 0;
+}
+
+.ai-analyze-action .el-button {
+  width: 100%;
+  pointer-events: auto;
+  z-index: 101;
+  border-radius: 10px;
+  height: 36px;
+  font-weight: 600;
+  font-size: 13px;
+  letter-spacing: 0.3px;
+  transition: all 0.2s ease;
+  background: linear-gradient(135deg, #7b42f6 0%, #6d33e6 100%);
+  border: none;
+  box-shadow: 0 3px 10px rgba(123, 66, 246, 0.25);
+}
+
+.ai-analyze-action .el-button:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 5px 14px rgba(123, 66, 246, 0.35);
+}
+
+.ai-analyze-action .el-button:active {
+  transform: translateY(0);
+}
+
+.ai-analyze-action .el-button.is-disabled {
+  opacity: 0.6;
+  background: #cbd5e1;
+  box-shadow: none;
+}
 
 .slide-fade-enter-active,.slide-fade-leave-active{transition:all 0.3s ease}
 .slide-fade-enter-from{transform:translateX(30px);opacity:0}.slide-fade-leave-to{transform:translateX(30px);opacity:0}
@@ -2927,6 +3307,55 @@ onUnmounted(() => {
 @keyframes fadeIn{from{opacity:0;transform:translateY(-10px)}to{opacity:1;transform:translateY(0)}}
 
 .export-options{padding:8px 0}
+
+/* ==================== 导出按钮 - 紫色主题 ==================== */
+.export-confirm-btn {
+  background: linear-gradient(135deg, #7b42f6 0%, #6d33e6 100%) !important;
+  border-color: #7b42f6 !important;
+  font-weight: 600 !important;
+  box-shadow: 0 3px 10px rgba(123, 66, 246, 0.25) !important;
+  transition: all 0.2s ease !important;
+}
+
+.export-confirm-btn .el-icon {
+  margin-right: 6px !important;
+}
+
+.export-confirm-btn:hover {
+  background: linear-gradient(135deg, #6d33e6 0%, #5a32a3 100%) !important;
+  border-color: #6d33e6 !important;
+  transform: translateY(-1px) !important;
+  box-shadow: 0 5px 14px rgba(123, 66, 246, 0.35) !important;
+}
+
+.export-confirm-btn:active {
+  transform: translateY(0) !important;
+}
+
+.export-confirm-btn.is-loading {
+  background: linear-gradient(135deg, #9f8af0 0%, #8b7ad8 100%) !important;
+  border-color: #9f8af0 !important;
+  opacity: 0.9 !important;
+}
+
+/* ==================== 取消按钮 - 修复悬浮蓝色背景 ==================== */
+.el-dialog__footer .el-button:not(.el-button--primary) {
+  background-color: #ffffff !important;
+  border-color: #dcdfe6 !important;
+  color: #606266 !important;
+  transition: all 0.2s ease !important;
+}
+
+.el-dialog__footer .el-button:not(.el-button--primary):hover {
+  background-color: #f5f7fa !important;
+  border-color: #7b42f6 !important;
+  color: #7b42f6 !important;
+}
+
+.el-dialog__footer .el-button:not(.el-button--primary):active {
+  background-color: #f0edff !important;
+  border-color: #6d33e6 !important;
+}
 .drawer-header{display:flex;justify-content:space-between;align-items:center;width:100%}
 
 /* ==================== 列表视图样式 - 紫色主题 ==================== */
@@ -3466,5 +3895,48 @@ onUnmounted(() => {
   color: #374151;
   font-weight: 500;
   text-align: center;
+}
+
+/* ==================== 响应式布局 - 卡片适配 ==================== */
+@media (max-width: 1200px) {
+  .focus-cards-grid {
+    gap: 16px;
+  }
+
+  .focus-card {
+    padding: 16px;
+    min-height: 300px;
+    max-height: 380px;
+  }
+
+  .focus-name {
+    font-size: 16px;
+  }
+}
+
+@media (max-width: 768px) {
+  .focus-cards-grid {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+
+  .focus-card {
+    min-height: auto;
+    max-height: none;
+  }
+
+  .focus-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+
+  .focus-badges {
+    justify-content: flex-start;
+  }
+
+  .focus-body {
+    overflow-y: visible;
+  }
 }
 </style>
