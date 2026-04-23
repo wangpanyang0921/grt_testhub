@@ -123,3 +123,89 @@ class BugAnalysisRecord(models.Model):
         if modules:
             return max(modules.items(), key=lambda x: x[1])[0]
         return ''
+
+
+class BugAnalysisSummaryRecord(models.Model):
+    """
+    Bug 汇总分析记录
+
+    保存汇总分析的结果，支持历史回溯
+    """
+
+    id = models.AutoField(primary_key=True)
+    name = models.CharField(max_length=200, verbose_name='汇总分析名称', default='', blank=True)
+    group_by = models.CharField(max_length=20, verbose_name='时间聚合方式', default='month',
+                                 help_text="week|month|quarter|half_year|year")
+
+    # 关联的记录ID列表
+    record_ids = models.JSONField(default=list, verbose_name='关联分析记录ID列表')
+
+    # 汇总数据
+    total_bugs = models.IntegerField(default=0, verbose_name='总Bug数')
+    total_modules = models.IntegerField(default=0, verbose_name='涉及模块数')
+    record_count = models.IntegerField(default=0, verbose_name='分析记录数')
+    online_bugs = models.IntegerField(default=0, verbose_name='线上故障数')
+    defect_bugs = models.IntegerField(default=0, verbose_name='缺陷数')
+
+    # 详细汇总数据
+    summary_data = models.JSONField(default=dict, verbose_name='汇总数据',
+                                     help_text="包含 trends/module_ranking/risk_modules 等")
+
+    # AI 洞察报告
+    ai_insight = models.TextField(blank=True, default='', verbose_name='AI洞察报告')
+
+    # 元信息
+    created_by = models.CharField(max_length=50, default='system', verbose_name='创建者')
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='创建时间')
+    updated_at = models.DateTimeField(auto_now=True, verbose_name='更新时间')
+
+    class Meta:
+        db_table = 'df_bug_analysis_summary_record'
+        verbose_name = 'Bug汇总分析记录'
+        verbose_name_plural = verbose_name
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['-created_at']),
+            models.Index(fields=['created_by']),
+            models.Index(fields=['group_by']),
+        ]
+
+    def __str__(self):
+        return f"Bug汇总分析 {self.name or '未命名'} ({self.total_bugs}条) @{self.created_at:%Y-%m-%d %H:%M}"
+
+    @property
+    def record_ids_list(self) -> list:
+        """获取关联记录ID列表"""
+        return self.record_ids or []
+
+    def to_list_dict(self) -> dict:
+        """转换为列表展示的格式"""
+        return {
+            'id': self.id,
+            'name': self.name or f'汇总分析 {self.created_at.strftime("%Y%m%d")}',
+            'record_count': self.record_count,
+            'total_bugs': self.total_bugs,
+            'group_by': self.group_by,
+            'created_at': self.created_at.strftime('%Y-%m-%d %H:%M:%S'),
+        }
+
+    def to_detail_dict(self) -> dict:
+        """转换为详情展示的格式"""
+        return {
+            'id': self.id,
+            'name': self.name or f'汇总分析 {self.created_at.strftime("%Y%m%d")}',
+            'record_count': self.record_count,
+            'group_by': self.group_by,
+            'created_at': self.created_at.strftime('%Y-%m-%d %H:%M:%S'),
+            'metrics': {
+                'total_bugs': self.total_bugs,
+                'total_modules': self.total_modules,
+                'record_count': self.record_count,
+                'online_bugs': self.online_bugs,
+                'defect_bugs': self.defect_bugs,
+            },
+            'trends': self.summary_data.get('trends', []),
+            'module_ranking': self.summary_data.get('module_ranking', []),
+            'risk_modules': self.summary_data.get('risk_modules', []),
+            'ai_insight': self.ai_insight,
+        }

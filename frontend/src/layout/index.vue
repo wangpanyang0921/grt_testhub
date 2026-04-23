@@ -371,9 +371,19 @@
           <div class="header-content">
             <div class="header-left">
               <el-breadcrumb separator="/">
-                <el-breadcrumb-item :to="{ path: '/home' }">{{ $t('nav.home') }}</el-breadcrumb-item>
-                <el-breadcrumb-item v-if="moduleName" :to="moduleRoute">{{ moduleName }}</el-breadcrumb-item>
-                <el-breadcrumb-item>{{ breadcrumbTitle }}</el-breadcrumb-item>
+                <!-- 汇总分析详情页特殊处理：显示 首页 / 汇总分析 / 详情 -->
+                <template v-if="isSummaryDetailPage">
+                  <el-breadcrumb-item :to="{ name: 'Home' }">{{ $t('nav.home') }}</el-breadcrumb-item>
+                  <el-breadcrumb-item>
+                    <span class="breadcrumb-link" @click="goToSummaryList">汇总分析</span>
+                  </el-breadcrumb-item>
+                  <el-breadcrumb-item>详情</el-breadcrumb-item>
+                </template>
+                <template v-else>
+                  <el-breadcrumb-item :to="{ path: '/home' }">{{ $t('nav.home') }}</el-breadcrumb-item>
+                  <el-breadcrumb-item v-if="moduleName" :to="moduleRoute">{{ moduleName }}</el-breadcrumb-item>
+                  <el-breadcrumb-item>{{ breadcrumbTitle }}</el-breadcrumb-item>
+                </template>
               </el-breadcrumb>
             </div>
             <div class="header-right">
@@ -499,6 +509,11 @@ const moduleName = computed(() => {
     return 'Bug 分析'
   }
 
+  // 汇总分析页面特殊处理
+  if (route.path === '/ai-generation/bug-analysis/summary') {
+    return '汇总分析'
+  }
+
   const map = {
     'ai-assistant': 'AI 知识库',
     'ai-generation': t('modules.aiGeneration'),
@@ -510,6 +525,16 @@ const moduleName = computed(() => {
     'data-factory': '数据工厂'
   }
   return map[currentModule.value] || ''
+})
+
+// 判断是否是汇总分析详情页
+const isSummaryDetailPage = computed(() => {
+  const path = route.path
+  const viewQuery = route.query.view
+  const isDetail = viewQuery === 'detail' || (Array.isArray(viewQuery) && viewQuery[0] === 'detail')
+  const result = path === '/ai-generation/bug-analysis/summary' && isDetail
+  console.log('[Breadcrumb] isSummaryDetailPage:', result, 'path:', path, 'view:', viewQuery)
+  return result
 })
 
 // 模块路由映射，用于面包屑跳转
@@ -530,6 +555,11 @@ const moduleRoute = computed(() => {
   // Bug 分析相关页面，返回到 Bug 分析历史记录
   if (path.startsWith('/ai-generation/bug-analysis')) {
     return '/ai-generation/bug-analysis/history'
+  }
+
+  // 汇总分析页面，返回到汇总分析自身
+  if (path === '/ai-generation/bug-analysis/summary') {
+    return '/ai-generation/bug-analysis/summary'
   }
 
   // 其他模块可以根据需要添加
@@ -557,8 +587,12 @@ const breadcrumbTitle = computed(() => {
     return t('project.aiProjectDetail')
   }
 
+  // 处理 view query 参数（可能是字符串或数组）
+  const viewQuery = route.query.view
+  const isDetailView = viewQuery === 'detail' || (Array.isArray(viewQuery) && viewQuery[0] === 'detail')
+
   // Bug 分析详情页
-  if (path === '/ai-generation/bug-analysis/history' && route.query.view === 'detail') {
+  if (path === '/ai-generation/bug-analysis/history' && isDetailView) {
     return '详情'
   }
 
@@ -649,6 +683,12 @@ const breadcrumbTitle = computed(() => {
   }
   return routeMap[route.path] || route.meta.title || ''
 })
+
+// 跳转到汇总分析列表页
+// 跳转到汇总分析列表页
+const goToSummaryList = () => {
+  router.push({ name: 'BugAnalysisSummary', query: {} })
+}
 
 const handleCommand = async (command) => {
   if (command === 'logout') {
@@ -1343,6 +1383,17 @@ const handleCommand = async (command) => {
         .el-breadcrumb__separator {
           color: #9370db;
           margin: 0 8px;
+        }
+      }
+
+      .breadcrumb-link {
+        color: #5a32a3;
+        font-weight: 500;
+        cursor: pointer;
+
+        &:hover {
+          color: #7b42f6;
+          text-decoration: underline;
         }
       }
     }

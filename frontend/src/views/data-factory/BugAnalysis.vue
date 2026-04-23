@@ -202,6 +202,9 @@
                   <div class="summary-label">缺陷</div>
                   <div class="summary-sub">功能缺陷/体验问题</div>
                 </div>
+                <el-tooltip content="测试期间发现的各类功能缺陷和体验问题数量" placement="top" effect="dark">
+                  <div class="card-tooltip-icon"><el-icon><InfoFilled /></el-icon></div>
+                </el-tooltip>
               </div>
             </el-col>
             <el-col :span="6">
@@ -212,6 +215,9 @@
                   <div class="summary-label">线上故障</div>
                   <div class="summary-sub">生产环境问题</div>
                 </div>
+                <el-tooltip content="已发布到生产环境后发现的 Bug 数量，代表漏测风险" placement="top" effect="dark">
+                  <div class="card-tooltip-icon"><el-icon><InfoFilled /></el-icon></div>
+                </el-tooltip>
               </div>
             </el-col>
             <el-col :span="6">
@@ -222,6 +228,9 @@
                   <div class="summary-label">功能模块</div>
                   <div class="summary-sub">{{ (metaData && metaData.tag_count) || 0 }} 种标签归类</div>
                 </div>
+                <el-tooltip content="出现 Bug 的功能模块数量，反映问题分布的广度" placement="top" effect="dark">
+                  <div class="card-tooltip-icon"><el-icon><InfoFilled /></el-icon></div>
+                </el-tooltip>
               </div>
             </el-col>
             <el-col :span="6">
@@ -232,6 +241,9 @@
                   <div class="summary-label">缺陷聚集点</div>
                   <div class="summary-sub">>=5条的功能聚簇</div>
                 </div>
+                <el-tooltip content="Bug 数量>=5条的高密度功能模块数量，代表重点回归区域" placement="top" effect="dark">
+                  <div class="card-tooltip-icon"><el-icon><InfoFilled /></el-icon></div>
+                </el-tooltip>
               </div>
             </el-col>
           </el-row>
@@ -2423,6 +2435,32 @@ onUnmounted(() => {
 .summary-value{font-size:28px;font-weight:700;color:#5a32a3;line-height:1.2}
 .summary-label{font-size:14px;color:#7b6db3;margin-top:4px;font-weight:500}
 .summary-sub{font-size:12px;color:#a898d8;margin-top:4px}
+
+.card-tooltip-icon {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #f0f0f0;
+  color: #999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.3s;
+}
+
+.card-tooltip-icon:hover {
+  background: #7b42f6;
+  color: #fff;
+}
+
+.summary-card {
+  position: relative;
+}
 
 /* ==================== 卡片组件 - 紫色主题 ==================== */
 .section-card {

@@ -36,11 +36,12 @@ from .bug_source_adapter import BugSourceAdapter, _sanitize_filename, load_bugs_
 logger = logging.getLogger(__name__)
 
 try:
-    from .models import BugAnalysisRecord
+    from .models import BugAnalysisRecord, BugAnalysisSummaryRecord
     _DB_RECORDS_AVAILABLE = True
 except Exception:
     # 模型表尚未迁移时优雅降级，页面仍可正常使用分析功能
     BugAnalysisRecord = None
+    BugAnalysisSummaryRecord = None
     _DB_RECORDS_AVAILABLE = False
     logger.warning("[BugAnalysis] BugAnalysisRecord 表不存在(未执行migrate)，历史记录功能暂时禁用")
 
@@ -1355,9 +1356,37 @@ def bug_analysis_summary(request):
             'module_ranking': module_ranking,
             'risk_modules': risk_modules
         }
-        
+
+        # 保存汇总分析记录
+        if _DB_RECORDS_AVAILABLE and BugAnalysisSummaryRecord is not None:
+            try:
+                # 生成默认名称
+                from datetime import datetime
+                default_name = f"汇总分析 {datetime.now().strftime('%Y%m%d')}"
+
+                summary_record = BugAnalysisSummaryRecord.objects.create(
+                    name=default_name,
+                    group_by=group_by,
+                    record_ids=record_ids,
+                    total_bugs=total_bugs,
+                    total_modules=len(all_modules),
+                    record_count=record_count,
+                    online_bugs=online_bugs,
+                    defect_bugs=defect_bugs,
+                    summary_data={
+                        'trends': trends,
+                        'module_ranking': module_ranking,
+                        'risk_modules': risk_modules,
+                    },
+                    created_by=request.user.username if request.user.is_authenticated else 'system'
+                )
+                result['summary_id'] = summary_record.id
+                logger.info(f"[API:bug_analysis_summary] 汇总分析已保存: id={summary_record.id}")
+            except Exception as e:
+                logger.error(f"[API:bug_analysis_summary] 保存汇总分析记录失败: {e}", exc_info=True)
+
         logger.info(f"[API:bug_analysis_summary] 汇总完成: 总Bug={total_bugs}, 模块数={len(all_modules)}, 风险模块={len(risk_modules)}")
-        
+
         return _build_api_response(result, '汇总分析完成')
         
     except Exception as e:
@@ -1367,23 +1396,44 @@ def bug_analysis_summary(request):
 
 
 def _aggregate_trends(records, group_by):
-    """按时间维度聚合趋势数据"""
+    """按时间维度聚合趋势数据 - 基于Bug创建时间"""
     from collections import defaultdict
+    from datetime import datetime
     
     # 按时间分组
     groups = defaultdict(lambda: {'total': 0, 'online': 0, 'defect': 0, 'count': 0})
     
     for record in records:
-        date_key = _get_date_key(record.created_at, group_by)
+        raw_bugs = record.raw_bugs or []
         
-        groups[date_key]['total'] += record.total_bugs
-        groups[date_key]['count'] += 1
-        
-        # 统计类型
-        analysis_result = record.analysis_result or {}
-        work_types = analysis_result.get('metaData', {}).get('work_types', {})
-        groups[date_key]['online'] += work_types.get('线上故障', 0) + work_types.get('线上', 0)
-        groups[date_key]['defect'] += work_types.get('缺陷', 0) + work_types.get('缺陷Bug', 0)
+        for bug in raw_bugs:
+            # 获取Bug创建时间
+            created = bug.get('created')
+            if not created:
+                continue
+                
+            # 解析日期
+            if isinstance(created, str):
+                try:
+                    created = datetime.fromisoformat(created.replace('Z', '+00:00'))
+                except:
+                    continue
+            elif isinstance(created, datetime):
+                pass
+            else:
+                continue
+            
+            date_key = _get_date_key(created, group_by)
+            
+            groups[date_key]['total'] += 1
+            groups[date_key]['count'] += 1
+            
+            # 统计类型 - 根据Bug的type字段
+            bug_type = bug.get('type', '')
+            if bug_type in ['线上故障', '线上']:
+                groups[date_key]['online'] += 1
+            elif bug_type in ['缺陷', '缺陷Bug']:
+                groups[date_key]['defect'] += 1
     
     # 转换为列表并排序
     trends = [
@@ -1530,7 +1580,8 @@ def generate_summary_insight(request):
             "trends": [...],
             "module_ranking": [...],
             "risk_modules": [...]
-        }
+        },
+        "summary_id": 123  // 可选，用于保存洞察到指定汇总分析记录
     }
     
     响应:
@@ -1540,6 +1591,7 @@ def generate_summary_insight(request):
     """
     try:
         summary_data = request.data.get('summary_data', {})
+        summary_id = request.data.get('summary_id')
         
         if not summary_data:
             return _build_error_response('请提供汇总数据')
@@ -1617,6 +1669,18 @@ def generate_summary_insight(request):
             
             logger.info(f"[API:generate_summary_insight] AI 洞察生成成功，长度: {len(insight)} 字符")
 
+            # 如果提供了 summary_id，保存洞察到数据库
+            if summary_id and _DB_RECORDS_AVAILABLE and BugAnalysisSummaryRecord is not None:
+                try:
+                    record = BugAnalysisSummaryRecord.objects.get(id=summary_id)
+                    record.ai_insight = insight
+                    record.save(update_fields=['ai_insight'])
+                    logger.info(f"[API:generate_summary_insight] 洞察已保存到汇总分析记录 {summary_id}")
+                except BugAnalysisSummaryRecord.DoesNotExist:
+                    logger.warning(f"[API:generate_summary_insight] 汇总分析记录 {summary_id} 不存在，洞察未保存")
+                except Exception as save_error:
+                    logger.error(f"[API:generate_summary_insight] 保存洞察失败: {save_error}")
+
             return Response({
                 'success': True,
                 'data': {
@@ -1628,8 +1692,146 @@ def generate_summary_insight(request):
         except Exception as e:
             logger.error(f"AI 调用失败: {e}", exc_info=True)
             return _build_error_response(f'AI 调用失败: {str(e)}')
-            
+
     except Exception as e:
         logger.error(f'[API:generate_summary_insight] 错误: {e}', exc_info=True)
         return _build_error_response(f'生成洞察失败: {str(e)}',
+                                     code=status.HTTP_500_INTERNAL_SERVER_ERROR, log_level='error')
+
+
+# ============================================================
+# API 端点：汇总分析记录管理
+# ============================================================
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def bug_analysis_summaries(request):
+    """
+    获取汇总分析列表
+
+    GET参数:
+        - page: 页码 (默认1)
+        - page_size: 每页数量 (默认20)
+        - search: 搜索关键词 (按名称搜索)
+
+    响应:
+        {
+            "success": true,
+            "data": {
+                "items": [...],
+                "total": 100,
+                "page": 1,
+                "page_size": 20
+            }
+        }
+    """
+    try:
+        if not _DB_RECORDS_AVAILABLE or BugAnalysisSummaryRecord is None:
+            return _build_error_response('汇总分析功能暂不可用', code=status.HTTP_503_SERVICE_UNAVAILABLE)
+
+        page = int(request.query_params.get('page', 1))
+        page_size = min(int(request.query_params.get('page_size', 20)), 100)
+        search = request.query_params.get('search', '').strip()
+
+        # 构建查询
+        queryset = BugAnalysisSummaryRecord.objects.all()
+
+        # 搜索过滤
+        if search:
+            queryset = queryset.filter(name__icontains=search)
+
+        # 统计总数
+        total = queryset.count()
+
+        # 分页
+        start = (page - 1) * page_size
+        end = start + page_size
+        records = queryset[start:end]
+
+        # 序列化并添加关联文件名
+        items = []
+        for r in records:
+            item = r.to_list_dict()
+            # 查询关联的文件名
+            if r.record_ids:
+                related_records = BugAnalysisRecord.objects.filter(
+                    id__in=r.record_ids
+                ).values('id', 'file_name')
+                item['related_files'] = [
+                    {'id': rec['id'], 'file_name': rec['file_name'] or f'记录{rec["id"]}'}
+                    for rec in related_records
+                ]
+            else:
+                item['related_files'] = []
+            items.append(item)
+
+        return _build_api_response({
+            'items': items,
+            'total': total,
+            'page': page,
+            'page_size': page_size
+        }, '获取汇总分析列表成功')
+
+    except Exception as e:
+        logger.error(f'[API:bug_analysis_summaries] 错误: {e}', exc_info=True)
+        return _build_error_response(f'获取汇总分析列表失败: {str(e)}',
+                                     code=status.HTTP_500_INTERNAL_SERVER_ERROR, log_level='error')
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def bug_analysis_summary_detail(request, summary_id):
+    """
+    获取汇总分析详情
+
+    响应:
+        {
+            "success": true,
+            "data": {
+                "id": 1,
+                "name": "汇总分析",
+                "metrics": {...},
+                "trends": [...],
+                ...
+            }
+        }
+    """
+    try:
+        if not _DB_RECORDS_AVAILABLE or BugAnalysisSummaryRecord is None:
+            return _build_error_response('汇总分析功能暂不可用', code=status.HTTP_503_SERVICE_UNAVAILABLE)
+
+        record = BugAnalysisSummaryRecord.objects.filter(id=summary_id).first()
+        if not record:
+            return _build_error_response(f'汇总分析记录不存在: id={summary_id}', code=status.HTTP_404_NOT_FOUND)
+
+        return _build_api_response(record.to_detail_dict(), '获取汇总分析详情成功')
+
+    except Exception as e:
+        logger.error(f'[API:bug_analysis_summary_detail] 错误: {e}', exc_info=True)
+        return _build_error_response(f'获取汇总分析详情失败: {str(e)}',
+                                     code=status.HTTP_500_INTERNAL_SERVER_ERROR, log_level='error')
+
+
+@api_view(['DELETE'])
+@permission_classes([IsAuthenticated])
+def bug_analysis_summary_delete(request, summary_id):
+    """
+    删除汇总分析记录
+    """
+    try:
+        if not _DB_RECORDS_AVAILABLE or BugAnalysisSummaryRecord is None:
+            return _build_error_response('汇总分析功能暂不可用', code=status.HTTP_503_SERVICE_UNAVAILABLE)
+
+        record = BugAnalysisSummaryRecord.objects.filter(id=summary_id).first()
+        if not record:
+            return _build_error_response(f'汇总分析记录不存在: id={summary_id}', code=status.HTTP_404_NOT_FOUND)
+
+        record.delete()
+        logger.info(f"[API:bug_analysis_summary_delete] 用户={request.user.username}, 删除汇总分析 id={summary_id}")
+
+        return _build_api_response({}, '删除成功')
+
+    except Exception as e:
+        logger.error(f'[API:bug_analysis_summary_delete] 错误: {e}', exc_info=True)
+        return _build_error_response(f'删除失败: {str(e)}',
                                      code=status.HTTP_500_INTERNAL_SERVER_ERROR, log_level='error')

@@ -15,6 +15,9 @@ from .bug_analysis_view import (
     analyze_module_focus_intelligent,
     bug_analysis_summary,
     generate_summary_insight,
+    bug_analysis_summaries,
+    bug_analysis_summary_detail,
+    bug_analysis_summary_delete,
 )
 
 router = DefaultRouter()
@@ -45,4 +48,9 @@ urlpatterns = [
     path('bug-analysis/module-focus/', analyze_module_focus_intelligent, name='bug-analysis-module-focus'),  # 智能模块测试重点分析
     path('bug-analysis/summary/', bug_analysis_summary, name='bug-analysis-summary'),  # 汇总分析
     path('bug-analysis/generate-insight/', generate_summary_insight, name='bug-analysis-generate-insight'),  # AI 洞察生成
+
+    # === 汇总分析记录管理 (新增 V3) ===
+    path('bug-analysis/summaries/', bug_analysis_summaries, name='bug-analysis-summaries'),  # GET 汇总分析列表
+    path('bug-analysis/summaries/<int:summary_id>/', bug_analysis_summary_detail, name='bug-analysis-summary-detail'),  # GET 汇总分析详情
+    path('bug-analysis/summaries/<int:summary_id>/delete/', bug_analysis_summary_delete, name='bug-analysis-summary-delete'),  # DELETE
 ]

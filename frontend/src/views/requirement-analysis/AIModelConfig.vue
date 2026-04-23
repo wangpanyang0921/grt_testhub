@@ -713,8 +713,13 @@ export default {
 }
 
 .role-badge.knowledge_base {
-  background: #e6fffb;
-  color: #13c2c2;
+  background: #fff0f6;
+  color: #eb2f96;
+}
+
+.role-badge.bug_analyzer {
+  background: #fff2e8;
+  color: #fa541c;
 }
 
 .status-badge {
