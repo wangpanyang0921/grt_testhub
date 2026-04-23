@@ -311,10 +311,10 @@
               size="small"
               class="ai-generate-btn"
               :loading="isCurrentAnalyzing"
-              :disabled="!!aiInsight"
+              :disabled="!!aiInsight || isCurrentAnalyzing"
               @click="generateAIInsight"
             >
-              {{ aiInsight ? '已生成' : '生成洞察' }}
+              {{ isCurrentAnalyzing ? '生成中...' : (aiInsight ? '已生成' : '生成洞察') }}
             </el-button>
           </div>
           
@@ -517,6 +517,17 @@ let moduleChart = null
 
 // 初始化
 onMounted(() => {
+  // 从 localStorage 恢复生成状态
+  const savedAnalyzingIds = localStorage.getItem('bug_analysis_analyzing_ids')
+  if (savedAnalyzingIds) {
+    try {
+      const ids = JSON.parse(savedAnalyzingIds)
+      ids.forEach(id => aiAnalyzingIds.value.add(id))
+    } catch (e) {
+      console.error('恢复生成状态失败:', e)
+    }
+  }
+  
   fetchSummaryList()
   // 如果 URL 中有 view=detail 和 id 参数，自动加载详情
   if (route.query.view === 'detail' && route.query.id) {
@@ -644,6 +655,12 @@ const viewSummaryDetail = async (row) => {
       router.replace({ query: { ...route.query, view: 'detail', id: row.id } })
       await nextTick()
       renderCharts()
+      
+      // 检查该汇总是否在生成中（页面刷新后恢复轮询）
+      if (aiAnalyzingIds.value.has(row.id) && !response.data.ai_insight) {
+        ElMessage.info('正在恢复洞察生成状态，请稍候...')
+        pollAIInsightStatus(row.id)
+      }
     } else {
       ElMessage.error(response.data.message || '获取详情失败')
     }
@@ -664,7 +681,7 @@ const deleteSummary = async (row) => {
       type: 'warning'
     })
     
-    const response = await api.delete(`/data-factory/bug-analysis/summaries/${row.id}/`)
+    const response = await api.delete(`/data-factory/bug-analysis/summaries/${row.id}/delete/`)
     if (response.data.success) {
       ElMessage.success('删除成功')
       await fetchSummaryList()
@@ -674,7 +691,10 @@ const deleteSummary = async (row) => {
   } catch (error) {
     if (error !== 'cancel') {
       console.error('删除失败:', error)
-      ElMessage.error('删除失败')
+      // 显示更详细的错误信息（后端使用 error 或 message 键）
+      const responseData = error.response?.data || {}
+      const errorMsg = responseData.message || responseData.error || error.message || '删除失败'
+      ElMessage.error(errorMsg)
     }
   }
 }
@@ -843,12 +863,56 @@ const renderModuleChart = () => {
 
 
 
+// 保存生成状态到 localStorage
+const saveAnalyzingState = () => {
+  localStorage.setItem('bug_analysis_analyzing_ids', JSON.stringify([...aiAnalyzingIds.value]))
+}
+
+// 从 localStorage 清除生成状态
+const clearAnalyzingState = (summaryId) => {
+  aiAnalyzingIds.value.delete(summaryId)
+  saveAnalyzingState()
+}
+
+// 轮询检查 AI 洞察生成状态
+const pollAIInsightStatus = async (summaryId, maxAttempts = 30) => {
+  let attempts = 0
+  const pollInterval = setInterval(async () => {
+    attempts++
+    try {
+      const response = await api.get(`/data-factory/bug-analysis/summaries/${summaryId}/`)
+      if (response.data.success) {
+        // 如果已经有洞察内容，说明生成完成
+        if (response.data.ai_insight) {
+          aiInsight.value = response.data.ai_insight
+          clearAnalyzingState(summaryId)
+          clearInterval(pollInterval)
+          ElMessage.success('AI 洞察生成完成')
+          return
+        }
+      }
+      // 超过最大尝试次数，停止轮询
+      if (attempts >= maxAttempts) {
+        clearAnalyzingState(summaryId)
+        clearInterval(pollInterval)
+        ElMessage.warning('洞察生成时间较长，请稍后手动刷新查看')
+      }
+    } catch (error) {
+      console.error('轮询洞察状态失败:', error)
+      clearAnalyzingState(summaryId)
+      clearInterval(pollInterval)
+    }
+  }, 3000) // 每3秒轮询一次
+}
+
 // 生成 AI 洞察
 const generateAIInsight = async () => {
   if (!summaryData.value || !currentSummaryId.value) return
 
   const summaryId = currentSummaryId.value
   aiAnalyzingIds.value.add(summaryId)
+  saveAnalyzingState() // 保存状态到 localStorage
+  
   try {
     // 调用新的 AI 洞察生成接口（后端直接调用 AI，无需经过 Dify）
     const response = await api.post('/data-factory/bug-analysis/generate-insight/', {
@@ -861,18 +925,21 @@ const generateAIInsight = async () => {
     // 提取洞察内容
     if (response.data.success) {
       aiInsight.value = response.data.data?.insight || 'AI 分析完成，但未返回有效内容'
+      clearAnalyzingState(summaryId)
     } else {
       ElMessage.error(response.data.message || 'AI 洞察生成失败')
+      clearAnalyzingState(summaryId)
     }
   } catch (error) {
     console.error('AI 洞察生成失败:', error)
     if (error.code === 'ECONNABORTED' || error.message?.includes('timeout')) {
-      ElMessage.error('AI 洞察生成超时，请稍后重试')
+      ElMessage.info('洞察生成时间较长，将在后台继续处理，请稍后刷新查看')
+      // 超时后开始轮询检查状态
+      pollAIInsightStatus(summaryId)
     } else {
       ElMessage.error(error.response?.data?.message || 'AI 洞察生成失败')
+      clearAnalyzingState(summaryId)
     }
-  } finally {
-    aiAnalyzingIds.value.delete(summaryId)
   }
 }
 
