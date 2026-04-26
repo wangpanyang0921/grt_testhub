@@ -8,7 +8,7 @@ from .views import (
     TestSuiteRequestViewSet, TestExecutionViewSet, UserViewSet,
     ScheduledTaskViewSet, TaskExecutionLogViewSet, NotificationLogViewSet,
     TaskNotificationSettingViewSet, OperationLogViewSet,
-    ApiDashboardViewSet, AIServiceConfigViewSet
+    ApiDashboardViewSet, AIServiceConfigViewSet, import_interfaces
 )
 
 router = DefaultRouter()
@@ -31,6 +31,7 @@ router.register(r'ai-service-configs', AIServiceConfigViewSet, basename='aiservi
 
 urlpatterns = [
     path('api-testing/', include(router.urls)),
+    path('api-testing/import/', import_interfaces, name='import-interfaces'),
 ]
 
 # 添加媒体文件路由

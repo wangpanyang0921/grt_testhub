@@ -126,10 +126,20 @@
               <el-icon><Folder /></el-icon>
               <span>{{ $t('menu.projectManagement') }}</span>
             </el-menu-item>
-            <el-menu-item index="/api-testing/interfaces">
-              <el-icon><Link /></el-icon>
-              <span>{{ $t('menu.interfaceManagement') }}</span>
-            </el-menu-item>
+            <el-sub-menu index="/api-testing/interfaces">
+              <template #title>
+                <el-icon><Link /></el-icon>
+                <span>{{ $t('menu.interfaceManagement') }}</span>
+              </template>
+              <el-menu-item index="/api-testing/interfaces">
+                <el-icon><Document /></el-icon>
+                <span>接口列表</span>
+              </el-menu-item>
+              <el-menu-item index="/api-testing/collections">
+                <el-icon><Folder /></el-icon>
+                <span>合集管理</span>
+              </el-menu-item>
+            </el-sub-menu>
             <el-menu-item index="/api-testing/automation">
               <el-icon><VideoPlay /></el-icon>
               <span>{{ $t('menu.automationTesting') }}</span>
@@ -562,6 +572,11 @@ const moduleRoute = computed(() => {
     return '/ai-generation/bug-analysis/summary'
   }
 
+  // 接口测试子页面，返回到接口列表
+  if (path.startsWith('/api-testing/interfaces')) {
+    return '/api-testing/interfaces'
+  }
+
   // 其他模块可以根据需要添加
   // 默认返回到模块首页
   return `/${currentModule.value}`
@@ -580,6 +595,14 @@ const breadcrumbTitle = computed(() => {
   }
   if (path.match(/^\/ai-generation\/testcases\/\d+$/)) {
     return t('testcase.detail')
+  }
+
+  // 接口测试子路由
+  if (path.match(/^\/api-testing\/interfaces\/create$/)) {
+    return '创建接口'
+  }
+  if (path.match(/^\/api-testing\/interfaces\/\d+$/)) {
+    return '接口详情'
   }
 
   // 端详情页
@@ -621,6 +644,7 @@ const breadcrumbTitle = computed(() => {
     '/api-testing/dashboard': t('menu.dashboard'),
     '/api-testing/projects': t('menu.projectManagement'),
     '/api-testing/interfaces': t('menu.interfaceManagement'),
+    '/api-testing/interfaces/create': '创建接口',
     '/api-testing/automation': t('menu.automationTesting'),
     '/api-testing/history': t('menu.requestHistory'),
     '/api-testing/environments': t('menu.environmentManagement'),

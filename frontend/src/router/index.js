@@ -12,6 +12,8 @@ import ExcelDataFiller from '@/views/data-factory/ExcelDataFiller.vue'
 import ApiDashboard from '@/views/api-testing/Dashboard.vue'
 import ApiProjectManagement from '@/views/api-testing/ProjectManagement.vue'
 import ApiInterfaceManagement from '@/views/api-testing/InterfaceManagement.vue'
+import ApiInterfaceList from '@/views/api-testing/InterfaceList.vue'
+import ApiCollectionList from '@/views/api-testing/CollectionList.vue'
 import ApiAutomationTesting from '@/views/api-testing/AutomationTesting.vue'
 import ApiRequestHistory from '@/views/api-testing/RequestHistory.vue'
 import ApiEnvironmentManagement from '@/views/api-testing/EnvironmentManagement.vue'
@@ -235,7 +237,22 @@ const routes = [
       {
         path: 'interfaces',
         name: 'ApiInterfaces',
-        component: ApiInterfaceManagement
+        component: ApiInterfaceList
+      },
+      {
+        path: 'interfaces/create',
+        name: 'ApiInterfaceCreate',
+        component: () => import('@/views/api-testing/InterfaceDetail.vue')
+      },
+      {
+        path: 'collections',
+        name: 'ApiCollections',
+        component: ApiCollectionList
+      },
+      {
+        path: 'interfaces/:id',
+        name: 'ApiInterfaceDetail',
+        component: () => import('@/views/api-testing/InterfaceDetail.vue')
       },
       {
         path: 'automation',

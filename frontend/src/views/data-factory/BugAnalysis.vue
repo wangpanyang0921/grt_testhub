@@ -88,10 +88,12 @@
 
           <el-table-column label="P0 风险" width="110" header-align="center" align="center">
             <template #default="{ row }">
-              <span v-if="row.meta_data?.p0_count > 0" class="p0-badge">
-                {{ row.meta_data.p0_count }}
+              <span
+                class="p0-badge"
+                :class="{ 'p0-badge-zero': !(row.meta_data?.p0_count > 0) }"
+              >
+                {{ row.meta_data?.p0_count || 0 }}
               </span>
-              <span v-else class="text-gray">0</span>
             </template>
           </el-table-column>
 
@@ -3576,6 +3578,11 @@ onUnmounted(() => {
   color: #f5222d;
   white-space: nowrap;
   transition: all 0.3s ease;
+}
+
+.p0-badge-zero {
+  background: #f5f5f5;
+  color: #999;
 }
 
 .top-module-badge {

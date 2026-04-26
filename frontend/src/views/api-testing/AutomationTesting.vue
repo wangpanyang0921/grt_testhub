@@ -338,7 +338,7 @@
             <el-table-column prop="status" :label="$t('apiTesting.automation.result')" width="100">
               <template #default="scope">
                 <el-tag :type="scope.row.passed ? 'success' : 'danger'" size="small">
-                  {{ scope.row.passed ? $t('apiTesting.automation.status.passed') : $t('apiTesting.automation.status.failed') }}
+                  {{ scope.row.passed ? $t('apiTesting.automation.testStatus.passed') : $t('apiTesting.automation.testStatus.failed') }}
                 </el-tag>
               </template>
             </el-table-column>
@@ -478,9 +478,13 @@ const getPassRate = (execution) => {
   return ((execution.passed_requests / execution.total_requests) * 100).toFixed(1)
 }
 
-const getEnvironmentName = (environmentId) => {
-  if (!environmentId) return t('apiTesting.automation.noEnvironment')
-  const env = environments.value.find(e => e.id === environmentId)
+const getEnvironmentName = (environment) => {
+  // environment 可能是对象或 ID
+  if (!environment) return t('apiTesting.automation.noEnvironment')
+  if (typeof environment === 'object' && environment.name) {
+    return environment.name
+  }
+  const env = environments.value.find(e => e.id === environment)
   return env ? env.name : t('apiTesting.automation.noEnvironment')
 }
 
@@ -673,8 +677,8 @@ const editSuite = (suite) => {
   suiteForm.name = suite.name
   suiteForm.description = suite.description
   suiteForm.project = suite.project
-  // 修复：environment字段直接是ID，不需要?.id
-  suiteForm.environment = suite.environment || null
+  // environment 现在是对象，需要取 id
+  suiteForm.environment = suite.environment?.id || null
   showCreateSuiteDialog.value = true
 }
 
@@ -684,7 +688,7 @@ const duplicateSuite = async (suite) => {
       name: `${suite.name} - ${t('apiTesting.common.copyText')}`,
       description: suite.description,
       project: suite.project,
-      environment: suite.environment || null  // 修复：直接使用environment ID
+      environment_id: suite.environment?.id || null  // environment 是对象，取 id
     }
     await api.post('/api-testing/test-suites/', newSuite)
     ElMessage.success(t('apiTesting.messages.success.copy'))
@@ -728,11 +732,19 @@ const submitSuiteForm = async () => {
 
   submittingSuite.value = true
   try {
+    // 构建提交数据，将 environment 映射为 environment_id
+    const submitData = {
+      name: suiteForm.name,
+      description: suiteForm.description,
+      project: suiteForm.project,
+      environment_id: suiteForm.environment
+    }
+
     if (editingSuite.value) {
-      await api.put(`/api-testing/test-suites/${editingSuite.value.id}/`, suiteForm)
+      await api.put(`/api-testing/test-suites/${editingSuite.value.id}/`, submitData)
       ElMessage.success(t('apiTesting.messages.success.suiteUpdated'))
     } else {
-      await api.post('/api-testing/test-suites/', suiteForm)
+      await api.post('/api-testing/test-suites/', submitData)
       ElMessage.success(t('apiTesting.messages.success.suiteCreated'))
     }
 

@@ -724,6 +724,7 @@ export default {
       copiedToClipboard: 'Copied to clipboard',
       taskStarted: 'Task execution started',
       requestSent: 'Request sent successfully',
+      assertionPassed: 'Assertion passed',
       requestRetried: 'Request retry successful',
       reportGenerated: 'Report generated successfully',
       batchDeleteSuccess: 'Batch delete successful',

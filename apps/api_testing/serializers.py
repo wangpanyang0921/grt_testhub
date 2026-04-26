@@ -76,14 +76,15 @@ class ApiProjectSerializer(serializers.ModelSerializer):
 
 class ApiCollectionSerializer(serializers.ModelSerializer):
     children = serializers.SerializerMethodField()
+    created_by = UserSerializer(read_only=True)
 
     class Meta:
         model = ApiCollection
         fields = [
             'id', 'name', 'description', 'project', 'parent',
-            'order', 'children', 'created_at', 'updated_at'
+            'order', 'children', 'created_by', 'created_at', 'updated_at'
         ]
-        read_only_fields = ['created_at', 'updated_at']
+        read_only_fields = ['created_at', 'updated_at', 'created_by']
 
     def get_children(self, obj):
         children = obj.children.all()
@@ -102,7 +103,7 @@ class ApiRequestSerializer(serializers.ModelSerializer):
         model = ApiRequest
         fields = [
             'id', 'name', 'description', 'request_type', 'method', 'url',
-            'headers', 'params', 'body', 'auth', 'pre_request_script',
+            'headers', 'params', 'path_params', 'body', 'auth', 'pre_request_script',
             'post_request_script', 'assertions', 'variable_extractors', 'collection', 'order', 'created_by',
             'created_at', 'updated_at'
         ]
@@ -120,6 +121,17 @@ class ApiRequestSerializer(serializers.ModelSerializer):
                 validated_data['request_type'] = 'HTTP'
 
         return super().create(validated_data)
+
+    def update(self, instance, validated_data):
+        # 根据集合所属项目的类型设置接口类型
+        collection = validated_data.get('collection')
+        if collection and collection.project:
+            if collection.project.project_type == 'WEBSOCKET':
+                validated_data['request_type'] = 'WEBSOCKET'
+            else:
+                validated_data['request_type'] = 'HTTP'
+
+        return super().update(instance, validated_data)
 
 
 class EnvironmentSerializer(serializers.ModelSerializer):
@@ -180,11 +192,19 @@ class TestSuiteRequestSerializer(serializers.ModelSerializer):
 class TestSuiteSerializer(serializers.ModelSerializer):
     created_by = UserSerializer(read_only=True)
     suite_requests = TestSuiteRequestSerializer(source='testsuiterequest_set', many=True, read_only=True)
+    environment = EnvironmentSerializer(read_only=True)
+    environment_id = serializers.PrimaryKeyRelatedField(
+        queryset=Environment.objects.all(),
+        source='environment',
+        write_only=True,
+        required=False,
+        allow_null=True
+    )
 
     class Meta:
         model = TestSuite
         fields = [
-            'id', 'name', 'description', 'project', 'environment',
+            'id', 'name', 'description', 'project', 'environment', 'environment_id',
             'suite_requests', 'created_by', 'created_at', 'updated_at'
         ]
         read_only_fields = ['created_at', 'updated_at']

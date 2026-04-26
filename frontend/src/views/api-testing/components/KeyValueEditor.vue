@@ -1,11 +1,15 @@
 <template>
   <div class="key-value-editor">
-    <div class="header">
-      <div class="column key-column">{{ $t('apiTesting.component.keyValueEditor.key') }}</div>
-      <div class="column value-column">{{ $t('apiTesting.component.keyValueEditor.value') }}</div>
-      <div class="column description-column">{{ $t('apiTesting.component.keyValueEditor.description') }}</div>
-      <div class="column action-column"></div>
-    </div>
+    <div v-if="showSectionTitle" class="section-title">Headers</div>
+    <div class="editor-container">
+      <div class="header">
+        <div class="column checkbox-column"></div>
+        <div class="column key-column">参数名</div>
+        <div class="column value-column">参数值</div>
+        <div class="column type-column">类型</div>
+        <div class="column description-column">描述</div>
+        <div class="column action-column"></div>
+      </div>
 
     <div class="rows">
       <div
@@ -14,8 +18,10 @@
         class="row"
         :class="{ disabled: !row.enabled }"
       >
-        <div class="column key-column">
+        <div class="column checkbox-column">
           <el-checkbox v-model="row.enabled" @change="updateValue" />
+        </div>
+        <div class="column key-column">
           <el-input
             v-model="row.key"
             :placeholder="placeholderKey"
@@ -35,11 +41,11 @@
             <template #append>
               <el-button
                 size="small"
-                :icon="MagicStick"
                 @click="openDataFactorySelector(index)"
-                :title="$t('apiTesting.component.keyValueEditor.referDataFactory')"
-                class="data-factory-btn"
-              />
+                title="引用数据工厂"
+              >
+                <el-icon><MagicStick /></el-icon>
+              </el-button>
             </template>
           </el-input>
           <el-upload
@@ -51,11 +57,32 @@
             <el-button size="small">{{ $t('apiTesting.component.keyValueEditor.selectFile') }}</el-button>
           </el-upload>
           <el-tooltip :content="$t('apiTesting.component.keyValueEditor.insertDynamicVariable')" placement="top" v-if="!showFile || row.type !== 'file'">
-            <el-button size="small" style="margin-left: 5px" @click="openVariableHelper(index)" class="variable-helper-btn">
+            <el-button
+              size="small"
+              class="variable-helper-btn"
+              @click="openVariableHelper(index)"
+            >
               <el-icon><MagicStick /></el-icon>
             </el-button>
           </el-tooltip>
           <span v-if="row.file" class="file-name">{{ row.file.name }}</span>
+        </div>
+
+        <div class="column type-column">
+          <el-select
+            v-model="row.type"
+            placeholder="类型"
+            size="small"
+            style="width: 90px;"
+            @change="updateValue"
+          >
+            <el-option label="string" value="string" />
+            <el-option label="integer" value="integer" />
+            <el-option label="boolean" value="boolean" />
+            <el-option label="number" value="number" />
+            <el-option label="array" value="array" />
+            <el-option label="file" value="file" />
+          </el-select>
         </div>
 
         <div class="column description-column">
@@ -66,19 +93,16 @@
             @input="updateValue"
           />
         </div>
-        
+
         <div class="column action-column">
-          <el-select
-            v-if="showFile"
-            v-model="row.type"
+          <el-button
             size="small"
-            style="width: 70px; margin-right: 5px;"
-            @change="updateValue"
+            @click="addRow"
+            :title="$t('apiTesting.component.keyValueEditor.addRow')"
           >
-            <el-option label="Text" value="text" />
-            <el-option label="File" value="file" />
-          </el-select>
-          
+            <el-icon><Plus /></el-icon>
+          </el-button>
+
           <el-button
             size="small"
             type="danger"
@@ -89,12 +113,80 @@
         </div>
       </div>
     </div>
-    
-    <div class="footer">
-      <el-button size="small" @click="addRow">
-        <el-icon><Plus /></el-icon>
-        {{ $t('apiTesting.component.keyValueEditor.addRow') }}
-      </el-button>
+    </div>
+
+    <!-- 全局 Header 参数区域 -->
+    <div v-if="globalHeaders && globalHeaders.length > 0" class="global-headers-section">
+      <div class="global-headers-title">全局 Headers</div>
+      <div class="global-headers-editor">
+        <div class="global-headers-header">
+          <div class="column checkbox-column"></div>
+          <div class="column key-column">参数名</div>
+          <div class="column value-column">参数值</div>
+          <div class="column type-column">类型</div>
+          <div class="column description-column">描述</div>
+          <div class="column action-column"></div>
+        </div>
+        <div class="global-headers-list">
+          <div
+            v-for="(row, index) in globalHeaders"
+            :key="'global-'+index"
+            class="row global-row"
+            :class="{ disabled: !row.enabled }"
+          >
+            <div class="column checkbox-column">
+              <el-checkbox v-model="row.enabled" @change="updateGlobalHeader(index, row)" />
+            </div>
+            <div class="column key-column">
+              <el-input
+                v-model="row.key"
+                placeholder="参数名"
+                size="small"
+                disabled
+              />
+            </div>
+
+            <div class="column value-column">
+              <el-input
+                v-model="row.value"
+                placeholder="参数值"
+                size="small"
+                disabled
+              />
+            </div>
+
+            <div class="column type-column">
+              <el-select
+                v-model="row.type"
+                placeholder="类型"
+                size="small"
+                style="width: 90px;"
+                disabled
+              >
+                <el-option label="string" value="string" />
+                <el-option label="integer" value="integer" />
+                <el-option label="boolean" value="boolean" />
+                <el-option label="number" value="number" />
+                <el-option label="array" value="array" />
+                <el-option label="file" value="file" />
+              </el-select>
+            </div>
+
+            <div class="column description-column">
+              <el-input
+                v-model="row.description"
+                placeholder="描述"
+                size="small"
+                disabled
+              />
+            </div>
+
+            <div class="column action-column">
+              <!-- 操作列留白 -->
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
 
     <DataFactorySelector
@@ -166,10 +258,18 @@ const props = defineProps({
   showFile: {
     type: Boolean,
     default: false
+  },
+  globalHeaders: {
+    type: Array,
+    default: () => []
+  },
+  showSectionTitle: {
+    type: Boolean,
+    default: true
   }
 })
 
-const emit = defineEmits(['update:modelValue'])
+const emit = defineEmits(['update:modelValue', 'update:globalHeaders'])
 
 const rows = ref([])
 const showDataFactorySelector = ref(false)
@@ -285,7 +385,7 @@ const initializeRows = () => {
   const data = props.modelValue || {}
   console.log('KeyValueEditor initializeRows called with data:', data)
   const newRows = []
-  
+
   // 检查数据是否为数组格式（来自convertObjectToKeyValueArray）
   if (Array.isArray(data)) {
     console.log('Data is array, processing...')
@@ -295,7 +395,7 @@ const initializeRows = () => {
       key: item.key || '',
       value: item.value || '',
       description: item.description || '',
-      type: item.type || 'text',
+      type: item.type || 'string',
       file: item.file || null
     })))
   } else {
@@ -308,13 +408,13 @@ const initializeRows = () => {
           key,
           value: data[key],
           description: '',
-          type: 'text',
+          type: 'string',
           file: null
         })
       }
     })
   }
-  
+
   // 确保至少有一个空行
   if (newRows.length === 0) {
     newRows.push({
@@ -322,11 +422,11 @@ const initializeRows = () => {
       key: '',
       value: '',
       description: '',
-      type: 'text',
+      type: 'string',
       file: null
     })
   }
-  
+
   console.log('KeyValueEditor final rows:', newRows)
   rows.value = newRows
 }
@@ -338,7 +438,7 @@ const updateValue = () => {
     value: row.value || '',
     description: row.description || '',
     enabled: row.enabled !== false,
-    type: row.type || 'text'
+    type: row.type || 'string'
   }))
   
   console.log('KeyValueEditor updateValue result (full format):', result)
@@ -357,7 +457,7 @@ const addRow = () => {
     key: '',
     value: '',
     description: '',
-    type: 'text',
+    type: 'string',
     file: null
   })
 }
@@ -367,6 +467,13 @@ const removeRow = (index) => {
     rows.value.splice(index, 1)
     updateValue()
   }
+}
+
+// 更新全局 Header 启用状态
+const updateGlobalHeader = (index, row) => {
+  const updatedHeaders = [...props.globalHeaders]
+  updatedHeaders[index] = { ...row }
+  emit('update:globalHeaders', updatedHeaders)
 }
 
 const handleFileChange = (index, file) => {
@@ -440,90 +547,137 @@ defineExpose({
 
 <style scoped>
 .key-value-editor {
+  background: #ffffff;
+}
+
+.section-title {
+  font-size: 13px;
+  font-weight: 500;
+  color: #606266;
+  margin-bottom: 12px;
+  padding-left: 8px;
+  border-left: 3px solid #67c23a;
+}
+
+.editor-container {
   border: 1px solid #e4e7ed;
-  border-radius: 4px;
-  background: white;
+  border-radius: 12px;
+  background: #ffffff;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.05);
+  overflow: hidden;
+  margin-bottom: 20px;
 }
 
 .header {
   display: flex;
   background: #f5f7fa;
   border-bottom: 1px solid #e4e7ed;
-  padding: 8px;
-  font-weight: 500;
-  font-size: 12px;
+  padding: 12px 16px;
+  font-weight: 600;
+  font-size: 13px;
   color: #606266;
+
+  .column {
+    justify-content: flex-start;
+    align-items: center;
+    padding: 0 8px;
+    box-sizing: border-box;
+
+    &:first-child {
+      padding-left: 0;
+    }
+
+    &:last-child {
+      padding-right: 0;
+    }
+  }
 }
 
 .rows {
   max-height: 300px;
   overflow-y: auto;
+  overflow-x: hidden;
 }
 
 .row {
   display: flex;
   border-bottom: 1px solid #f5f7fa;
-  padding: 8px;
-  min-height: 40px;
+  padding: 12px 16px;
+  min-height: 56px;
   align-items: center;
+  transition: all 0.25s ease;
 }
 
 .row:hover {
-  background: #fafbfc;
+  background: #f5f7fa;
 }
 
 .row.disabled {
-  opacity: 0.6;
+  opacity: 0.5;
+  background: #fafafa;
 }
 
 .column {
   display: flex;
   align-items: center;
-  gap: 5px;
+  gap: 8px;
+  padding: 0 8px;
+  box-sizing: border-box;
+
+  &:first-child {
+    padding-left: 0;
+  }
+
+  &:last-child {
+    padding-right: 0;
+  }
+}
+
+.checkbox-column {
+  width: 40px;
+  min-width: 40px;
+  justify-content: center;
 }
 
 .key-column {
-  width: 25%;
-  min-width: 150px;
-}
-
-.value-column {
-  width: 25%;
-  min-width: 200px;
-}
-
-.description-column {
-  width: 30%;
+  width: 20%;
   min-width: 120px;
 }
 
-.action-column {
+.value-column {
+  width: 30%;
+  min-width: 180px;
+}
+
+.type-column {
+  width: 100px;
+  min-width: 100px;
+}
+
+.description-column {
   width: 20%;
   min-width: 100px;
+}
+
+.action-column {
+  width: 90px;
+  min-width: 90px;
   justify-content: flex-end;
-  gap: 135px;
-}
-
-.data-factory-btn {
-  background-color: #409eff !important;
-  border-color: #409eff !important;
-  color: white !important;
-}
-
-.data-factory-btn:hover {
-  background-color: #66b1ff !important;
-  border-color: #66b1ff !important;
+  gap: 6px;
 }
 
 .variable-helper-btn {
-  background-color: #67c23a;
-  border-color: #67c23a;
+  background: linear-gradient(135deg, #67c23a 0%, #5daf34 100%);
+  border: none;
   color: white;
+  border-radius: 6px;
+  transition: all 0.3s ease;
 }
 
 .variable-helper-btn:hover {
-  background-color: #5daf34;
-  border-color: #5daf34;
+  background: linear-gradient(135deg, #5daf34 0%, #4e9a2a 100%);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(103, 194, 58, 0.4);
 }
 
 .file-name {
@@ -599,5 +753,164 @@ defineExpose({
 
 :deep(.el-table__row.current-row) {
   background-color: #ecf5ff;
+}
+
+/* 全局 Header 参数区域样式 */
+.global-headers-section {
+  background: #ffffff;
+  margin-top: 20px;
+}
+
+.global-headers-title {
+  font-size: 13px;
+  font-weight: 500;
+  color: #606266;
+  margin-bottom: 12px;
+  padding-left: 8px;
+  border-left: 3px solid #67c23a;
+}
+
+.global-headers-editor {
+  border: 1px solid #e4e7ed;
+  border-radius: 12px;
+  background: #ffffff;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.05);
+  overflow: hidden;
+}
+
+.global-headers-header {
+  display: flex;
+  background: #f5f7fa;
+  border-bottom: 1px solid #e4e7ed;
+  padding: 12px 16px;
+  font-weight: 600;
+  font-size: 13px;
+  color: #606266;
+
+  .column {
+    display: flex;
+    align-items: center;
+    padding: 0 8px;
+    box-sizing: border-box;
+
+    &:first-child {
+      padding-left: 0;
+    }
+
+    &:last-child {
+      padding-right: 0;
+    }
+  }
+
+  .checkbox-column {
+    width: 40px;
+    min-width: 40px;
+    padding: 0;
+  }
+
+  .key-column {
+    width: 20%;
+    min-width: 120px;
+  }
+
+  .value-column {
+    width: 30%;
+    min-width: 180px;
+  }
+
+  .type-column {
+    width: 100px;
+    min-width: 100px;
+  }
+
+  .description-column {
+    width: 20%;
+    min-width: 100px;
+  }
+
+  .action-column {
+    width: 90px;
+    min-width: 90px;
+    justify-content: flex-end;
+  }
+}
+
+.global-headers-list {
+  .row {
+    display: flex;
+    border-bottom: 1px solid #f5f7fa;
+    padding: 12px 16px;
+    min-height: 56px;
+    align-items: center;
+    transition: all 0.25s ease;
+
+    &:last-child {
+      border-bottom: none;
+    }
+
+    &:hover {
+      background: #f5f7fa;
+    }
+
+    &.disabled {
+      opacity: 0.5;
+      background: #fafafa;
+    }
+
+    .column {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 0 8px;
+      box-sizing: border-box;
+
+      &:first-child {
+        padding-left: 0;
+      }
+
+      &:last-child {
+        padding-right: 0;
+      }
+    }
+
+    .checkbox-column {
+      width: 40px;
+      min-width: 40px;
+      justify-content: center;
+      padding: 0;
+    }
+
+    .key-column {
+      width: 20%;
+      min-width: 120px;
+    }
+
+    .value-column {
+      width: 30%;
+      min-width: 180px;
+    }
+
+    .type-column {
+      width: 100px;
+      min-width: 100px;
+    }
+
+    .description-column {
+      width: 20%;
+      min-width: 100px;
+    }
+
+    .action-column {
+      width: 90px;
+      min-width: 90px;
+      justify-content: flex-end;
+    }
+  }
+}
+
+.global-hint {
+  font-size: 12px;
+  color: #909399;
+  font-style: italic;
 }
 </style>

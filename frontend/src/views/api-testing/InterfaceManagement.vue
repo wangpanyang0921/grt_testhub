@@ -21,51 +21,65 @@
     </div>
 
     <div class="card-container interface-layout">
-      <!-- 左侧集合树 -->
+      <!-- 左侧接口列表 -->
       <div class="sidebar">
-        <div class="collection-tree">
-          <el-tree
-            ref="treeRef"
-            :data="collections"
-            :props="treeProps"
-            node-key="id"
-            :expand-on-click-node="false"
-            :default-expanded-keys="expandedKeys"
-            @node-click="onNodeClick"
-            @node-contextmenu="onNodeRightClick"
-            @node-expand="onNodeExpand"
-            @node-collapse="onNodeCollapse"
+        <div class="interface-list">
+          <el-table
+            :data="interfaceList"
+            style="width: 100%"
+            height="100%"
+            highlight-current-row
+            @row-click="onInterfaceRowClick"
           >
-            <template #default="{ node, data }">
-              <div class="tree-node">
-                <el-icon v-if="data.type === 'collection'">
-                  <Folder />
-                </el-icon>
-                <el-icon v-else>
-                  <Document />
-                </el-icon>
-                
-                <!-- 集合名称编辑 -->
-                <div v-if="data.type === 'collection' && editingNodeId === data.id" class="node-edit">
-                  <el-input
-                    v-model="editingNodeName"
-                    size="small"
-                    @blur="saveCollectionName"
-                    @keyup.enter="saveCollectionName"
-                    @keyup.esc="cancelEdit"
-                    ref="editInputRef"
-                  />
+            <el-table-column type="index" label="序号" width="60" align="center" />
+            <el-table-column label="接口名称" min-width="150" show-overflow-tooltip>
+              <template #default="{ row }">
+                <div class="interface-name-cell">
+                  <el-icon v-if="row.request_type === 'WEBSOCKET'"><Connection /></el-icon>
+                  <el-icon v-else><Document /></el-icon>
+                  <span>{{ row.name }}</span>
                 </div>
-                
-                <!-- 普通显示模式 -->
-                <span v-else class="node-label">{{ node.label }}</span>
-                
-                <span v-if="data.type === 'request' && data.request_type !== 'WEBSOCKET'" class="method-tag" :class="data.method?.toLowerCase()">
-                  {{ data.method }}
-                </span>
-              </div>
-            </template>
-          </el-tree>
+              </template>
+            </el-table-column>
+            <el-table-column label="请求方式" width="90" align="center">
+              <template #default="{ row }">
+                <el-tag 
+                  v-if="row.request_type !== 'WEBSOCKET'" 
+                  size="small" 
+                  :class="row.method?.toLowerCase()"
+                  class="method-tag"
+                >
+                  {{ row.method }}
+                </el-tag>
+                <el-tag v-else size="small" type="info">WS</el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column label="所属合集" min-width="120" show-overflow-tooltip>
+              <template #default="{ row }">
+                <div class="collection-cell">
+                  <el-icon><Folder /></el-icon>
+                  <span>{{ getCollectionName(row.collection) }}</span>
+                </div>
+              </template>
+            </el-table-column>
+            <el-table-column label="创建人" width="100" align="center">
+              <template #default="{ row }">
+                <span>{{ row.created_by?.username || '-' }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column label="操作" width="120" align="center" fixed="right">
+              <template #default="{ row }">
+                <el-button-group>
+                  <el-button size="small" @click.stop="editInterface(row)">
+                    <el-icon><Edit /></el-icon>
+                  </el-button>
+                  <el-button size="small" type="danger" @click.stop="deleteInterface(row)">
+                    <el-icon><Delete /></el-icon>
+                  </el-button>
+                </el-button-group>
+              </template>
+            </el-table-column>
+          </el-table>
         </div>
       </div>
 
@@ -714,7 +728,7 @@
 import { ref, reactive, computed, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useI18n } from 'vue-i18n'
-import { Plus, Folder, Document } from '@element-plus/icons-vue'
+import { Plus, Folder, Document, Edit, Delete, Connection } from '@element-plus/icons-vue'
 import api from '@/utils/api'
 import KeyValueEditor from './components/KeyValueEditor.vue'
 
@@ -726,6 +740,7 @@ const projects = ref([])
 const selectedProject = ref(null)
 const collections = ref([])
 const flatCollections = ref([])
+const interfaceList = ref([])
 const environments = ref([])
 const selectedEnvironment = ref(null)
 const selectedRequest = ref(null)
@@ -919,6 +934,9 @@ const loadRequests = async () => {
     const res = await api.get('/api-testing/requests/')
     const requests = res.data.results || res.data
 
+    // 填充接口列表（用于表格展示）
+    interfaceList.value = requests
+
     // 清空所有集合的子节点（请求）
     collections.value.forEach(collection => {
       clearCollectionChildren(collection)
@@ -1013,6 +1031,90 @@ const onProjectChange = async () => {
   await Promise.all([loadCollections(false), loadEnvironments()])
 }
 
+// 获取合集名称
+const getCollectionName = (collectionId) => {
+  if (!collectionId) return '未分类'
+  const collection = flatCollections.value.find(c => c.id === collectionId)
+  return collection ? collection.name : '未分类'
+}
+
+// 表格行点击事件
+const onInterfaceRowClick = (row) => {
+  editInterface(row)
+}
+
+// 编辑接口
+const editInterface = (row) => {
+  console.log('editInterface - original data.headers:', row.headers)
+  const convertedHeaders = convertObjectToKeyValueArray(row.headers || {})
+  console.log('editInterface - converted headers:', convertedHeaders)
+
+  // 初始化currentHeaders
+  currentHeaders.value = row.headers || {}
+  console.log('editInterface - initialized currentHeaders:', currentHeaders.value)
+
+  selectedRequest.value = {
+    ...row,
+    params: convertObjectToKeyValueArray(row.params || {}),
+    headers: convertedHeaders,
+    body: row.body || {},
+    auth: row.auth || {}
+  }
+
+  console.log('editInterface - selectedRequest.value.headers:', selectedRequest.value.headers)
+
+  // 解析body数据
+  parseBodyData(row.body)
+}
+
+// 解析body数据
+const parseBodyData = (body) => {
+  if (!body || !body.type) {
+    bodyType.value = 'none'
+    return
+  }
+
+  bodyType.value = body.type
+
+  if (body.type === 'json') {
+    rawType.value = 'json'
+    // 如果 data 已经是字符串，直接显示；否则序列化为 JSON
+    if (typeof body.data === 'string') {
+      rawBody.value = body.data
+    } else {
+      rawBody.value = body.data ? JSON.stringify(body.data, null, 2) : ''
+    }
+  } else if (body.type === 'raw') {
+    rawType.value = 'text'
+    rawBody.value = body.data || ''
+  } else if (body.type === 'form-data') {
+    formData.value = body.data || {}
+  } else if (body.type === 'x-www-form-urlencoded') {
+    formUrlEncoded.value = body.data || {}
+  }
+}
+
+// 删除接口
+const deleteInterface = async (row) => {
+  try {
+    await ElMessageBox.confirm(
+      t('apiTesting.messages.confirm.deleteInterface'),
+      t('apiTesting.common.confirm'),
+      { type: 'warning' }
+    )
+    await api.delete(`/api-testing/requests/${row.id}/`)
+    ElMessage.success(t('apiTesting.messages.success.delete'))
+    await loadRequests()
+    if (selectedRequest.value?.id === row.id) {
+      selectedRequest.value = null
+    }
+  } catch (error) {
+    if (error !== 'cancel') {
+      ElMessage.error(t('apiTesting.messages.error.deleteFailed'))
+    }
+  }
+}
+
 const onNodeClick = (data) => {
   if (data.type === 'request') {
     console.log('onNodeClick - original data.headers:', data.headers)
@@ -1038,7 +1140,12 @@ const onNodeClick = (data) => {
       if (data.body.type === 'json' && data.body.data) {
         bodyType.value = 'raw'
         rawType.value = 'json'
-        rawBody.value = JSON.stringify(data.body.data, null, 2)
+        // 如果 data 已经是字符串，直接显示；否则序列化为 JSON
+        if (typeof data.body.data === 'string') {
+          rawBody.value = data.body.data
+        } else {
+          rawBody.value = JSON.stringify(data.body.data, null, 2)
+        }
       } else if (data.body.type === 'raw' && data.body.data) {
         bodyType.value = 'raw'
         rawType.value = 'text'
@@ -1059,7 +1166,7 @@ const onNodeClick = (data) => {
       bodyType.value = 'none'
       rawBody.value = ''
     }
-    
+
     response.value = null
   }
 }
@@ -1213,7 +1320,12 @@ const editNode = () => {
       if (data.body.type === 'json' && data.body.data) {
         bodyType.value = 'raw'
         rawType.value = 'json'
-        rawBody.value = JSON.stringify(data.body.data, null, 2)
+        // 如果 data 已经是字符串，直接显示；否则序列化为 JSON
+        if (typeof data.body.data === 'string') {
+          rawBody.value = data.body.data
+        } else {
+          rawBody.value = JSON.stringify(data.body.data, null, 2)
+        }
       } else if (data.body.type === 'raw' && data.body.data) {
         bodyType.value = 'raw'
         rawType.value = 'text'
@@ -1234,7 +1346,7 @@ const editNode = () => {
       bodyType.value = 'none'
       rawBody.value = ''
     }
-    
+
     response.value = null
   } else if (rightClickedNode.value.type === 'collection') {
     // 打开集合编辑对话框
@@ -1912,7 +2024,7 @@ const saveRequest = async () => {
       project: selectedProject.value,
       request_type: selectedRequest.value.request_type || 'HTTP',
       params: convertKeyValueArrayToObject(selectedRequest.value.params || []),
-      headers: selectedRequest.value.headers,
+      headers: convertKeyValueArrayToObject(selectedRequest.value.headers || []),
       body: bodyData,
       auth: selectedRequest.value.auth || {},
       pre_request_script: selectedRequest.value.pre_request_script || '',
@@ -2473,24 +2585,53 @@ onBeforeUnmount(() => {
 })
 </script>
 
-<style scoped>
+<style lang="scss" scoped>
 .page-container {
-  height: 100vh;
+  --primary-color: #7b42f6;
+  --primary-light: #a78bfa;
+  --primary-lighter: #c4b5fd;
+  --primary-lightest: #f5f3ff;
+  --bg-primary: #ffffff;
+  --bg-secondary: #f9fafb;
+  --text-primary: #1f2937;
+  --text-secondary: #4b5563;
+  --text-tertiary: #8c8c8c;
+
+  /* 覆盖 Element Plus 默认主题变量 */
+  --el-color-primary: var(--primary-color);
+  --el-color-primary-light-3: #c4b5fd;
+  --el-color-primary-light-5: #ddd6fe;
+  --el-color-primary-light-7: #ede9fe;
+  --el-color-primary-light-9: #f5f3ff;
+  --el-border-color: rgba(167, 139, 250, 0.3);
+  --el-border-color-light: rgba(167, 139, 250, 0.2);
+  --el-border-color-lighter: rgba(167, 139, 250, 0.1);
+  --el-fill-color-light: #f5f3ff;
+  --el-fill-color-lighter: #f5f3ff;
+  --el-fill-color-blank: #f5f3ff;
+  --el-text-color-primary: var(--text-primary);
+  --el-text-color-regular: var(--text-secondary);
+  --el-text-color-secondary: var(--text-tertiary);
+
+  padding: 24px;
+  min-height: calc(100vh - 60px);
+  background: linear-gradient(135deg, #f5f3ff 0%, #ede9fe 100%);
   display: flex;
   flex-direction: column;
-  padding: 24px;
-  background: linear-gradient(135deg, #f5f3ff 0%, #ede9fe 100%);
   gap: 20px;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .filter-bar {
-  padding: 16px 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
   background: #ffffff;
   border: 1px solid rgba(147, 112, 219, 0.12);
-  border-radius: 10px;
-  display: flex;
-  align-items: center;
-  gap: 12px;
+  border-radius: 12px;
+  box-shadow: 0 4px 16px rgba(147, 112, 219, 0.08);
+  padding: 20px 24px;
 
   .project-select {
     :deep(.el-input__wrapper) {
@@ -2560,12 +2701,14 @@ onBeforeUnmount(() => {
 }
 
 .card-container {
-  background: #ffffff;
-  border-radius: 10px;
-  border: 1px solid rgba(147, 112, 219, 0.12);
   flex: 1;
-  overflow: hidden;
+  background: #ffffff;
+  border: 1px solid rgba(147, 112, 219, 0.12);
+  border-radius: 12px;
+  box-shadow: 0 4px 16px rgba(147, 112, 219, 0.08);
   display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
 .interface-layout {
@@ -2575,36 +2718,129 @@ onBeforeUnmount(() => {
 }
 
 .sidebar {
-  width: 260px;
-  border-right: 1px solid rgba(147, 112, 219, 0.15);
+  width: 700px;
+  border-right: 1px solid rgba(147, 112, 219, 0.12);
   display: flex;
   flex-direction: column;
-  background: transparent;
+  background: #ffffff;
+}
+
+.interface-list {
+  flex: 1;
+  overflow: hidden;
+  padding: 0;
+
+  :deep(.el-table) {
+    background: transparent;
+
+    .el-table__header-wrapper {
+      background: #f5f7fa;
+    }
+
+    .el-table__row {
+      cursor: pointer;
+
+      &:hover {
+        background: #f0f9ff;
+      }
+
+      &.current-row {
+        background: #e6f7ff;
+      }
+    }
+  }
+
+  .interface-name-cell {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+
+    .el-icon {
+      color: #909399;
+    }
+  }
+
+  .collection-cell {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    color: #606266;
+
+    .el-icon {
+      color: #e6a23c;
+    }
+  }
+
+  .method-tag {
+    font-weight: 600;
+
+    &.get {
+      background: #e1f3d8;
+      color: #67c23a;
+    }
+
+    &.post {
+      background: #d9ecff;
+      color: #409eff;
+    }
+
+    &.put {
+      background: #faecd8;
+      color: #e6a23c;
+    }
+
+    &.delete {
+      background: #fde2e2;
+      color: #f56c6c;
+    }
+
+    &.patch {
+      background: #f0e9ff;
+      color: #a855f7;
+    }
+  }
 }
 
 .collection-tree {
   flex: 1;
   overflow-y: auto;
-  padding: 16px 4px;
+  padding: 16px 12px;
 
   :deep(.el-tree) {
     background: transparent;
 
     .el-tree-node__content {
-      height: 40px;
-      border-radius: 8px;
-      margin-bottom: 4px;
-      padding-left: 4px !important;
-      transition: all 0.3s ease;
+      height: 44px;
+      border-radius: 10px;
+      margin-bottom: 6px;
+      padding-left: 8px !important;
+      transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
 
       &:hover {
-        background: rgba(123, 66, 246, 0.08);
+        background: rgba(123, 66, 246, 0.06);
       }
     }
 
     .el-tree-node.is-current > .el-tree-node__content {
-      background: linear-gradient(135deg, rgba(123, 66, 246, 0.15) 0%, rgba(90, 50, 163, 0.1) 100%);
-      border-left: 3px solid #7b42f6;
+      background: linear-gradient(135deg, #7b42f6 0%, #5a32a3 100%);
+      border-left: 3px solid #5a32a3;
+      box-shadow: 0 4px 12px rgba(123, 66, 246, 0.25);
+
+      :deep(.tree-node) {
+        .el-icon {
+          color: white !important;
+        }
+
+        .node-label {
+          color: white !important;
+          font-weight: 600;
+        }
+
+        .method-tag {
+          color: #5a32a3 !important;
+          background: white !important;
+        }
+      }
     }
   }
 }
@@ -2669,7 +2905,7 @@ onBeforeUnmount(() => {
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  background: transparent;
+  background: #f8f7ff;
 }
 
 .empty-state {
@@ -2702,7 +2938,7 @@ onBeforeUnmount(() => {
   flex-direction: column;
   padding: 24px;
   overflow: auto;
-  background: #fafafa;
+  background: transparent;
 }
 
 .request-header {
@@ -2790,11 +3026,13 @@ onBeforeUnmount(() => {
     border: none;
     border-radius: 8px;
     font-weight: 500;
+    color: white;
 
     &:hover {
       background: linear-gradient(135deg, #6d33e6 0%, #4a249c 100%);
       transform: translateY(-1px);
       box-shadow: 0 4px 12px rgba(123, 66, 246, 0.3);
+      color: white;
     }
   }
 }
@@ -3670,5 +3908,11 @@ onBeforeUnmount(() => {
 .context-menu li:hover {
   background: linear-gradient(135deg, rgba(123, 66, 246, 0.1) 0%, rgba(90, 50, 163, 0.05) 100%);
   color: #7b42f6;
+}
+</style>
+
+<style>
+.page-container {
+  background: linear-gradient(135deg, #f5f3ff 0%, #ede9fe 100%) !important;
 }
 </style>

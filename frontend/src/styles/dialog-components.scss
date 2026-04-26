@@ -341,16 +341,47 @@
           color: white !important;
           box-shadow: 0 4px 12px rgba(123, 66, 246, 0.3) !important;
 
-          &:hover {
+          &:hover:not(:disabled) {
             background: linear-gradient(135deg, #6d33e6 0%, #4a249c 100%) !important;
             transform: translateY(-2px) !important;
             box-shadow: 0 6px 20px rgba(123, 66, 246, 0.4) !important;
           }
 
-          &:active {
+          &:active:not(:disabled) {
             transform: translateY(0) !important;
           }
+
+          // disabled 状态
+          &:disabled,
+          &.is-disabled {
+            background: #c4b5fd !important;
+            border-color: #c4b5fd !important;
+            color: #ffffff !important;
+            box-shadow: none !important;
+            opacity: 1 !important;
+            cursor: not-allowed !important;
+          }
         }
+      }
+    }
+
+    // 针对没有 dialog-footer 类的 footer 按钮
+    > .el-button {
+      &.el-button--primary {
+        background: linear-gradient(135deg, #7b42f6 0%, #5a32a3 100%) !important;
+        border: none !important;
+        color: white !important;
+
+        &:hover:not(:disabled) {
+          background: linear-gradient(135deg, #6d33e6 0%, #4a249c 100%) !important;
+        }
+      }
+
+      &.el-button--primary:disabled,
+      &.el-button--primary.is-disabled {
+        background: #c4b5fd !important;
+        border-color: #c4b5fd !important;
+        color: #ffffff !important;
       }
     }
   }

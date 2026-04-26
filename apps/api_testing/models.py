@@ -49,6 +49,7 @@ class ApiCollection(models.Model):
                                 verbose_name='所属项目')
     parent = models.ForeignKey('self', on_delete=models.CASCADE, null=True, blank=True, related_name='children',
                                verbose_name='父级集合')
+    created_by = models.ForeignKey(User, on_delete=models.CASCADE, null=True, blank=True, verbose_name='创建者')
     created_at = models.DateTimeField(auto_now_add=True, verbose_name='创建时间')
     updated_at = models.DateTimeField(auto_now=True, verbose_name='更新时间')
 
@@ -89,6 +90,7 @@ class ApiRequest(models.Model):
     url = models.TextField(verbose_name='请求URL')
     headers = models.JSONField(default=dict, verbose_name='请求头')
     params = models.JSONField(default=dict, verbose_name='URL参数')
+    path_params = models.JSONField(default=list, verbose_name='路径参数')
     body = models.JSONField(default=dict, verbose_name='请求体')
     auth = models.JSONField(default=dict, verbose_name='认证信息')
     pre_request_script = models.TextField(blank=True, verbose_name='请求前脚本')

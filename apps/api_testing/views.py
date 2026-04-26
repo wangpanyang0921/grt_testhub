@@ -1,5 +1,5 @@
 from rest_framework import viewsets, status
-from rest_framework.decorators import action, api_view
+from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from django.contrib.auth import get_user_model
@@ -130,8 +130,8 @@ class ApiCollectionViewSet(viewsets.ModelViewSet):
         ).distinct()
 
     def perform_create(self, serializer):
-        """创建集合时记录日志"""
-        instance = serializer.save()
+        """创建集合时设置创建者并记录日志"""
+        instance = serializer.save(created_by=self.request.user)
         log_operation(
             operation_type='create',
             resource_type='collection',
@@ -170,6 +170,7 @@ class ApiRequestViewSet(viewsets.ModelViewSet):
     filter_backends = [DjangoFilterBackend, filters.SearchFilter]
     filterset_fields = ['collection', 'method', 'request_type']
     search_fields = ['name', 'url']
+    pagination_class = StandardPagination
     
     def get_queryset(self):
         user = self.request.user
@@ -261,7 +262,29 @@ class ApiRequestViewSet(viewsets.ModelViewSet):
             # 替换URL中的变量（先解析动态函数，再替换环境变量）
             url = self._replace_variables(request_url or '', variables)
             url = resolver.resolve(url)
-            
+
+            # 如果URL是相对路径，自动拼接base_url
+            if url and not url.startswith(('http://', 'https://')):
+                base_url = None
+                if environment_id:
+                    # 从环境变量中获取base_url
+                    base_url_var = variables.get('base_url') or variables.get('baseUrl')
+                    if isinstance(base_url_var, dict):
+                        base_url = str(
+                            base_url_var.get('current_value', '') or
+                            base_url_var.get('currentValue', '') or
+                            base_url_var.get('initial_value', '') or
+                            base_url_var.get('initialValue', '')
+                        )
+                    elif base_url_var:
+                        base_url = str(base_url_var)
+
+                if base_url:
+                    # 确保base_url以/结尾，url不以/开头
+                    base_url = base_url.rstrip('/')
+                    url = url.lstrip('/')
+                    url = f"{base_url}/{url}"
+
             # 准备请求头
             headers = {}
             if isinstance(request_headers, list):
@@ -434,16 +457,22 @@ class ApiRequestViewSet(viewsets.ModelViewSet):
         """替换文本中的变量"""
         if not isinstance(text, str):
             return text
-        
+
         result = text
         for key, value in (variables or {}).items():
             if isinstance(value, dict):
-                replacement = str(value.get('currentValue', '') or value.get('initialValue', ''))
+                # 支持下划线命名和小驼峰命名
+                replacement = str(
+                    value.get('current_value', '') or
+                    value.get('currentValue', '') or
+                    value.get('initial_value', '') or
+                    value.get('initialValue', '')
+                )
             else:
                 replacement = str(value) if value is not None else ''
             result = result.replace(f'{{{{{key}}}}}', replacement)
         return result
-    
+
     def _replace_variables_in_dict(self, data, variables):
         """递归替换字典中的变量"""
         if isinstance(data, dict):
@@ -642,6 +671,28 @@ class TestSuiteViewSet(viewsets.ModelViewSet):
                     # 替换URL中的变量（先解析动态函数，再替换环境变量）
                     url = self._replace_variables(api_request.url, variables)
                     url = resolver.resolve(url)
+
+                    # 如果URL是相对路径，自动拼接base_url
+                    if url and not url.startswith(('http://', 'https://')):
+                        base_url = None
+                        if test_suite.environment:
+                            # 从环境变量中获取base_url
+                            base_url_var = variables.get('base_url') or variables.get('baseUrl')
+                            if isinstance(base_url_var, dict):
+                                base_url = str(
+                                    base_url_var.get('current_value', '') or
+                                    base_url_var.get('currentValue', '') or
+                                    base_url_var.get('initial_value', '') or
+                                    base_url_var.get('initialValue', '')
+                                )
+                            elif base_url_var:
+                                base_url = str(base_url_var)
+
+                        if base_url:
+                            # 确保base_url以/结尾，url不以/开头
+                            base_url = base_url.rstrip('/')
+                            url = url.lstrip('/')
+                            url = f"{base_url}/{url}"
 
                     # 准备请求头
                     headers = {}
@@ -2510,6 +2561,192 @@ URL参数:
             return Response({'error': f'AI服务调用失败: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
         except Exception as e:
             return Response({'error': f'未知错误: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def import_interfaces(request):
+    """
+    导入接口
+    支持格式: openapi (API Fox 导出的 OpenAPI 3.0 JSON)
+    """
+    import_format = request.data.get('format', 'openapi')
+    project_id = request.data.get('project_id')
+    collection_id = request.data.get('collection_id')
+    auto_create_collections = request.data.get('auto_create_collections', True)
+    interfaces = request.data.get('interfaces', [])
+    global_headers = request.data.get('global_headers', [])
+    global_params = request.data.get('global_params', [])
+
+    if not interfaces:
+        return Response(
+            {'error': '请提供要导入的接口数据'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    # 验证项目存在
+    if project_id:
+        try:
+            project = ApiProject.objects.get(id=project_id)
+        except ApiProject.DoesNotExist:
+            return Response(
+                {'error': '项目不存在'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+    else:
+        project = None
+
+    # 验证或创建集合
+    collection = None
+    if collection_id:
+        try:
+            collection = ApiCollection.objects.get(id=collection_id)
+        except ApiCollection.DoesNotExist:
+            return Response(
+                {'error': '集合不存在'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+    imported_count = 0
+    skipped_count = 0
+    failed_count = 0
+    details = []
+
+    for interface_data in interfaces:
+        try:
+            name = interface_data.get('name', '')
+            method = interface_data.get('method', 'GET')
+            url = interface_data.get('url', '')
+
+            if not name or not url:
+                failed_count += 1
+                details.append({
+                    'name': name or '未命名',
+                    'status': 'failed',
+                    'error': '接口名称或URL为空'
+                })
+                continue
+
+            # 检查是否已存在相同接口（按名称+方法+URL匹配）
+            existing = ApiRequest.objects.filter(
+                name=name,
+                method=method,
+                url=url,
+                created_by=request.user
+            ).first()
+
+            if existing:
+                skipped_count += 1
+                details.append({
+                    'name': name,
+                    'status': 'skipped',
+                    'id': existing.id,
+                    'error': '接口已存在'
+                })
+                continue
+
+            # 处理 headers - 分离全局 headers 和接口特定 headers
+            raw_headers = interface_data.get('headers', [])
+            interface_headers = []
+            
+            # 兼容字典格式（cURL 导入）和数组格式（API Fox 导入）
+            if isinstance(raw_headers, dict):
+                # 字典格式: {key: value}
+                for key, value in raw_headers.items():
+                    interface_headers.append({
+                        'key': key,
+                        'value': value,
+                        'description': '',
+                        'enabled': True
+                    })
+            elif isinstance(raw_headers, list):
+                # 数组格式
+                for header in raw_headers:
+                    if isinstance(header, dict):
+                        # 只保留非全局的 headers
+                        if not header.get('is_global', False):
+                            interface_headers.append({
+                                'key': header.get('key', ''),
+                                'value': header.get('value', ''),
+                                'description': header.get('description', ''),
+                                'enabled': True
+                            })
+
+            # 处理 params - 分离全局 params 和接口特定 params
+            raw_params = interface_data.get('params', [])
+            interface_params = []
+            for param in raw_params:
+                if isinstance(param, dict):
+                    # 只保留非全局的 params
+                    if not param.get('is_global', False):
+                        interface_params.append({
+                            'key': param.get('key', ''),
+                            'value': param.get('value', ''),
+                            'description': param.get('description', ''),
+                            'type': param.get('type', 'string'),
+                            'enabled': True
+                        })
+
+            # 处理 body - 转换为 {type, data} 格式
+            raw_body = interface_data.get('body')
+            request_type = interface_data.get('request_type', 'json')
+            if raw_body:
+                # 将 request_type 映射为后端期望的类型
+                body_type_mapping = {
+                    'json': 'json',
+                    'form': 'x-www-form-urlencoded',
+                    'raw': 'raw',
+                    'none': 'none'
+                }
+                body_type = body_type_mapping.get(request_type, 'json')
+                body = {
+                    'type': body_type,
+                    'data': raw_body
+                }
+            else:
+                body = {'type': 'none', 'data': None}
+
+            # 创建新接口
+            api_request = ApiRequest.objects.create(
+                name=name,
+                method=method,
+                url=url,
+                description=interface_data.get('description', ''),
+                headers=interface_headers,
+                params=interface_params,
+                path_params=interface_data.get('path_params', []),
+                body=body,
+                collection=collection,
+                request_type=interface_data.get('request_type', 'HTTP'),
+                variable_extractors=interface_data.get('variable_extractors', []),
+                assertions=interface_data.get('assertions', []),
+                created_by=request.user
+            )
+
+            imported_count += 1
+            details.append({
+                'name': name,
+                'status': 'success',
+                'id': api_request.id
+            })
+
+        except Exception as e:
+            failed_count += 1
+            details.append({
+                'name': interface_data.get('name', '未命名'),
+                'status': 'failed',
+                'error': str(e)
+            })
+
+    return Response({
+        'success': True,
+        'imported_count': imported_count,
+        'skipped_count': skipped_count,
+        'failed_count': failed_count,
+        'details': details,
+        'global_headers': global_headers,
+        'global_params': global_params
+    })
 
     @action(detail=False, methods=['post'])
     def generate_mock_data(self, request):

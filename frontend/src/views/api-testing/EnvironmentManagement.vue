@@ -52,11 +52,6 @@
               </span>
             </template>
           </el-table-column>
-          <el-table-column :label="$t('apiTesting.environment.variableCount')" width="120" header-align="center" align="center">
-            <template #default="scope">
-              {{ Object.keys(scope.row.variables || {}).length }}
-            </template>
-          </el-table-column>
           <el-table-column prop="is_active" :label="$t('apiTesting.environment.status')" width="100" header-align="center" align="center">
             <template #default="scope">
               <span class="status-badge" :class="scope.row.is_active ? 'success' : 'default'">
@@ -65,11 +60,6 @@
             </template>
           </el-table-column>
           <el-table-column prop="created_by.username" :label="$t('apiTesting.environment.createdBy')" min-width="100" header-align="center" align="center" show-overflow-tooltip />
-          <el-table-column prop="created_at" :label="$t('apiTesting.environment.createdAt')" width="180" header-align="center" align="center">
-            <template #default="scope">
-              {{ formatDate(scope.row.created_at) }}
-            </template>
-          </el-table-column>
           <el-table-column :label="$t('apiTesting.common.operation')" width="380" fixed="right" header-align="center" align="center">
             <template #default="scope">
               <div class="action-buttons">
@@ -116,10 +106,9 @@
               </span>
             </template>
           </el-table-column>
-          <el-table-column prop="project_name" :label="$t('apiTesting.environment.relatedProject')" width="150" header-align="center" align="center" />
-          <el-table-column :label="$t('apiTesting.environment.variableCount')" width="120" header-align="center" align="center">
+          <el-table-column prop="project_name" :label="$t('apiTesting.environment.relatedProject')" width="150" header-align="center" align="center">
             <template #default="scope">
-              {{ Object.keys(scope.row.variables || {}).length }}
+              <span>{{ scope.row.project_name || '-' }}</span>
             </template>
           </el-table-column>
           <el-table-column prop="is_active" :label="$t('apiTesting.environment.status')" width="100" header-align="center" align="center">
@@ -130,11 +119,6 @@
             </template>
           </el-table-column>
           <el-table-column prop="created_by.username" :label="$t('apiTesting.environment.createdBy')" min-width="100" header-align="center" align="center" show-overflow-tooltip />
-          <el-table-column prop="created_at" :label="$t('apiTesting.environment.createdAt')" width="180" header-align="center" align="center">
-            <template #default="scope">
-              {{ formatDate(scope.row.created_at) }}
-            </template>
-          </el-table-column>
           <el-table-column :label="$t('apiTesting.common.operation')" width="380" fixed="right" header-align="center" align="center">
             <template #default="scope">
               <div class="action-buttons">
