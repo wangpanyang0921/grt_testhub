@@ -11,6 +11,18 @@
             :value="project.id"
           />
         </el-select>
+        <el-input
+          v-model="searchKeyword"
+          placeholder="搜索合集名称"
+          clearable
+          class="search-input"
+          style="width: 200px; margin-left: 12px;"
+          @input="onSearchInput"
+        >
+          <template #prefix>
+            <el-icon><Search /></el-icon>
+          </template>
+        </el-input>
       </div>
       <div class="header-actions">
         <el-button type="primary" class="create-btn" @click="showCreateDialog = true">
@@ -26,40 +38,35 @@
         <el-skeleton :rows="10" animated />
       </div>
       
-      <div v-else-if="collectionList.length === 0" class="empty-state">
+      <div v-else-if="filteredCollectionList.length === 0" class="empty-state">
         <el-empty description="暂无合集数据" />
       </div>
 
       <div v-else class="collection-table-wrapper">
         <el-table
-          :data="collectionList"
+          :data="filteredCollectionList"
           v-loading="loading"
           style="width: 100%"
-          row-key="id"
-          :tree-props="{ children: 'children', hasChildren: 'hasChildren' }"
           class="custom-table"
         >
-          <el-table-column label="合集名称" min-width="200" header-align="left" align="left">
-            <template #default="{ row }">
-              <div class="collection-name-cell">
-                <el-icon class="folder-icon"><Folder /></el-icon>
-                <span>{{ row.name }}</span>
-              </div>
+          <el-table-column label="序号" width="80" header-align="center" align="center">
+            <template #default="{ $index }">
+              <span>{{ $index + 1 }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="描述" min-width="150" header-align="center" align="center">
+          <el-table-column label="合集名称" min-width="200" header-align="center" align="center">
             <template #default="{ row }">
-              <span class="description-text">{{ row.description || '-' }}</span>
+              <span>{{ row.name }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="父级合集" width="120" header-align="center" align="center">
+          <el-table-column label="父级合集" width="150" header-align="center" align="center">
             <template #default="{ row }">
               <span>{{ getParentName(row.parent) }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="创建人" width="120" header-align="center" align="center">
+          <el-table-column label="创建人" width="150" header-align="center" align="center">
             <template #default="{ row }">
-              <span>{{ row.created_by?.username || '-' }}</span>
+              <span>{{ formatCreatedBy(row) }}</span>
             </template>
           </el-table-column>
           <el-table-column label="操作" width="250" header-align="center" align="center">
@@ -150,7 +157,7 @@
 <script setup>
 import { ref, onMounted, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { Folder, Plus, Edit, Delete, Rank } from '@element-plus/icons-vue'
+import { Folder, Plus, Edit, Delete, Rank, Search } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import api from '@/utils/api'
 
@@ -161,6 +168,8 @@ const projects = ref([])
 const selectedProject = ref('')
 const collectionList = ref([])
 const flatCollections = ref([])
+const searchKeyword = ref('')
+const filteredCollectionList = ref([])
 
 // 对话框相关
 const showCreateDialog = ref(false)
@@ -230,7 +239,7 @@ const onProjectChange = () => {
 
 const loadCollections = async () => {
   if (!selectedProject.value) return
-  
+
   loading.value = true
   try {
     const res = await api.get('/api-testing/collections/', {
@@ -238,13 +247,31 @@ const loadCollections = async () => {
     })
     const collections = res.data.results || res.data || []
     flatCollections.value = collections
-    collectionList.value = buildTree(collections)
+    collectionList.value = collections
+    filterCollections()
   } catch (error) {
     console.error('Load collections error:', error)
     ElMessage.error('加载合集列表失败')
   } finally {
     loading.value = false
   }
+}
+
+// 搜索过滤函数
+const filterCollections = () => {
+  if (!searchKeyword.value) {
+    filteredCollectionList.value = collectionList.value
+    return
+  }
+  const keyword = searchKeyword.value.toLowerCase()
+  filteredCollectionList.value = collectionList.value.filter(item =>
+    item.name && item.name.toLowerCase().includes(keyword)
+  )
+}
+
+// 搜索输入事件
+const onSearchInput = () => {
+  filterCollections()
 }
 
 const buildTree = (data) => {
@@ -288,6 +315,14 @@ const formatDateTime = (dateStr) => {
     hour: '2-digit',
     minute: '2-digit'
   })
+}
+
+const formatCreatedBy = (row) => {
+  if (!row) return '-'
+  if (row.created_by && row.created_by.username) {
+    return row.created_by.username
+  }
+  return '-'
 }
 
 const handleEdit = (row) => {
@@ -495,6 +530,34 @@ const resetForm = () => {
         font-weight: 500;
       }
     }
+
+    .search-input {
+      :deep(.el-input__wrapper) {
+        border-radius: 8px;
+        border: 1px solid rgba(147, 112, 219, 0.2);
+        background: #ffffff !important;
+        box-shadow: none;
+
+        &:hover {
+          border-color: #7b42f6;
+          box-shadow: 0 0 0 3px rgba(123, 66, 246, 0.1);
+        }
+
+        &.is-focus {
+          border-color: #7b42f6;
+          box-shadow: 0 0 0 3px rgba(123, 66, 246, 0.15);
+        }
+      }
+
+      :deep(.el-input__inner) {
+        color: #5a32a3;
+        font-weight: 500;
+      }
+
+      :deep(.el-input__prefix) {
+        color: #7b42f6;
+      }
+    }
   }
 
   .header-actions {
@@ -636,41 +699,16 @@ const resetForm = () => {
     background-color: #ffffff !important;
   }
 
-  // 树形表格展开图标
-  :deep(.el-table__expand-icon) {
-    color: #7b42f6;
-    width: 20px !important;
-    margin-right: 0;
-  }
-
-  // 减小树形表格第一列的缩进
-  :deep(.el-table__indent) {
-    width: 0 !important;
-    padding: 0 !important;
-  }
-
-  // 展开图标占位调整 - 保持占位以对齐
-  :deep(.el-table__placeholder) {
-    width: 16px !important;
-    display: inline-block !important;
-  }
-
-  // 展开图标样式
-  :deep(.el-table__expand-icon) {
-    width: 16px !important;
-    margin-right: 4px;
-  }
-
-  // 第一列单元格左对齐
+  // 第一列单元格居中对齐
   :deep(td:first-child .cell) {
     padding-left: 8px !important;
     padding-right: 8px !important;
-    text-align: left !important;
+    text-align: center !important;
   }
 
-  // 第一列表头左对齐
+  // 第一列表头居中对齐
   :deep(th:first-child .cell) {
-    justify-content: flex-start !important;
+    justify-content: center !important;
     padding-left: 8px !important;
     padding-right: 8px !important;
   }
@@ -680,7 +718,7 @@ const resetForm = () => {
   display: flex;
   align-items: center;
   gap: 8px;
-  justify-content: flex-start;
+  justify-content: center;
 
   .folder-icon {
     color: #e6a23c;
@@ -850,6 +888,70 @@ const resetForm = () => {
 :deep(.el-form-item__label) {
   color: #5a32a3;
   font-weight: 500;
+}
+
+// 对话框中的输入框样式 - 覆盖所有输入框
+:deep(.el-dialog .el-input__wrapper),
+:deep(.el-dialog .el-select .el-input__wrapper),
+:deep(.el-dialog .el-select-v2 .el-input__wrapper),
+:deep(.el-dialog .el-select .el-select__wrapper) {
+  background-color: #ffffff !important;
+  background: #ffffff !important;
+  --el-input-bg-color: #ffffff !important;
+  --el-fill-color-blank: #ffffff !important;
+  border-radius: 8px;
+  box-shadow: 0 0 0 1px #dcdfe6 inset;
+
+  &:hover {
+    box-shadow: 0 0 0 1px #7b42f6 inset;
+  }
+
+  &.is-focus {
+    box-shadow: 0 0 0 1px #7b42f6 inset;
+  }
+}
+
+// 选择框内部输入框
+:deep(.el-dialog .el-select .el-input__inner) {
+  background-color: #ffffff !important;
+  background: #ffffff !important;
+}
+
+// 下拉选择框弹出菜单背景 - 全局生效
+:deep(.el-select-dropdown),
+:global(.el-select-dropdown) {
+  background-color: #ffffff !important;
+}
+
+// 下拉选项背景
+:deep(.el-select-dropdown__item),
+:global(.el-select-dropdown__item) {
+  background-color: #ffffff !important;
+
+  &:hover {
+    background-color: #f5f3ff !important;
+  }
+
+  &.selected {
+    background-color: #ede9fe !important;
+  }
+}
+
+// 下拉菜单内部容器
+:deep(.el-select-dropdown__wrap),
+:global(.el-select-dropdown__wrap) {
+  background-color: #ffffff !important;
+}
+
+// 下拉菜单列表
+:deep(.el-select-dropdown__list),
+:global(.el-select-dropdown__list) {
+  background-color: #ffffff !important;
+}
+
+// 对话框中的 textarea 背景
+:deep(.el-dialog .el-textarea__inner) {
+  background-color: #ffffff !important;
 }
 
 :deep(.el-input__wrapper) {

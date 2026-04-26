@@ -75,7 +75,7 @@ export default {
     features: {
       interfaceManagement: {
         title: '接口管理',
-        description: '支持HTTP/HTTPS协议，快速导入Swagger/Postman数据，实现接口统一管理。'
+        description: '支持HTTP/HTTPS协议，快速导入Apifox数据，实现接口统一管理。'
       },
       automationTesting: {
         title: '自动化测试',
