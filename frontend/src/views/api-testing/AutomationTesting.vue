@@ -326,35 +326,149 @@
 
         <div class="execution-results">
           <h4>{{ $t('apiTesting.automation.detailedResults') }}</h4>
-          <el-table :data="formatExecutionResults(currentExecution.results)">
-            <el-table-column prop="name" :label="$t('apiTesting.automation.requestName')" min-width="200" />
-            <el-table-column prop="method" :label="$t('apiTesting.automation.method')" width="80">
+          <el-table :data="formatExecutionResults(currentExecution.results)" style="width: 100%">
+            <el-table-column prop="name" :label="$t('apiTesting.automation.requestName')" min-width="150" />
+            <el-table-column prop="method" :label="$t('apiTesting.automation.method')" width="70">
               <template #default="scope">
                 <el-tag :type="getMethodType(scope.row.method)" size="small">
                   {{ scope.row.method }}
                 </el-tag>
               </template>
             </el-table-column>
-            <el-table-column prop="status" :label="$t('apiTesting.automation.result')" width="100">
+            <el-table-column prop="status" :label="$t('apiTesting.automation.result')" width="70">
               <template #default="scope">
                 <el-tag :type="scope.row.passed ? 'success' : 'danger'" size="small">
                   {{ scope.row.passed ? $t('apiTesting.automation.testStatus.passed') : $t('apiTesting.automation.testStatus.failed') }}
                 </el-tag>
               </template>
             </el-table-column>
-            <el-table-column prop="status_code" :label="$t('apiTesting.automation.statusCode')" width="100" />
-            <el-table-column prop="response_time" :label="$t('apiTesting.automation.responseTime')" width="120">
+            <el-table-column prop="status_code" :label="$t('apiTesting.automation.statusCode')" width="80" />
+            <el-table-column prop="response_time" :label="$t('apiTesting.automation.responseTime')" width="90">
               <template #default="scope">
                 {{ scope.row.response_time?.toFixed(0) }}ms
               </template>
             </el-table-column>
-            <el-table-column prop="error" :label="$t('apiTesting.automation.errorMessage')" min-width="200" show-overflow-tooltip />
+            <el-table-column prop="error" :label="$t('apiTesting.automation.errorMessage')" min-width="150" show-overflow-tooltip />
+            <el-table-column :label="$t('apiTesting.common.operation')" width="100" fixed="right">
+              <template #default="scope">
+                <el-button link type="primary" size="small" @click="viewRequestDetail(scope.row)">
+                  查看详情
+                </el-button>
+              </template>
+            </el-table-column>
           </el-table>
         </div>
       </div>
 
       <template #footer>
         <el-button @click="showExecutionDialog = false">{{ $t('apiTesting.common.close') }}</el-button>
+      </template>
+    </el-dialog>
+
+    <!-- 请求详情对话框 -->
+    <el-dialog
+      v-model="showRequestDetailDialog"
+      title="请求执行详情"
+      width="70%"
+      :top="'3vh'"
+    >
+      <div v-if="currentRequestDetail" class="request-detail-dialog">
+        <!-- 基本信息 -->
+        <div class="detail-section">
+          <h4>基本信息</h4>
+          <el-descriptions :column="2" border size="small">
+            <el-descriptions-item label="请求名称">{{ currentRequestDetail.name }}</el-descriptions-item>
+            <el-descriptions-item label="请求方法">
+              <el-tag :type="getMethodType(currentRequestDetail.method)" size="small">{{ currentRequestDetail.method }}</el-tag>
+            </el-descriptions-item>
+            <el-descriptions-item label="状态码">{{ currentRequestDetail.status_code }}</el-descriptions-item>
+            <el-descriptions-item label="响应时间">{{ currentRequestDetail.response_time?.toFixed(0) }}ms</el-descriptions-item>
+            <el-descriptions-item label="执行结果">
+              <el-tag :type="currentRequestDetail.passed ? 'success' : 'danger'" size="small">
+                {{ currentRequestDetail.passed ? '通过' : '失败' }}
+              </el-tag>
+            </el-descriptions-item>
+            <el-descriptions-item label="URL" :span="2">{{ currentRequestDetail.url }}</el-descriptions-item>
+          </el-descriptions>
+        </div>
+
+        <!-- 错误信息 -->
+        <div v-if="currentRequestDetail.error" class="detail-section">
+          <h4>错误信息</h4>
+          <el-alert type="error" :description="currentRequestDetail.error" show-icon />
+        </div>
+
+        <!-- 请求数据 -->
+        <div v-if="currentRequestDetail.request_data" class="detail-section">
+          <h4>请求数据</h4>
+          <el-tabs type="border-card">
+            <el-tab-pane label="URL">
+              <pre class="code-block">{{ currentRequestDetail.request_data.url }}</pre>
+            </el-tab-pane>
+            <el-tab-pane label="Headers">
+              <pre class="code-block">{{ formatJson(currentRequestDetail.request_data.headers) }}</pre>
+            </el-tab-pane>
+            <el-tab-pane label="Params">
+              <pre class="code-block">{{ formatJson(currentRequestDetail.request_data.params) }}</pre>
+            </el-tab-pane>
+            <el-tab-pane label="Body">
+              <pre class="code-block">{{ formatJson(currentRequestDetail.request_data.body) }}</pre>
+            </el-tab-pane>
+          </el-tabs>
+        </div>
+
+        <!-- 响应数据 -->
+        <div v-if="currentRequestDetail.response_data" class="detail-section">
+          <h4>响应数据</h4>
+          <el-tabs type="border-card">
+            <el-tab-pane label="Headers">
+              <pre class="code-block">{{ formatJson(currentRequestDetail.response_data.headers) }}</pre>
+            </el-tab-pane>
+            <el-tab-pane label="Body">
+              <pre class="code-block">{{ currentRequestDetail.response_data.body }}</pre>
+            </el-tab-pane>
+            <el-tab-pane label="JSON">
+              <pre class="code-block">{{ formatJson(currentRequestDetail.response_data.json) }}</pre>
+            </el-tab-pane>
+          </el-tabs>
+        </div>
+
+        <!-- 断言结果 -->
+        <div v-if="currentRequestDetail.assertions_results?.length > 0" class="detail-section">
+          <h4>断言结果</h4>
+          <el-table :data="currentRequestDetail.assertions_results" size="small" border>
+            <el-table-column prop="name" label="断言名称" min-width="150" />
+            <el-table-column prop="passed" label="结果" width="80">
+              <template #default="scope">
+                <el-tag :type="scope.row.passed ? 'success' : 'danger'" size="small">
+                  {{ scope.row.passed ? '通过' : '失败' }}
+                </el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column prop="error" label="错误信息" min-width="200" />
+          </el-table>
+        </div>
+
+        <!-- 变量提取结果 -->
+        <div v-if="currentRequestDetail.extraction_results?.length > 0" class="detail-section">
+          <h4>变量提取</h4>
+          <el-table :data="currentRequestDetail.extraction_results" size="small" border>
+            <el-table-column prop="name" label="规则名称" min-width="150" />
+            <el-table-column prop="variable_name" label="变量名" min-width="120" />
+            <el-table-column prop="value" label="提取值" min-width="200" />
+            <el-table-column prop="success" label="结果" width="80">
+              <template #default="scope">
+                <el-tag :type="scope.row.success ? 'success' : 'danger'" size="small">
+                  {{ scope.row.success ? '成功' : '失败' }}
+                </el-tag>
+              </template>
+            </el-table-column>
+          </el-table>
+        </div>
+      </div>
+
+      <template #footer>
+        <el-button @click="showRequestDetailDialog = false">关闭</el-button>
       </template>
     </el-dialog>
   </div>
@@ -391,6 +505,10 @@ const addingRequests = ref(false)
 const currentExecution = ref(null)
 const suiteFormRef = ref()
 const requestTreeRef = ref()
+
+// 请求详情对话框
+const showRequestDetailDialog = ref(false)
+const currentRequestDetail = ref(null)
 
 const suiteForm = reactive({
   name: '',
@@ -635,9 +753,24 @@ const onProjectChange = async () => {
   ])
 }
 
-const selectSuite = (suite) => {
+const selectSuite = async (suite) => {
+  // 先显示基本数据
   selectedSuite.value = suite
   loadExecutions()
+  
+  // 然后异步加载完整详情（包含完整的 environment 对象）
+  try {
+    const response = await api.get(`/api-testing/test-suites/${suite.id}/`)
+    selectedSuite.value = response.data
+    
+    // 同时更新列表中的数据
+    const index = testSuites.value.findIndex(s => s.id === suite.id)
+    if (index !== -1) {
+      testSuites.value[index] = response.data
+    }
+  } catch (error) {
+    console.error('加载套件详情失败:', error)
+  }
 }
 
 const handleSuiteAction = async ({ action, suite }) => {
@@ -882,9 +1015,23 @@ const viewExecutionDetail = (execution) => {
   showExecutionDialog.value = true
 }
 
+const viewRequestDetail = (requestResult) => {
+  currentRequestDetail.value = requestResult
+  showRequestDetailDialog.value = true
+}
+
 const formatExecutionResults = (results) => {
   if (!results || !Array.isArray(results)) return []
   return results
+}
+
+const formatJson = (data) => {
+  if (!data) return ''
+  try {
+    return JSON.stringify(data, null, 2)
+  } catch {
+    return String(data)
+  }
 }
 
 onMounted(() => {
@@ -1103,5 +1250,39 @@ onMounted(() => {
 .execution-results h4 {
   margin: 0 0 15px 0;
   color: #303133;
+}
+
+/* 请求详情对话框样式 */
+.request-detail-dialog {
+  max-height: 70vh;
+  overflow-y: auto;
+}
+
+.detail-section {
+  margin-bottom: 20px;
+}
+
+.detail-section h4 {
+  margin: 0 0 10px 0;
+  color: #303133;
+  font-size: 14px;
+  font-weight: 600;
+  border-left: 3px solid #409eff;
+  padding-left: 10px;
+}
+
+.code-block {
+  background: #f5f7fa;
+  border: 1px solid #e4e7ed;
+  border-radius: 4px;
+  padding: 12px;
+  font-family: 'Courier New', Consolas, Monaco, monospace;
+  font-size: 12px;
+  line-height: 1.5;
+  overflow-x: auto;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  max-height: 300px;
+  overflow-y: auto;
 }
 </style>

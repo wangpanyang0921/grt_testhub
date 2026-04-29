@@ -747,7 +747,8 @@ export default {
       initialValue: '初始值',
       currentValue: '当前值',
       close: '关闭',
-      editEnvironment: '编辑环境'
+      editEnvironment: '编辑环境',
+      canBeUsedAsHeader: '可被接口引用'
     }
   },
 
@@ -849,7 +850,8 @@ export default {
       pleaseSelectEnvironment: '请选择环境',
       pleaseSelectProject: '请先选择一个项目',
       pleaseCreateCollection: '请先创建一个集合',
-      websocketNotInSuite: 'WebSocket项目不支持测试套件功能'
+      websocketNotInSuite: 'WebSocket项目不支持测试套件功能',
+      assertionFailed: '{count} 条断言验证失败'
     },
     info: {
       websocketClosed: 'WebSocket连接已关闭',

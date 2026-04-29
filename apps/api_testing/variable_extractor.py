@@ -195,8 +195,16 @@ def save_variables_to_environment(
 
     try:
         env = Environment.objects.get(id=environment_id)
+        # 将提取的变量转换为对象格式，默认 isHeader 为 false
+        formatted_variables = {}
+        for key, value in variables.items():
+            formatted_variables[key] = {
+                'initialValue': str(value) if value is not None else '',
+                'currentValue': str(value) if value is not None else '',
+                'isHeader': False  # 提取生成的变量默认关闭可被接口引用
+            }
         # 更新环境变量
-        env.variables.update(variables)
+        env.variables.update(formatted_variables)
         env.save()
         return True
     except Environment.DoesNotExist:

@@ -637,11 +637,11 @@ class TestSuiteViewSet(viewsets.ModelViewSet):
                 executed_by=request.user
             )
             
-            # 获取套件中的请求
+            # 获取套件中的请求 - 预加载request对象及其所有字段
             suite_requests = TestSuiteRequest.objects.filter(
                 test_suite=test_suite,
                 enabled=True
-            ).order_by('order')
+            ).select_related('request').order_by('order')
             
             execution.total_requests = suite_requests.count()
             execution.save()
@@ -655,17 +655,34 @@ class TestSuiteViewSet(viewsets.ModelViewSet):
 
             # 用于存储执行过程中提取的变量
             extracted_variables = {}
+            
+            # 初始化logger
+            import logging
+            logger = logging.getLogger(__name__)
 
             # 执行每个请求
             for suite_request in suite_requests:
                 api_request = suite_request.request
 
                 try:
-                    # 解析环境变量
+                    # 调试日志 - 打印完整的请求信息
+                    logger.info(f"DEBUG - api_request.id: {api_request.id}")
+                    logger.info(f"DEBUG - api_request.name: {api_request.name}")
+                    logger.info(f"DEBUG - api_request.url: {api_request.url}")
+                    logger.info(f"DEBUG - api_request.headers type: {type(api_request.headers)}")
+                    logger.info(f"DEBUG - api_request.headers value: {api_request.headers}")
+                    
+                    # 解析环境变量 - 重新查询确保获取最新数据
                     variables = {}
+                    # 1. 先加载全局环境变量
+                    global_envs = Environment.objects.filter(scope='GLOBAL')
+                    for env in global_envs:
+                        variables.update(env.variables)
+                    # 2. 再加载套件指定的环境变量（会覆盖全局变量）
                     if test_suite.environment:
-                        variables.update(test_suite.environment.variables)
-                    # 添加之前接口提取的变量
+                        env = Environment.objects.get(id=test_suite.environment.id)
+                        variables.update(env.variables)
+                    # 3. 添加之前接口提取的变量
                     variables.update(extracted_variables)
                     
                     # 替换URL中的变量（先解析动态函数，再替换环境变量）
@@ -696,6 +713,35 @@ class TestSuiteViewSet(viewsets.ModelViewSet):
 
                     # 准备请求头
                     headers = {}
+                    # 调试日志
+                    logger.info(f"DEBUG - api_request.headers: {api_request.headers}")
+                    logger.info(f"DEBUG - variables: {variables}")
+                    
+                    # 1. 首先添加环境变量中的常用 Headers (TenantId, Authorization 等)
+                    header_vars = ['TenantId', 'Authorization', 'Content-Type', 'Accept']
+                    for var_name in header_vars:
+                        if var_name in variables:
+                            var_value = variables[var_name]
+                            if isinstance(var_value, dict):
+                                # 获取 current_value 或 initial_value
+                                header_value = str(
+                                    var_value.get('current_value', '') or
+                                    var_value.get('currentValue', '') or
+                                    var_value.get('initial_value', '') or
+                                    var_value.get('initialValue', '')
+                                )
+                            else:
+                                header_value = str(var_value) if var_value is not None else ''
+                            
+                            # 解析变量引用
+                            header_value = self._replace_variables(header_value, variables)
+                            header_value = resolver.resolve(header_value)
+                            
+                            if header_value:
+                                headers[var_name] = header_value
+                                logger.info(f"DEBUG - Header from env: {var_name}={header_value}")
+                    
+                    # 2. 再添加接口定义中的 Headers
                     # 支持新的数组格式和旧的对象格式
                     if isinstance(api_request.headers, list):
                         # 新的数组格式 [{"key": "Authorization", "value": "Bearer {{token}}", "enabled": true, "description": "..."}]
@@ -705,35 +751,72 @@ class TestSuiteViewSet(viewsets.ModelViewSet):
                                 value = self._replace_variables(str(header_item.get('value', '')), variables)
                                 value = resolver.resolve(value)
                                 headers[key] = value
+                                logger.info(f"DEBUG - Header from request: {key}={value}")
                     else:
                         # 旧的对象格式 {"Authorization": "Bearer {{token}}"}
-                        headers = api_request.headers.copy()
-                        for key, value in headers.items():
-                            headers[key] = self._replace_variables(str(value), variables)
-                            headers[key] = resolver.resolve(headers[key])
+                        for key, value in api_request.headers.items():
+                            processed_value = self._replace_variables(str(value), variables)
+                            processed_value = resolver.resolve(processed_value)
+                            headers[key] = processed_value
+                            logger.info(f"DEBUG - Header from request: {key}={processed_value}")
 
                     params = api_request.params.copy()
                     for key, value in params.items():
                         params[key] = self._replace_variables(str(value), variables)
                         params[key] = resolver.resolve(params[key])
 
+                    # 准备请求体 - 与单接口执行逻辑保持一致
                     body_data = None
+                    body_type = 'none'
                     if api_request.body and api_request.method in ['POST', 'PUT', 'PATCH']:
-                        if api_request.body.get('type') == 'json':
-                            body_data = api_request.body.get('data', {})
-                            body_data = self._replace_variables_in_dict(body_data, variables)
-                            body_data = self._resolve_variables_in_dict(body_data, resolver)
+                        body_type = api_request.body.get('type', 'none')
+                        body_content = api_request.body.get('data')
+
+                        if body_type == 'json':
+                            if isinstance(body_content, dict):
+                                body_data = self._replace_variables_in_dict(body_content, variables)
+                                body_data = self._resolve_variables_in_dict(body_data, resolver)
+                            else:
+                                body_data = body_content
+                        elif body_type == 'raw':
+                            if isinstance(body_content, str):
+                                body_data = self._replace_variables(body_content, variables)
+                                body_data = resolver.resolve(body_data)
+                            else:
+                                body_data = body_content
+                        elif body_type in ['form-data', 'x-www-form-urlencoded']:
+                            if isinstance(body_content, list):
+                                body_data = self._replace_variables_in_dict(body_content, variables)
+                                body_data = self._resolve_variables_in_dict(body_data, resolver)
+                            else:
+                                body_data = body_content
+                        else:
+                            body_data = body_content
 
                     # 执行请求
                     start_time = time.time()
-                    response = requests.request(
-                        method=api_request.method,
-                        url=url,
-                        headers=headers,
-                        params=params,
-                        json=body_data,
-                        timeout=30
-                    )
+                    
+                    # 根据请求体类型决定使用 data 还是 json 参数
+                    if body_type == 'raw':
+                        # raw 类型使用 data 参数，发送原始字符串
+                        response = requests.request(
+                            method=api_request.method,
+                            url=url,
+                            headers=headers,
+                            params=params,
+                            data=body_data,
+                            timeout=30
+                        )
+                    else:
+                        # json 类型使用 json 参数，自动序列化
+                        response = requests.request(
+                            method=api_request.method,
+                            url=url,
+                            headers=headers,
+                            params=params,
+                            json=body_data,
+                            timeout=30
+                        )
                     end_time = time.time()
                     response_time = (end_time - start_time) * 1000
                     
@@ -805,7 +888,19 @@ class TestSuiteViewSet(viewsets.ModelViewSet):
                         'error': error_message,
                         'assertions_results': assertions_results,
                         'extraction_results': extraction_result['results'],
-                        'extracted_variables': extraction_result['variables']
+                        'extracted_variables': extraction_result['variables'],
+                        'request_data': {
+                            'url': url,
+                            'method': api_request.method,
+                            'headers': headers,
+                            'params': params,
+                            'body': body_data
+                        },
+                        'response_data': {
+                            'headers': dict(response.headers),
+                            'body': response.text[:5000] if len(response.text) > 5000 else response.text,  # 限制响应体大小
+                            'json': response_json
+                        }
                     })
 
                     # 保存请求历史

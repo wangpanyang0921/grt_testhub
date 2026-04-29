@@ -205,6 +205,7 @@
               <div class="column">{{ $t('apiTesting.environment.variableName') }}</div>
               <div class="column">{{ $t('apiTesting.environment.initialValue') }}</div>
               <div class="column">{{ $t('apiTesting.environment.currentValue') }}</div>
+              <div class="column header-column">可被接口引用</div>
               <div class="column">{{ $t('apiTesting.common.operation') }}</div>
             </div>
 
@@ -235,11 +236,21 @@
                     size="small"
                   />
                 </div>
-                <div class="column">
+                <div class="column header-column">
+                  <el-switch
+                    v-model="variable.isHeader"
+                    :active-value="true"
+                    :inactive-value="false"
+                    size="small"
+                  />
+                </div>
+                <div class="column action-column">
                   <el-button
                     size="small"
                     type="danger"
+                    link
                     :icon="Delete"
+                    class="variable-delete-btn"
                     @click="removeVariable(index)"
                     :disabled="form.variables.length <= 1"
                   />
@@ -269,14 +280,98 @@
     <el-dialog
       v-model="showViewDialog"
       :title="$t('apiTesting.environment.environmentVariableDetail')"
-      width="600px"
+      width="900px"
+      class="view-dialog"
     >
       <div v-if="viewingEnvironment" class="view-variables">
-        <el-table :data="viewVariables" style="width: 100%">
-          <el-table-column prop="key" :label="$t('apiTesting.environment.variableName')" width="150" />
-          <el-table-column prop="initialValue" :label="$t('apiTesting.environment.initialValue')" />
-          <el-table-column prop="currentValue" :label="$t('apiTesting.environment.currentValue')" />
-        </el-table>
+        <!-- 环境基本信息 -->
+        <div class="env-info-section">
+          <el-descriptions :column="3" border>
+            <el-descriptions-item :label="$t('apiTesting.environment.environmentName')">
+              {{ viewingEnvironment.name }}
+            </el-descriptions-item>
+            <el-descriptions-item :label="$t('apiTesting.environment.scope')">
+              <el-tag :type="viewingEnvironment.scope === 'GLOBAL' ? 'primary' : 'success'" size="small">
+                {{ viewingEnvironment.scope === 'GLOBAL' ? $t('apiTesting.environment.scopeTypes.global') : $t('apiTesting.environment.scopeTypes.local') }}
+              </el-tag>
+            </el-descriptions-item>
+            <el-descriptions-item :label="$t('apiTesting.environment.status')">
+              <el-tag v-if="viewingEnvironment.is_active" type="success" size="small">{{ $t('apiTesting.environment.activated') }}</el-tag>
+              <el-tag v-else type="info" size="small">{{ $t('apiTesting.environment.notActivated') }}</el-tag>
+            </el-descriptions-item>
+          </el-descriptions>
+        </div>
+
+        <!-- 变量列表 -->
+        <div class="variables-table-section">
+          <div class="section-title">{{ $t('apiTesting.component.environmentTable.variableList') }}</div>
+          <el-table
+            :data="viewVariables"
+            style="width: 100%"
+            :max-height="400"
+            border
+            stripe
+          >
+            <el-table-column type="index" :label="$t('apiTesting.common.sequence')" width="60" align="center" />
+            <el-table-column :label="$t('apiTesting.environment.variableName')" min-width="150">
+              <template #default="{ row }">
+                <el-tooltip
+                  v-if="row.key"
+                  placement="top"
+                  popper-class="table-tooltip"
+                  :show-after="500"
+                  :disabled="row.key.length < 20"
+                >
+                  <template #content>
+                    <div style="background: #303133; color: #ffffff; padding: 8px 12px; border-radius: 4px; max-width: 380px; max-height: 180px; overflow-y: auto; word-break: break-all; line-height: 1.6;">{{ row.key }}</div>
+                  </template>
+                  <div class="ellipsis-text">{{ row.key }}</div>
+                </el-tooltip>
+                <div v-else class="ellipsis-text">{{ row.key || '-' }}</div>
+              </template>
+            </el-table-column>
+            <el-table-column :label="$t('apiTesting.environment.initialValue')" min-width="200">
+              <template #default="{ row }">
+                <el-tooltip
+                  v-if="row.initialValue"
+                  placement="top"
+                  popper-class="table-tooltip"
+                  :show-after="500"
+                  :disabled="row.initialValue.length < 30"
+                >
+                  <template #content>
+                    <div style="background: #303133; color: #ffffff; padding: 8px 12px; border-radius: 4px; max-width: 380px; max-height: 180px; overflow-y: auto; word-break: break-all; line-height: 1.6;">{{ row.initialValue }}</div>
+                  </template>
+                  <div class="ellipsis-text">{{ row.initialValue }}</div>
+                </el-tooltip>
+                <div v-else class="ellipsis-text">{{ row.initialValue || '-' }}</div>
+              </template>
+            </el-table-column>
+            <el-table-column :label="$t('apiTesting.environment.currentValue')" min-width="200">
+              <template #default="{ row }">
+                <el-tooltip
+                  v-if="row.currentValue"
+                  placement="top"
+                  popper-class="table-tooltip"
+                  :show-after="500"
+                  :disabled="row.currentValue.length < 30"
+                >
+                  <template #content>
+                    <div style="background: #303133; color: #ffffff; padding: 8px 12px; border-radius: 4px; max-width: 380px; max-height: 180px; overflow-y: auto; word-break: break-all; line-height: 1.6;">{{ row.currentValue }}</div>
+                  </template>
+                  <div class="ellipsis-text">{{ row.currentValue }}</div>
+                </el-tooltip>
+                <div v-else class="ellipsis-text">{{ row.currentValue || '-' }}</div>
+              </template>
+            </el-table-column>
+            <el-table-column prop="isHeader" :label="$t('apiTesting.component.environmentTable.canBeUsedAsHeader')" width="120" align="center">
+              <template #default="{ row }">
+                <el-tag v-if="row.isHeader" type="success" size="small">是</el-tag>
+                <el-tag v-else type="info" size="small">否</el-tag>
+              </template>
+            </el-table-column>
+          </el-table>
+        </div>
       </div>
 
       <template #footer>
@@ -316,7 +411,8 @@ const form = reactive({
     {
       key: '',
       initialValue: '',
-      currentValue: ''
+      currentValue: '',
+      isHeader: false
     }
   ]
 })
@@ -346,11 +442,16 @@ const viewVariables = computed(() => {
   if (!viewingEnvironment.value?.variables) return []
 
   const vars = viewingEnvironment.value.variables
-  return Object.keys(vars).map(key => ({
-    key,
-    initialValue: vars[key]?.initialValue || vars[key] || '',
-    currentValue: vars[key]?.currentValue || vars[key] || ''
-  }))
+  return Object.keys(vars).map(key => {
+    const value = vars[key]
+    const isObject = typeof value === 'object' && value !== null
+    return {
+      key,
+      initialValue: isObject ? (value.initialValue || '') : (value || ''),
+      currentValue: isObject ? (value.currentValue || '') : (value || ''),
+      isHeader: isObject ? (value.isHeader !== false) : true
+    }
+  })
 })
 
 const formatDate = (dateString) => {
@@ -425,7 +526,8 @@ const addVariable = () => {
   form.variables.push({
     key: '',
     initialValue: '',
-    currentValue: ''
+    currentValue: '',
+    isHeader: false
   })
 }
 
@@ -449,13 +551,15 @@ const editEnvironment = (environment) => {
       return {
         key,
         initialValue: value.initialValue || '',
-        currentValue: value.currentValue || ''
+        currentValue: value.currentValue || '',
+        isHeader: value.isHeader !== false // 默认为 true
       }
     } else {
       return {
         key,
         initialValue: value || '',
-        currentValue: value || ''
+        currentValue: value || '',
+        isHeader: true // 旧数据默认开启
       }
     }
   })
@@ -464,7 +568,8 @@ const editEnvironment = (environment) => {
     form.variables.push({
       key: '',
       initialValue: '',
-      currentValue: ''
+      currentValue: '',
+      isHeader: false
     })
   }
 
@@ -551,7 +656,8 @@ const submitForm = async () => {
       if (variable.key) {
         variables[variable.key] = {
           initialValue: variable.initialValue || '',
-          currentValue: variable.currentValue || variable.initialValue || ''
+          currentValue: variable.currentValue || variable.initialValue || '',
+          isHeader: variable.isHeader !== false // 默认为 true
         }
       }
     })
@@ -959,10 +1065,12 @@ onMounted(async () => {
 
   .el-icon {
     font-size: 14px;
+    color: #ffffff !important;
   }
 
   span {
     font-size: 12px;
+    color: #ffffff !important;
   }
 
   &.activate-btn {
@@ -979,15 +1087,15 @@ onMounted(async () => {
   }
 
   &.view-btn {
-    background: linear-gradient(135deg, #1890ff 0%, #096dd9 100%) !important;
+    background: linear-gradient(135deg, #52c41a 0%, #389e0d 100%) !important;
     border: none !important;
     color: #ffffff !important;
     font-weight: 600 !important;
 
     &:hover {
-      background: linear-gradient(135deg, #40a9ff 0%, #1890ff 100%) !important;
+      background: linear-gradient(135deg, #73d13d 0%, #52c41a 100%) !important;
       transform: translateY(-1px);
-      box-shadow: 0 4px 12px rgba(24, 144, 255, 0.4);
+      box-shadow: 0 4px 12px rgba(82, 196, 26, 0.4);
     }
   }
 
@@ -998,7 +1106,7 @@ onMounted(async () => {
     font-weight: 600 !important;
 
     &:hover {
-      background: linear-gradient(135deg, #a78bfa 0%, #7b42f6 100%) !important;
+      background: linear-gradient(135deg, #6d33e6 0%, #4a249c 100%) !important;
       transform: translateY(-1px);
       box-shadow: 0 4px 12px rgba(123, 66, 246, 0.4);
     }
@@ -1018,7 +1126,7 @@ onMounted(async () => {
   }
 
   &.delete-btn {
-    background: linear-gradient(135deg, #ff4d4f 0%, #cf1322 100%) !important;
+    background: linear-gradient(135deg, #ff4d4f 0%, #f5222d 100%) !important;
     border: none !important;
     color: #ffffff !important;
     font-weight: 600 !important;
@@ -1026,7 +1134,7 @@ onMounted(async () => {
     &:hover {
       background: linear-gradient(135deg, #ff7875 0%, #ff4d4f 100%) !important;
       transform: translateY(-1px);
-      box-shadow: 0 4px 12px rgba(255, 77, 79, 0.4);
+      box-shadow: 0 4px 12px rgba(245, 34, 45, 0.4);
     }
   }
 }
@@ -1096,6 +1204,16 @@ onMounted(async () => {
     flex: 0 0 60px;
     justify-content: center;
   }
+
+  &.header-column {
+    flex: 0 0 100px;
+    justify-content: center;
+  }
+
+  &.action-column {
+    flex: 0 0 60px;
+    justify-content: center;
+  }
 }
 
 .variables-footer {
@@ -1104,9 +1222,170 @@ onMounted(async () => {
   background: #ffffff;
 }
 
-.view-variables {
-  max-height: 400px;
-  overflow-y: auto;
+// 变量删除按钮样式
+.variable-delete-btn {
+  padding: 6px !important;
+  border-radius: 6px !important;
+  transition: all 0.3s ease !important;
+
+  .el-icon {
+    font-size: 16px;
+    color: #909399;
+    transition: all 0.3s ease;
+  }
+
+  &:hover:not(:disabled) {
+    background: rgba(245, 108, 108, 0.1) !important;
+
+    .el-icon {
+      color: #f56c6c;
+    }
+  }
+
+  &:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+
+    .el-icon {
+      color: #c0c4cc;
+    }
+  }
+}
+
+// 查看对话框样式
+.view-dialog {
+  .view-variables {
+    padding: 0;
+
+    .env-info-section {
+      margin-bottom: 20px;
+
+      :deep(.el-descriptions) {
+        .el-descriptions__label {
+          color: #5a32a3;
+          font-weight: 500;
+          background: #f8f7ff;
+          text-align: center;
+        }
+
+        .el-descriptions__content {
+          color: #333;
+          text-align: center;
+        }
+
+        .el-descriptions__cell {
+          text-align: center;
+        }
+      }
+    }
+
+    .variables-table-section {
+      .section-title {
+        font-size: 14px;
+        font-weight: 600;
+        color: #5a32a3;
+        margin-bottom: 12px;
+        padding-left: 8px;
+        border-left: 3px solid #7b42f6;
+      }
+
+      :deep(.el-table) {
+        border-radius: 8px;
+        overflow: hidden;
+
+        .el-table__header {
+          th {
+            background: #f8f7ff;
+            color: #5a32a3;
+            font-weight: 600;
+            text-align: center;
+
+            .cell {
+              text-align: center;
+            }
+          }
+        }
+
+        .el-table__row {
+          &:hover {
+            background: #f8f7ff;
+          }
+        }
+
+        .cell {
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+      }
+
+      .ellipsis-text {
+        display: block;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+    }
+  }
+}
+
+// 表格 tooltip 样式 - 使用全局样式确保生效
+:global(.el-popper.table-tooltip) {
+  max-width: 400px !important;
+  max-height: 200px !important;
+  overflow: hidden !important;
+  box-sizing: border-box !important;
+  background-color: #303133 !important;
+  background: #303133 !important;
+  border: none !important;
+  padding: 0 !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3) !important;
+
+  .el-popper__arrow {
+    &::before {
+      background-color: #303133 !important;
+      background: #303133 !important;
+      border-color: #303133 !important;
+    }
+  }
+
+  .el-popper__content {
+    width: 100% !important;
+    max-width: 400px !important;
+    max-height: 200px !important;
+    overflow: hidden !important;
+    box-sizing: border-box !important;
+    padding: 0 !important;
+    background-color: #303133 !important;
+    background: #303133 !important;
+  }
+
+  .tooltip-content {
+    max-width: 380px !important;
+    max-height: 180px !important;
+    overflow-y: auto !important;
+    word-break: break-all !important;
+    white-space: pre-wrap !important;
+    line-height: 1.6 !important;
+    font-size: 13px !important;
+    color: #ffffff !important;
+    padding: 10px 12px !important;
+    background-color: transparent !important;
+    background: transparent !important;
+
+    &::-webkit-scrollbar {
+      width: 6px;
+    }
+
+    &::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.3);
+      border-radius: 3px;
+    }
+
+    &::-webkit-scrollbar-track {
+      background: transparent;
+    }
+  }
 }
 
 // 对话框样式

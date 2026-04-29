@@ -698,7 +698,8 @@ export default {
       initialValue: 'Initial Value',
       currentValue: 'Current Value',
       close: 'Close',
-      editEnvironment: 'Edit Environment'
+      editEnvironment: 'Edit Environment',
+      canBeUsedAsHeader: 'Can Be Used As Header'
     }
   },
 
@@ -799,7 +800,8 @@ export default {
       pleaseSelectEnvironment: 'Please select an environment',
       pleaseSelectProject: 'Please select a project first',
       pleaseCreateCollection: 'Please create a collection first',
-      websocketNotInSuite: 'WebSocket projects do not support test suite functionality'
+      websocketNotInSuite: 'WebSocket projects do not support test suite functionality',
+      assertionFailed: '{count} assertion(s) failed'
     },
     info: {
       websocketClosed: 'WebSocket connection closed',

@@ -1096,21 +1096,23 @@ watch(selectedEnvironment, (newEnvId) => {
     return
   }
 
-  // 从环境变量中提取 Header 参数（排除 base_url 和 auth_token）
+  // 从环境变量中提取可被接口引用的 Header 参数
   const envVars = env.variables
   const newHeaders = []
 
   Object.entries(envVars).forEach(([key, value]) => {
-    // 跳过 base_url 和 auth_token 相关变量
-    if (key === 'base_url' || key === 'baseUrl' || key === 'auth_token' || key === 'authToken') return
-
     // 获取实际值
     let actualValue = value
+    let isHeader = true // 默认为 true，兼容旧数据
+
     if (typeof value === 'object' && value !== null) {
       actualValue = value.current_value || value.currentValue || value.initial_value || value.initialValue || ''
+      // 检查是否标记为可被接口引用
+      isHeader = value.isHeader !== false
     }
 
-    if (actualValue !== undefined && actualValue !== null && actualValue !== '') {
+    // 只添加被标记为可被接口引用的变量
+    if (isHeader && actualValue !== undefined && actualValue !== null && actualValue !== '') {
       newHeaders.push({
         enabled: true,
         key: key,
