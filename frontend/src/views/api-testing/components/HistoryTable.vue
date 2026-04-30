@@ -5,19 +5,9 @@
       v-loading="loading"
       style="width: 100%"
       class="custom-table"
-      @selection-change="$emit('selection-change', $event)"
     >
-      <el-table-column type="selection" width="55" header-align="center" align="center" />
       <el-table-column type="index" :label="$t('apiTesting.common.sequence')" width="90" header-align="center" align="center" />
       <el-table-column prop="request.name" :label="$t('apiTesting.component.historyTable.requestName')" min-width="200" header-align="center" align="center" />
-      <el-table-column prop="request.method" :label="$t('apiTesting.component.historyTable.method')" width="100" header-align="center" align="center">
-        <template #default="scope">
-          <span class="method-badge" :class="getMethodClass(scope.row.request.method)">
-            {{ scope.row.request.method }}
-          </span>
-        </template>
-      </el-table-column>
-      <el-table-column prop="request_data.url" :label="$t('apiTesting.component.historyTable.url')" min-width="300" header-align="center" align="center" show-overflow-tooltip />
       <el-table-column prop="status_code" :label="$t('apiTesting.component.historyTable.statusCode')" width="100" header-align="center" align="center">
         <template #default="scope">
           <span
@@ -46,16 +36,12 @@
           {{ formatDate(scope.row.executed_at) }}
         </template>
       </el-table-column>
-      <el-table-column :label="$t('apiTesting.common.operation')" width="280" fixed="right" header-align="center" align="center">
+      <el-table-column :label="$t('apiTesting.common.operation')" width="200" fixed="right" header-align="center" align="center">
         <template #default="scope">
           <div class="action-buttons">
             <el-button size="small" type="primary" class="action-btn view-btn" @click="$emit('view-detail', scope.row)">
               <el-icon><View /></el-icon>
               <span>{{ $t('apiTesting.component.historyTable.viewDetail') }}</span>
-            </el-button>
-            <el-button size="small" type="success" class="action-btn retry-btn" @click="$emit('retry-request', scope.row)">
-              <el-icon><RefreshRight /></el-icon>
-              <span>{{ $t('apiTesting.component.historyTable.retryRequest') }}</span>
             </el-button>
             <el-button size="small" type="danger" class="action-btn delete-btn" @click="$emit('delete-item', scope.row)">
               <el-icon><Delete /></el-icon>
@@ -69,7 +55,7 @@
 </template>
 
 <script setup>
-import { View, RefreshRight, Delete } from '@element-plus/icons-vue'
+import { View, Delete } from '@element-plus/icons-vue'
 import dayjs from 'dayjs'
 
 defineProps({
@@ -83,7 +69,7 @@ defineProps({
   }
 })
 
-defineEmits(['view-detail', 'retry-request', 'selection-change', 'delete-item'])
+defineEmits(['view-detail', 'delete-item'])
 
 const getMethodClass = (method) => {
   const classMap = {
@@ -362,19 +348,6 @@ const formatDate = (dateString) => {
   }
 
   &.view-btn {
-    background: linear-gradient(135deg, #1890ff 0%, #096dd9 100%) !important;
-    border: none !important;
-    color: #ffffff !important;
-    font-weight: 600 !important;
-
-    &:hover {
-      background: linear-gradient(135deg, #40a9ff 0%, #1890ff 100%) !important;
-      transform: translateY(-1px);
-      box-shadow: 0 4px 12px rgba(24, 144, 255, 0.4);
-    }
-  }
-
-  &.retry-btn {
     background: linear-gradient(135deg, #52c41a 0%, #389e0d 100%) !important;
     border: none !important;
     color: #ffffff !important;

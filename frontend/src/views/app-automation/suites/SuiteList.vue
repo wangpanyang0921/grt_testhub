@@ -149,7 +149,7 @@
     <!-- 创建/编辑套件对话框 -->
     <el-dialog
       v-model="dialogVisible"
-      :title="isEdit ? '编辑测试套件' : '新建测试套件'"
+      :title="isEdit ? '编辑测试场景' : '新建测试场景'"
       width="900px"
       :close-on-click-modal="false"
       destroy-on-close

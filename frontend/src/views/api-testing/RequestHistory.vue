@@ -14,35 +14,8 @@
             <el-icon><Search /></el-icon>
           </template>
         </el-input>
-        <el-select
-          v-model="activeTab"
-          @change="onTabChange"
-          class="type-select"
-        >
-          <el-option
-            :label="$t('apiTesting.history.httpRequest')"
-            value="HTTP"
-          />
-          <el-option
-            :label="$t('apiTesting.history.websocketRequest')"
-            value="WEBSOCKET"
-          />
-        </el-select>
       </div>
       <div class="header-actions">
-        <el-button
-          type="danger"
-          :disabled="selectedIds.length === 0"
-          @click="handleBatchDelete"
-          class="action-btn batch-delete-btn"
-        >
-          <el-icon><Delete /></el-icon>
-          <span>{{ $t('apiTesting.history.batchDelete') }}</span>
-        </el-button>
-        <el-button @click="clearHistory" type="danger" plain class="action-btn clear-btn">
-          <el-icon><DeleteFilled /></el-icon>
-          <span>{{ $t('apiTesting.history.clearHistory') }}</span>
-        </el-button>
       </div>
     </div>
 
@@ -54,8 +27,6 @@
           :data="httpHistory"
           :loading="loading"
           @view-detail="viewDetail"
-          @retry-request="retryRequest"
-          @selection-change="handleSelectionChange"
           @delete-item="handleDelete"
         />
       </div>
@@ -65,8 +36,6 @@
           :data="websocketHistory"
           :loading="loading"
           @view-detail="viewDetail"
-          @retry-request="retryRequest"
-          @selection-change="handleSelectionChange"
           @delete-item="handleDelete"
         />
       </div>
@@ -205,7 +174,7 @@
 import { ref, onMounted, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useI18n } from 'vue-i18n'
-import { Search, Delete, DeleteFilled, DocumentChecked, DocumentCopy, RefreshRight } from '@element-plus/icons-vue'
+import { Search, Delete, DocumentChecked, DocumentCopy, RefreshRight } from '@element-plus/icons-vue'
 import api from '@/utils/api'
 import { deleteRequestHistory, batchDeleteRequestHistory } from '@/api/api-testing'
 import dayjs from 'dayjs'
@@ -223,7 +192,6 @@ const total = ref(0)
 const showDetailDialog = ref(false)
 const selectedHistory = ref(null)
 const detailTab = ref('request')
-const selectedIds = ref([])
 
 const currentHistory = computed(() => {
   return activeTab.value === 'HTTP' ? httpHistory.value : websocketHistory.value
@@ -307,7 +275,6 @@ const loadHistory = async () => {
 
 const onTabChange = () => {
   currentPage.value = 1
-  selectedIds.value = []
   loadHistory()
 }
 
@@ -341,33 +308,6 @@ const retryRequest = async (history) => {
   }
 }
 
-const clearHistory = async () => {
-  try {
-    await ElMessageBox.confirm(
-      t('apiTesting.history.confirmClearHistory'),
-      t('apiTesting.messages.confirm.clearTitle'),
-      {
-        confirmButtonText: t('apiTesting.common.confirm'),
-        cancelButtonText: t('apiTesting.common.cancel'),
-        type: 'warning'
-      }
-    )
-
-    // 这里需要后端提供批量删除接口
-    // 目前先用批量删除当前页的方式模拟，或者需要后端增加清空接口
-    // 暂时提示未实现
-    ElMessage.warning(t('apiTesting.history.clearNotImplemented'))
-  } catch (error) {
-    if (error !== 'cancel') {
-      console.error(error)
-    }
-  }
-}
-
-const handleSelectionChange = (selection) => {
-  selectedIds.value = selection.map(item => item.id)
-}
-
 const handleDelete = (row) => {
   ElMessageBox.confirm(t('apiTesting.history.confirmDelete'), t('apiTesting.common.tip'), {
     confirmButtonText: t('apiTesting.common.confirm'),
@@ -381,26 +321,6 @@ const handleDelete = (row) => {
     } catch (error) {
       console.error('Delete failed:', error)
       ElMessage.error(t('apiTesting.messages.error.deleteFailed'))
-    }
-  })
-}
-
-const handleBatchDelete = () => {
-  if (selectedIds.value.length === 0) return
-
-  ElMessageBox.confirm(t('apiTesting.history.confirmBatchDelete', { n: selectedIds.value.length }), t('apiTesting.common.tip'), {
-    confirmButtonText: t('apiTesting.common.confirm'),
-    cancelButtonText: t('apiTesting.common.cancel'),
-    type: 'warning'
-  }).then(async () => {
-    try {
-      await batchDeleteRequestHistory(selectedIds.value)
-      ElMessage.success(t('apiTesting.messages.success.batchDeleteSuccess'))
-      selectedIds.value = []
-      loadHistory()
-    } catch (error) {
-      console.error('Batch delete failed:', error)
-      ElMessage.error(t('apiTesting.messages.error.batchDeleteFailed'))
     }
   })
 }
@@ -900,17 +820,6 @@ onMounted(() => {
     &:disabled {
       opacity: 0.6;
       cursor: not-allowed;
-    }
-  }
-
-  &.clear-btn {
-    border: 1px solid #ff4d4f !important;
-    color: #ff4d4f !important;
-    background: transparent !important;
-
-    &:hover {
-      background: rgba(255, 77, 79, 0.1) !important;
-      transform: translateY(-2px);
     }
   }
 }

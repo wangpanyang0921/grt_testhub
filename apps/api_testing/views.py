@@ -26,6 +26,7 @@ from .models import (
     RequestHistory, TestSuite, TestExecution, TestSuiteRequest,
     ScheduledTask, TaskExecutionLog, NotificationLog,
     TaskNotificationSetting, OperationLog, AIServiceConfig,
+    TestSuiteReviewRecord,
 )
 
 from .serializers import (
@@ -35,7 +36,8 @@ from .serializers import (
     ScheduledTaskSerializer, TaskExecutionLogSerializer,
     NotificationLogSerializer, TaskNotificationSettingSerializer,
     NotificationLogDetailSerializer,
-    TaskNotificationSettingDetailSerializer, OperationLogSerializer
+    TaskNotificationSettingDetailSerializer, OperationLogSerializer,
+    TestSuiteReviewRecordSerializer
 )
 
 logger = logging.getLogger(__name__)
@@ -74,10 +76,8 @@ class ApiProjectViewSet(viewsets.ModelViewSet):
     ordering = ['-created_at']
     
     def get_queryset(self):
-        user = self.request.user
-        return ApiProject.objects.filter(
-            models.Q(owner=user) | models.Q(members=user)
-        ).distinct()
+        # 返回所有项目，不进行权限过滤
+        return ApiProject.objects.all()
     
     def perform_create(self, serializer):
         """创建项目时记录日志"""
@@ -122,12 +122,8 @@ class ApiCollectionViewSet(viewsets.ModelViewSet):
     filterset_fields = ['project', 'parent']
     
     def get_queryset(self):
-        user = self.request.user
-        return ApiCollection.objects.filter(
-            project__in=ApiProject.objects.filter(
-                models.Q(owner=user) | models.Q(members=user)
-            )
-        ).distinct()
+        # 返回所有集合，不进行权限过滤
+        return ApiCollection.objects.all()
 
     def perform_create(self, serializer):
         """创建集合时设置创建者并记录日志"""
@@ -173,31 +169,15 @@ class ApiRequestViewSet(viewsets.ModelViewSet):
     pagination_class = StandardPagination
     
     def get_queryset(self):
-        user = self.request.user
-        # 获取用户有权限的项目
-        accessible_projects = ApiProject.objects.filter(
-            models.Q(owner=user) | models.Q(members=user)
-        )
-
-        # 查询两种接口：
-        # 1. 关联到集合的接口（集合所属项目是用户有权限的）
-        # 2. 或者是用户创建的且没有关联集合的接口
-        queryset = ApiRequest.objects.filter(
-            models.Q(
-                collection__project__in=accessible_projects
-            ) | models.Q(
-                collection__isnull=True,
-                created_by=user
-            )
-        ).distinct()
+        # 返回所有接口，不进行权限过滤
+        queryset = ApiRequest.objects.all()
 
         project_id = self.request.query_params.get('project')
         if project_id:
-            # 如果指定了项目，则只查询该项目下的接口（包括未关联集合但创建者是当前用户的）
+            # 如果指定了项目，则只查询该项目下的接口
             queryset = queryset.filter(
                 models.Q(collection__project_id=project_id) | models.Q(
-                    collection__isnull=True,
-                    created_by=user
+                    collection__isnull=True
                 )
             ).distinct()
 
@@ -505,16 +485,8 @@ class EnvironmentViewSet(viewsets.ModelViewSet):
     ordering = ['-created_at']
     
     def get_queryset(self):
-        user = self.request.user
-        return Environment.objects.filter(
-            models.Q(scope='GLOBAL') | 
-            models.Q(
-                scope='LOCAL',
-                project__in=ApiProject.objects.filter(
-                    models.Q(owner=user) | models.Q(members=user)
-                )
-            )
-        ).distinct().order_by('-created_at')
+        # 返回所有环境，不进行权限过滤
+        return Environment.objects.all().order_by('-created_at')
     
     @action(detail=True, methods=['post'])
     def activate(self, request, pk=None):
@@ -574,21 +546,18 @@ class RequestHistoryViewSet(viewsets.ModelViewSet):
     queryset = RequestHistory.objects.all()
     serializer_class = RequestHistorySerializer
     permission_classes = [IsAuthenticated]
-    filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
+    filter_backends = [DjangoFilterBackend, filters.OrderingFilter, filters.SearchFilter]
     filterset_fields = ['request__request_type', 'status_code']
+    search_fields = ['request__name']
     ordering = ['-executed_at']
     pagination_class = StandardPagination
-    
+
     def get_queryset(self):
-        user = self.request.user
-        return RequestHistory.objects.filter(
-            request__collection__project__in=ApiProject.objects.filter(
-                models.Q(owner=user) | models.Q(members=user)
-            )
-        ).select_related(
+        # 返回所有请求历史，不进行权限过滤
+        return RequestHistory.objects.all().select_related(
             'request', 'environment', 'executed_by',
             'request__created_by', 'environment__created_by', 'environment__project'
-        ).distinct()
+        )
 
     @action(detail=False, methods=['post'], url_path='batch-delete')
     def batch_delete(self, request):
@@ -614,14 +583,61 @@ class TestSuiteViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
     filter_backends = [DjangoFilterBackend]
     filterset_fields = ['project']
-    
+
     def get_queryset(self):
-        user = self.request.user
-        return TestSuite.objects.filter(
-            project__in=ApiProject.objects.filter(
-                models.Q(owner=user) | models.Q(members=user)
-            )
-        ).distinct()
+        queryset = TestSuite.objects.all()
+
+        # 时间范围筛选
+        created_after = self.request.query_params.get('created_after')
+        created_before = self.request.query_params.get('created_before')
+        if created_after:
+            # 将日期字符串转换为 datetime 的开始时间 (00:00:00)
+            from datetime import datetime
+            start_date = datetime.strptime(created_after, '%Y-%m-%d')
+            queryset = queryset.filter(created_at__gte=start_date)
+        if created_before:
+            # 将日期字符串转换为 datetime 的结束时间 (23:59:59)
+            from datetime import datetime, timedelta
+            end_date = datetime.strptime(created_before, '%Y-%m-%d') + timedelta(days=1)
+            queryset = queryset.filter(created_at__lt=end_date)
+
+        # 评审状态筛选
+        review_status = self.request.query_params.get('review_status')
+        if review_status:
+            # 根据评审状态筛选测试套件
+            # 获取所有测试套件的ID
+            suite_ids = list(queryset.values_list('id', flat=True))
+
+            # 获取每个测试套件的评审摘要
+            matching_suite_ids = []
+            for suite_id in suite_ids:
+                try:
+                    suite = TestSuite.objects.get(id=suite_id)
+                    # 计算评审状态
+                    review_records = TestSuiteReviewRecord.objects.filter(test_suite=suite)
+                    total_reviews = review_records.count()
+
+                    if total_reviews == 0:
+                        overall_status = 'pending'
+                    else:
+                        approved_count = review_records.filter(status='approved').count()
+                        rejected_count = review_records.filter(status='rejected').count()
+
+                        if rejected_count > 0:
+                            overall_status = 'rejected'
+                        elif approved_count == total_reviews:
+                            overall_status = 'approved'
+                        else:
+                            overall_status = 'partial'
+
+                    if overall_status == review_status:
+                        matching_suite_ids.append(suite_id)
+                except TestSuite.DoesNotExist:
+                    continue
+
+            queryset = queryset.filter(id__in=matching_suite_ids)
+
+        return queryset
 
     @action(detail=True, methods=['post'])
     def execute(self, request, pk=None):
@@ -1006,7 +1022,7 @@ class TestSuiteViewSet(viewsets.ModelViewSet):
         """添加请求到测试套件"""
         test_suite = self.get_object()
         request_ids = request.data.get('request_ids', [])
-        
+
         try:
             for request_id in request_ids:
                 api_request = ApiRequest.objects.get(id=request_id)
@@ -1016,12 +1032,15 @@ class TestSuiteViewSet(viewsets.ModelViewSet):
                     defaults={
                         'order': TestSuiteRequest.objects.filter(test_suite=test_suite).count(),
                         'enabled': True,
-                        'assertions': []
+                        'assertions': api_request.assertions or []
                     }
                 )
-            
+
+            # 更新套件的 updated_at 时间戳
+            test_suite.save(update_fields=['updated_at'])
+
             return Response({'message': '添加成功'})
-            
+
         except Exception as e:
             return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
     
@@ -1061,6 +1080,97 @@ class TestSuiteViewSet(viewsets.ModelViewSet):
         else:
             return data
 
+    @action(detail=True, methods=['get'])
+    def reviews(self, request, pk=None):
+        """获取测试套件的评审记录"""
+        test_suite = self.get_object()
+        records = test_suite.review_records.all().select_related('reviewer')
+        serializer = TestSuiteReviewRecordSerializer(records, many=True)
+        return Response(serializer.data)
+
+    @action(detail=True, methods=['post'])
+    def review(self, request, pk=None):
+        """提交评审意见"""
+        test_suite = self.get_object()
+        user = request.user
+
+        status = request.data.get('status')
+        comment = request.data.get('comment', '')
+
+        if status not in ['approved', 'rejected']:
+            return Response(
+                {'error': '状态必须是 approved 或 rejected'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # 更新或创建评审记录
+        record, created = TestSuiteReviewRecord.objects.update_or_create(
+            test_suite=test_suite,
+            reviewer=user,
+            defaults={
+                'status': status,
+                'comment': comment,
+                'reviewed_at': timezone.now()
+            }
+        )
+
+        serializer = TestSuiteReviewRecordSerializer(record)
+        return Response(serializer.data)
+
+    @action(detail=True, methods=['get'])
+    def review_summary(self, request, pk=None):
+        """获取评审摘要信息"""
+        test_suite = self.get_object()
+        records = test_suite.review_records.all()
+
+        total = records.count()
+        approved = records.filter(status='approved').count()
+        rejected = records.filter(status='rejected').count()
+        pending = records.filter(status='pending').count()
+
+        # 确定整体状态
+        if rejected > 0:
+            overall_status = 'rejected'
+        elif total > 0 and approved == total:
+            overall_status = 'approved'
+        elif total > 0:
+            overall_status = 'partial'
+        else:
+            overall_status = 'pending'
+
+        return Response({
+            'test_suite_id': test_suite.id,
+            'test_suite_name': test_suite.name,
+            'overall_status': overall_status,
+            'total': total,
+            'approved': approved,
+            'rejected': rejected,
+            'pending': pending,
+            'records': TestSuiteReviewRecordSerializer(records.select_related('reviewer'), many=True).data
+        })
+
+    @action(detail=True, methods=['post'])
+    def reset_reviews(self, request, pk=None):
+        """重置评审状态 - 只有创建人可以重置"""
+        test_suite = self.get_object()
+        user = request.user
+
+        # 检查权限：只有创建人可以重置评审
+        if test_suite.created_by != user:
+            return Response(
+                {'error': '只有创建人可以重置评审状态'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        # 删除所有评审记录
+        test_suite.review_records.all().delete()
+
+        return Response({
+            'message': '评审状态已重置',
+            'test_suite_id': test_suite.id,
+            'test_suite_name': test_suite.name
+        })
+
 
 class TestSuiteRequestViewSet(viewsets.ModelViewSet):
     queryset = TestSuiteRequest.objects.all()
@@ -1070,12 +1180,47 @@ class TestSuiteRequestViewSet(viewsets.ModelViewSet):
     filterset_fields = ['test_suite', 'enabled']
     
     def get_queryset(self):
-        user = self.request.user
-        return TestSuiteRequest.objects.filter(
-            test_suite__project__in=ApiProject.objects.filter(
-                models.Q(owner=user) | models.Q(members=user)
-            )
-        ).distinct()
+        # 返回所有测试套件请求，不进行权限过滤
+        return TestSuiteRequest.objects.all()
+    
+    def _update_suite_timestamp(self, test_suite):
+        """更新套件的 updated_at 时间戳"""
+        if test_suite:
+            test_suite.save(update_fields=['updated_at'])
+    
+    def update(self, request, *args, **kwargs):
+        response = super().update(request, *args, **kwargs)
+        # 更新关联套件的 updated_at
+        instance = self.get_object()
+        self._update_suite_timestamp(instance.test_suite)
+        return response
+    
+    def partial_update(self, request, *args, **kwargs):
+        response = super().partial_update(request, *args, **kwargs)
+        # 更新关联套件的 updated_at
+        instance = self.get_object()
+        self._update_suite_timestamp(instance.test_suite)
+        return response
+    
+    def destroy(self, request, *args, **kwargs):
+        instance = self.get_object()
+        test_suite = instance.test_suite
+        response = super().destroy(request, *args, **kwargs)
+        # 更新关联套件的 updated_at
+        self._update_suite_timestamp(test_suite)
+        return response
+    
+    def create(self, request, *args, **kwargs):
+        response = super().create(request, *args, **kwargs)
+        # 更新关联套件的 updated_at
+        test_suite_id = request.data.get('test_suite')
+        if test_suite_id:
+            try:
+                test_suite = TestSuite.objects.get(id=test_suite_id)
+                self._update_suite_timestamp(test_suite)
+            except TestSuite.DoesNotExist:
+                pass
+        return response
 
 
 class TestExecutionViewSet(viewsets.ReadOnlyModelViewSet):
@@ -1088,13 +1233,9 @@ class TestExecutionViewSet(viewsets.ReadOnlyModelViewSet):
     pagination_class = StandardPagination
     
     def get_queryset(self):
-        user = self.request.user
-        return TestExecution.objects.filter(
-            test_suite__project__in=ApiProject.objects.filter(
-                models.Q(owner=user) | models.Q(members=user)
-            )
-        ).distinct()
-    
+        # 返回所有测试执行记录，不进行权限过滤
+        return TestExecution.objects.all()
+
     @action(detail=True, methods=['post'], url_path='generate-allure-report')
     def generate_allure_report(self, request, pk=None):
         """生成Allure报告数据"""
@@ -1668,15 +1809,8 @@ class ScheduledTaskViewSet(viewsets.ModelViewSet):
     ordering = ['-created_at']
     
     def get_queryset(self):
-        """根据用户权限过滤任务"""
-        queryset = super().get_queryset()
-        
-        # 管理员可以看到所有任务
-        if self.request.user.is_staff:
-            return queryset
-        
-        # 普通用户只能看到自己创建的任务
-        return queryset.filter(created_by=self.request.user)
+        # 返回所有定时任务，不进行权限过滤
+        return super().get_queryset()
     
     @action(detail=True, methods=['post'])
     def run_now(self, request, pk=None):
@@ -1687,15 +1821,7 @@ class ScheduledTaskViewSet(viewsets.ModelViewSet):
         
         task = self.get_object()
         logger.info(f"获取任务对象: {task.id} - {task.name}")
-        
-        # 检查权限
-        if not request.user.is_staff and task.created_by != request.user:
-            logger.info("权限检查失败")
-            return Response(
-                {'error': '无权执行此任务'}, 
-                status=status.HTTP_403_FORBIDDEN
-            )
-        
+
         try:
             # 创建执行日志
             execution_log = TaskExecutionLog.objects.create(
@@ -1765,14 +1891,7 @@ class ScheduledTaskViewSet(viewsets.ModelViewSet):
     def execution_logs(self, request, pk=None):
         """获取任务执行日志"""
         task = self.get_object()
-        
-        # 检查权限
-        if not request.user.is_staff and task.created_by != request.user:
-            return Response(
-                {'error': '无权查看此任务的执行日志'}, 
-                status=status.HTTP_403_FORBIDDEN
-            )
-        
+
         logs = TaskExecutionLog.objects.filter(task=task).order_by('-created_at')
         page = self.paginate_queryset(logs)
         
@@ -2346,10 +2465,8 @@ class TaskExecutionLogViewSet(viewsets.ReadOnlyModelViewSet):
     ordering = ['-created_at']
     
     def get_queryset(self):
-        user = self.request.user
-        return TaskExecutionLog.objects.filter(
-            task__created_by=user
-        ).select_related('task', 'executed_by')
+        # 返回所有任务执行日志，不进行权限过滤
+        return TaskExecutionLog.objects.all().select_related('task', 'executed_by')
 
 
 
@@ -2367,21 +2484,8 @@ class NotificationLogViewSet(viewsets.ReadOnlyModelViewSet):
     ordering = ['-created_at']
     
     def get_queryset(self):
-        user = self.request.user
-        # 修复查询逻辑：通过任务的创建者或相关项目过滤通知日志
-        return NotificationLog.objects.filter(
-            models.Q(
-                task__test_suite__project__in=ApiProject.objects.filter(
-                    models.Q(owner=user) | models.Q(members=user)
-                )
-            ) | models.Q(
-                task__api_request__collection__project__in=ApiProject.objects.filter(
-                    models.Q(owner=user) | models.Q(members=user)
-                )
-            ) | models.Q(
-                task__created_by=user
-            )
-        ).distinct()
+        # 返回所有通知日志，不进行权限过滤
+        return NotificationLog.objects.all()
     
     @action(detail=True, methods=['get'], url_path='detail')
     def get_notification_detail(self, request, pk=None):
@@ -2401,20 +2505,8 @@ class TaskNotificationSettingViewSet(viewsets.ModelViewSet):
     ordering = ['-created_at']
     
     def get_queryset(self):
-        user = self.request.user
-        return TaskNotificationSetting.objects.filter(
-            models.Q(
-                task__test_suite__project__in=ApiProject.objects.filter(
-                    models.Q(owner=user) | models.Q(members=user)
-                )
-            ) | models.Q(
-                task__api_request__collection__project__in=ApiProject.objects.filter(
-                    models.Q(owner=user) | models.Q(members=user)
-                )
-            ) | models.Q(
-                task__created_by=user
-            )
-        ).distinct()
+        # 返回所有任务通知设置，不进行权限过滤
+        return TaskNotificationSetting.objects.all()
     
     @action(detail=True, methods=['post'], url_path='update-settings')
     def update_notification_settings(self, request, pk=None):
@@ -2455,31 +2547,11 @@ class ApiDashboardViewSet(viewsets.ViewSet):
     @action(detail=False, methods=['get'])
     def stats(self, request):
         """获取仪表盘统计数据"""
-        user = request.user
-        
-        # 获取用户可访问的项目ID列表
-        accessible_projects = ApiProject.objects.filter(
-            models.Q(owner=user) | models.Q(members=user)
-        ).distinct()
-        project_ids = accessible_projects.values_list('id', flat=True)
-
-        # 统计数据
-        project_count = accessible_projects.count()
-        
-        # 接口数量 (通过项目关联)
-        interface_count = ApiRequest.objects.filter(
-            collection__project_id__in=project_ids
-        ).count()
-        
-        # 测试套件数量
-        suite_count = TestSuite.objects.filter(
-            project_id__in=project_ids
-        ).count()
-        
-        # 执行记录数量 (仅统计当前用户有权访问的)
-        history_count = RequestHistory.objects.filter(
-            request__collection__project_id__in=project_ids
-        ).count()
+        # 统计数据（不进行权限过滤）
+        project_count = ApiProject.objects.count()
+        interface_count = ApiRequest.objects.count()
+        suite_count = TestSuite.objects.count()
+        history_count = RequestHistory.objects.count()
 
         return Response({
             'project_count': project_count,
@@ -2501,8 +2573,8 @@ class AIServiceConfigViewSet(viewsets.ModelViewSet):
     ordering = ['-created_at']
 
     def get_queryset(self):
-        user = self.request.user
-        return AIServiceConfig.objects.filter(created_by=user)
+        # 返回所有AI配置，不进行权限过滤
+        return AIServiceConfig.objects.all()
 
     @action(detail=False, methods=['post'])
     def test_connection(self, request):
@@ -2512,7 +2584,7 @@ class AIServiceConfigViewSet(viewsets.ModelViewSet):
             return Response({'error': '请提供配置ID'}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
-            config = AIServiceConfig.objects.get(id=config_id, created_by=request.user)
+            config = AIServiceConfig.objects.get(id=config_id)
         except AIServiceConfig.DoesNotExist:
             return Response({'error': '配置不存在'}, status=status.HTTP_404_NOT_FOUND)
 

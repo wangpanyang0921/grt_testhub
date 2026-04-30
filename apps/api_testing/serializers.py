@@ -17,6 +17,7 @@ from .models import (
     RequestHistory, TestSuite, TestExecution, TestSuiteRequest,
     ScheduledTask, TaskExecutionLog, NotificationLog,
     TaskNotificationSetting, OperationLog, AIServiceConfig,
+    TestSuiteReviewRecord,
 )
 
 User = get_user_model()
@@ -844,3 +845,70 @@ class AIServiceConfigSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         validated_data['created_by'] = self.context['request'].user
         return super().create(validated_data)
+
+
+
+class TestSuiteReviewRecordSerializer(serializers.ModelSerializer):
+    """测试套件评审记录序列化器"""
+    reviewer = UserSerializer(read_only=True)
+    reviewer_id = serializers.PrimaryKeyRelatedField(
+        queryset=User.objects.all(),
+        source='reviewer',
+        write_only=True,
+        required=False
+    )
+    status_display = serializers.CharField(source='get_status_display', read_only=True)
+
+    class Meta:
+        model = TestSuiteReviewRecord
+        fields = [
+            'id', 'test_suite', 'reviewer', 'reviewer_id',
+            'status', 'status_display', 'comment', 'reviewed_at', 'created_at'
+        ]
+        read_only_fields = ['created_at', 'reviewed_at']
+
+
+class TestSuiteReviewSummarySerializer(serializers.ModelSerializer):
+    """测试套件评审摘要序列化器（用于列表显示）"""
+    review_status = serializers.SerializerMethodField()
+    approved_count = serializers.SerializerMethodField()
+    rejected_count = serializers.SerializerMethodField()
+    total_reviews = serializers.SerializerMethodField()
+
+    class Meta:
+        model = TestSuite
+        fields = [
+            'id', 'name', 'description', 'project', 'environment',
+            'review_status', 'approved_count', 'rejected_count', 'total_reviews',
+            'created_by', 'created_at', 'updated_at'
+        ]
+        read_only_fields = ['created_at', 'updated_at']
+
+    def get_review_status(self, obj):
+        """获取评审状态"""
+        records = obj.review_records.all()
+        if not records:
+            return 'pending'
+
+        approved = records.filter(status='approved').count()
+        rejected = records.filter(status='rejected').count()
+        total = records.count()
+
+        if rejected > 0:
+            return 'rejected'
+        elif approved == total:
+            return 'approved'
+        else:
+            return 'partial'
+
+    def get_approved_count(self, obj):
+        """获取已通过评审数"""
+        return obj.review_records.filter(status='approved').count()
+
+    def get_rejected_count(self, obj):
+        """获取已拒绝评审数"""
+        return obj.review_records.filter(status='rejected').count()
+
+    def get_total_reviews(self, obj):
+        """获取总评审数"""
+        return obj.review_records.count()

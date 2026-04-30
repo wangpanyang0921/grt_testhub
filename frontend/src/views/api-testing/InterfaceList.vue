@@ -31,10 +31,10 @@
         <el-button v-if="selectedRows.length > 0" type="danger" class="batch-delete-btn" @click="batchDelete">
           批量删除 ({{ selectedRows.length }})
         </el-button>
-        <el-button class="btn-secondary import-btn" @click="showImportDialog = true">
+        <el-button class="import-btn" @click="showImportDialog = true">
           导入接口
         </el-button>
-        <el-button class="btn-secondary add-element-btn" @click="createNewRequest">
+        <el-button class="add-element-btn" @click="createNewRequest">
           {{ $t('apiTesting.interface.addInterface') }}
         </el-button>
       </div>
@@ -1032,17 +1032,16 @@ const createCollection = async () => {
   font-weight: 500;
   font-size: 14px;
   transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-  background: #ffffff;
-  border: 1px solid #d9d9d9;
-  color: #595959;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  background: #7b42f6;
+  border: 1px solid #7b42f6;
+  color: #ffffff;
+  box-shadow: 0 4px 12px rgba(123, 66, 246, 0.3);
 
   &:hover {
-    background: #fafafa;
-    border-color: #7b42f6;
-    color: #7b42f6;
+    background: #8b5cf6;
+    border-color: #8b5cf6;
     transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+    box-shadow: 0 6px 16px rgba(123, 66, 246, 0.4);
   }
 
   &:active {
@@ -1057,17 +1056,16 @@ const createCollection = async () => {
   font-weight: 500;
   font-size: 14px;
   transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-  background: #ffffff;
+  background: #7b42f6;
   border: 1px solid #7b42f6;
-  color: #7b42f6;
-  box-shadow: 0 2px 8px rgba(123, 66, 246, 0.1);
+  color: #ffffff;
+  box-shadow: 0 4px 12px rgba(123, 66, 246, 0.3);
 
   &:hover {
-    background: rgba(123, 66, 246, 0.08);
-    border-color: #7b42f6;
-    color: #7b42f6;
+    background: #8b5cf6;
+    border-color: #8b5cf6;
     transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(123, 66, 246, 0.2);
+    box-shadow: 0 6px 16px rgba(123, 66, 246, 0.4);
   }
 
   &:active {

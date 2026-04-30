@@ -14,7 +14,8 @@ import ApiProjectManagement from '@/views/api-testing/ProjectManagement.vue'
 import ApiInterfaceManagement from '@/views/api-testing/InterfaceManagement.vue'
 import ApiInterfaceList from '@/views/api-testing/InterfaceList.vue'
 import ApiCollectionList from '@/views/api-testing/CollectionList.vue'
-import ApiAutomationTesting from '@/views/api-testing/AutomationTesting.vue'
+import ApiAutomationSuiteList from '@/views/api-testing/AutomationSuiteList.vue'
+import ApiAutomationSuiteDetail from '@/views/api-testing/AutomationSuiteDetail.vue'
 import ApiRequestHistory from '@/views/api-testing/RequestHistory.vue'
 import ApiEnvironmentManagement from '@/views/api-testing/EnvironmentManagement.vue'
 import ApiReportView from '@/views/api-testing/ReportView.vue'
@@ -257,7 +258,12 @@ const routes = [
       {
         path: 'automation',
         name: 'ApiAutomation',
-        component: ApiAutomationTesting
+        component: ApiAutomationSuiteList
+      },
+      {
+        path: 'automation/:id',
+        name: 'ApiAutomationDetail',
+        component: ApiAutomationSuiteDetail
       },
       {
         path: 'history',

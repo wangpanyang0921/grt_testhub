@@ -211,6 +211,7 @@ export default {
     expectedValue: '期望值',
     headerNameLabel: '响应头名称',
     expectedMatch: '期望完全匹配的文本',
+    selectAssertionTypeFirst: '请先选择断言类型',
     noAssertions: '暂无断言配置',
     addFirstAssertion: '添加第一个断言',
     // WebSocket
@@ -252,21 +253,21 @@ export default {
   // 自动化测试
   automation: {
     title: '自动化测试',
-    createSuite: '新建测试套件',
-    createTestSuite: '新建测试套件',
+    createSuite: '新建测试场景',
+    createTestSuite: '新建测试场景',
     editSuite: '编辑测试套件',
     editTestSuite: '编辑测试套件',
     testSuites: '测试套件',
-    requestCount: '{n} 个请求',
+    requestCount: '请求数量',
     run: '运行',
     duplicate: '复制',
     selectSuiteHint: '请选择一个测试套件查看详情',
     selectSuiteTip: '请选择一个测试套件查看详情',
     noDescription: '暂无描述',
     noEnvironment: '未配置环境',
-    creator: '创建者：',
-    createdAt: '创建时间：',
-    createTime: '创建时间：',
+    creator: '创建者',
+    createdAt: '创建时间',
+    createTime: '创建时间',
     runTest: '运行测试',
     testRequests: '测试请求',
     addRequest: '添加请求',
@@ -290,8 +291,8 @@ export default {
     executor: '执行者',
     executionTime: '执行时间',
     viewDetails: '查看详情',
-    suiteName: '套件名称',
-    suiteDescription: '套件描述',
+    suiteName: '场景名称',
+    suiteDescription: '场景描述',
     inputSuiteName: '请输入套件名称',
     inputSuiteDesc: '请输入套件描述',
     inputSuiteDescription: '请输入套件描述',
@@ -299,7 +300,7 @@ export default {
     executionEnvironment: '执行环境',
     selectProject: '请选择所属项目',
     selectEnvironment: '请选择执行环境',
-    addRequestToSuite: '添加请求到测试套件',
+    addRequestToSuite: '添加请求到场景',
     addSelectedRequests: '添加选中的请求',
     executionResult: '测试执行结果',
     testExecutionResult: '测试执行结果',
@@ -324,7 +325,13 @@ export default {
     confirmDeleteSuite: '确定要删除测试套件 "{name}" 吗？',
     confirmRemoveRequest: '确定要移除这个请求吗？',
     selectAtLeastOne: '请选择至少一个请求',
-    assertionDeveloping: '断言编辑功能开发中'
+    assertionDeveloping: '断言编辑功能开发中',
+    suiteDetail: '套件详情',
+    updateTime: '更新时间',
+    noSuites: '暂无测试套件',
+    noRequests: '暂无测试请求',
+    noExecutions: '暂无执行记录',
+    copyText: '副本'
   },
 
   // 定时任务
@@ -403,7 +410,7 @@ export default {
   // 请求历史
   history: {
     title: '请求历史',
-    searchRequest: '搜索请求',
+    searchRequest: '搜索请求名称',
     batchDelete: '批量删除',
     clearHistory: '清空历史',
     httpRequest: 'HTTP请求',
@@ -719,7 +726,7 @@ export default {
       noEnvironment: '无环境',
       executor: '执行者',
       executionTime: '执行时间',
-      viewDetail: '查看详情',
+      viewDetail: '查看',
       retryRequest: '重新发送',
       delete: '删除'
     },
@@ -784,6 +791,7 @@ export default {
       collectionDeleted: '集合删除成功',
       interfaceDeleted: '接口删除成功',
       interfaceUpdated: '接口更新成功',
+      interfaceCreated: '接口创建成功',
       messageSent: '消息已发送',
       binaryMessageSent: '二进制消息已发送',
       suiteExecuted: '测试套件执行完成',
@@ -796,7 +804,10 @@ export default {
       taskUpdated: '更新任务成功',
       taskDeleted: '删除任务成功',
       taskPaused: '任务已暂停',
-      taskActivated: '任务已激活'
+      taskActivated: '任务已激活',
+      removeSuccess: '移除成功',
+      addSuccess: '添加成功',
+      orderUpdated: '排序已更新'
     },
     error: {
       loadFailed: '加载失败',
@@ -815,6 +826,7 @@ export default {
       loadRequests: '加载请求失败',
       loadEnvironments: '加载环境失败',
       loadTestSuites: '加载测试套件失败',
+      loadSuiteDetail: '加载套件详情失败',
       loadHistory: '加载请求历史失败',
       loadReports: '加载测试报告失败',
       loadTasksFailed: '加载任务列表失败',
@@ -840,7 +852,9 @@ export default {
       executionLogsFailed: '加载执行日志失败',
       batchDeleteFailed: '批量删除失败',
       formatFailed: '格式化失败',
-      requestFailed: '请求发送失败'
+      requestFailed: '请求发送失败',
+      assertionNameRequired: '断言名称不能为空',
+      orderUpdateFailed: '排序更新失败'
     },
     warning: {
       pleaseConnect: '请先建立WebSocket连接',
@@ -856,7 +870,8 @@ export default {
     info: {
       websocketClosed: 'WebSocket连接已关闭',
       websocketMessageReceived: '收到WebSocket消息',
-      websocketConnectedTo: 'Websocket已连接至{url}'
+      websocketConnectedTo: 'Websocket已连接至{url}',
+      featureInDevelopment: '功能正在开发中...'
     },
     confirm: {
       deleteTitle: '确认删除',

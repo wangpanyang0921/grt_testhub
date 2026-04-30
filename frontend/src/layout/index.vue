@@ -576,6 +576,10 @@ const moduleRoute = computed(() => {
   if (path.startsWith('/api-testing/interfaces')) {
     return '/api-testing/interfaces'
   }
+  // 自动化测试套件详情页，返回到自动化测试列表
+  if (path.match(/^\/api-testing\/automation\/\d+$/)) {
+    return '/api-testing/automation'
+  }
 
   // 其他模块可以根据需要添加
   // 默认返回到模块首页
@@ -603,6 +607,10 @@ const breadcrumbTitle = computed(() => {
   }
   if (path.match(/^\/api-testing\/interfaces\/\d+$/)) {
     return '接口详情'
+  }
+  // 自动化测试套件详情页
+  if (path.match(/^\/api-testing\/automation\/\d+$/)) {
+    return route.query.name || '场景详情'
   }
 
   // 端详情页

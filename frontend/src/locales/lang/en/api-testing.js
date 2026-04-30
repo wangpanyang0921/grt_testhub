@@ -185,6 +185,7 @@ export default {
     expectedValue: 'Expected value',
     headerNameLabel: 'Header name',
     expectedMatch: 'Expected exact match text',
+    selectAssertionTypeFirst: 'Please select assertion type first',
     noAssertions: 'No assertions configured',
     addFirstAssertion: 'Add first assertion',
     // WebSocket
@@ -238,8 +239,8 @@ export default {
     duplicate: 'Duplicate',
     selectSuiteTip: 'Select a test suite to view details',
     noDescription: 'No description',
-    creator: 'Creator: ',
-    createdAt: 'Created: ',
+    creator: 'Creator',
+    createdAt: 'Created',
     runTest: 'Run Test',
     testRequests: 'Test Requests',
     addRequest: 'Add Request',
@@ -261,7 +262,7 @@ export default {
     inputSuiteDesc: 'Enter suite description',
     belongProject: 'Project',
     executionEnvironment: 'Execution Environment',
-    addRequestToSuite: 'Add Request to Test Suite',
+    addRequestToSuite: 'Add Request to Scenario',
     addSelectedRequests: 'Add Selected Requests',
     executionResult: 'Test Execution Result',
     detailedResults: 'Detailed Results',
@@ -276,7 +277,13 @@ export default {
     confirmDeleteSuite: 'Are you sure to delete test suite "{name}"?',
     confirmRemoveRequest: 'Are you sure to remove this request?',
     selectAtLeastOne: 'Please select at least one request',
-    assertionDeveloping: 'Assertion editing feature is under development'
+    assertionDeveloping: 'Assertion editing feature is under development',
+    suiteDetail: 'Suite Detail',
+    updateTime: 'Updated: ',
+    noSuites: 'No test suites',
+    noRequests: 'No test requests',
+    noExecutions: 'No execution records',
+    copyText: 'Copy'
   },
 
   // Scheduled Tasks
@@ -354,7 +361,7 @@ export default {
   // Request History
   history: {
     title: 'Request History',
-    searchRequest: 'Search request',
+    searchRequest: 'Search request name',
     batchDelete: 'Batch Delete',
     clearHistory: 'Clear History',
     httpRequest: 'HTTP Request',
@@ -670,7 +677,7 @@ export default {
       noEnvironment: 'No environment',
       executor: 'Executor',
       executionTime: 'Execution Time',
-      viewDetail: 'View Detail',
+      viewDetail: 'View',
       retryRequest: 'Retry',
       delete: 'Delete'
     },
@@ -734,6 +741,8 @@ export default {
       collectionCreated: 'Created successfully',
       collectionDeleted: 'Collection deleted successfully',
       interfaceDeleted: 'Interface deleted successfully',
+      interfaceUpdated: 'Interface updated successfully',
+      interfaceCreated: 'Interface created successfully',
       messageSent: 'Message sent',
       binaryMessageSent: 'Binary message sent',
       suiteExecuted: 'Test suite execution completed',
@@ -746,7 +755,10 @@ export default {
       taskUpdated: 'Task updated successfully',
       taskDeleted: 'Task deleted successfully',
       taskPaused: 'Task paused',
-      taskActivated: 'Task activated'
+      taskActivated: 'Task activated',
+      removeSuccess: 'Removed successfully',
+      addSuccess: 'Added successfully',
+      orderUpdated: 'Order updated'
     },
     error: {
       loadFailed: 'Failed to load',
@@ -765,6 +777,7 @@ export default {
       loadRequests: 'Failed to load requests',
       loadEnvironments: 'Failed to load environments',
       loadTestSuites: 'Failed to load test suites',
+      loadSuiteDetail: 'Failed to load suite detail',
       loadHistory: 'Failed to load request history',
       loadReports: 'Failed to load test reports',
       loadTasksFailed: 'Failed to load task list',
@@ -790,7 +803,9 @@ export default {
       executionLogsFailed: 'Failed to load execution logs',
       batchDeleteFailed: 'Batch delete failed',
       formatFailed: 'Failed to format',
-      requestFailed: 'Request failed'
+      requestFailed: 'Request failed',
+      assertionNameRequired: 'Assertion name is required',
+      orderUpdateFailed: 'Failed to update order'
     },
     warning: {
       pleaseConnect: 'Please establish WebSocket connection first',
@@ -806,7 +821,8 @@ export default {
     info: {
       websocketClosed: 'WebSocket connection closed',
       websocketMessageReceived: 'WebSocket message received',
-      websocketConnectedTo: 'WebSocket connected to {url}'
+      websocketConnectedTo: 'WebSocket connected to {url}',
+      featureInDevelopment: 'Feature is under development...'
     },
     confirm: {
       deleteTitle: 'Confirm Delete',

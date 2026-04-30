@@ -639,3 +639,33 @@ class AIServiceConfig(models.Model):
 
     def __str__(self):
         return self.name
+
+
+
+class TestSuiteReviewRecord(models.Model):
+    """测试套件评审记录模型"""
+    REVIEW_STATUS_CHOICES = [
+        ('pending', '待评审'),
+        ('approved', '已通过'),
+        ('rejected', '已拒绝'),
+    ]
+
+    test_suite = models.ForeignKey(TestSuite, on_delete=models.CASCADE, related_name='review_records',
+                                   verbose_name='测试套件')
+    reviewer = models.ForeignKey(User, on_delete=models.CASCADE, related_name='suite_review_records',
+                                 verbose_name='评审人')
+    status = models.CharField(max_length=20, choices=REVIEW_STATUS_CHOICES, default='pending',
+                              verbose_name='评审状态')
+    comment = models.TextField(blank=True, verbose_name='评审意见')
+    reviewed_at = models.DateTimeField(null=True, blank=True, verbose_name='评审时间')
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='创建时间')
+
+    class Meta:
+        db_table = 'api_test_suite_review_records'
+        verbose_name = '测试套件评审记录'
+        verbose_name_plural = '测试套件评审记录'
+        ordering = ['-created_at']
+        unique_together = ['test_suite', 'reviewer']
+
+    def __str__(self):
+        return f"{self.test_suite.name} - {self.reviewer.username} - {self.get_status_display()}"
