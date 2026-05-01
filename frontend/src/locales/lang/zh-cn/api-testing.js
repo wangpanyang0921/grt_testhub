@@ -56,7 +56,7 @@ export default {
     dataOverview: '数据概览',
     apiProjects: '接口项目',
     interfaceCount: '接口数量',
-    testSuites: '测试套件',
+    testSuites: '测试场景',
     executionRecords: '执行记录',
     operationLogs: '操作日志',
     noLogs: '暂无操作记录',
@@ -135,7 +135,7 @@ export default {
   interface: {
     title: '接口管理',
     createCollection: '创建集合',
-    addInterface: '添加接口',
+    addInterface: '创建接口',
     createNewInterface: '创建新接口',
     selectInterface: '请选择一个接口查看详情，或点击上方绿色按钮创建新接口',
     requestName: '请求名称',
@@ -255,14 +255,14 @@ export default {
     title: '自动化测试',
     createSuite: '新建测试场景',
     createTestSuite: '新建测试场景',
-    editSuite: '编辑测试套件',
-    editTestSuite: '编辑测试套件',
-    testSuites: '测试套件',
+    editSuite: '编辑测试场景',
+    editTestSuite: '编辑测试场景',
+    testSuites: '测试场景',
     requestCount: '请求数量',
     run: '运行',
     duplicate: '复制',
-    selectSuiteHint: '请选择一个测试套件查看详情',
-    selectSuiteTip: '请选择一个测试套件查看详情',
+    selectSuiteHint: '请选择一个测试场景查看详情',
+    selectSuiteTip: '请选择一个测试场景查看详情',
     noDescription: '暂无描述',
     noEnvironment: '未配置环境',
     creator: '创建者',
@@ -293,9 +293,9 @@ export default {
     viewDetails: '查看详情',
     suiteName: '场景名称',
     suiteDescription: '场景描述',
-    inputSuiteName: '请输入套件名称',
-    inputSuiteDesc: '请输入套件描述',
-    inputSuiteDescription: '请输入套件描述',
+    inputSuiteName: '请输入场景名称',
+    inputSuiteDesc: '请输入场景描述',
+    inputSuiteDescription: '请输入场景描述',
     belongProject: '所属项目',
     executionEnvironment: '执行环境',
     selectProject: '请选择所属项目',
@@ -322,13 +322,13 @@ export default {
       passed: '通过',
       failed: '失败'
     },
-    confirmDeleteSuite: '确定要删除测试套件 "{name}" 吗？',
+    confirmDeleteSuite: '确定要删除测试场景 "{name}" 吗？',
     confirmRemoveRequest: '确定要移除这个请求吗？',
     selectAtLeastOne: '请选择至少一个请求',
     assertionDeveloping: '断言编辑功能开发中',
-    suiteDetail: '套件详情',
+    suiteDetail: '场景详情',
     updateTime: '更新时间',
-    noSuites: '暂无测试套件',
+    noSuites: '暂无测试场景',
     noRequests: '暂无测试请求',
     noExecutions: '暂无执行记录',
     copyText: '副本'
@@ -345,9 +345,9 @@ export default {
     inputTaskDesc: '请输入任务描述',
     taskType: '任务类型',
     taskTypes: {
-      testSuite: '测试套件执行',
+      testSuite: '测试场景执行',
       apiRequest: 'API请求执行',
-      testSuiteShort: '测试套件',
+      testSuiteShort: '测试场景',
       apiRequestShort: 'API请求'
     },
     triggerType: '触发器类型',
@@ -389,8 +389,8 @@ export default {
     seconds: '秒',
     executeTime: '执行时间',
     selectExecuteTime: '选择执行时间',
-    testSuite: '测试套件',
-    selectTestSuite: '请选择测试套件',
+    testSuite: '测试场景',
+    selectTestSuite: '请选择测试场景',
     apiRequest: 'API请求',
     selectApiRequest: '请选择API请求',
     executeEnvironment: '执行环境',
@@ -478,7 +478,7 @@ export default {
     title: '测试报告',
     refreshReport: '刷新报告',
     viewAllureReport: '查看Allure报告说明',
-    testSuite: '测试套件',
+    testSuite: '测试场景',
     totalRequests: '总请求数',
     passedCount: '通过数',
     failedCount: '失败数',
@@ -759,6 +759,80 @@ export default {
     }
   },
 
+  // API Fox 导入
+  apifox: {
+    importTitle: 'API Fox 导入',
+    dragText: '将 API Fox CLI JSON 文件拖到此处，或点击上传',
+    supportFormat: '支持格式: .json (API Fox CLI 导出)',
+    tipText: '请导出 API Fox 的 CLI 运行数据(JSON格式)进行导入',
+    steps: {
+      upload: '上传文件',
+      validate: '验证文件',
+      configure: '配置导入',
+      import: '完成导入'
+    },
+    supportedFeatures: '支持导入的功能',
+    features: {
+      scenario: '自动化场景',
+      variables: '动态变量',
+      scripts: '前置/后置脚本'
+    },
+    validating: '正在验证文件...',
+    validationSuccess: '验证成功',
+    validationSuccessDesc: '共发现 {count} 个请求',
+    validationWarning: '验证完成(含警告)',
+    validationWarningDesc: '部分动态变量函数不支持，但不影响导入',
+    validationError: '验证失败',
+    unsupportedFunctions: '以下函数暂不支持',
+    warningHint: '这些函数将被保留为文本，您可以在导入后手动替换',
+    labels: {
+      requestCount: '请求数量',
+      compatibility: '兼容性',
+      targetProject: '目标项目',
+      targetCollection: '目标集合',
+      importEnv: '导入环境变量',
+      fileName: '文件名',
+      scenarioName: '场景名称',
+      createdCollection: '创建的集合',
+      createdSuite: '创建的测试场景',
+      importedRequests: '导入请求数',
+      importTime: '导入耗时'
+    },
+    placeholders: {
+      selectProject: '请选择目标项目',
+      selectCollection: '选择已有集合(可选)'
+    },
+    hints: {
+      newCollectionIfEmpty: '不选择则自动创建新集合'
+    },
+    tooltips: {
+      importEnv: '将 API Fox 的环境变量导入到 TestHub 环境中'
+    },
+    importPreview: '导入预览',
+    importing: '正在导入...',
+    importSuccess: '导入成功',
+    importSuccessDesc: 'API Fox 自动化场景已成功导入',
+    importError: '导入失败',
+    importWarnings: '导入警告',
+    defaultScenarioName: 'API Fox 导入场景',
+    defaultCollectionName: 'API Fox 导入集合',
+    defaultSuiteName: 'API Fox 测试场景',
+    buttons: {
+      validate: '验证文件',
+      configure: '配置导入',
+      startImport: '开始导入',
+      continueImport: '继续导入'
+    },
+    messages: {
+      selectFile: '请先选择文件',
+      validationFailed: '文件验证失败',
+      selectProject: '请选择目标项目',
+      importSuccess: '导入成功',
+      importFailed: '导入失败',
+      confirmCancel: '导入正在进行中，确定要取消吗？'
+    }
+  },
+
   // 消息提示
   messages: {
     success: {
@@ -794,7 +868,7 @@ export default {
       interfaceCreated: '接口创建成功',
       messageSent: '消息已发送',
       binaryMessageSent: '二进制消息已发送',
-      suiteExecuted: '测试套件执行完成',
+      suiteExecuted: '测试场景执行完成',
       environmentActivated: '环境已激活',
       environmentCreated: '环境创建成功',
       environmentUpdated: '环境更新成功',
@@ -825,8 +899,8 @@ export default {
       loadCollections: '加载集合失败',
       loadRequests: '加载请求失败',
       loadEnvironments: '加载环境失败',
-      loadTestSuites: '加载测试套件失败',
-      loadSuiteDetail: '加载套件详情失败',
+      loadTestSuites: '加载测试场景失败',
+      loadSuiteDetail: '加载场景详情失败',
       loadHistory: '加载请求历史失败',
       loadReports: '加载测试报告失败',
       loadTasksFailed: '加载任务列表失败',
@@ -864,7 +938,7 @@ export default {
       pleaseSelectEnvironment: '请选择环境',
       pleaseSelectProject: '请先选择一个项目',
       pleaseCreateCollection: '请先创建一个集合',
-      websocketNotInSuite: 'WebSocket项目不支持测试套件功能',
+      websocketNotInSuite: 'WebSocket项目不支持测试场景功能',
       assertionFailed: '{count} 条断言验证失败'
     },
     info: {

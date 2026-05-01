@@ -828,5 +828,77 @@ export default {
       deleteTitle: 'Confirm Delete',
       clearTitle: 'Confirm Clear'
     }
+  },
+
+  // API Fox Import
+  apifox: {
+    importTitle: 'API Fox Import',
+    dragText: 'Drag API Fox CLI JSON file here, or click to upload',
+    supportFormat: 'Supported format: .json (API Fox CLI export)',
+    tipText: 'Please export CLI run data (JSON format) from API Fox for import',
+    steps: {
+      upload: 'Upload File',
+      validate: 'Validate File',
+      configure: 'Configure Import',
+      import: 'Complete Import'
+    },
+    supportedFeatures: 'Supported Features',
+    features: {
+      scenario: 'Automation Scenarios',
+      variables: 'Dynamic Variables',
+      scripts: 'Pre/Post Scripts'
+    },
+    validating: 'Validating file...',
+    validationSuccess: 'Validation Success',
+    validationSuccessDesc: 'Found {count} requests',
+    validationWarning: 'Validation Complete (with warnings)',
+    validationWarningDesc: 'Some dynamic variable functions are not supported, but import can continue',
+    validationError: 'Validation Failed',
+    unsupportedFunctions: 'Unsupported Functions',
+    warningHint: 'These functions will be preserved as text, you can manually replace them after import',
+    labels: {
+      requestCount: 'Request Count',
+      compatibility: 'Compatibility',
+      targetProject: 'Target Project',
+      targetCollection: 'Target Collection',
+      importEnv: 'Import Environment Variables',
+      fileName: 'File Name',
+      scenarioName: 'Scenario Name',
+      createdCollection: 'Created Collection',
+      createdSuite: 'Created Test Suite'
+    },
+    placeholders: {
+      selectProject: 'Please select target project',
+      selectCollection: 'Select existing collection (optional)'
+    },
+    hints: {
+      newCollectionIfEmpty: 'A new collection will be created if not selected'
+    },
+    tooltips: {
+      importEnv: 'Import API Fox environment variables to TestHub environment'
+    },
+    importPreview: 'Import Preview',
+    importing: 'Importing...',
+    importSuccess: 'Import Successful',
+    importSuccessDesc: 'API Fox automation scenario imported successfully',
+    importError: 'Import Failed',
+    importWarnings: 'Import Warnings',
+    defaultScenarioName: 'API Fox Import Scenario',
+    defaultCollectionName: 'API Fox Import Collection',
+    defaultSuiteName: 'API Fox Test Suite',
+    buttons: {
+      validate: 'Validate File',
+      configure: 'Configure Import',
+      startImport: 'Start Import',
+      continueImport: 'Continue Import'
+    },
+    messages: {
+      selectFile: 'Please select a file first',
+      validationFailed: 'File validation failed',
+      selectProject: 'Please select target project',
+      importSuccess: 'Import successful',
+      importFailed: 'Import failed',
+      confirmCancel: 'Import is in progress, are you sure you want to cancel?'
+    }
   }
 }

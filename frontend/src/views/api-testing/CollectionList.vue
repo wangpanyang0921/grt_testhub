@@ -25,9 +25,13 @@
         </el-input>
       </div>
       <div class="header-actions">
+        <el-button type="primary" class="import-btn" @click="showApifoxImport = true">
+          <el-icon style="margin-right: 4px;"><Upload /></el-icon>
+          导入合集
+        </el-button>
         <el-button type="primary" class="create-btn" @click="showCreateDialog = true">
-          <el-icon><Plus /></el-icon>
-          <span>创建合集</span>
+          <el-icon style="margin-right: 4px;"><Plus /></el-icon>
+          创建合集
         </el-button>
       </div>
     </div>
@@ -151,15 +155,23 @@
         <el-button type="primary" @click="confirmMove" :loading="moving">确定</el-button>
       </template>
     </el-dialog>
+
+    <!-- API Fox 导入对话框 -->
+    <ApifoxImportDialog
+      v-model="showApifoxImport"
+      :projects="projects"
+      @success="handleApifoxImportSuccess"
+    />
   </div>
 </template>
 
 <script setup>
 import { ref, onMounted, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { Folder, Plus, Edit, Delete, Rank, Search } from '@element-plus/icons-vue'
+import { Folder, Plus, Edit, Delete, Rank, Search, Upload } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import api from '@/utils/api'
+import ApifoxImportDialog from './components/ApifoxImportDialog.vue'
 
 const { t } = useI18n()
 
@@ -174,6 +186,7 @@ const filteredCollectionList = ref([])
 // 对话框相关
 const showCreateDialog = ref(false)
 const showMoveDialog = ref(false)
+const showApifoxImport = ref(false)
 const isEdit = ref(false)
 const submitting = ref(false)
 const moving = ref(false)
@@ -323,6 +336,14 @@ const formatCreatedBy = (row) => {
     return row.created_by.username
   }
   return '-'
+}
+
+const handleApifoxImportSuccess = (result) => {
+  ElMessage.success(`成功导入 ${result.stats?.requests_created || 0} 个接口`)
+  // 刷新列表
+  if (selectedProject.value) {
+    loadCollections()
+  }
 }
 
 const handleEdit = (row) => {
@@ -562,7 +583,7 @@ const resetForm = () => {
 
   .header-actions {
     display: flex;
-    gap: 8px;
+    gap: 1px;
   }
 }
 
@@ -826,6 +847,30 @@ const resetForm = () => {
     border-color: #6d33e6;
     transform: translateY(-2px);
     box-shadow: 0 6px 16px rgba(123, 66, 246, 0.4);
+  }
+
+  &:active {
+    transform: translateY(0);
+  }
+}
+
+.import-btn {
+  height: 36px;
+  padding: 0 18px;
+  border-radius: 8px;
+  font-weight: 500;
+  font-size: 14px;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  background: #52c41a;
+  border: 1px solid #52c41a;
+  color: #ffffff;
+  box-shadow: 0 4px 12px rgba(82, 196, 26, 0.3);
+
+  &:hover {
+    background: #389e0d;
+    border-color: #389e0d;
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(82, 196, 26, 0.4);
   }
 
   &:active {

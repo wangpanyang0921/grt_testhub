@@ -8,7 +8,8 @@ from .views import (
     TestSuiteRequestViewSet, TestExecutionViewSet, UserViewSet,
     ScheduledTaskViewSet, TaskExecutionLogViewSet, NotificationLogViewSet,
     TaskNotificationSettingViewSet, OperationLogViewSet,
-    ApiDashboardViewSet, AIServiceConfigViewSet, import_interfaces
+    ApiDashboardViewSet, AIServiceConfigViewSet, import_interfaces,
+    apifox_import_validate, apifox_import_execute, apifox_function_list
 )
 
 router = DefaultRouter()
@@ -32,6 +33,10 @@ router.register(r'ai-service-configs', AIServiceConfigViewSet, basename='aiservi
 urlpatterns = [
     path('api-testing/', include(router.urls)),
     path('api-testing/import/', import_interfaces, name='import-interfaces'),
+    # API Fox CLI 导入
+    path('api-testing/apifox/validate/', apifox_import_validate, name='apifox-import-validate'),
+    path('api-testing/apifox/import/', apifox_import_execute, name='apifox-import-execute'),
+    path('api-testing/apifox/functions/', apifox_function_list, name='apifox-function-list'),
 ]
 
 # 添加媒体文件路由

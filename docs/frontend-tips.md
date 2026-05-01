@@ -603,6 +603,52 @@ KeyValueEditor 中的输入框使用了 `size="small"`，高度只有 24px，与
 
 ---
 
+## 经验 12：Element Plus el-select 在对话框中的背景色问题
+
+### 问题场景
+在 `AutomationSuiteDetail.vue` 的编辑测试套件对话框中，`el-select` 执行环境下拉框显示为紫色背景（继承自对话框的紫色主题），需要改为白色背景。
+
+### 失败的尝试
+1. **修改 `--el-select-bg-color` CSS 变量** - 在 style 属性中设置不生效
+2. **嵌套 :deep() 选择器** - `:deep(.el-select) { :deep(.el-select__wrapper) {...} }` 语法不正确
+3. **在 scoped 样式中使用 :deep()** - 样式被对话框内部结构隔离，无法生效
+4. **添加 !important 到嵌套样式** - 选择器层级不够具体，优先级不足
+
+### 最终解决方案
+
+#### 1. 给目标组件添加特定 class
+```vue
+<el-select 
+  v-model="editForm.environment" 
+  placeholder="选择环境" 
+  clearable 
+  class="env-select"
+>
+```
+
+#### 2. 在全局样式中添加针对性覆盖（文件末尾）
+```scss
+// 执行环境下拉框白色背景
+.env-select {
+  :deep(.el-select__wrapper) {
+    background-color: #ffffff !important;
+  }
+}
+```
+
+### 关键点
+1. **特定 class 命名** - 使用 `.env-select` 而不是通用选择器，避免影响其他组件
+2. **全局样式位置** - 放在 `<style>` 块的末尾，确保优先级
+3. **:deep() 正确用法** - 只需一层 `:deep()` 穿透 scoped 限制
+4. **!important 必要** - Element Plus 内部样式优先级高，必须使用 `!important`
+
+### 适用场景
+- 对话框/弹窗中的下拉选择框
+- 需要覆盖 Element Plus 默认主题色的场景
+- scoped 样式无法穿透的复杂组件
+
+---
+
 ## 更新记录
 
 | 日期 | 内容 | 作者 |
@@ -612,3 +658,4 @@ KeyValueEditor 中的输入框使用了 `size="small"`，高度只有 24px，与
 | 2026-04-26 | 添加表格样式规范和 CSS 变量策略 | AI Assistant |
 | 2026-04-26 | 添加 KeyValueEditor 视觉优化和输入框高度统一经验 | AI Assistant |
 | 2026-04-26 | 添加输入框 focus 边框裁剪、Flexbox 对齐、对话框布局、CSS 优先级管理等重要经验 | AI Assistant |
+| 2026-05-01 | 添加 el-select 对话框背景色问题解决方案 | AI Assistant |

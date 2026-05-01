@@ -1161,7 +1161,8 @@ const loadInterface = async () => {
         rawType.value = 'json'
         // 如果 data 已经是字符串，直接显示；否则序列化为 JSON
         if (typeof data.body.data === 'string') {
-          rawBody.value = data.body.data
+          // 转义 {{ 以避免 Vue 模板语法冲突
+          rawBody.value = data.body.data.replace(/\{\{/g, '\\{\\{')
         } else {
           rawBody.value = JSON.stringify(data.body.data, null, 2)
         }
@@ -1280,15 +1281,23 @@ const saveRequest = async () => {
     let bodyData = {}
     if (hasBody.value && bodyType.value !== 'none') {
       if (bodyType.value === 'raw') {
-        let bodyContent = rawBody.value
+        // 将转义的 \{\{ 转换回 {{
+        const unescapedBody = rawBody.value.replace(/\\\{\\\{/g, '{{')
+        let bodyContent = unescapedBody
         // 如果是 JSON 类型，尝试解析
         if (rawType.value === 'json') {
           try {
-            bodyContent = JSON.parse(rawBody.value || '{}')
+            bodyContent = JSON.parse(unescapedBody || '{}')
           } catch (e) {
-            ElMessage.error('请求体 JSON 格式错误：' + e.message)
-            saving.value = false
-            return
+            // 解析失败，检查是否包含变量占位符（如 {{org_id}}）
+            if (unescapedBody && unescapedBody.includes('{{')) {
+              // 包含变量，允许保存为字符串，后端会在执行时解析
+              bodyContent = unescapedBody
+            } else {
+              ElMessage.error('请求体 JSON 格式错误：' + e.message)
+              saving.value = false
+              return
+            }
           }
         }
         bodyData = {
@@ -1535,18 +1544,20 @@ const sendRequest = async () => {
     
     // 构造请求体
     let bodyData = null
+    // 将转义的 \{\{ 转换回 {{
+    const unescapedRawBody = rawBody.value.replace(/\\\{\\\{/g, '{{')
     if (hasBody.value && bodyType.value !== 'none') {
       if (bodyType.value === 'raw' && rawType.value === 'json') {
         try {
           // 解析 JSON 后替换变量
-          const parsedBody = JSON.parse(rawBody.value || '{}')
+          const parsedBody = JSON.parse(unescapedRawBody || '{}')
           bodyData = { type: 'json', data: replaceVariablesInObject(parsedBody) }
         } catch {
           // JSON 解析失败时，对字符串进行变量替换
-          bodyData = { type: 'raw', data: replaceVariables(rawBody.value) }
+          bodyData = { type: 'raw', data: replaceVariables(unescapedRawBody) }
         }
       } else if (bodyType.value === 'raw') {
-        bodyData = { type: 'raw', data: replaceVariables(rawBody.value) }
+        bodyData = { type: 'raw', data: replaceVariables(unescapedRawBody) }
       } else if (bodyType.value === 'form-data') {
         bodyData = { type: 'form-data', data: replaceVariablesInObject(formData.value) }
       } else if (bodyType.value === 'x-www-form-urlencoded') {

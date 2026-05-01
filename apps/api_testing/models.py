@@ -171,6 +171,8 @@ class TestSuite(models.Model):
     requests = models.ManyToManyField(ApiRequest, through='TestSuiteRequest', verbose_name='包含请求')
     environment = models.ForeignKey(Environment, on_delete=models.SET_NULL, null=True, blank=True,
                                     verbose_name='执行环境')
+    pre_process_script = models.TextField(blank=True, verbose_name='前置处理脚本')
+    post_process_script = models.TextField(blank=True, verbose_name='后置处理脚本')
     created_by = models.ForeignKey(User, on_delete=models.CASCADE, related_name='api_test_suites',
                                    verbose_name='创建者')
     created_at = models.DateTimeField(auto_now_add=True, verbose_name='创建时间')
@@ -192,6 +194,7 @@ class TestSuiteRequest(models.Model):
     request = models.ForeignKey(ApiRequest, on_delete=models.CASCADE, verbose_name='API请求')
     order = models.IntegerField(default=0, verbose_name='执行顺序')
     assertions = models.JSONField(default=list, verbose_name='断言规则')
+    extracted_variables = models.JSONField(default=dict, verbose_name='变量提取规则')
     enabled = models.BooleanField(default=True, verbose_name='是否启用')
 
     class Meta:

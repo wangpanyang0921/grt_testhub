@@ -290,13 +290,47 @@ class ApiRequestViewSet(viewsets.ModelViewSet):
             body_data = None
             body_type = 'none'
             if request_body and request_method in ['POST', 'PUT', 'PATCH']:
-                body_type = request_body.get('type', 'none')
-                body_content = request_body.get('data')
+                # 处理 body 可能是字符串的情况（API Fox 导入的数据）
+                if isinstance(request_body, str):
+                    try:
+                        request_body = json.loads(request_body) if request_body else {}
+                    except json.JSONDecodeError:
+                        request_body = {'type': 'raw', 'data': request_body}
+                
+                body_type = request_body.get('type', 'none') if isinstance(request_body, dict) else 'raw'
+                body_content = request_body.get('data') if isinstance(request_body, dict) else request_body
 
                 if body_type == 'json':
                     if isinstance(body_content, dict):
                         body_data = self._replace_variables_in_dict(body_content, variables)
                         body_data = self._resolve_variables_in_dict(body_data, resolver)
+                    elif isinstance(body_content, str):
+                        # 字符串需要先解析为 JSON
+                        try:
+                            parsed = json.loads(body_content)
+                            if isinstance(parsed, dict):
+                                body_data = self._replace_variables_in_dict(parsed, variables)
+                                body_data = self._resolve_variables_in_dict(body_data, resolver)
+                            else:
+                                body_data = parsed
+                        except json.JSONDecodeError:
+                            # 不是有效 JSON（可能包含变量占位符），先进行变量替换
+                            body_data = self._replace_variables(body_content, variables)
+                            body_data = resolver.resolve(body_data)
+                            # 变量替换后，再次尝试解析为 JSON
+                            if isinstance(body_data, str):
+                                try:
+                                    body_data = json.loads(body_data)
+                                except json.JSONDecodeError:
+                                    # 如果还有未替换的变量（如 {{org_id}}），
+                                    # 暂时替换为占位符以便能解析为 JSON
+                                    import re
+                                    temp_body = re.sub(r'\{\{[^}]+\}\}', '""', body_data)
+                                    try:
+                                        body_data = json.loads(temp_body)
+                                    except json.JSONDecodeError:
+                                        # 仍然不是 JSON，保持字符串，但会被当作 raw 处理
+                                        pass
                     else:
                         body_data = body_content
                 elif body_type == 'raw':
@@ -330,14 +364,41 @@ class ApiRequestViewSet(viewsets.ModelViewSet):
                 )
             else:
                 # json 类型使用 json 参数，自动序列化
-                response = requests.request(
-                    method=request_method,
-                    url=url,
-                    headers=headers,
-                    params=params,
-                    json=body_data,
-                    timeout=30
-                )
+                # 如果 body_data 是字符串（JSON 解析失败），尝试解析为 JSON
+                if isinstance(body_data, str):
+                    try:
+                        json_data = json.loads(body_data)
+                        response = requests.request(
+                            method=request_method,
+                            url=url,
+                            headers=headers,
+                            params=params,
+                            json=json_data,
+                            timeout=30
+                        )
+                    except (json.JSONDecodeError, TypeError):
+                        # 不是有效的 JSON，作为原始字符串发送，但设置 JSON Content-Type
+                        if headers is None:
+                            headers = {}
+                        headers = headers.copy()
+                        headers['Content-Type'] = 'application/json'
+                        response = requests.request(
+                            method=request_method,
+                            url=url,
+                            headers=headers,
+                            params=params,
+                            data=body_data,
+                            timeout=30
+                        )
+                else:
+                    response = requests.request(
+                        method=request_method,
+                        url=url,
+                        headers=headers,
+                        params=params,
+                        json=body_data,
+                        timeout=30
+                    )
             end_time = time.time()
             
             response_time = (end_time - start_time) * 1000  # 转换为毫秒
@@ -369,7 +430,7 @@ class ApiRequestViewSet(viewsets.ModelViewSet):
                     extractors
                 )
 
-                # 保存提取的变量到环境
+                # 单接口执行：保存提取的变量到环境
                 if environment_id and extraction_result['variables']:
                     save_variables_to_environment(
                         environment_id,
@@ -699,7 +760,9 @@ class TestSuiteViewSet(viewsets.ModelViewSet):
                         env = Environment.objects.get(id=test_suite.environment.id)
                         variables.update(env.variables)
                     # 3. 添加之前接口提取的变量
+                    logger.info(f"DEBUG - 当前 extracted_variables: {extracted_variables}")
                     variables.update(extracted_variables)
+                    logger.info(f"DEBUG - 合并后用于替换的 variables: {variables}")
                     
                     # 替换URL中的变量（先解析动态函数，再替换环境变量）
                     url = self._replace_variables(api_request.url, variables)
@@ -785,19 +848,58 @@ class TestSuiteViewSet(viewsets.ModelViewSet):
                     body_data = None
                     body_type = 'none'
                     if api_request.body and api_request.method in ['POST', 'PUT', 'PATCH']:
-                        body_type = api_request.body.get('type', 'none')
-                        body_content = api_request.body.get('data')
+                        # 处理 body 可能是字符串的情况（API Fox 导入的数据）
+                        body = api_request.body
+                        if isinstance(body, str):
+                            try:
+                                body = json.loads(body) if body else {}
+                            except json.JSONDecodeError:
+                                body = {'type': 'raw', 'data': body}
+                        
+                        body_type = body.get('type', 'none') if isinstance(body, dict) else 'raw'
+                        body_content = body.get('data') if isinstance(body, dict) else body
 
                         if body_type == 'json':
                             if isinstance(body_content, dict):
                                 body_data = self._replace_variables_in_dict(body_content, variables)
                                 body_data = self._resolve_variables_in_dict(body_data, resolver)
+                            elif isinstance(body_content, str):
+                                # 字符串需要先解析为 JSON
+                                try:
+                                    parsed = json.loads(body_content)
+                                    if isinstance(parsed, dict):
+                                        body_data = self._replace_variables_in_dict(parsed, variables)
+                                        body_data = self._resolve_variables_in_dict(body_data, resolver)
+                                    else:
+                                        body_data = parsed
+                                except json.JSONDecodeError:
+                                    # 不是有效 JSON（可能包含变量占位符），先进行变量替换
+                                    body_data = self._replace_variables(body_content, variables)
+                                    body_data = resolver.resolve(body_data)
+                                    # 变量替换后，再次尝试解析为 JSON
+                                    if isinstance(body_data, str):
+                                        try:
+                                            body_data = json.loads(body_data)
+                                        except json.JSONDecodeError:
+                                            # 如果还有未替换的变量（如 {{org_id}}），
+                                            # 暂时替换为占位符以便能解析为 JSON
+                                            import re
+                                            temp_body = re.sub(r'\{\{[^}]+\}\}', '""', body_data)
+                                            try:
+                                                body_data = json.loads(temp_body)
+                                            except json.JSONDecodeError:
+                                                # 仍然不是 JSON，保持字符串
+                                                pass
                             else:
                                 body_data = body_content
                         elif body_type == 'raw':
                             if isinstance(body_content, str):
+                                logger.info(f"DEBUG - raw body_content before replace: {body_content}")
+                                logger.info(f"DEBUG - variables for replace: {variables}")
                                 body_data = self._replace_variables(body_content, variables)
+                                logger.info(f"DEBUG - raw body_data after replace: {body_data}")
                                 body_data = resolver.resolve(body_data)
+                                logger.info(f"DEBUG - raw body_data after resolve: {body_data}")
                             else:
                                 body_data = body_content
                         elif body_type in ['form-data', 'x-www-form-urlencoded']:
@@ -814,25 +916,76 @@ class TestSuiteViewSet(viewsets.ModelViewSet):
                     
                     # 根据请求体类型决定使用 data 还是 json 参数
                     if body_type == 'raw':
-                        # raw 类型使用 data 参数，发送原始字符串
-                        response = requests.request(
-                            method=api_request.method,
-                            url=url,
-                            headers=headers,
-                            params=params,
-                            data=body_data,
-                            timeout=30
-                        )
+                        # raw 类型：尝试解析为 JSON，如果成功则作为 JSON 发送
+                        if isinstance(body_data, str):
+                            try:
+                                json_data = json.loads(body_data)
+                                # 是有效的 JSON，使用 json 参数发送（自动设置 Content-Type）
+                                response = requests.request(
+                                    method=api_request.method,
+                                    url=url,
+                                    headers=headers,
+                                    params=params,
+                                    json=json_data,
+                                    timeout=30
+                                )
+                            except (json.JSONDecodeError, TypeError):
+                                # 不是 JSON，作为原始字符串发送
+                                response = requests.request(
+                                    method=api_request.method,
+                                    url=url,
+                                    headers=headers,
+                                    params=params,
+                                    data=body_data,
+                                    timeout=30
+                                )
+                        else:
+                            # body_data 不是字符串，直接使用 data 参数
+                            response = requests.request(
+                                method=api_request.method,
+                                url=url,
+                                headers=headers,
+                                params=params,
+                                data=body_data,
+                                timeout=30
+                            )
                     else:
                         # json 类型使用 json 参数，自动序列化
-                        response = requests.request(
-                            method=api_request.method,
-                            url=url,
-                            headers=headers,
-                            params=params,
-                            json=body_data,
-                            timeout=30
-                        )
+                        # 如果 body_data 是字符串（JSON 解析失败），需要特殊处理
+                        if isinstance(body_data, str):
+                            try:
+                                json_data = json.loads(body_data)
+                                response = requests.request(
+                                    method=api_request.method,
+                                    url=url,
+                                    headers=headers,
+                                    params=params,
+                                    json=json_data,
+                                    timeout=30
+                                )
+                            except (json.JSONDecodeError, TypeError):
+                                # 不是有效的 JSON，作为原始字符串发送，但设置 JSON Content-Type
+                                if headers is None:
+                                    headers = {}
+                                headers = headers.copy()
+                                headers['Content-Type'] = 'application/json'
+                                response = requests.request(
+                                    method=api_request.method,
+                                    url=url,
+                                    headers=headers,
+                                    params=params,
+                                    data=body_data,
+                                    timeout=30
+                                )
+                        else:
+                            response = requests.request(
+                                method=api_request.method,
+                                url=url,
+                                headers=headers,
+                                params=params,
+                                json=body_data,
+                                timeout=30
+                            )
                     end_time = time.time()
                     response_time = (end_time - start_time) * 1000
                     
@@ -880,14 +1033,20 @@ class TestSuiteViewSet(viewsets.ModelViewSet):
 
                     # 执行变量提取
                     extraction_result = {'variables': {}, 'results': []}
+                    logger.info(f"DEBUG - 变量提取检查: api_request.variable_extractors={api_request.variable_extractors}, response_json={response_json is not None}")
                     if api_request.variable_extractors and response_json is not None:
+                        logger.info(f"DEBUG - 开始执行变量提取: extractors={api_request.variable_extractors}")
                         extraction_result = extract_variables(
                             response_json,
                             dict(response.headers),
                             api_request.variable_extractors
                         )
+                        logger.info(f"DEBUG - 变量提取结果: {extraction_result}")
                         # 将提取的变量添加到执行变量中，供后续接口使用
                         extracted_variables.update(extraction_result['variables'])
+                        logger.info(f"DEBUG - 更新后的 extracted_variables: {extracted_variables}")
+                    else:
+                        logger.info(f"DEBUG - 跳过变量提取: variable_extractors={api_request.variable_extractors}, response_json={response_json}")
 
                     if passed:
                         passed_count += 1
@@ -958,14 +1117,6 @@ class TestSuiteViewSet(viewsets.ModelViewSet):
             execution.status = 'COMPLETED' if failed_count == 0 else 'FAILED'
             execution.results = results
             execution.save()
-
-            # 将所有提取的变量保存到环境
-            if test_suite.environment and extracted_variables:
-                save_variables_to_environment(
-                    test_suite.environment.id,
-                    extracted_variables,
-                    request.user
-                )
 
             # 记录执行操作
             log_operation(
@@ -1372,10 +1523,10 @@ class TestExecutionViewSet(viewsets.ReadOnlyModelViewSet):
                 # 如果没有 Allure 工具或 Java 环境，生成简单的 HTML 报告
                 logger.warning("Allure 工具或 Java 环境不可用，生成简单报告")
                 os.makedirs(report_output_dir, exist_ok=True)
-                fallback_html = f"""
-<!DOCTYPE html>
+                fallback_html = f"""<!DOCTYPE html>
 <html>
 <head>
+    <meta charset="UTF-8">
     <title>测试报告 - {execution.test_suite.name}</title>
 </head>
 <body>
@@ -1386,8 +1537,7 @@ class TestExecutionViewSet(viewsets.ReadOnlyModelViewSet):
     <p>通过: {execution.passed_requests}</p>
     <p>失败: {execution.failed_requests}</p>
 </body>
-</html>
-"""
+</html>"""
                 with open(os.path.join(report_output_dir, 'index.html'), 'w', encoding='utf-8') as f:
                     f.write(fallback_html)
             
@@ -1663,7 +1813,7 @@ class TestExecutionViewSet(viewsets.ReadOnlyModelViewSet):
             
             return Response({
                 'message': 'Allure报告生成成功',
-                'report_url': f'/media/api-testing/allure-reports/execution_{execution.id}/summary.html'
+                'report_url': f'/api-testing/allure-reports/execution_{execution.id}/summary.html'
             })
         except Exception as e:
             import traceback
@@ -2059,35 +2209,46 @@ class ScheduledTaskViewSet(viewsets.ModelViewSet):
                     import traceback
                     traceback.print_exc()
 
-            if not notification_setting:
-                logger.warning(f"任务 {task.id} 没有通知设置")
-                return
-
-            logger.info(f"通知设置详情 - ID: {notification_setting.id}, 是否启用: {notification_setting.is_enabled}")
-
-            if not notification_setting.is_enabled:
-                logger.info(f"任务 {task.id} 的通知设置未启用")
-                return
-
             # 检查是否应该发送通知
-            execution_status = 'success' if success else 'failed'
-            should_notify = notification_setting.should_notify(execution_status)
-            logger.info(f"执行状态: {execution_status}, should_notify结果: {should_notify}")
-            if not should_notify:
-                logger.info(f"根据执行状态 {execution_status}，不应该发送通知")
-                return
+            if notification_setting:
+                logger.info(f"通知设置详情 - ID: {notification_setting.id}, 是否启用: {notification_setting.is_enabled}")
+                
+                if not notification_setting.is_enabled:
+                    logger.info(f"任务 {task.id} 的通知设置未启用")
+                    # 检查是否有任务表单中的通知邮箱
+                    if not (hasattr(task, 'notify_emails') and task.notify_emails):
+                        return
+                    logger.info("但任务表单中指定了通知邮箱，继续发送通知")
+                else:
+                    # 检查是否应该发送通知
+                    execution_status = 'success' if success else 'failed'
+                    should_notify = notification_setting.should_notify(execution_status)
+                    logger.info(f"执行状态: {execution_status}, should_notify结果: {should_notify}")
+                    if not should_notify:
+                        logger.info(f"根据执行状态 {execution_status}，不应该发送通知")
+                        return
+            else:
+                logger.warning(f"任务 {task.id} 没有通知设置")
+                # 如果没有通知设置，检查是否有任务表单中的通知邮箱
+                if not (hasattr(task, 'notify_emails') and task.notify_emails):
+                    logger.warning("任务也没有设置通知邮箱，跳过发送")
+                    return
+                logger.info("任务表单中指定了通知邮箱，继续发送通知")
 
             logger.info("通过了通知条件检查")
 
             # 获取通知配置
-            notification_config = notification_setting.get_notification_config()
+            notification_config = None
+            if notification_setting:
+                notification_config = notification_setting.get_notification_config()
             
             # 检查是否有通知配置或自定义配置
             has_config = notification_config is not None
-            has_custom_bots = bool(notification_setting.custom_webhook_bots)
-            has_custom_recipients = notification_setting.custom_recipients.exists()
+            has_custom_bots = notification_setting and bool(notification_setting.custom_webhook_bots)
+            has_custom_recipients = notification_setting and notification_setting.custom_recipients.exists()
+            has_task_emails = hasattr(task, 'notify_emails') and task.notify_emails
             
-            if not (has_config or has_custom_bots or has_custom_recipients):
+            if not (has_config or has_custom_bots or has_custom_recipients or has_task_emails):
                 logger.warning("没有找到通知配置且无自定义设置")
                 return
 
@@ -2097,13 +2258,18 @@ class ScheduledTaskViewSet(viewsets.ModelViewSet):
                 logger.info("使用自定义通知设置")
 
             # 根据通知类型发送不同类型的通知
-            logger.info(f"通知类型: {notification_setting.notification_type}")
+            if notification_setting:
+                logger.info(f"通知类型: {notification_setting.notification_type}")
+                notification_type = notification_setting.notification_type
+            else:
+                logger.info("没有通知设置，默认使用邮件通知")
+                notification_type = 'email'
 
-            if notification_setting.notification_type in ['email', 'both']:
+            if notification_type in ['email', 'both']:
                 logger.info("发送邮件通知")
                 self._send_email_notification(task, execution_log, notification_setting, notification_config, success)
 
-            if notification_setting.notification_type in ['webhook', 'both']:
+            if notification_setting and notification_type in ['webhook', 'both']:
                 logger.info("发送Webhook通知")
                 self._send_webhook_notification(task, execution_log, notification_setting, notification_config, success)
 
@@ -2123,38 +2289,112 @@ class ScheduledTaskViewSet(viewsets.ModelViewSet):
             # 准备邮件内容
             subject = f"定时任务执行{'成功' if success else '失败'}: {task.name}"
 
-            # 过滤掉详细的测试结果数据，只保留概要信息
+            # 构建执行概要
             summary_info = '无详细信息'
+            detailed_results = ''
+            failed_requests_detail = ''
+            report_url = ''
+            
             if execution_log.result:
                 result_data = execution_log.result
-                # 只保留高级概要字段,过滤掉详细的'results'数组
+                
+                # 执行概要
                 summary_fields = {
-                    'success': result_data.get('success'),
-                    'execution_id': result_data.get('execution_id'),
-                    'passed_count': result_data.get('passed_count'),
-                    'failed_count': result_data.get('failed_count'),
-                    'total_count': result_data.get('total_count')
+                    '执行ID': result_data.get('execution_id'),
+                    '执行状态': '成功' if result_data.get('success') else '失败',
+                    '总请求数': result_data.get('total_count'),
+                    '通过数': result_data.get('passed_count'),
+                    '失败数': result_data.get('failed_count'),
+                    '通过率': f"{result_data.get('passed_count', 0) / result_data.get('total_count', 1) * 100:.1f}%" if result_data.get('total_count') else 'N/A'
                 }
-                # 只保留有值的字段
-                summary_info = '\n'.join([f'{k}: {v}' for k, v in summary_fields.items() if v is not None])
+                summary_info = '\n            '.join([f'{k}: {v}' for k, v in summary_fields.items() if v is not None])
+                
+                # 详细请求结果
+                results = result_data.get('results', [])
+                if results:
+                    detailed_results_list = []
+                    failed_list = []
+                    
+                    for idx, result in enumerate(results, 1):
+                        status_icon = '✅' if result.get('passed') else '❌'
+                        method = result.get('method', 'N/A')
+                        name = result.get('name', f'请求{idx}')
+                        status_code = result.get('status_code', 'N/A')
+                        response_time = f"{result.get('response_time', 0):.0f}ms" if result.get('response_time') else 'N/A'
+                        
+                        detail_line = f"{status_icon} [{method}] {name} - 状态码:{status_code} 耗时:{response_time}"
+                        detailed_results_list.append(detail_line)
+                        
+                        # 收集失败请求
+                        if not result.get('passed'):
+                            error_msg = result.get('error', '无错误信息')
+                            url = result.get('url', 'N/A')
+                            failed_detail = f"""
+            ❌ [{method}] {name}
+               URL: {url}
+               状态码: {status_code}
+               错误: {error_msg}"""
+                            failed_list.append(failed_detail)
+                    
+                    detailed_results = '\n            '.join(detailed_results_list)
+                    
+                    if failed_list:
+                        failed_requests_detail = '\n'.join(failed_list)
+                
+                # 报告链接
+                execution_id = result_data.get('execution_id')
+                if execution_id:
+                    report_url = f"{settings.SITE_URL if hasattr(settings, 'SITE_URL') else 'http://localhost:3000'}/api-testing/reports"
 
-            message = f"""
-            任务名称: {task.name}
-            执行状态: {'成功' if success else '失败'}
-            执行时间: {execution_log.created_at.strftime('%Y-%m-%d %H:%M:%S')}
-            任务类型: {'测试套件执行' if task.task_type == 'TEST_SUITE' else 'API请求执行'}
-
-            执行概要:
-            {summary_info}
-
-            错误信息:
-            {execution_log.error_message if execution_log.error_message else '无错误信息'}
-            """
+            # 构建完整邮件内容
+            message_parts = [
+                f"任务名称: {task.name}",
+                f"执行状态: {'成功' if success else '失败'}",
+                f"执行时间: {execution_log.created_at.strftime('%Y-%m-%d %H:%M:%S')}",
+                f"任务类型: {'测试套件执行' if task.task_type == 'TEST_SUITE' else 'API请求执行'}",
+                "",
+                "═══════════ 执行概要 ═══════════",
+                summary_info,
+            ]
+            
+            # 添加详细结果
+            if detailed_results:
+                message_parts.extend([
+                    "",
+                    "═══════════ 详细结果 ═══════════",
+                    detailed_results,
+                ])
+            
+            # 添加失败详情
+            if failed_requests_detail:
+                message_parts.extend([
+                    "",
+                    "═══════════ 失败详情 ═══════════",
+                    failed_requests_detail,
+                ])
+            
+            # 添加错误信息
+            if execution_log.error_message:
+                message_parts.extend([
+                    "",
+                    "═══════════ 错误信息 ═══════════",
+                    execution_log.error_message,
+                ])
+            
+            # 添加报告链接
+            if report_url:
+                message_parts.extend([
+                    "",
+                    "═══════════ 查看报告 ═══════════",
+                    f"请访问: {report_url}",
+                ])
+            
+            message = '\n'.join(message_parts)
 
             # 获取收件人列表
             recipients = []
             # 首先检查自定义收件人
-            if notification_setting.custom_recipients.exists():
+            if notification_setting and notification_setting.custom_recipients.exists():
                 recipients = [user.email for user in notification_setting.custom_recipients.all() if user.email]
                 logger.info(f"使用自定义收件人: {recipients}")
 
@@ -2728,6 +2968,269 @@ URL参数:
             return Response({'error': f'AI服务调用失败: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
         except Exception as e:
             return Response({'error': f'未知错误: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+# ==================== API Fox CLI 导入 API ====================
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def apifox_import_validate(request):
+    """
+    验证 API Fox CLI JSON 文件
+    
+    请求参数:
+    - file: 上传的 JSON 文件
+    
+    返回:
+    - valid: 是否可导入
+    - unsupported_functions: 不支持的函数列表
+    - total_requests: 请求总数
+    - warnings: 警告信息
+    """
+    from .apifox_importer import validate_apifox_file
+    
+    if 'file' not in request.FILES:
+        return Response(
+            {'error': '请上传文件'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+    
+    uploaded_file = request.FILES['file']
+    
+    # 调试: 记录文件信息
+    import logging
+    logger = logging.getLogger(__name__)
+    logger.info(f"收到上传文件: name={uploaded_file.name}, size={uploaded_file.size}")
+    
+    # 保存临时文件
+    import tempfile
+    import os
+    
+    with tempfile.NamedTemporaryFile(mode='wb', delete=False, suffix='.json') as tmp:
+        for chunk in uploaded_file.chunks():
+            tmp.write(chunk)
+        tmp_path = tmp.name
+    
+    # 调试: 读取临时文件验证内容
+    try:
+        with open(tmp_path, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+        logger.info(f"文件解析成功, top-level item count: {len(data.get('item', []))}")
+    except Exception as e:
+        logger.error(f"文件解析失败: {e}")
+    
+    try:
+        result = validate_apifox_file(tmp_path)
+        logger.info(f"验证结果: {result}")
+        return Response(result)
+    except Exception as e:
+        return Response(
+            {'error': f'验证失败: {str(e)}'},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+    finally:
+        os.unlink(tmp_path)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def apifox_import_execute(request):
+    """
+    执行 API Fox CLI JSON 文件导入
+    
+    请求参数:
+    - file: 上传的 JSON 文件 (必需)
+    - project_id: 项目ID (必需)
+    - collection_id: 目标集合ID (可选，默认新建)
+    - import_env: 是否导入环境变量 (可选，默认false)
+    
+    返回:
+    - success: 是否成功
+    - collection_id: 创建的集合ID
+    - suite_id: 创建的测试套件ID
+    - stats: 导入统计
+    - warnings: 警告信息
+    """
+    from .apifox_importer import import_apifox_cli
+    
+    # 获取参数
+    project_id = request.data.get('project_id')
+    collection_id = request.data.get('collection_id')
+    import_env = request.data.get('import_env', False)
+    
+    if 'file' not in request.FILES:
+        return Response(
+            {'error': '请上传文件'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+    
+    if not project_id:
+        return Response(
+            {'error': '请提供项目ID'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+    
+    # 验证项目
+    try:
+        project = ApiProject.objects.get(id=project_id)
+    except ApiProject.DoesNotExist:
+        return Response(
+            {'error': '项目不存在'},
+            status=status.HTTP_404_NOT_FOUND
+        )
+    
+    # 验证集合（如果指定了）
+    target_collection = None
+    if collection_id:
+        try:
+            target_collection = ApiCollection.objects.get(id=collection_id)
+        except ApiCollection.DoesNotExist:
+            return Response(
+                {'error': '集合不存在'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+    
+    # 保存临时文件
+    uploaded_file = request.FILES['file']
+    
+    import tempfile
+    import os
+    
+    with tempfile.NamedTemporaryFile(mode='wb', delete=False, suffix='.json') as tmp:
+        for chunk in uploaded_file.chunks():
+            tmp.write(chunk)
+        tmp_path = tmp.name
+    
+    try:
+        # 执行导入
+        result = import_apifox_cli(
+            file_path=tmp_path,
+            user=request.user,
+            project=project,
+            import_env=import_env
+        )
+        
+        # 如果指定了目标集合，需要更新请求所属集合
+        if target_collection and result.get('success'):
+            # 获取导入时创建的集合
+            imported_collection = ApiCollection.objects.get(
+                id=result['collection_id']
+            )
+            
+            # 将请求移动到目标集合
+            ApiRequest.objects.filter(
+                collection=imported_collection
+            ).update(collection=target_collection)
+            
+            # 更新测试套件所属集合
+            TestSuite.objects.filter(
+                id=result.get('suite_id')
+            ).update(description=f"从 {imported_collection.name} 导入")
+            
+            # 删除临时创建的集合
+            imported_collection.delete()
+            
+            result['collection_id'] = target_collection.id
+        
+        return Response(result)
+        
+    except Exception as e:
+        logger.exception("API Fox 导入失败")
+        return Response(
+            {'error': f'导入失败: {str(e)}'},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+    finally:
+        os.unlink(tmp_path)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def apifox_function_list(request):
+    """
+    获取支持的 API Fox 动态变量函数列表
+    
+    返回:
+    - functions: 按分类的函数列表
+    """
+    from .apifox_function_mapper import ApifoxFunctionMapper
+    
+    mapper = ApifoxFunctionMapper()
+    functions = mapper.get_supported_functions()
+    
+    # 按分类组织
+    categories = {
+        '基础变量': [],
+        '文本/数字': [],
+        '互联网': [],
+        '名称': [],
+        '职业': [],
+        '电话/地址': [],
+        '商业': [],
+        '金融': [],
+        '日期时间': [],
+        '数据库': [],
+        '黑客': [],
+        '图片': [],
+        '音乐': [],
+        '动物': [],
+        '食物': [],
+        '科学': [],
+        '航空': [],
+        '车辆': [],
+        'Git': [],
+        '系统': []
+    }
+    
+    for func in functions:
+        if func in ['$guid', '$timestamp', '$isoTimestamp', '$randomUUID']:
+            categories['基础变量'].append(func)
+        elif any(x in func for x in ['randomAlpha', 'randomBoolean', 'randomInt', 'randomFloat', 'randomColor', 'randomHex']):
+            categories['文本/数字'].append(func)
+        elif any(x in func for x in ['randomIP', 'randomMAC', 'randomPassword', 'randomProtocol', 'randomSemver', 'randomUserAgent', 'randomLocale']):
+            categories['互联网'].append(func)
+        elif any(x in func for x in ['randomFirstName', 'randomLastName', 'randomFullName', 'randomName']):
+            categories['名称'].append(func)
+        elif 'randomJob' in func:
+            categories['职业'].append(func)
+        elif any(x in func for x in ['randomPhone', 'randomCity', 'randomStreet', 'randomCountry', 'randomLatitude', 'randomLongitude']):
+            categories['电话/地址'].append(func)
+        elif any(x in func for x in ['randomCompany', 'randomCatch', 'randomBs', 'randomProduct']):
+            categories['商业'].append(func)
+        elif any(x in func for x in ['randomCredit', 'randomIBAN', 'randomBIC', 'randomBitcoin', 'randomCurrency', 'randomTransaction']):
+            categories['金融'].append(func)
+        elif func.startswith('$date'):
+            categories['日期时间'].append(func)
+        elif func.startswith('$database'):
+            categories['数据库'].append(func)
+        elif func.startswith('$hacker'):
+            categories['黑客'].append(func)
+        elif func.startswith('$image'):
+            categories['图片'].append(func)
+        elif func.startswith('$music'):
+            categories['音乐'].append(func)
+        elif func.startswith('$animal'):
+            categories['动物'].append(func)
+        elif func.startswith('$food'):
+            categories['食物'].append(func)
+        elif func.startswith('$science'):
+            categories['科学'].append(func)
+        elif func.startswith('$airline'):
+            categories['航空'].append(func)
+        elif func.startswith('$vehicle'):
+            categories['车辆'].append(func)
+        elif func.startswith('$git'):
+            categories['Git'].append(func)
+        elif func.startswith('$system'):
+            categories['系统'].append(func)
+    
+    # 过滤空分类
+    categories = {k: v for k, v in categories.items() if v}
+    
+    return Response({
+        'total': len(functions),
+        'categories': categories
+    })
 
 
 @api_view(['POST'])

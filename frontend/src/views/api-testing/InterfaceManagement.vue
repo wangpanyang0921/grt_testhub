@@ -1986,9 +1986,18 @@ const saveRequest = async () => {
               data: JSON.parse(rawBody.value)
             }
           } catch (e) {
-            bodyData = {
-              type: 'raw',
-              data: rawBody.value
+            // 解析失败，检查是否包含变量占位符（如 {{org_id}}）
+            if (rawBody.value && rawBody.value.includes('{{')) {
+              // 包含变量，保存为 json 类型字符串，后端会在执行时解析
+              bodyData = {
+                type: 'json',
+                data: rawBody.value
+              }
+            } else {
+              bodyData = {
+                type: 'raw',
+                data: rawBody.value
+              }
             }
           }
         } else {
@@ -2085,9 +2094,18 @@ const sendRequest = async () => {
               data: JSON.parse(rawBody.value)
             }
           } catch (e) {
-            bodyData = {
-              type: 'raw',
-              data: rawBody.value
+            // 解析失败，检查是否包含变量占位符（如 {{org_id}}）
+            if (rawBody.value && rawBody.value.includes('{{')) {
+              // 包含变量，保存为 json 类型字符串，后端会在执行时解析
+              bodyData = {
+                type: 'json',
+                data: rawBody.value
+              }
+            } else {
+              bodyData = {
+                type: 'raw',
+                data: rawBody.value
+              }
             }
           }
         } else {

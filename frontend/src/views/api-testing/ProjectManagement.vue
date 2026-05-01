@@ -17,7 +17,7 @@
           {{ (currentPage - 1) * pageSize + $index + 1 }}
         </template>
       </el-table-column>
-      <el-table-column prop="name" :label="$t('apiTesting.project.projectName')" min-width="200" header-align="center" align="center" />
+      <el-table-column prop="name" :label="$t('apiTesting.project.projectName')" min-width="160" header-align="center" align="center" />
       <el-table-column prop="project_type" :label="$t('apiTesting.project.projectType')" width="140" header-align="center" align="center">
         <template #default="scope">
           <span class="status-badge" :class="scope.row.project_type === 'HTTP' ? 'http' : 'websocket'">

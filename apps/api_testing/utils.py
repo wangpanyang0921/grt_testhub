@@ -91,6 +91,292 @@ def execute_assertions(response, assertions):
                 actual = response.text.strip()
                 passed = actual == str(expected).strip()
             
+            # ==================== API Fox 断言类型支持 ====================
+            elif assertion_type == 'equal':
+                # 使用 json_path 提取的值进行比较
+                json_path = assertion.get('json_path', '')
+                expected_value = assertion.get('expected_value', assertion.get('expected'))
+                actual = None
+                passed = False
+                
+                try:
+                    response_json = json.loads(response.text)
+                    from jsonpath_ng import parse
+                    matches = parse(json_path).find(response_json)
+                    actual = matches[0].value if matches else None
+                    passed = str(actual) == str(expected_value)
+                    result['actual'] = actual
+                except Exception as e:
+                    result['error'] = f"JSON提取失败: {str(e)}"
+                    passed = False
+            
+            elif assertion_type == 'not_equal':
+                json_path = assertion.get('json_path', '')
+                expected_value = assertion.get('expected_value', assertion.get('expected'))
+                actual = None
+                passed = False
+                
+                try:
+                    response_json = json.loads(response.text)
+                    from jsonpath_ng import parse
+                    matches = parse(json_path).find(response_json)
+                    actual = matches[0].value if matches else None
+                    passed = str(actual) != str(expected_value)
+                    result['actual'] = actual
+                except Exception as e:
+                    result['error'] = f"JSON提取失败: {str(e)}"
+                    passed = False
+            
+            elif assertion_type == 'not_empty':
+                # 不为空断言
+                json_path = assertion.get('json_path', '')
+                actual = None
+                passed = False
+                
+                try:
+                    response_json = json.loads(response.text)
+                    from jsonpath_ng import parse
+                    matches = parse(json_path).find(response_json)
+                    actual = matches[0].value if matches else None
+                    # 检查是否不为空（None、空字符串、空列表、空字典都视为空）
+                    if actual is None:
+                        passed = False
+                    elif isinstance(actual, str) and actual.strip() == '':
+                        passed = False
+                    elif isinstance(actual, (list, dict)) and len(actual) == 0:
+                        passed = False
+                    else:
+                        passed = True
+                    result['actual'] = actual
+                except Exception as e:
+                    result['error'] = f"JSON提取失败: {str(e)}"
+                    passed = False
+            
+            elif assertion_type == 'empty':
+                # 为空断言
+                json_path = assertion.get('json_path', '')
+                actual = None
+                passed = False
+                
+                try:
+                    response_json = json.loads(response.text)
+                    from jsonpath_ng import parse
+                    matches = parse(json_path).find(response_json)
+                    actual = matches[0].value if matches else None
+                    # 检查是否为空
+                    if actual is None:
+                        passed = True
+                    elif isinstance(actual, str) and actual.strip() == '':
+                        passed = True
+                    elif isinstance(actual, (list, dict)) and len(actual) == 0:
+                        passed = True
+                    else:
+                        passed = False
+                    result['actual'] = actual
+                except Exception as e:
+                    result['error'] = f"JSON提取失败: {str(e)}"
+                    passed = False
+            
+            elif assertion_type == 'not_contains':
+                # 不包含断言
+                text = response.text or ''
+                pattern = str(expected)
+                actual = text[:200] + '...' if len(text) > 200 else text
+                passed = pattern not in str(text)
+            
+            elif assertion_type == 'greater_than':
+                # 大于断言
+                json_path = assertion.get('json_path', '')
+                expected_value = assertion.get('expected_value', assertion.get('expected'))
+                actual = None
+                passed = False
+                
+                try:
+                    response_json = json.loads(response.text)
+                    from jsonpath_ng import parse
+                    matches = parse(json_path).find(response_json)
+                    actual = matches[0].value if matches else None
+                    # 尝试数值比较
+                    try:
+                        passed = float(actual) > float(expected_value)
+                    except (ValueError, TypeError):
+                        passed = str(actual) > str(expected_value)
+                    result['actual'] = actual
+                except Exception as e:
+                    result['error'] = f"JSON提取失败: {str(e)}"
+                    passed = False
+            
+            elif assertion_type == 'greater_than_or_equal':
+                # 大于等于断言
+                json_path = assertion.get('json_path', '')
+                expected_value = assertion.get('expected_value', assertion.get('expected'))
+                actual = None
+                passed = False
+                
+                try:
+                    response_json = json.loads(response.text)
+                    from jsonpath_ng import parse
+                    matches = parse(json_path).find(response_json)
+                    actual = matches[0].value if matches else None
+                    try:
+                        passed = float(actual) >= float(expected_value)
+                    except (ValueError, TypeError):
+                        passed = str(actual) >= str(expected_value)
+                    result['actual'] = actual
+                except Exception as e:
+                    result['error'] = f"JSON提取失败: {str(e)}"
+                    passed = False
+            
+            elif assertion_type == 'less_than':
+                # 小于断言
+                json_path = assertion.get('json_path', '')
+                expected_value = assertion.get('expected_value', assertion.get('expected'))
+                actual = None
+                passed = False
+                
+                try:
+                    response_json = json.loads(response.text)
+                    from jsonpath_ng import parse
+                    matches = parse(json_path).find(response_json)
+                    actual = matches[0].value if matches else None
+                    try:
+                        passed = float(actual) < float(expected_value)
+                    except (ValueError, TypeError):
+                        passed = str(actual) < str(expected_value)
+                    result['actual'] = actual
+                except Exception as e:
+                    result['error'] = f"JSON提取失败: {str(e)}"
+                    passed = False
+            
+            elif assertion_type == 'less_than_or_equal':
+                # 小于等于断言
+                json_path = assertion.get('json_path', '')
+                expected_value = assertion.get('expected_value', assertion.get('expected'))
+                actual = None
+                passed = False
+                
+                try:
+                    response_json = json.loads(response.text)
+                    from jsonpath_ng import parse
+                    matches = parse(json_path).find(response_json)
+                    actual = matches[0].value if matches else None
+                    try:
+                        passed = float(actual) <= float(expected_value)
+                    except (ValueError, TypeError):
+                        passed = str(actual) <= str(expected_value)
+                    result['actual'] = actual
+                except Exception as e:
+                    result['error'] = f"JSON提取失败: {str(e)}"
+                    passed = False
+            
+            elif assertion_type == 'regex_match':
+                # 正则匹配断言
+                json_path = assertion.get('json_path', '')
+                expected_value = assertion.get('expected_value', assertion.get('expected'))
+                actual = None
+                passed = False
+                
+                try:
+                    response_json = json.loads(response.text)
+                    from jsonpath_ng import parse
+                    matches = parse(json_path).find(response_json)
+                    actual = matches[0].value if matches else None
+                    import re
+                    pattern = str(expected_value)
+                    passed = re.match(pattern, str(actual)) is not None
+                    result['actual'] = actual
+                except Exception as e:
+                    result['error'] = f"正则匹配失败: {str(e)}"
+                    passed = False
+            
+            elif assertion_type == 'starts_with':
+                # 开头是断言
+                json_path = assertion.get('json_path', '')
+                expected_value = assertion.get('expected_value', assertion.get('expected'))
+                actual = None
+                passed = False
+                
+                try:
+                    response_json = json.loads(response.text)
+                    from jsonpath_ng import parse
+                    matches = parse(json_path).find(response_json)
+                    actual = matches[0].value if matches else None
+                    passed = str(actual).startswith(str(expected_value))
+                    result['actual'] = actual
+                except Exception as e:
+                    result['error'] = f"JSON提取失败: {str(e)}"
+                    passed = False
+            
+            elif assertion_type == 'ends_with':
+                # 结尾是断言
+                json_path = assertion.get('json_path', '')
+                expected_value = assertion.get('expected_value', assertion.get('expected'))
+                actual = None
+                passed = False
+                
+                try:
+                    response_json = json.loads(response.text)
+                    from jsonpath_ng import parse
+                    matches = parse(json_path).find(response_json)
+                    actual = matches[0].value if matches else None
+                    passed = str(actual).endswith(str(expected_value))
+                    result['actual'] = actual
+                except Exception as e:
+                    result['error'] = f"JSON提取失败: {str(e)}"
+                    passed = False
+            
+            # ==================== 长度比较断言 ====================
+            elif assertion_type == 'length_equal':
+                json_path = assertion.get('json_path', '')
+                expected_value = assertion.get('expected_value', assertion.get('expected'))
+                actual = None
+                passed = False
+                
+                try:
+                    response_json = json.loads(response.text)
+                    from jsonpath_ng import parse
+                    matches = parse(json_path).find(response_json)
+                    actual = matches[0].value if matches else None
+                    passed = len(str(actual)) == int(expected_value)
+                    result['actual'] = f"长度: {len(str(actual))}"
+                except Exception as e:
+                    result['error'] = f"长度比较失败: {str(e)}"
+                    passed = False
+            
+            elif assertion_type == 'length_greater_than':
+                json_path = assertion.get('json_path', '')
+                expected_value = assertion.get('expected_value', assertion.get('expected'))
+                actual = None
+                passed = False
+                
+                try:
+                    response_json = json.loads(response.text)
+                    from jsonpath_ng import parse
+                    matches = parse(json_path).find(response_json)
+                    actual = matches[0].value if matches else None
+                    passed = len(str(actual)) > int(expected_value)
+                    result['actual'] = f"长度: {len(str(actual))}"
+                except Exception as e:
+                    result['error'] = f"长度比较失败: {str(e)}"
+                    passed = False
+            
+            elif assertion_type == 'length_less_than':
+                json_path = assertion.get('json_path', '')
+                expected_value = assertion.get('expected_value', assertion.get('expected'))
+                actual = None
+                passed = False
+                
+                try:
+                    response_json = json.loads(response.text)
+                    from jsonpath_ng import parse
+                    matches = parse(json_path).find(response_json)
+                    actual = matches[0].value if matches else None
+                    passed = len(str(actual)) < int(expected_value)
+                    result['actual'] = f"长度: {len(str(actual))}"
+                except Exception as e:
+                    result['error'] = f"长度比较失败: {str(e)}"
+                    passed = False
+            
             # 确保在所有情况下都设置actual值
             if 'actual' not in result or result['actual'] is None:
                 result['actual'] = actual
@@ -146,6 +432,24 @@ def execute_test_suite(test_suite, environment, executed_by):
                 # 替换URL中的变量（先解析动态函数，再替换环境变量）
                 url = _replace_variables(api_request.url, variables)
                 url = resolver.resolve(url)
+                
+                # 如果URL是相对路径，拼接base_url
+                if url.startswith('/') and environment:
+                    base_url_raw = variables.get('base_url') or variables.get('baseUrl')
+                    # 处理对象格式 {initialValue, currentValue, initial_value, current_value}
+                    if isinstance(base_url_raw, dict):
+                        base_url = str(
+                            base_url_raw.get('current_value', '') or
+                            base_url_raw.get('currentValue', '') or
+                            base_url_raw.get('initial_value', '') or
+                            base_url_raw.get('initialValue', '')
+                        )
+                    elif base_url_raw:
+                        base_url = str(base_url_raw)
+                    else:
+                        base_url = ''
+                    if base_url:
+                        url = base_url.rstrip('/') + url
                 
                 # 准备请求头
                 headers = {}
@@ -307,6 +611,24 @@ def execute_api_request(api_request, environment, executed_by):
         # 替换URL中的变量（先解析动态函数，再替换环境变量）
         url = _replace_variables(api_request.url, variables)
         url = resolver.resolve(url)
+        
+        # 如果URL是相对路径，拼接base_url
+        if url.startswith('/') and environment:
+            base_url_raw = variables.get('base_url') or variables.get('baseUrl')
+            # 处理对象格式 {initialValue, currentValue, initial_value, current_value}
+            if isinstance(base_url_raw, dict):
+                base_url = str(
+                    base_url_raw.get('current_value', '') or
+                    base_url_raw.get('currentValue', '') or
+                    base_url_raw.get('initial_value', '') or
+                    base_url_raw.get('initialValue', '')
+                )
+            elif base_url_raw:
+                base_url = str(base_url_raw)
+            else:
+                base_url = ''
+            if base_url:
+                url = base_url.rstrip('/') + url
         
         # 准备请求头
         headers = {}

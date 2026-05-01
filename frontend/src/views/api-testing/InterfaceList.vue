@@ -32,9 +32,11 @@
           批量删除 ({{ selectedRows.length }})
         </el-button>
         <el-button class="import-btn" @click="showImportDialog = true">
+          <el-icon style="margin-right: 4px;"><Upload /></el-icon>
           导入接口
         </el-button>
         <el-button class="add-element-btn" @click="createNewRequest">
+          <el-icon style="margin-right: 4px;"><Plus /></el-icon>
           {{ $t('apiTesting.interface.addInterface') }}
         </el-button>
       </div>
@@ -170,7 +172,7 @@
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
-import { Folder, Plus, Document, Edit, Delete, Connection, Search } from '@element-plus/icons-vue'
+import { Folder, Plus, Document, Edit, Delete, Connection, Search, Upload } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import api from '@/utils/api'
 import ImportDialog from './components/ImportDialog.vue'
@@ -1032,16 +1034,16 @@ const createCollection = async () => {
   font-weight: 500;
   font-size: 14px;
   transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-  background: #7b42f6;
-  border: 1px solid #7b42f6;
+  background: #52c41a;
+  border: 1px solid #52c41a;
   color: #ffffff;
-  box-shadow: 0 4px 12px rgba(123, 66, 246, 0.3);
+  box-shadow: 0 4px 12px rgba(82, 196, 26, 0.3);
 
   &:hover {
-    background: #8b5cf6;
-    border-color: #8b5cf6;
+    background: #389e0d;
+    border-color: #389e0d;
     transform: translateY(-2px);
-    box-shadow: 0 6px 16px rgba(123, 66, 246, 0.4);
+    box-shadow: 0 6px 16px rgba(82, 196, 26, 0.4);
   }
 
   &:active {

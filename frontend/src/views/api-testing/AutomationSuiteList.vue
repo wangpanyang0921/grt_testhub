@@ -897,10 +897,10 @@ onMounted(() => {
     color: #722ed1;
   }
 
-  // 无环境 - 灰色
+  // 无环境 - 蓝色
   &.no-environment {
-    background: #f5f5f5;
-    color: #8c8c8c;
+    background: #e6f7ff;
+    color: #1890ff;
   }
 }
 
@@ -1437,15 +1437,15 @@ onMounted(() => {
           .el-select {
             width: 100%;
 
-            .el-select__wrapper {
-              background-color: transparent;
-              box-shadow: none;
-              border: 1px solid rgba(147, 112, 219, 0.2);
-              border-radius: 8px;
+            :deep(.el-select__wrapper) {
+              background-color: #ffffff !important;
+              box-shadow: none !important;
+              border: 1px solid rgba(147, 112, 219, 0.2) !important;
+              border-radius: 8px !important;
 
               &:hover,
               &.is-focused {
-                border-color: #7b42f6;
+                border-color: #7b42f6 !important;
               }
             }
           }

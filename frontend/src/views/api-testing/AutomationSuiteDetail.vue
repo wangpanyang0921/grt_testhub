@@ -288,11 +288,12 @@
             type="textarea"
             :rows="3"
             :placeholder="$t('apiTesting.automation.inputSuiteDescription')"
+            class="suite-textarea"
           />
         </el-form-item>
 
         <el-form-item :label="$t('apiTesting.automation.executionEnvironment')" prop="environment">
-          <el-select v-model="editForm.environment" :placeholder="$t('apiTesting.automation.selectEnvironment')" clearable style="width: 100%">
+          <el-select v-model="editForm.environment" :placeholder="$t('apiTesting.automation.selectEnvironment')" clearable class="env-select">
             <el-option
               v-for="env in environments"
               :key="env.id"
@@ -478,16 +479,8 @@
             <span class="status-tag" :class="currentRequestDetail.passed ? 'success' : 'failed'">
               {{ currentRequestDetail.passed ? '通过' : '失败' }}
             </span>
-          </div>
-          <div class="request-meta">
-            <span class="meta-item">
-              <el-icon><Timer /></el-icon>
-              {{ currentRequestDetail.response_time?.toFixed(0) }}ms
-            </span>
-            <span class="meta-item">
-              <el-icon><DocumentChecked /></el-icon>
-              状态码 {{ currentRequestDetail.status_code }}
-            </span>
+            <span class="meta-tag time-tag">{{ currentRequestDetail.response_time?.toFixed(0) }}ms</span>
+            <span class="meta-tag code-tag">{{ currentRequestDetail.status_code }}</span>
           </div>
           <div class="request-url">{{ currentRequestDetail.url }}</div>
         </div>
@@ -500,44 +493,65 @@
 
         <!-- 数据交换区域 -->
         <div class="data-section" v-if="currentRequestDetail.request_data || currentRequestDetail.response_data">
-          <el-tabs v-model="activeDataTab" class="modern-tabs">
-            <el-tab-pane name="request">
-              <template #label>
-                <span class="tab-label">
-                  <el-icon><Upload /></el-icon>
-                  请求
-                </span>
-              </template>
-              <div class="data-content" v-if="currentRequestDetail.request_data">
-                <div class="sub-tabs">
-                  <el-radio-group v-model="activeRequestTab" size="small">
-                    <el-radio-button label="body">Body</el-radio-button>
-                    <el-radio-button label="headers">Headers</el-radio-button>
-                    <el-radio-button label="params">Params</el-radio-button>
-                  </el-radio-group>
-                </div>
-                <pre class="code-preview">{{ getRequestData() }}</pre>
+          <!-- 主标签切换 -->
+          <div class="main-tabs">
+            <button 
+              class="main-tab-btn" 
+              :class="{ active: activeDataTab === 'request' }"
+              @click="activeDataTab = 'request'"
+            >
+              请求
+            </button>
+            <button 
+              class="main-tab-btn" 
+              :class="{ active: activeDataTab === 'response' }"
+              @click="activeDataTab = 'response'"
+            >
+              响应
+            </button>
+          </div>
+          
+          <!-- 请求内容 -->
+          <div v-if="activeDataTab === 'request' && currentRequestDetail.request_data" class="data-panel">
+            <div class="panel-header">
+              <div class="sub-tabs">
+                <button 
+                  v-for="tab in ['body', 'headers', 'params']" 
+                  :key="tab"
+                  class="sub-tab-btn"
+                  :class="{ active: activeRequestTab === tab }"
+                  @click="activeRequestTab = tab"
+                >
+                  {{ tab.toUpperCase() }}
+                </button>
               </div>
-            </el-tab-pane>
-            <el-tab-pane name="response">
-              <template #label>
-                <span class="tab-label">
-                  <el-icon><Download /></el-icon>
-                  响应
-                </span>
-              </template>
-              <div class="data-content" v-if="currentRequestDetail.response_data">
-                <div class="sub-tabs">
-                  <el-radio-group v-model="activeResponseTab" size="small">
-                    <el-radio-button label="body">Body</el-radio-button>
-                    <el-radio-button label="headers">Headers</el-radio-button>
-                    <el-radio-button label="json">JSON</el-radio-button>
-                  </el-radio-group>
-                </div>
-                <pre class="code-preview">{{ getResponseData() }}</pre>
+              <span class="data-badge">{{ activeRequestTab.toUpperCase() }}</span>
+            </div>
+            <div class="code-container">
+              <pre class="code-block">{{ getRequestData() }}</pre>
+            </div>
+          </div>
+          
+          <!-- 响应内容 -->
+          <div v-if="activeDataTab === 'response' && currentRequestDetail.response_data" class="data-panel">
+            <div class="panel-header">
+              <div class="sub-tabs">
+                <button 
+                  v-for="tab in ['body', 'headers', 'json']" 
+                  :key="tab"
+                  class="sub-tab-btn"
+                  :class="{ active: activeResponseTab === tab }"
+                  @click="activeResponseTab = tab"
+                >
+                  {{ tab.toUpperCase() }}
+                </button>
               </div>
-            </el-tab-pane>
-          </el-tabs>
+              <span class="data-badge">{{ activeResponseTab.toUpperCase() }}</span>
+            </div>
+            <div class="code-container">
+              <pre class="code-block">{{ getResponseData() }}</pre>
+            </div>
+          </div>
         </div>
 
         <!-- 断言结果 -->
@@ -2292,15 +2306,13 @@ onMounted(async () => {
 
 /* 请求详情抽屉样式 - 现代简洁设计 */
 .request-detail-drawer {
-  padding: 20px;
+  padding: 24px;
 
-  /* 顶部状态栏 */
+  /* 顶部状态栏 - 无边框设计 */
   .request-header {
-    background: linear-gradient(135deg, #f8f7ff 0%, #ffffff 100%);
-    border: 1px solid rgba(147, 112, 219, 0.12);
-    border-radius: 12px;
-    padding: 20px;
-    margin-bottom: 16px;
+    padding: 0 0 20px 0;
+    margin-bottom: 20px;
+    border-bottom: 1px solid rgba(147, 112, 219, 0.1);
 
     .request-title-row {
       display: flex;
@@ -2364,48 +2376,42 @@ onMounted(async () => {
           color: #f5222d;
         }
       }
-    }
 
-    .request-meta {
-      display: flex;
-      gap: 20px;
-      margin-bottom: 12px;
+      .meta-tag {
+        padding: 4px 10px;
+        border-radius: 6px;
+        font-size: 12px;
+        font-weight: 500;
 
-      .meta-item {
-        display: flex;
-        align-items: center;
-        gap: 6px;
-        font-size: 13px;
-        color: #666;
+        &.time-tag {
+          background: #f0f5ff;
+          color: #2f54eb;
+        }
 
-        .el-icon {
-          font-size: 14px;
-          color: #7b42f6;
+        &.code-tag {
+          background: #f6ffed;
+          color: #389e0d;
         }
       }
     }
 
     .request-url {
       font-size: 13px;
-      color: #888;
+      color: #666;
       font-family: 'Courier New', Consolas, Monaco, monospace;
       word-break: break-all;
-      padding: 8px 12px;
-      background: #f5f5f5;
-      border-radius: 6px;
+      padding: 8px 0;
     }
   }
 
-  /* 错误横幅 */
+  /* 错误横幅 - 简洁设计 */
   .error-banner {
     display: flex;
     align-items: flex-start;
     gap: 10px;
-    padding: 14px 16px;
-    background: #fff1f0;
-    border: 1px solid #ffccc7;
-    border-radius: 8px;
-    margin-bottom: 16px;
+    padding: 12px 0;
+    margin-bottom: 20px;
+    border-bottom: 1px solid #ffccc7;
 
     .el-icon {
       font-size: 16px;
@@ -2421,103 +2427,114 @@ onMounted(async () => {
     }
   }
 
-  /* 数据区域 */
+  /* 数据区域 - 现代卡片式设计 */
   .data-section {
-    background: #ffffff;
-    border: 1px solid rgba(147, 112, 219, 0.12);
-    border-radius: 12px;
-    overflow: hidden;
-    margin-bottom: 16px;
+    margin-bottom: 24px;
 
-    .modern-tabs {
-      :deep(.el-tabs__header) {
-        margin: 0;
-        background: #f8f7ff;
-        border-bottom: 1px solid rgba(147, 112, 219, 0.12);
-        padding: 0 16px;
-      }
+    /* 主标签 - 简洁文字切换 */
+    .main-tabs {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 24px;
 
-      :deep(.el-tabs__item) {
-        height: 48px;
-        line-height: 48px;
-        font-size: 14px;
+      .main-tab-btn {
+        display: flex;
+        align-items: center;
+        padding: 10px 20px;
+        border: none;
+        border-radius: 8px;
+        background: transparent;
         color: #666;
+        font-size: 15px;
         font-weight: 500;
-
-        .tab-label {
-          display: flex;
-          align-items: center;
-          gap: 6px;
-
-          .el-icon {
-            font-size: 16px;
-          }
-        }
-
-        &.is-active {
-          color: #7b42f6;
-          background: #ffffff;
-        }
+        cursor: pointer;
+        transition: all 0.2s ease;
 
         &:hover {
-          color: #7b42f6;
+          color: #333;
+          background: #f5f5f5;
         }
-      }
 
-      :deep(.el-tabs__active-bar) {
-        background-color: #7b42f6;
-      }
-
-      :deep(.el-tabs__content) {
-        padding: 0;
+        &.active {
+          background: #7b42f6;
+          color: #fff;
+        }
       }
     }
 
-    .data-content {
-      .sub-tabs {
-        padding: 12px 16px;
-        border-bottom: 1px solid #f0f0f0;
+    /* 数据面板 - 无边框直接展示 */
+    .data-panel {
+      .panel-header {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 16px;
 
-        :deep(.el-radio-button__inner) {
-          font-size: 12px;
+        .sub-tabs {
+          display: flex;
+          gap: 4px;
+
+          .sub-tab-btn {
+            padding: 6px 14px;
+            border: none;
+            border-radius: 6px;
+            background: transparent;
+            color: #666;
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+
+            &:hover {
+              color: #333;
+              background: #f0f0f0;
+            }
+
+            &.active {
+              background: #f0e6ff;
+              color: #7b42f6;
+            }
+          }
+        }
+
+        .data-badge {
+          display: none;
         }
       }
 
-      .code-preview {
-        background: #fafafa;
-        padding: 16px;
-        margin: 0;
-        font-family: 'Courier New', Consolas, Monaco, monospace;
-        font-size: 12px;
-        line-height: 1.6;
-        overflow-x: auto;
-        white-space: pre-wrap;
-        word-wrap: break-word;
-        max-height: 350px;
-        overflow-y: auto;
-        color: #333;
+      .code-container {
+        background: transparent !important;
+        border: none !important;
+
+        .code-block {
+          margin: 0;
+          padding: 0;
+          font-family: 'JetBrains Mono', 'Fira Code', 'Courier New', Consolas, Monaco, monospace;
+          font-size: 13px;
+          line-height: 1.7;
+          color: #333;
+          white-space: pre-wrap;
+          word-wrap: break-word;
+          background: transparent !important;
+          border: none !important;
+        }
       }
     }
   }
 
-  /* 断言区域 */
+  /* 断言区域 - 简洁列表设计 */
   .assertions-section {
-    background: #ffffff;
-    border: 1px solid rgba(147, 112, 219, 0.12);
-    border-radius: 12px;
-    overflow: hidden;
-    margin-bottom: 16px;
+    margin-bottom: 24px;
 
     .section-title-compact {
       display: flex;
       align-items: center;
       gap: 8px;
-      padding: 14px 16px;
-      background: #f8f7ff;
-      border-bottom: 1px solid rgba(147, 112, 219, 0.12);
+      padding: 0 0 12px 0;
       font-size: 14px;
       font-weight: 600;
       color: #5a32a3;
+      border-bottom: 1px solid rgba(147, 112, 219, 0.1);
 
       .el-icon {
         font-size: 16px;
@@ -2526,18 +2543,18 @@ onMounted(async () => {
     }
 
     .assertion-list {
-      padding: 8px;
+      padding: 8px 0;
 
       .assertion-item {
         display: flex;
         align-items: center;
         gap: 10px;
-        padding: 10px 12px;
-        border-radius: 8px;
-        margin-bottom: 6px;
+        padding: 10px 0;
+        border-bottom: 1px solid #f0f0f0;
         font-size: 13px;
 
         &:last-child {
+          border-bottom: none;
           margin-bottom: 0;
         }
 
@@ -2561,16 +2578,12 @@ onMounted(async () => {
         }
 
         &.passed {
-          background: #f6ffed;
-
           .el-icon {
             color: #52c41a;
           }
         }
 
         &.failed {
-          background: #fff1f0;
-
           .el-icon {
             color: #f5222d;
           }
@@ -2579,23 +2592,17 @@ onMounted(async () => {
     }
   }
 
-  /* 变量区域 */
+  /* 变量区域 - 简洁列表设计 */
   .variables-section {
-    background: #ffffff;
-    border: 1px solid rgba(147, 112, 219, 0.12);
-    border-radius: 12px;
-    overflow: hidden;
-
     .section-title-compact {
       display: flex;
       align-items: center;
       gap: 8px;
-      padding: 14px 16px;
-      background: #f8f7ff;
-      border-bottom: 1px solid rgba(147, 112, 219, 0.12);
+      padding: 0 0 12px 0;
       font-size: 14px;
       font-weight: 600;
       color: #5a32a3;
+      border-bottom: 1px solid rgba(147, 112, 219, 0.1);
 
       .el-icon {
         font-size: 16px;
@@ -2604,18 +2611,17 @@ onMounted(async () => {
     }
 
     .variables-grid {
-      padding: 12px;
+      padding: 12px 0;
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-      gap: 10px;
+      gap: 12px;
 
       .variable-item {
         display: flex;
         flex-direction: column;
         gap: 4px;
-        padding: 10px 12px;
-        background: #f8f7ff;
-        border-radius: 8px;
+        padding: 8px 0;
+        border-bottom: 1px solid #f0f0f0;
 
         .var-key {
           font-size: 12px;
@@ -2707,9 +2713,12 @@ onMounted(async () => {
         }
 
         .el-textarea__inner {
+          box-shadow: none;
           border-radius: 8px;
           border: 1px solid rgba(147, 112, 219, 0.2);
           background-color: transparent;
+          padding: 8px 12px;
+          line-height: 1.5;
 
           &:hover,
           &:focus {
@@ -3154,6 +3163,30 @@ onMounted(async () => {
 
   .page-title {
     font-size: 16px;
+  }
+}
+
+// 执行环境下拉框白色背景
+.env-select {
+  :deep(.el-select__wrapper) {
+    background-color: #ffffff !important;
+  }
+}
+
+// 场景描述 textarea 样式与场景名称 input 一致
+.suite-textarea {
+  :deep(.el-textarea__inner) {
+    box-shadow: none !important;
+    border-radius: 8px !important;
+    border: 1px solid rgba(147, 112, 219, 0.2) !important;
+    background-color: transparent !important;
+    padding: 8px 12px !important;
+    line-height: 1.5 !important;
+
+    &:hover,
+    &:focus {
+      border-color: #7b42f6 !important;
+    }
   }
 }
 </style>
