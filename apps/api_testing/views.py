@@ -53,6 +53,7 @@ from .serializers import (
     ScheduledTaskSerializer, ScheduledTaskSerializer,
     AIServiceConfigSerializer
 )
+from .ai_assertion_generator import AIAssertionGenerator
 
 User = get_user_model()
 
@@ -535,6 +536,43 @@ class ApiRequestViewSet(viewsets.ModelViewSet):
             return resolver.resolve(data)
         else:
             return data
+
+    @action(detail=False, methods=['post'])
+    def generate_assertions(self, request):
+        """基于响应数据使用AI生成断言"""
+        try:
+            # 获取请求参数
+            status_code = request.data.get('status_code', 200)
+            response_body = request.data.get('response_body', {})
+            response_headers = request.data.get('response_headers', {})
+            response_time = request.data.get('response_time')
+            response_time_threshold = request.data.get('response_time_threshold', 5000)
+
+            logger.info(f"开始生成断言请求: status_code={status_code}, response_time={response_time}")
+
+            # 调用AI断言生成器
+            assertions = AIAssertionGenerator.generate_assertions(
+                status_code=status_code,
+                response_body=response_body,
+                response_headers=response_headers,
+                response_time=response_time,
+                response_time_threshold=response_time_threshold
+            )
+
+            logger.info(f"断言生成完成: 生成 {len(assertions)} 个断言")
+
+            return Response({
+                'assertions': assertions,
+                'count': len(assertions),
+                'source': 'ai' if assertions and len(assertions) > 0 else 'default'
+            })
+
+        except Exception as e:
+            logger.error(f"生成断言失败: {e}", exc_info=True)
+            return Response(
+                {'error': f'生成断言失败: {str(e)}'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
 
 class EnvironmentViewSet(viewsets.ModelViewSet):

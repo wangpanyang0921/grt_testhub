@@ -28,6 +28,10 @@ from .tools.encryption_tools import EncryptionTools
 from .tools.test_data_tools import TestDataTools
 from .tools.json_tools import JsonTools
 from .tools.crontab_tools import CrontabTools
+from .tools.professional_tools import ProfessionalTools
+from .tools.system_tools import SystemTools
+from .tools.entertainment_tools import EntertainmentTools
+from .tools.mock_image_tools import MockImageTools
 from .tools.image_tools import ImageTools
 
 
@@ -245,6 +249,18 @@ class DataFactoryViewSet(viewsets.ModelViewSet):
             # Crontab工具
             elif tool_category == 'crontab':
                 return self.execute_crontab_tool(tool_name, input_data)
+            # 专业工具
+            elif tool_category == 'professional':
+                return self.execute_professional_tool(tool_name, input_data)
+            # 系统工具
+            elif tool_category == 'system':
+                return self.execute_system_tool(tool_name, input_data)
+            # 娱乐工具
+            elif tool_category == 'entertainment':
+                return self.execute_entertainment_tool(tool_name, input_data)
+            # Mock图片工具
+            elif tool_category == 'mock_image':
+                return self.execute_mock_image_tool(tool_name, input_data)
             else:
                 return {'error': f'不支持的工具分类: {tool_category}'}
         except Exception as e:
@@ -521,6 +537,119 @@ class DataFactoryViewSet(viewsets.ModelViewSet):
                 input_data = {'expression': input_data}
             else:
                 input_data = {'expression': input_data}
+        return tool_mapping[tool_name](**input_data)
+
+    def execute_professional_tool(self, tool_name: str, input_data: dict | str):
+        """执行专业工具"""
+        tool_mapping = {
+            # 科学
+            'science_chemical_element': ProfessionalTools.science_chemical_element,
+            'science_chemical_symbol': ProfessionalTools.science_chemical_symbol,
+            'science_chemical_name': ProfessionalTools.science_chemical_name,
+            'science_unit': ProfessionalTools.science_unit,
+            # 航空
+            'airline_name': ProfessionalTools.airline_name,
+            'airline_iata_code': ProfessionalTools.airline_iata_code,
+            'airline_airport': ProfessionalTools.airline_airport,
+            'airline_airport_name': ProfessionalTools.airline_airport_name,
+            'airline_airport_iata_code': ProfessionalTools.airline_airport_iata_code,
+            'airline_aircraft_type': ProfessionalTools.airline_aircraft_type,
+            # 车辆
+            'vehicle_manufacturer': ProfessionalTools.vehicle_manufacturer,
+            'vehicle_model': ProfessionalTools.vehicle_model,
+            'vehicle_type': ProfessionalTools.vehicle_type,
+            'vehicle_fuel_type': ProfessionalTools.vehicle_fuel_type,
+            # 数据库
+            'database_type': ProfessionalTools.database_type,
+            'database_column': ProfessionalTools.database_column,
+            'database_engine': ProfessionalTools.database_engine
+        }
+
+        if tool_name not in tool_mapping:
+            return {'error': f'不支持的专业工具: {tool_name}'}
+
+        # 专业工具大多不需要参数，直接调用
+        return tool_mapping[tool_name]()
+
+    def execute_system_tool(self, tool_name: str, input_data: dict | str):
+        """执行系统工具"""
+        tool_mapping = {
+            # Git
+            'git_branch': SystemTools.git_branch,
+            'git_commit_message': SystemTools.git_commit_message,
+            'git_commit_sha': SystemTools.git_commit_sha,
+            'git_short_commit_sha': SystemTools.git_short_commit_sha,
+            # 文件系统
+            'system_file_name': SystemTools.system_file_name,
+            'system_file_ext': SystemTools.system_file_ext,
+            'system_directory_path': SystemTools.system_directory_path,
+            'system_file_path': SystemTools.system_file_path,
+            'system_mime_type': SystemTools.system_mime_type,
+            # 版本和平台
+            'system_semver': SystemTools.system_semver,
+            'system_platform': SystemTools.system_platform,
+            'system_arch': SystemTools.system_arch
+        }
+
+        if tool_name not in tool_mapping:
+            return {'error': f'不支持的系统工具: {tool_name}'}
+
+        # 处理字符串输入
+        if isinstance(input_data, str):
+            if tool_name in ['git_branch', 'git_commit_message']:
+                input_data = {'count': 1}
+            elif tool_name == 'system_file_name':
+                input_data = {'ext': None}
+            elif tool_name == 'system_directory_path':
+                input_data = {'depth': 3}
+            else:
+                input_data = {}
+        return tool_mapping[tool_name](**input_data)
+
+    def execute_entertainment_tool(self, tool_name: str, input_data: dict | str):
+        """执行娱乐工具"""
+        tool_mapping = {
+            # 音乐
+            'music_genre': EntertainmentTools.music_genre,
+            'music_song_name': EntertainmentTools.music_song_name,
+            'music_artist': EntertainmentTools.music_artist,
+            # 动物
+            'animal_type': EntertainmentTools.animal_type,
+            'animal_name': EntertainmentTools.animal_name,
+            # 食物
+            'food_dish': EntertainmentTools.food_dish,
+            'food_ingredient': EntertainmentTools.food_ingredient,
+            'food_fruit': EntertainmentTools.food_fruit,
+            'food_vegetable': EntertainmentTools.food_vegetable
+        }
+
+        if tool_name not in tool_mapping:
+            return {'error': f'不支持的娱乐工具: {tool_name}'}
+
+        # 处理字符串输入
+        if isinstance(input_data, str):
+            input_data = {'count': 1}
+        return tool_mapping[tool_name](**input_data)
+
+    def execute_mock_image_tool(self, tool_name: str, input_data: dict | str):
+        """执行Mock图片工具"""
+        tool_mapping = {
+            'image_url': MockImageTools.image_url,
+            'image_avatar': MockImageTools.image_avatar,
+            'image_placeholder': MockImageTools.image_placeholder
+        }
+
+        if tool_name not in tool_mapping:
+            return {'error': f'不支持的Mock图片工具: {tool_name}'}
+
+        # 处理字符串输入
+        if isinstance(input_data, str):
+            if tool_name == 'image_url':
+                input_data = {'width': 640, 'height': 480, 'random_id': True}
+            elif tool_name == 'image_avatar':
+                input_data = {'seed': None, 'style': None}
+            elif tool_name == 'image_placeholder':
+                input_data = {'width': 300, 'height': 200, 'text': None, 'bg_color': None, 'text_color': None}
         return tool_mapping[tool_name](**input_data)
 
     @action(detail=False, methods=['get'])

@@ -1596,6 +1596,39 @@ class PromptConfigViewSet(viewsets.ModelViewSet):
 
 请给出精确、简洁的回答："""
 
+            # 添加断言生成默认提示词
+            # 支持变量：
+            #   {{response_time_threshold}} - 响应时间阈值（毫秒），默认5000
+            defaults['assertion_generator'] = """你是一个专业的API测试专家。请基于提供的API响应数据，生成合适的测试断言。
+
+生成的断言需要满足以下要求：
+1. 覆盖关键字段的验证（如状态码、success字段、data关键字段）
+2. 使用合适的断言类型（status_code、json_path、contains等）
+3. 断言条件应该合理，基于实际响应值
+4. 每个断言应该有清晰的名称说明验证目的
+5. 返回JSON数组格式
+
+支持的断言类型：
+- status_code: 验证HTTP状态码
+- json_path: 验证JSON路径提取的值
+- contains: 验证响应内容包含特定文本
+- response_time: 验证响应时间（默认<{{response_time_threshold}}ms）
+
+返回格式必须是JSON数组，每个元素包含：
+- name: 断言名称
+- type: 断言类型
+- expected: 预期值
+- json_path: JSON路径（仅json_path类型需要）
+
+示例输出：
+[
+  {"name": "状态码验证", "type": "status_code", "expected": 200},
+  {"name": "响应时间小于5.0秒", "type": "response_time", "expected": 5000},
+  {"name": "返回成功标识", "type": "json_path", "json_path": "$.success", "expected": "true"},
+  {"name": "返回码验证", "type": "json_path", "json_path": "$.code", "expected": "00000"},
+  {"name": "data.access_token存在", "type": "json_path", "json_path": "$.data.access_token", "expected": "exist"}
+]"""
+
             return Response({
                 'message': '默认提示词加载成功',
                 'defaults': defaults

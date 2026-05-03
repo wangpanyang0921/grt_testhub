@@ -96,6 +96,7 @@
             <el-option value="writer" :label="$t('promptConfig.writerPrompt')" />
             <el-option value="reviewer" :label="$t('promptConfig.reviewerPrompt')" />
             <el-option value="knowledge_base" label="知识库问答" />
+            <el-option value="assertion_generator" label="断言生成" />
           </el-select>
           <div v-if="formErrors.prompt_type" class="error-message">{{ formErrors.prompt_type }}</div>
         </el-form-item>
@@ -174,6 +175,11 @@
               <div class="content-text">{{ defaultPrompts.knowledge_base || $t('promptConfig.noContent') }}</div>
             </div>
           </el-tab-pane>
+          <el-tab-pane label="断言生成" name="assertion_generator">
+            <div class="content-display">
+              <div class="content-text">{{ defaultPrompts.assertion_generator || $t('promptConfig.noContent') }}</div>
+            </div>
+          </el-tab-pane>
         </el-tabs>
       </div>
       <template #footer>
@@ -221,7 +227,8 @@ export default {
       defaultPrompts: {
         writer: '',
         reviewer: '',
-        knowledge_base: ''
+        knowledge_base: '',
+        assertion_generator: ''
       },
       activeTab: 'writer',
       configForm: {
@@ -247,7 +254,8 @@ export default {
       const typeMap = {
         'writer': this.$t('promptConfig.writerPrompt'),
         'reviewer': this.$t('promptConfig.reviewerPrompt'),
-        'knowledge_base': '知识库问答'
+        'knowledge_base': '知识库问答',
+        'assertion_generator': '断言生成'
       }
       return typeMap[type] || type
     },
@@ -312,37 +320,41 @@ export default {
       this.isLoadingDefaults = true
 
       try {
-        // 创建编写提示词配置
-        if (this.defaultPrompts.writer) {
+        // 根据当前选中的Tab，只加载对应的提示词配置
+        const promptType = this.activeTab
+        const promptContent = this.defaultPrompts[promptType]
+
+        if (promptContent) {
+          // 根据类型确定配置名称
+          let configName = ''
+          switch (promptType) {
+            case 'writer':
+              configName = this.t('promptConfig.defaultWriterName')
+              break
+            case 'reviewer':
+              configName = this.t('promptConfig.defaultReviewerName')
+              break
+            case 'knowledge_base':
+              configName = '默认知识库问答提示词'
+              break
+            case 'assertion_generator':
+              configName = '默认断言生成提示词'
+              break
+            default:
+              configName = '默认提示词'
+          }
+
           await api.post('/requirement-analysis/prompts/', {
-            name: this.t('promptConfig.defaultWriterName'),
-            prompt_type: 'writer',
-            content: this.defaultPrompts.writer,
+            name: configName,
+            prompt_type: promptType,
+            content: promptContent,
             is_active: true
           })
-        }
 
-        // 创建评审提示词配置
-        if (this.defaultPrompts.reviewer) {
-          await api.post('/requirement-analysis/prompts/', {
-            name: this.t('promptConfig.defaultReviewerName'),
-            prompt_type: 'reviewer',
-            content: this.defaultPrompts.reviewer,
-            is_active: true
-          })
+          ElMessage.success(this.t('promptConfig.defaultsLoadSuccess'))
+        } else {
+          ElMessage.warning('当前选中的提示词类型没有默认内容')
         }
-
-        // 创建知识库问答提示词配置
-        if (this.defaultPrompts.knowledge_base) {
-          await api.post('/requirement-analysis/prompts/', {
-            name: '默认知识库问答提示词',
-            prompt_type: 'knowledge_base',
-            content: this.defaultPrompts.knowledge_base,
-            is_active: true
-          })
-        }
-
-        ElMessage.success(this.t('promptConfig.defaultsLoadSuccess'))
         this.closeDefaultsModal()
         this.loadConfigs()
       } catch (error) {
@@ -475,7 +487,7 @@ export default {
 
     closeDefaultsModal() {
       this.showDefaultsModal = false
-      this.defaultPrompts = { writer: '', reviewer: '' }
+      this.defaultPrompts = { writer: '', reviewer: '', knowledge_base: '', assertion_generator: '' }
       this.activeTab = 'writer'
     },
 
@@ -633,6 +645,11 @@ export default {
 .type-badge.knowledge_base {
   background: #e6fffb;
   color: #13c2c2;
+}
+
+.type-badge.assertion_generator {
+  background: #fff7e6;
+  color: #fa8c16;
 }
 
 .creator-name {

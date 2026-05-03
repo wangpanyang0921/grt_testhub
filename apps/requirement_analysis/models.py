@@ -212,6 +212,7 @@ class AIModelConfig(models.Model):
         ('browser_use_text', 'Browser Use - 文本模式'),
         ('knowledge_base', '知识库问答'),
         ('bug_analyzer', 'Bug 分析专家'),
+        ('assertion_generator', 'AI断言生成'),
     ]
 
     name = models.CharField(max_length=100, verbose_name='配置名称')
@@ -254,6 +255,7 @@ class PromptConfig(models.Model):
         ('writer', '用例编写提示词'),
         ('reviewer', '用例评审提示词'),
         ('knowledge_base', '知识库问答提示词'),
+        ('assertion_generator', '断言生成提示词'),
     ]
 
     name = models.CharField(max_length=100, verbose_name='配置名称')

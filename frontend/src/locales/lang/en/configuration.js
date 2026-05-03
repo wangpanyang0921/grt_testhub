@@ -187,7 +187,8 @@ export default {
       writer: 'Test Case Writer',
       reviewer: 'Test Reviewer',
       knowledge_base: 'Knowledge Base Q&A',
-      bug_analyzer: 'Bug Analyzer'
+      bug_analyzer: 'Bug Analyzer',
+      assertion_generator: 'AI Assertion Generator'
     },
     messages: {
       loadFailed: 'Failed to load configurations',

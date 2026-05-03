@@ -452,6 +452,16 @@
                     <el-icon><Plus /></el-icon>
                     {{ $t('apiTesting.interface.addAssertion') }}
                   </el-button>
+                  <el-button
+                    size="small"
+                    type="success"
+                    @click="generateAIAssertions"
+                    :loading="generatingAssertions"
+                    :disabled="!response"
+                  >
+                    <el-icon><MagicStick /></el-icon>
+                    AI生成断言
+                  </el-button>
                 </div>
                 
                 <div class="assertions-table" v-if="request.assertions && request.assertions.length > 0">
@@ -700,6 +710,7 @@ const responseActiveTab = ref('response-body')
 const response = ref(null)
 const websocketConnectionStatus = ref('disconnected')
 const consoleLogs = ref([])
+const generatingAssertions = ref(false)
 
 const availableMethods = ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'HEAD', 'OPTIONS']
 
@@ -1260,6 +1271,60 @@ const onAssertionTypeChange = (assertion) => {
   assertion.json_path = ''
   assertion.header_name = ''
   assertion.expected_value = ''
+}
+
+const generateAIAssertions = async () => {
+  if (!response.value) {
+    ElMessage.warning('请先执行请求获取响应数据')
+    return
+  }
+
+  generatingAssertions.value = true
+  
+  // 显示加载提示，让用户知道正在处理
+  const loadingMessage = ElMessage.info({
+    message: 'AI正在分析响应数据并生成断言，请稍候...',
+    duration: 0,  // 不自动关闭
+    showClose: true
+  })
+  
+  try {
+    const res = await api.post('/api-testing/requests/generate_assertions/', {
+      status_code: response.value.status_code,
+      response_body: response.value.response_data?.json || response.value.response_data?.body,
+      response_headers: response.value.response_data?.headers || {},
+      response_time: response.value.response_time
+    })
+    
+    // 关闭加载提示
+    loadingMessage.close()
+
+    if (res.data.assertions && res.data.assertions.length > 0) {
+      // 将生成的断言添加到现有断言列表
+      const newAssertions = res.data.assertions.map(assertion => ({
+        ...assertion,
+        // 确保必填字段存在
+        name: assertion.name || 'AI生成断言',
+        type: assertion.type || 'json_path'
+      }))
+
+      request.value.assertions = [...request.value.assertions, ...newAssertions]
+
+      // 切换到断言Tab
+      activeTab.value = 'assertions'
+
+      ElMessage.success(`成功生成 ${res.data.assertions.length} 个断言`)
+    } else {
+      ElMessage.warning('未能生成断言，请检查响应数据')
+    }
+  } catch (error) {
+    console.error('Generate AI assertions error:', error)
+    ElMessage.error(error.response?.data?.error || '生成断言失败，请稍后重试')
+  } finally {
+    generatingAssertions.value = false
+    // 确保关闭加载提示
+    loadingMessage.close()
+  }
 }
 
 const saveRequest = async () => {

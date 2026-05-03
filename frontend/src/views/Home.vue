@@ -33,77 +33,94 @@
     </div>
 
     <div class="content-wrapper">
-      <h1 class="main-title">{{ $t('home.title') }}</h1>
-      <p class="subtitle">{{ $t('home.subtitle') }}</p>
+      <div class="title-section" :class="{ 'title-animate': titleAnimated }">
+        <h1 class="main-title">
+          <span class="title-text">{{ $t('home.title') }}</span>
+        </h1>
+        <div class="title-divider">
+          <div class="divider-line"></div>
+          <div class="divider-dot"></div>
+          <div class="divider-line"></div>
+        </div>
+        <p class="subtitle">{{ $t('home.subtitle') }}</p>
+      </div>
 
       <div class="cards-container">
         <!-- AI智能用例 -->
-        <div class="nav-card" @click="handleNavigate('ai')" role="button" tabindex="0">
+        <div class="nav-card" :class="{ 'card-animate': pageLoaded, 'card-delay-1': true }" @click="handleNavigate('ai')" role="button" tabindex="0">
+          <div class="card-shine"></div>
           <div class="card-icon ai-icon">
-            <el-icon><MagicStick /></el-icon>
+            <Wand2 :size="32" stroke-width="1.5" />
           </div>
           <h3>{{ $t('home.aiCase') }}</h3>
           <p>{{ $t('home.aiCaseDesc') }}</p>
         </div>
 
         <!-- AI智能测试 -->
-        <div class="nav-card" @click="handleNavigate('ai-intelligent')" role="button" tabindex="0">
+        <div class="nav-card" :class="{ 'card-animate': pageLoaded, 'card-delay-2': true }" @click="handleNavigate('ai-intelligent')" role="button" tabindex="0">
+          <div class="card-shine"></div>
           <div class="card-icon ai-intelligent-icon">
-            <el-icon><Cpu /></el-icon>
+            <Brain :size="32" stroke-width="1.5" />
           </div>
           <h3>{{ $t('home.aiIntelligent') }}</h3>
           <p>{{ $t('home.aiIntelligentDesc') }}</p>
         </div>
 
         <!-- 数据工具箱 -->
-        <div class="nav-card" @click="handleNavigate('data')" role="button" tabindex="0">
+        <div class="nav-card" :class="{ 'card-animate': pageLoaded, 'card-delay-3': true }" @click="handleNavigate('data')" role="button" tabindex="0">
+          <div class="card-shine"></div>
           <div class="card-icon data-icon">
-            <el-icon><DataLine /></el-icon>
+            <BarChart3 :size="32" stroke-width="1.5" />
           </div>
           <h3>{{ $t('home.dataFactory') }}</h3>
           <p>{{ $t('home.dataFactoryDesc') }}</p>
         </div>
 
         <!-- 配置中心 -->
-        <div class="nav-card" @click="handleNavigate('config')" role="button" tabindex="0">
+        <div class="nav-card" :class="{ 'card-animate': pageLoaded, 'card-delay-4': true }" @click="handleNavigate('config')" role="button" tabindex="0">
+          <div class="card-shine"></div>
           <div class="card-icon config-icon">
-            <el-icon><Setting /></el-icon>
+            <SlidersHorizontal :size="32" stroke-width="1.5" />
           </div>
           <h3>{{ $t('home.configCenter') }}</h3>
           <p>{{ $t('home.configCenterDesc') }}</p>
         </div>
 
         <!-- AI知识库 -->
-        <div class="nav-card" @click="handleNavigate('assistant')" role="button" tabindex="0">
+        <div class="nav-card" :class="{ 'card-animate': pageLoaded, 'card-delay-5': true }" @click="handleNavigate('assistant')" role="button" tabindex="0">
+          <div class="card-shine"></div>
           <div class="card-icon assistant-icon">
-            <el-icon><ChatDotRound /></el-icon>
+            <MessagesSquare :size="32" stroke-width="1.5" />
           </div>
           <h3>{{ $t('home.aiKnowledgeBase') }}</h3>
           <p>{{ $t('home.aiKnowledgeBaseDesc') }}</p>
         </div>
 
         <!-- Web自动化 -->
-        <div class="nav-card" @click="handleNavigate('ui')" role="button" tabindex="0">
+        <div class="nav-card" :class="{ 'card-animate': pageLoaded, 'card-delay-6': true }" @click="handleNavigate('ui')" role="button" tabindex="0">
+          <div class="card-shine"></div>
           <div class="card-icon ui-icon">
-            <el-icon><Monitor /></el-icon>
+            <Globe :size="32" stroke-width="1.5" />
           </div>
           <h3>Web自动化</h3>
           <p>可视化的Web UI自动化测试</p>
         </div>
 
         <!-- APP自动化 -->
-        <div class="nav-card" @click="handleNavigate('app')" role="button" tabindex="0">
+        <div class="nav-card" :class="{ 'card-animate': pageLoaded, 'card-delay-7': true }" @click="handleNavigate('app')" role="button" tabindex="0">
+          <div class="card-shine"></div>
           <div class="card-icon app-icon">
-            <el-icon><Cellphone /></el-icon>
+            <Smartphone :size="32" stroke-width="1.5" />
           </div>
           <h3>APP自动化</h3>
           <p>可视化的Android App自动化测试</p>
         </div>
 
         <!-- 接口测试 -->
-        <div class="nav-card" @click="handleNavigate('api')" role="button" tabindex="0">
+        <div class="nav-card" :class="{ 'card-animate': pageLoaded, 'card-delay-8': true }" @click="handleNavigate('api')" role="button" tabindex="0">
+          <div class="card-shine"></div>
           <div class="card-icon api-icon">
-            <el-icon><Link /></el-icon>
+            <Share2 :size="32" stroke-width="1.5" />
           </div>
           <h3>{{ $t('home.apiTesting') }}</h3>
           <p>{{ $t('home.apiTestingDesc') }}</p>
@@ -114,13 +131,23 @@
 </template>
 
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
 import { useUserStore } from '@/stores/user'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { MagicStick, Link, Monitor, DataLine, Cpu, Setting, ChatDotRound, Cellphone, ArrowDown, User, SwitchButton } from '@element-plus/icons-vue'
+import { ArrowDown, SwitchButton } from '@element-plus/icons-vue'
+import { 
+  Wand2, 
+  Brain, 
+  BarChart3, 
+  SlidersHorizontal, 
+  MessagesSquare, 
+  Globe, 
+  Smartphone, 
+  Share2 
+} from 'lucide-vue-next'
 
 const router = useRouter()
 const { t } = useI18n()
@@ -129,6 +156,21 @@ const userStore = useUserStore()
 
 // 退出登录中标志，用于隐藏头像避免闪烁默认图
 const isLoggingOut = ref(false)
+
+// 页面动画控制
+const pageLoaded = ref(false)
+const titleAnimated = ref(false)
+
+onMounted(() => {
+  // 触发页面加载动画
+  setTimeout(() => {
+    pageLoaded.value = true
+  }, 100)
+  // 标题动画
+  setTimeout(() => {
+    titleAnimated.value = true
+  }, 200)
+})
 
 // 用户信息
 const userName = computed(() => {
@@ -168,11 +210,9 @@ const handleLogout = async () => {
   await userStore.logout()
 }
 
-// 点击计数器（用于后门功能）
+// 点击计数器（用于APP自动化后门功能）
 const appClickCount = ref(0)
-const apiClickCount = ref(0)
 const lastAppClickTime = ref(0)
-const lastApiClickTime = ref(0)
 const SECRET_CLICK_THRESHOLD = 10 // 连续点击10次后允许访问
 const CLICK_RESET_TIMEOUT = 3000 // 3秒内未点击则重置计数
 
@@ -188,31 +228,28 @@ const handleNavigate = (type) => {
     'data': '/data-factory/by-scenario'
   }
 
-  // 对 APP 自动化和接口测试进行特殊处理
-  if (type === 'app' || type === 'api') {
+  // 对 APP 自动化进行特殊处理
+  if (type === 'app') {
     const currentTime = Date.now()
-    const clickCountRef = type === 'app' ? appClickCount : apiClickCount
-    const lastClickTimeRef = type === 'app' ? lastAppClickTime : lastApiClickTime
-    const featureName = type === 'app' ? 'APP自动化' : '接口测试'
 
     // 检查是否需要重置计数（超过3秒未点击）
-    if (currentTime - lastClickTimeRef.value > CLICK_RESET_TIMEOUT) {
-      clickCountRef.value = 0
+    if (currentTime - lastAppClickTime.value > CLICK_RESET_TIMEOUT) {
+      appClickCount.value = 0
     }
 
     // 更新点击时间和计数
-    lastClickTimeRef.value = currentTime
-    clickCountRef.value++
+    lastAppClickTime.value = currentTime
+    appClickCount.value++
 
     // 未达到阈值，显示提示
-    if (clickCountRef.value < SECRET_CLICK_THRESHOLD) {
-      ElMessage.info(`功能完善中，请耐心等待（${clickCountRef.value}/${SECRET_CLICK_THRESHOLD}）`)
+    if (appClickCount.value < SECRET_CLICK_THRESHOLD) {
+      ElMessage.info(`功能完善中，请耐心等待（${appClickCount.value}/${SECRET_CLICK_THRESHOLD}）`)
       return
     }
 
     // 达到阈值，允许访问并提示
-    ElMessage.success(`${featureName}功能已解锁！`)
-    clickCountRef.value = 0 // 重置计数
+    ElMessage.success(`APP自动化功能已解锁！`)
+    appClickCount.value = 0 // 重置计数
   }
 
   if (routes[type]) {
@@ -225,10 +262,25 @@ const handleNavigate = (type) => {
 .home-container {
   min-height: 100vh;
   background: linear-gradient(135deg, #e0c3fc 0%, #8ec5fc 100%);
+  background-size: 400% 400%;
   display: flex;
   flex-direction: column;
   padding: 20px 40px 40px;
   position: relative;
+  animation: gradientBreathe 12s ease infinite;
+}
+
+// 背景呼吸渐变动画
+@keyframes gradientBreathe {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
 }
 
 // 顶部栏
@@ -403,19 +455,94 @@ const handleNavigate = (type) => {
   justify-content: center;
 }
 
+.title-section {
+  opacity: 0;
+  transform: translateY(30px);
+  transition: all 0.8s cubic-bezier(0.34, 1.56, 0.64, 1);
+
+  &.title-animate {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 .main-title {
-  font-size: 52px;
-  font-weight: 700;
+  font-size: 68px;
+  font-weight: 800;
   color: #2c3e50;
-  margin-bottom: 16px;
-  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  margin-bottom: 20px;
+  text-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  letter-spacing: -1px;
+
+  .title-text {
+    display: inline-block;
+    background: linear-gradient(135deg, #1a2a3a 0%, #4a6fa5 50%, #667eea 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    background-size: 200% auto;
+    animation: titleGradient 4s ease infinite;
+  }
+}
+
+@keyframes titleGradient {
+  0% { background-position: 0% center; }
+  50% { background-position: 100% center; }
+  100% { background-position: 0% center; }
+}
+
+// 标题分割线
+.title-divider {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  margin-bottom: 24px;
+  opacity: 0;
+  transform: scaleX(0);
+  transition: all 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) 0.3s;
+
+  .title-animate & {
+    opacity: 1;
+    transform: scaleX(1);
+  }
+}
+
+.divider-line {
+  width: 120px;
+  height: 3px;
+  background: linear-gradient(90deg, transparent, rgba(102, 126, 234, 0.6), transparent);
+  border-radius: 2px;
+}
+
+.divider-dot {
+  width: 8px;
+  height: 8px;
+  background: linear-gradient(135deg, #667eea, #764ba2);
+  border-radius: 50%;
+  box-shadow: 0 0 12px rgba(102, 126, 234, 0.5);
+  animation: dotPulse 2s ease infinite;
+}
+
+@keyframes dotPulse {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.3); opacity: 0.8; }
 }
 
 .subtitle {
-  font-size: 18px;
+  font-size: 20px;
   color: #5a6c7d;
   margin-bottom: 50px;
   font-weight: 400;
+  letter-spacing: 0.5px;
+  opacity: 0;
+  transform: translateY(15px);
+  transition: all 0.8s cubic-bezier(0.34, 1.56, 0.64, 1) 0.45s;
+
+  .title-animate & {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .cards-container {
@@ -434,71 +561,175 @@ const handleNavigate = (type) => {
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
   border: 1px solid rgba(255, 255, 255, 0.5);
   backdrop-filter: blur(10px);
+  position: relative;
+  overflow: hidden;
+  opacity: 0;
+  transform: translateY(40px) scale(0.95);
+
+  // 卡片入场动画
+  &.card-animate {
+    animation: cardSlideUp 0.7s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+  }
+
+  // 依次延迟
+  &.card-delay-1.card-animate { animation-delay: 0.1s; }
+  &.card-delay-2.card-animate { animation-delay: 0.18s; }
+  &.card-delay-3.card-animate { animation-delay: 0.26s; }
+  &.card-delay-4.card-animate { animation-delay: 0.34s; }
+  &.card-delay-5.card-animate { animation-delay: 0.42s; }
+  &.card-delay-6.card-animate { animation-delay: 0.5s; }
+  &.card-delay-7.card-animate { animation-delay: 0.58s; }
+  &.card-delay-8.card-animate { animation-delay: 0.66s; }
+
+  @keyframes cardSlideUp {
+    to {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+  }
+
+  // 光泽扫过效果
+  .card-shine {
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 50%;
+    height: 100%;
+    background: linear-gradient(
+      90deg,
+      transparent,
+      rgba(255, 255, 255, 0.4),
+      transparent
+    );
+    transform: skewX(-25deg);
+    transition: none;
+    pointer-events: none;
+  }
 
   &:hover {
     transform: translateY(-8px);
     box-shadow: 0 12px 40px rgba(0, 0, 0, 0.15);
     background: rgba(255, 255, 255, 1);
+
+    .card-shine {
+      animation: shineSweep 0.8s ease forwards;
+    }
   }
 
   &:active {
     transform: translateY(-4px);
   }
 
+  @keyframes shineSweep {
+    from {
+      left: -100%;
+    }
+    to {
+      left: 150%;
+    }
+  }
+
   .card-icon {
-    width: 64px;
-    height: 64px;
-    border-radius: 16px;
+    width: 72px;
+    height: 72px;
+    border-radius: 20px;
     display: flex;
     align-items: center;
     justify-content: center;
     margin: 0 auto 20px;
-    font-size: 28px;
-    transition: all 0.3s ease;
+    transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+    background-size: 200% 200%;
+    position: relative;
+    overflow: hidden;
+
+    svg {
+      width: 32px;
+      height: 32px;
+    }
+
+    &::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: linear-gradient(
+        135deg,
+        rgba(255, 255, 255, 0.3) 0%,
+        transparent 50%,
+        rgba(255, 255, 255, 0.1) 100%
+      );
+      pointer-events: none;
+    }
 
     &.ai-icon {
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      background: linear-gradient(-45deg, #667eea, #764ba2, #8b5cf6, #667eea);
+      background-size: 300% 300%;
+      animation: gradientFlow 4s ease infinite;
       color: white;
     }
 
     &.api-icon {
-      background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+      background: linear-gradient(-45deg, #f093fb, #f5576c, #ff6b9d, #f093fb);
+      background-size: 300% 300%;
+      animation: gradientFlow 4.5s ease infinite;
       color: white;
     }
 
     &.ui-icon {
-      background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+      background: linear-gradient(-45deg, #4facfe, #00f2fe, #00c9ff, #4facfe);
+      background-size: 300% 300%;
+      animation: gradientFlow 5s ease infinite;
       color: white;
     }
 
     &.data-icon {
-      background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);
+      background: linear-gradient(-45deg, #43e97b, #38f9d7, #00e5ff, #43e97b);
+      background-size: 300% 300%;
+      animation: gradientFlow 4.2s ease infinite;
       color: white;
     }
 
     &.app-icon {
-      background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);
+      background: linear-gradient(-45deg, #fa709a, #fee140, #ff8a65, #fa709a);
+      background-size: 300% 300%;
+      animation: gradientFlow 4.8s ease infinite;
       color: white;
     }
 
     &.ai-intelligent-icon {
-      background: linear-gradient(135deg, #a8edea 0%, #fed6e3 100%);
-      color: #5a6c7d;
+      background: linear-gradient(-45deg, #a8edea, #fed6e3, #d299c2, #a8edea);
+      background-size: 300% 300%;
+      animation: gradientFlow 5.2s ease infinite;
+      color: #4a5568;
     }
 
     &.assistant-icon {
-      background: linear-gradient(135deg, #ffecd2 0%, #fcb69f 100%);
-      color: #5a6c7d;
+      background: linear-gradient(-45deg, #ffecd2, #fcb69f, #ffecd2, #ff9a9e);
+      background-size: 300% 300%;
+      animation: gradientFlow 4.6s ease infinite;
+      color: #4a5568;
     }
 
     &.config-icon {
-      background: linear-gradient(135deg, #d299c2 0%, #fef9d7 100%);
-      color: #5a6c7d;
+      background: linear-gradient(-45deg, #d299c2, #fef9d7, #a8edea, #d299c2);
+      background-size: 300% 300%;
+      animation: gradientFlow 5.5s ease infinite;
+      color: #4a5568;
     }
   }
 
+  @keyframes gradientFlow {
+    0% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+    100% { background-position: 0% 50%; }
+  }
+
   &:hover .card-icon {
-    transform: scale(1.1);
+    transform: scale(1.15) rotate(5deg);
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.2);
   }
 
   h3 {
@@ -506,6 +737,11 @@ const handleNavigate = (type) => {
     font-weight: 600;
     color: #2c3e50;
     margin-bottom: 10px;
+    transition: color 0.3s ease;
+  }
+
+  &:hover h3 {
+    color: #667eea;
   }
 
   p {

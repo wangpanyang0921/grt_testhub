@@ -187,7 +187,8 @@ export default {
       writer: '测试用例编写专家',
       reviewer: '测试评审专家',
       knowledge_base: '知识库问答',
-      bug_analyzer: 'Bug 分析专家'
+      bug_analyzer: 'Bug 分析专家',
+      assertion_generator: 'AI断言生成'
     },
     messages: {
       loadFailed: '加载配置失败',

@@ -105,6 +105,7 @@
             <el-option value="reviewer" :label="$t('configuration.aiModel.roles.reviewer')" />
             <el-option value="knowledge_base" :label="$t('configuration.aiModel.roles.knowledge_base')" />
             <el-option value="bug_analyzer" :label="$t('configuration.aiModel.roles.bug_analyzer')" />
+            <el-option value="assertion_generator" :label="$t('configuration.aiModel.roles.assertion_generator')" />
           </el-select>
           <div v-if="formErrors.role" class="error-message">{{ formErrors.role }}</div>
         </el-form-item>
@@ -720,6 +721,11 @@ export default {
 .role-badge.bug_analyzer {
   background: #fff2e8;
   color: #fa541c;
+}
+
+.role-badge.assertion_generator {
+  background: #e6fffb;
+  color: #13c2c2;
 }
 
 .status-badge {

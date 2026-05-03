@@ -1068,7 +1068,8 @@ import {
   Phone, Message, Location, Ticket, OfficeBuilding, CreditCard, CircleCheck, DocumentCopy, Search, Delete, Edit, Unlock, DataLine as DataLineIcon, Sort, Share, View, Upload,
   DataAnalysis, Files, DocumentChecked, Brush, Timer, Key,
   UserFilled, DocumentRemove, Link, RefreshRight, Lock as LockIcon, Calendar, CircleClose,
-  Refresh, Download
+  Refresh, Download, Briefcase, Monitor, IceCream, Suitcase, Van, Collection, Coordinate,
+  Folder, Cpu, Headset, Chicken, Food
 } from '@element-plus/icons-vue'
 import axios from 'axios'
 import * as XLSX from 'xlsx'
@@ -1247,13 +1248,19 @@ const jsonCollapseState = ref({})
 const canExportToExcel = computed(() => {
   if (!currentTool.value) return false
   const exportableTools = [
+    // 测试数据
     'generate_chinese_name',
     'generate_chinese_phone',
     'generate_chinese_email',
     'generate_chinese_address',
     'generate_id_card',
     'generate_company_name',
+    'generate_bank_card',
+    'generate_hk_id_card',
+    'generate_business_license',
+    'generate_coordinates',
     'generate_user_profile',
+    // 随机工具
     'random_int',
     'random_float',
     'random_string',
@@ -1265,13 +1272,66 @@ const canExportToExcel = computed(() => {
     'random_color',
     'random_password',
     'random_sequence',
+    // Mock数据
     'mock_string',
     'mock_number',
     'mock_date',
     'mock_datetime',
     'mock_boolean',
     'mock_array',
-    'mock_object'
+    'mock_object',
+    // 专业工具 - 科学
+    'science_chemical_element',
+    'science_chemical_symbol',
+    'science_chemical_name',
+    'science_unit',
+    // 专业工具 - 航空
+    'airline_name',
+    'airline_iata_code',
+    'airline_airport',
+    'airline_airport_name',
+    'airline_airport_iata_code',
+    'airline_aircraft_type',
+    // 专业工具 - 车辆
+    'vehicle_manufacturer',
+    'vehicle_model',
+    'vehicle_type',
+    'vehicle_fuel_type',
+    // 专业工具 - 数据库
+    'database_type',
+    'database_column',
+    'database_engine',
+    // 系统工具 - Git
+    'git_branch',
+    'git_commit_message',
+    'git_commit_sha',
+    'git_short_commit_sha',
+    // 系统工具 - 文件系统
+    'system_file_name',
+    'system_file_ext',
+    'system_directory_path',
+    'system_file_path',
+    'system_mime_type',
+    // 系统工具 - 版本和平台
+    'system_semver',
+    'system_platform',
+    'system_arch',
+    // 娱乐工具 - 音乐
+    'music_genre',
+    'music_song_name',
+    'music_artist',
+    // 娱乐工具 - 动物
+    'animal_type',
+    'animal_name',
+    // 娱乐工具 - 食物
+    'food_dish',
+    'food_ingredient',
+    'food_fruit',
+    'food_vegetable',
+    // Mock图片工具
+    'image_url',
+    'image_avatar',
+    'image_placeholder'
   ]
   return exportableTools.includes(currentTool.value.name)
 })
@@ -1314,6 +1374,10 @@ const colorMap = {
   'encryption': { primary: '#06b6d4', light: 'rgba(6, 182, 212, 0.1)', dark: '#0891b2' },
   'crontab': { primary: '#ef4444', light: 'rgba(239, 68, 68, 0.1)', dark: '#dc2626' },
   'mock': { primary: '#14b8a6', light: 'rgba(20, 184, 166, 0.1)', dark: '#0d9488' },
+  'professional': { primary: '#6366f1', light: 'rgba(99, 102, 241, 0.1)', dark: '#4f46e5' },
+  'system': { primary: '#0ea5e9', light: 'rgba(14, 165, 233, 0.1)', dark: '#0284c7' },
+  'entertainment': { primary: '#f97316', light: 'rgba(249, 115, 22, 0.1)', dark: '#ea580c' },
+  'mock_image': { primary: '#84cc16', light: 'rgba(132, 204, 22, 0.1)', dark: '#65a30d' },
   'other': { primary: '#64748b', light: 'rgba(100, 116, 139, 0.1)', dark: '#475569' }
 }
 
@@ -1333,7 +1397,11 @@ const getScenarioIcon = (scenario) => {
     'encoding': Link,              // 编码工具 - 链接图标（编码解码转换）
     'random': RefreshRight,        // 随机工具 - 刷新图标（随机数据生成）
     'encryption': LockIcon,        // 加密工具 - 锁图标（数据安全加密）
-    'crontab': Calendar            // Crontab工具 - 日历图标（定时任务调度）
+    'crontab': Calendar,           // Crontab工具 - 日历图标（定时任务调度）
+    'professional': Suitcase,      // 专业工具 - 公文包图标
+    'system': Monitor,             // 系统工具 - 显示器图标
+    'entertainment': IceCream,     // 娱乐工具 - 冰淇淋图标
+    'mock_image': Picture          // Mock图片 - 图片图标
   }
   return iconMapping[scenario] || Operation
 }
@@ -2420,13 +2488,19 @@ const deleteRecord = async (record) => {
 const canExportToExcelRecord = (record) => {
   if (!record) return false
   const exportableTools = [
+    // 测试数据
     'generate_chinese_name',
     'generate_chinese_phone',
     'generate_chinese_email',
     'generate_chinese_address',
     'generate_id_card',
     'generate_company_name',
+    'generate_bank_card',
+    'generate_hk_id_card',
+    'generate_business_license',
+    'generate_coordinates',
     'generate_user_profile',
+    // 随机工具
     'random_int',
     'random_float',
     'random_string',
@@ -2438,13 +2512,66 @@ const canExportToExcelRecord = (record) => {
     'random_color',
     'random_password',
     'random_sequence',
+    // Mock数据
     'mock_string',
     'mock_number',
     'mock_date',
     'mock_datetime',
     'mock_boolean',
     'mock_array',
-    'mock_object'
+    'mock_object',
+    // 专业工具 - 科学
+    'science_chemical_element',
+    'science_chemical_symbol',
+    'science_chemical_name',
+    'science_unit',
+    // 专业工具 - 航空
+    'airline_name',
+    'airline_iata_code',
+    'airline_airport',
+    'airline_airport_name',
+    'airline_airport_iata_code',
+    'airline_aircraft_type',
+    // 专业工具 - 车辆
+    'vehicle_manufacturer',
+    'vehicle_model',
+    'vehicle_type',
+    'vehicle_fuel_type',
+    // 专业工具 - 数据库
+    'database_type',
+    'database_column',
+    'database_engine',
+    // 系统工具 - Git
+    'git_branch',
+    'git_commit_message',
+    'git_commit_sha',
+    'git_short_commit_sha',
+    // 系统工具 - 文件系统
+    'system_file_name',
+    'system_file_ext',
+    'system_directory_path',
+    'system_file_path',
+    'system_mime_type',
+    // 系统工具 - 版本和平台
+    'system_semver',
+    'system_platform',
+    'system_arch',
+    // 娱乐工具 - 音乐
+    'music_genre',
+    'music_song_name',
+    'music_artist',
+    // 娱乐工具 - 动物
+    'animal_type',
+    'animal_name',
+    // 娱乐工具 - 食物
+    'food_dish',
+    'food_ingredient',
+    'food_fruit',
+    'food_vegetable',
+    // Mock图片工具
+    'image_url',
+    'image_avatar',
+    'image_placeholder'
   ]
   return exportableTools.includes(record.tool_name)
 }
