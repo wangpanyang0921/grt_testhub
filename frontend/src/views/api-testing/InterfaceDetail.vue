@@ -197,35 +197,40 @@
               <!-- Path 参数变量助手弹窗 -->
               <el-dialog
                 v-model="showPathParamVariableHelper"
-                title="插入动态变量"
+                title="变量助手"
                 width="1100px"
                 :close-on-click-modal="false"
+                class="variable-helper-dialog"
               >
-                <el-tabs style="height: 500px">
-                  <el-tab-pane
-                    v-for="(category, idx) in variableCategories"
-                    :key="idx"
-                    :label="category.label"
-                  >
-                    <div style="height: 460px; overflow-y: auto; padding: 10px;">
+                <div class="variable-helper-container">
+                  <!-- 左侧分类菜单 -->
+                  <div class="category-sidebar">
+                    <div
+                      v-for="(category, idx) in variableCategories"
+                      :key="idx"
+                      class="category-menu-item"
+                      :class="{ active: currentCategoryIndex === idx }"
+                      @click="currentCategoryIndex = idx"
+                    >
+                      {{ category.label }}
+                    </div>
+                  </div>
+                  <!-- 右侧内容区 -->
+                  <div class="category-content">
+                    <div class="content-body">
                       <el-table
-                        :data="category.variables"
-                        style="width: 100%"
+                        :data="variableCategories[currentCategoryIndex]?.variables || []"
+                        style="width: 100%; height: 100%;"
                         @row-click="insertPathParamVariable"
                         highlight-current-row
                       >
-                        <el-table-column prop="name" label="函数名" min-width="180" show-overflow-tooltip>
-                          <template #default="{ row }">
-                            <el-tag size="small">{{ row.name }}</el-tag>
-                          </template>
-                        </el-table-column>
-                        <el-table-column prop="desc" label="说明" min-width="200" show-overflow-tooltip />
+                        <el-table-column prop="desc" label="功能描述" min-width="200" show-overflow-tooltip />
                         <el-table-column prop="syntax" label="语法" min-width="280" show-overflow-tooltip />
                         <el-table-column prop="example" label="示例" min-width="200" show-overflow-tooltip />
                       </el-table>
                     </div>
-                  </el-tab-pane>
-                </el-tabs>
+                  </div>
+                </div>
               </el-dialog>
             </el-tab-pane>
 
@@ -312,35 +317,40 @@
                 <!-- 请求体变量助手弹窗 -->
                 <el-dialog
                   v-model="showBodyVariableHelper"
-                  title="插入动态变量"
+                  title="变量助手"
                   width="1100px"
                   :close-on-click-modal="false"
+                  class="variable-helper-dialog"
                 >
-                  <el-tabs style="height: 500px">
-                    <el-tab-pane
-                      v-for="(category, idx) in variableCategories"
-                      :key="idx"
-                      :label="category.label"
-                    >
-                      <div style="height: 460px; overflow-y: auto; padding: 10px;">
+                  <div class="variable-helper-container">
+                    <!-- 左侧分类菜单 -->
+                    <div class="category-sidebar">
+                      <div
+                        v-for="(category, idx) in variableCategories"
+                        :key="idx"
+                        class="category-menu-item"
+                        :class="{ active: currentCategoryIndex === idx }"
+                        @click="currentCategoryIndex = idx"
+                      >
+                        {{ category.label }}
+                      </div>
+                    </div>
+                    <!-- 右侧内容区 -->
+                    <div class="category-content">
+                      <div class="content-body">
                         <el-table
-                          :data="category.variables"
-                          style="width: 100%"
+                          :data="variableCategories[currentCategoryIndex]?.variables || []"
+                          style="width: 100%; height: 100%;"
                           @row-click="insertBodyVariable"
                           highlight-current-row
                         >
-                          <el-table-column prop="name" label="函数名" min-width="180" show-overflow-tooltip>
-                            <template #default="{ row }">
-                              <el-tag size="small">{{ row.name }}</el-tag>
-                            </template>
-                          </el-table-column>
-                          <el-table-column prop="desc" label="说明" min-width="200" show-overflow-tooltip />
+                          <el-table-column prop="desc" label="功能描述" min-width="200" show-overflow-tooltip />
                           <el-table-column prop="syntax" label="语法" min-width="280" show-overflow-tooltip />
                           <el-table-column prop="example" label="示例" min-width="200" show-overflow-tooltip />
                         </el-table>
                       </div>
-                    </el-tab-pane>
-                  </el-tabs>
+                    </div>
+                  </div>
                 </el-dialog>
               </div>
             </el-tab-pane>
@@ -927,6 +937,7 @@ const showImportCurlDialog = ref(false)
 const showPathParamDataFactory = ref(false)
 const showPathParamVariableHelper = ref(false)
 const currentPathParamIndex = ref(0)
+const currentCategoryIndex = ref(0)
 
 // 变量分类（用于变量助手弹窗）
 const variableCategories = computed(() => [
@@ -935,14 +946,28 @@ const variableCategories = computed(() => [
     variables: [
       { name: 'random_int', syntax: '${random_int(min, max, count)}', desc: '生成随机整数', example: '${random_int(100, 999, 1)}' },
       { name: 'random_float', syntax: '${random_float(min, max, precision, count)}', desc: '生成随机浮点数', example: '${random_float(0, 1, 2, 1)}' },
-      { name: 'random_boolean', syntax: '${random_boolean(count)}', desc: '生成随机布尔值', example: '${random_boolean(1)}' }
+      { name: 'random_boolean', syntax: '${random_boolean(count)}', desc: '生成随机布尔值', example: '${random_boolean(1)}' },
+      { name: 'random_date', syntax: '${random_date(start_date, end_date, count, date_format)}', desc: '生成随机日期', example: '${random_date(2024-01-01, 2024-12-31, 1, %Y-%m-%d)}' }
     ]
   },
   {
     label: '随机字符串',
     variables: [
       { name: 'random_string', syntax: '${random_string(length, char_type, count)}', desc: '生成随机字符串', example: '${random_string(8, all, 1)}' },
-      { name: 'random_uuid', syntax: '${random_uuid(version, count)}', desc: '生成 UUID', example: '${random_uuid(4, 1)}' }
+      { name: 'random_uuid', syntax: '${random_uuid(version, count)}', desc: '生成 UUID', example: '${random_uuid(4, 1)}' },
+      { name: 'random_mac_address', syntax: '${random_mac_address(separator, count)}', desc: '生成MAC地址', example: '${random_mac_address(:, 1)}' },
+      { name: 'random_ip_address', syntax: '${random_ip_address(ip_version, count)}', desc: '生成IP地址', example: '${random_ip_address(4, 1)}' },
+      { name: 'random_sequence', syntax: '${random_sequence(sequence, count, unique)}', desc: '从序列中随机选择', example: '${random_sequence([a,b,c], 1, false)}' }
+    ]
+  },
+  {
+    label: '字符工具',
+    variables: [
+      { name: 'remove_whitespace', syntax: '${remove_whitespace(text, type)}', desc: '去除空格换行', example: '${remove_whitespace(hello world, all)}' },
+      { name: 'replace_string', syntax: '${replace_string(text, old, new, count)}', desc: '字符串替换', example: '${replace_string(hello world, world, test, 1)}' },
+      { name: 'word_count', syntax: '${word_count(text)}', desc: '字数统计', example: '${word_count(hello world)}' },
+      { name: 'regex_test', syntax: '${regex_test(text, pattern, flags)}', desc: '正则测试', example: '${regex_test(hello123, ^[a-z]+\\d+$, gi)}' },
+      { name: 'case_convert', syntax: '${case_convert(text, case_type)}', desc: '大小写转换', example: '${case_convert(hello, upper)}' }
     ]
   },
   {
@@ -950,14 +975,133 @@ const variableCategories = computed(() => [
     variables: [
       { name: 'generate_chinese_name', syntax: '${generate_chinese_name(gender, count)}', desc: '生成中文姓名', example: '${generate_chinese_name(random, 1)}' },
       { name: 'generate_chinese_phone', syntax: '${generate_chinese_phone(count)}', desc: '生成手机号', example: '${generate_chinese_phone(1)}' },
-      { name: 'generate_id_card', syntax: '${generate_id_card(count)}', desc: '生成身份证号', example: '${generate_id_card(1)}' }
+      { name: 'generate_chinese_email', syntax: '${generate_chinese_email(count)}', desc: '生成邮箱', example: '${generate_chinese_email(1)}' },
+      { name: 'generate_chinese_address', syntax: '${generate_chinese_address(full_address, count)}', desc: '生成地址', example: '${generate_chinese_address(true, 1)}' },
+      { name: 'generate_id_card', syntax: '${generate_id_card(count)}', desc: '生成身份证号', example: '${generate_id_card(1)}' },
+      { name: 'generate_company_name', syntax: '${generate_company_name(count)}', desc: '生成公司名称', example: '${generate_company_name(1)}' },
+      { name: 'generate_bank_card', syntax: '${generate_bank_card(count)}', desc: '生成银行卡号', example: '${generate_bank_card(1)}' },
+      { name: 'generate_hk_id_card', syntax: '${generate_hk_id_card(count)}', desc: '生成香港身份证号', example: '${generate_hk_id_card(1)}' },
+      { name: 'generate_business_license', syntax: '${generate_business_license(count)}', desc: '生成营业执照号', example: '${generate_business_license(1)}' },
+      { name: 'generate_user_profile', syntax: '${generate_user_profile(count)}', desc: '生成用户档案', example: '${generate_user_profile(1)}' },
+      { name: 'generate_coordinates', syntax: '${generate_coordinates(count)}', desc: '生成经纬度', example: '${generate_coordinates(1)}' }
     ]
   },
   {
-    label: '日期时间',
+    label: '时间日期',
     variables: [
       { name: 'timestamp', syntax: '${timestamp()}', desc: '当前时间戳', example: '${timestamp()}' },
-      { name: 'datetime', syntax: '${datetime(format)}', desc: '当前日期时间', example: '${datetime(YYYY-MM-DD)}' }
+      { name: 'datetime', syntax: '${datetime(format)}', desc: '当前日期时间', example: '${datetime(YYYY-MM-DD)}' },
+      { name: 'timestamp_convert', syntax: '${timestamp_convert(timestamp, convert_type)}', desc: '时间戳转换', example: '${timestamp_convert(1234567890, to_datetime)}' }
+    ]
+  },
+  {
+    label: '编码转换',
+    variables: [
+      { name: 'base64_encode', syntax: '${base64_encode(text, encoding)}', desc: 'Base64编码', example: '${base64_encode("123456", "utf-8")}' },
+      { name: 'base64_decode', syntax: '${base64_decode(text, encoding)}', desc: 'Base64解码', example: '${base64_decode("MTIzNDU2", "utf-8")}' },
+      { name: 'url_encode', syntax: '${url_encode(data, encoding)}', desc: 'URL编码', example: '${url_encode("hello world", "utf-8")}' },
+      { name: 'url_decode', syntax: '${url_decode(data, encoding)}', desc: 'URL解码', example: '${url_decode("hello%20world", "utf-8")}' },
+      { name: 'unicode_convert', syntax: '${unicode_convert(text, convert_type)}', desc: 'Unicode转换', example: '${unicode_convert("你好", "to_unicode")}' },
+      { name: 'ascii_convert', syntax: '${ascii_convert(text, convert_type)}', desc: 'ASCII转换', example: '${ascii_convert("ABC", "to_ascii")}' },
+      { name: 'color_convert', syntax: '${color_convert(color, from_type, to_type)}', desc: '颜色值转换', example: '${color_convert("#ff0000", "hex", "rgb")}' },
+      { name: 'base_convert', syntax: '${base_convert(number, from_base, to_base)}', desc: '进制转换', example: '${base_convert(10, 10, 16)}' },
+      { name: 'generate_barcode', syntax: '${generate_barcode(data, format)}', desc: '生成条形码', example: '${generate_barcode("123456", "code128")}' },
+      { name: 'generate_qrcode', syntax: '${generate_qrcode(data)}', desc: '生成二维码', example: '${generate_qrcode("https://example.com")}' },
+      { name: 'decode_qrcode', syntax: '${decode_qrcode(data)}', desc: '二维码解析', example: '${decode_qrcode("/path/to/image.png")}' },
+      { name: 'image_to_base64', syntax: '${image_to_base64(image_path)}', desc: '图片转Base64', example: '${image_to_base64("/path/to/image.png")}' },
+      { name: 'base64_to_image', syntax: '${base64_to_image(base64_data, output_path)}', desc: 'Base64转图片', example: '${base64_to_image("data:image/png;base64,...", "/path/to/output.png")}' }
+    ]
+  },
+  {
+    label: '加密哈希',
+    variables: [
+      { name: 'md5_hash', syntax: '${md5_hash(text)}', desc: 'MD5加密', example: '${md5_hash("123456")}' },
+      { name: 'sha1_hash', syntax: '${sha1_hash(text)}', desc: 'SHA1加密', example: '${sha1_hash("123456")}' },
+      { name: 'sha256_hash', syntax: '${sha256_hash(text)}', desc: 'SHA256加密', example: '${sha256_hash("123456")}' },
+      { name: 'sha512_hash', syntax: '${sha512_hash(text)}', desc: 'SHA512加密', example: '${sha512_hash("123456")}' },
+      { name: 'hash_comparison', syntax: '${hash_comparison(hash1, hash2)}', desc: '哈希值比对', example: '${hash_comparison("hash1", "hash2")}' },
+      { name: 'aes_encrypt', syntax: '${aes_encrypt(text, password, mode)}', desc: 'AES加密', example: '${aes_encrypt("hello", "password", "CBC")}' },
+      { name: 'aes_decrypt', syntax: '${aes_decrypt(encrypted_text, password, mode)}', desc: 'AES解密', example: '${aes_decrypt("encrypted", "password", "CBC")}' }
+    ]
+  },
+  {
+    label: 'Crontab',
+    variables: [
+      { name: 'generate_expression', syntax: '${generate_expression(minute, hour, day, month, weekday)}', desc: '生成Crontab表达式', example: '${generate_expression("*", "*", "*", "*", "*")}' },
+      { name: 'parse_expression', syntax: '${parse_expression(expression)}', desc: '解析Crontab表达式', example: '${parse_expression("0 0 * * *")}' },
+      { name: 'get_next_runs', syntax: '${get_next_runs(expression, count)}', desc: '获取下次执行时间', example: '${get_next_runs("0 0 * * *", 5)}' },
+      { name: 'validate_expression', syntax: '${validate_expression(expression)}', desc: '验证Crontab表达式', example: '${validate_expression("0 0 * * *")}' }
+    ]
+  },
+  {
+    label: '专业工具',
+    variables: [
+      { name: 'science_chemical_element', syntax: '${science_chemical_element(count)}', desc: '随机化学元素', example: '${science_chemical_element(1)}' },
+      { name: 'science_chemical_symbol', syntax: '${science_chemical_symbol(count)}', desc: '随机化学元素符号', example: '${science_chemical_symbol(1)}' },
+      { name: 'science_chemical_name', syntax: '${science_chemical_name(count)}', desc: '随机化学元素名称', example: '${science_chemical_name(1)}' },
+      { name: 'science_unit', syntax: '${science_unit(count)}', desc: '随机科学单位', example: '${science_unit(1)}' },
+      { name: 'airline_name', syntax: '${airline_name(count)}', desc: '随机航空公司', example: '${airline_name(1)}' },
+      { name: 'airline_iata_code', syntax: '${airline_iata_code(count)}', desc: '随机航司IATA代码', example: '${airline_iata_code(1)}' },
+      { name: 'airline_airport', syntax: '${airline_airport(count)}', desc: '随机机场信息', example: '${airline_airport(1)}' },
+      { name: 'airline_airport_name', syntax: '${airline_airport_name(count)}', desc: '随机机场名称', example: '${airline_airport_name(1)}' },
+      { name: 'airline_airport_iata_code', syntax: '${airline_airport_iata_code(count)}', desc: '随机机场IATA代码', example: '${airline_airport_iata_code(1)}' },
+      { name: 'airline_aircraft_type', syntax: '${airline_aircraft_type(count)}', desc: '随机机型', example: '${airline_aircraft_type(1)}' },
+      { name: 'vehicle_manufacturer', syntax: '${vehicle_manufacturer(count)}', desc: '随机车辆制造商', example: '${vehicle_manufacturer(1)}' },
+      { name: 'vehicle_model', syntax: '${vehicle_model(count)}', desc: '随机车辆型号', example: '${vehicle_model(1)}' },
+      { name: 'vehicle_type', syntax: '${vehicle_type(count)}', desc: '随机车辆类型', example: '${vehicle_type(1)}' },
+      { name: 'vehicle_fuel_type', syntax: '${vehicle_fuel_type(count)}', desc: '随机燃料类型', example: '${vehicle_fuel_type(1)}' },
+      { name: 'database_type', syntax: '${database_type(count)}', desc: '随机数据库类型', example: '${database_type(1)}' },
+      { name: 'database_column', syntax: '${database_column(count)}', desc: '随机数据库列名', example: '${database_column(1)}' },
+      { name: 'database_engine', syntax: '${database_engine(count)}', desc: '随机数据库引擎', example: '${database_engine(1)}' }
+    ]
+  },
+  {
+    label: '系统工具',
+    variables: [
+      { name: 'git_branch', syntax: '${git_branch(count)}', desc: '随机Git分支名', example: '${git_branch(1)}' },
+      { name: 'git_commit_message', syntax: '${git_commit_message(count)}', desc: '随机Git提交信息', example: '${git_commit_message(1)}' },
+      { name: 'git_commit_sha', syntax: '${git_commit_sha(count)}', desc: '随机Git Commit SHA', example: '${git_commit_sha(1)}' },
+      { name: 'git_short_commit_sha', syntax: '${git_short_commit_sha(count)}', desc: '随机短Commit SHA', example: '${git_short_commit_sha(1)}' },
+      { name: 'system_file_name', syntax: '${system_file_name(count)}', desc: '随机文件名', example: '${system_file_name(1)}' },
+      { name: 'system_file_ext', syntax: '${system_file_ext(count)}', desc: '随机文件扩展名', example: '${system_file_ext(1)}' },
+      { name: 'system_directory_path', syntax: '${system_directory_path(count)}', desc: '随机目录路径', example: '${system_directory_path(1)}' },
+      { name: 'system_file_path', syntax: '${system_file_path(count)}', desc: '随机文件路径', example: '${system_file_path(1)}' },
+      { name: 'system_mime_type', syntax: '${system_mime_type(count)}', desc: '随机MIME类型', example: '${system_mime_type(1)}' },
+      { name: 'system_semver', syntax: '${system_semver(count)}', desc: '随机语义化版本号', example: '${system_semver(1)}' },
+      { name: 'system_platform', syntax: '${system_platform(count)}', desc: '随机平台名', example: '${system_platform(1)}' },
+      { name: 'system_arch', syntax: '${system_arch(count)}', desc: '随机系统架构', example: '${system_arch(1)}' }
+    ]
+  },
+  {
+    label: '娱乐工具',
+    variables: [
+      { name: 'music_genre', syntax: '${music_genre(count)}', desc: '随机音乐类型', example: '${music_genre(1)}' },
+      { name: 'music_song_name', syntax: '${music_song_name(count)}', desc: '随机歌曲名', example: '${music_song_name(1)}' },
+      { name: 'music_artist', syntax: '${music_artist(count)}', desc: '随机艺术家', example: '${music_artist(1)}' },
+      { name: 'animal_type', syntax: '${animal_type(count)}', desc: '随机动物类型', example: '${animal_type(1)}' },
+      { name: 'animal_name', syntax: '${animal_name(count)}', desc: '随机动物名称', example: '${animal_name(1)}' },
+      { name: 'food_dish', syntax: '${food_dish(count)}', desc: '随机菜品', example: '${food_dish(1)}' },
+      { name: 'food_ingredient', syntax: '${food_ingredient(count)}', desc: '随机食材', example: '${food_ingredient(1)}' },
+      { name: 'food_fruit', syntax: '${food_fruit(count)}', desc: '随机水果', example: '${food_fruit(1)}' },
+      { name: 'food_vegetable', syntax: '${food_vegetable(count)}', desc: '随机蔬菜', example: '${food_vegetable(1)}' }
+    ]
+  },
+  {
+    label: 'Mock图片',
+    variables: [
+      { name: 'image_url', syntax: '${image_url(width, height)}', desc: '随机图片URL', example: '${image_url(200, 200)}' },
+      { name: 'image_avatar', syntax: '${image_avatar()}', desc: '随机头像URL', example: '${image_avatar()}' },
+      { name: 'image_placeholder', syntax: '${image_placeholder(width, height, text)}', desc: '生成占位图URL', example: '${image_placeholder(300, 200, "Hello")}' }
+    ]
+  },
+  {
+    label: '其他',
+    variables: [
+      { name: 'random_password', syntax: '${random_password(length, include_uppercase, include_lowercase, include_digits, include_special, count)}', desc: '生成随机密码', example: '${random_password(12, true, true, true, true, 1)}' },
+      { name: 'random_color', syntax: '${random_color(format, count)}', desc: '生成随机颜色', example: '${random_color(hex, 1)}' },
+      { name: 'jwt_decode', syntax: '${jwt_decode(token, verify, secret)}', desc: 'JWT解码', example: '${jwt_decode(token, false, secret)}' },
+      { name: 'password_strength', syntax: '${password_strength(password)}', desc: '密码强度分析', example: '${password_strength(myPassword123)}' },
+      { name: 'generate_salt', syntax: '${generate_salt(length)}', desc: '生成随机盐值', example: '${generate_salt(16)}' }
     ]
   }
 ])
@@ -971,6 +1115,7 @@ const openPathParamVariableSelector = (index) => {
 // 打开 Path 参数变量助手
 const openPathParamVariableHelper = (index) => {
   currentPathParamIndex.value = index
+  currentCategoryIndex.value = 0
   showPathParamVariableHelper.value = true
 }
 
@@ -1032,6 +1177,7 @@ const openBodyVariableHelper = () => {
   if (textarea) {
     bodyCursorPosition.value = textarea.selectionStart || 0
   }
+  currentCategoryIndex.value = 0
   showBodyVariableHelper.value = true
 }
 
@@ -2821,6 +2967,72 @@ const goBack = () => {
 :deep(.el-radio-group) {
   .el-radio {
     margin-right: 16px;
+  }
+}
+
+// 变量助手弹窗样式
+.variable-helper-dialog {
+  :deep(.el-dialog__body) {
+    padding: 0;
+  }
+
+  .variable-helper-container {
+    display: flex;
+    height: 500px;
+    border-radius: 8px;
+    overflow: hidden;
+    border: 1px solid rgba(147, 112, 219, 0.2);
+  }
+
+  .category-sidebar {
+    width: 140px;
+    min-width: 140px;
+    background: linear-gradient(180deg, #f5f3ff 0%, #ede9fe 100%);
+    border-right: 1px solid rgba(147, 112, 219, 0.2);
+    overflow-y: auto;
+    padding: 8px 0;
+
+    .category-menu-item {
+      padding: 12px 16px;
+      cursor: pointer;
+      font-size: 14px;
+      color: #5a32a3;
+      transition: all 0.3s ease;
+      border-left: 3px solid transparent;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+
+      &:hover {
+        background: rgba(123, 66, 246, 0.1);
+        color: #7b42f6;
+      }
+
+      &.active {
+        background: linear-gradient(90deg, rgba(123, 66, 246, 0.15) 0%, rgba(123, 66, 246, 0.05) 100%);
+        color: #7b42f6;
+        border-left-color: #7b42f6;
+        font-weight: 600;
+      }
+    }
+  }
+
+  .category-content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+
+    .content-body {
+      flex: 1;
+      padding: 10px;
+      overflow: hidden;
+      background: #fff;
+
+      :deep(.el-table) {
+        height: 100%;
+      }
+    }
   }
 }
 </style>

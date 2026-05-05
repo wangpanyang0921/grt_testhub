@@ -204,20 +204,29 @@
       width="1100px"
       class="variable-helper-dialog"
     >
-      <el-tabs style="height: 500px" class="variable-tabs">
-        <el-tab-pane
-          v-for="(category, index) in variableCategories"
-          :key="index"
-          :label="category.label"
-        >
-          <div style="height: 460px; overflow-y: auto; padding: 10px;">
-            <el-table :data="category.variables" style="width: 100%" @row-click="insertVariable" highlight-current-row>
-              <el-table-column prop="name" :label="$t('apiTesting.component.keyValueEditor.functionName')" min-width="180" show-overflow-tooltip>
-                <template #default="{ row }">
-                  <el-tag size="small">{{ row.name }}</el-tag>
-                </template>
-              </el-table-column>
-              <el-table-column prop="desc" :label="$t('apiTesting.component.keyValueEditor.desc')" min-width="100" show-overflow-tooltip />
+      <div class="variable-helper-container">
+        <!-- 左侧分类菜单 -->
+        <div class="category-sidebar">
+          <div
+            v-for="(category, index) in variableCategories"
+            :key="index"
+            class="category-menu-item"
+            :class="{ active: currentCategoryIndex === index }"
+            @click="currentCategoryIndex = index"
+          >
+            {{ category.label }}
+          </div>
+        </div>
+        <!-- 右侧内容区 -->
+        <div class="category-content">
+          <div class="content-body">
+            <el-table
+              :data="variableCategories[currentCategoryIndex]?.variables || []"
+              style="width: 100%; height: 100%;"
+              @row-click="insertVariable"
+              highlight-current-row
+            >
+              <el-table-column prop="desc" :label="$t('apiTesting.component.keyValueEditor.desc')" min-width="120" show-overflow-tooltip />
               <el-table-column prop="syntax" :label="$t('apiTesting.component.keyValueEditor.syntax')" min-width="280" show-overflow-tooltip />
               <el-table-column prop="example" :label="$t('apiTesting.component.keyValueEditor.example')" min-width="200" show-overflow-tooltip />
               <el-table-column :label="$t('apiTesting.component.keyValueEditor.operation')" width="60">
@@ -227,8 +236,8 @@
               </el-table-column>
             </el-table>
           </div>
-        </el-tab-pane>
-      </el-tabs>
+        </div>
+      </div>
     </el-dialog>
   </div>
 </template>
@@ -275,6 +284,7 @@ const rows = ref([])
 const showDataFactorySelector = ref(false)
 const showVariableHelper = ref(false)
 const currentRowIndex = ref(0)
+const currentCategoryIndex = ref(0)
 
 const variableCategories = computed(() => [
   {
@@ -367,6 +377,67 @@ const variableCategories = computed(() => [
       { name: 'parse_expression', syntax: '${parse_expression(expression)}', desc: t('apiTesting.component.keyValueEditor.variables.parseExpression'), example: '${parse_expression("0 0 * * *")}' },
       { name: 'get_next_runs', syntax: '${get_next_runs(expression, count)}', desc: t('apiTesting.component.keyValueEditor.variables.getNextRuns'), example: '${get_next_runs("0 0 * * *", 5)}' },
       { name: 'validate_expression', syntax: '${validate_expression(expression)}', desc: t('apiTesting.component.keyValueEditor.variables.validateExpression'), example: '${validate_expression("0 0 * * *")}' }
+    ]
+  },
+  {
+    label: t('apiTesting.component.keyValueEditor.categories.professional'),
+    variables: [
+      { name: 'science_chemical_element', syntax: '${science_chemical_element(count)}', desc: t('apiTesting.component.keyValueEditor.variables.scienceChemicalElement'), example: '${science_chemical_element(1)}' },
+      { name: 'science_chemical_symbol', syntax: '${science_chemical_symbol(count)}', desc: t('apiTesting.component.keyValueEditor.variables.scienceChemicalSymbol'), example: '${science_chemical_symbol(1)}' },
+      { name: 'science_chemical_name', syntax: '${science_chemical_name(count)}', desc: t('apiTesting.component.keyValueEditor.variables.scienceChemicalName'), example: '${science_chemical_name(1)}' },
+      { name: 'science_unit', syntax: '${science_unit(count)}', desc: t('apiTesting.component.keyValueEditor.variables.scienceUnit'), example: '${science_unit(1)}' },
+      { name: 'airline_name', syntax: '${airline_name(count)}', desc: t('apiTesting.component.keyValueEditor.variables.airlineName'), example: '${airline_name(1)}' },
+      { name: 'airline_iata_code', syntax: '${airline_iata_code(count)}', desc: t('apiTesting.component.keyValueEditor.variables.airlineIataCode'), example: '${airline_iata_code(1)}' },
+      { name: 'airline_airport', syntax: '${airline_airport(count)}', desc: t('apiTesting.component.keyValueEditor.variables.airlineAirport'), example: '${airline_airport(1)}' },
+      { name: 'airline_airport_name', syntax: '${airline_airport_name(count)}', desc: t('apiTesting.component.keyValueEditor.variables.airlineAirportName'), example: '${airline_airport_name(1)}' },
+      { name: 'airline_airport_iata_code', syntax: '${airline_airport_iata_code(count)}', desc: t('apiTesting.component.keyValueEditor.variables.airlineAirportIataCode'), example: '${airline_airport_iata_code(1)}' },
+      { name: 'airline_aircraft_type', syntax: '${airline_aircraft_type(count)}', desc: t('apiTesting.component.keyValueEditor.variables.airlineAircraftType'), example: '${airline_aircraft_type(1)}' },
+      { name: 'vehicle_manufacturer', syntax: '${vehicle_manufacturer(count)}', desc: t('apiTesting.component.keyValueEditor.variables.vehicleManufacturer'), example: '${vehicle_manufacturer(1)}' },
+      { name: 'vehicle_model', syntax: '${vehicle_model(count)}', desc: t('apiTesting.component.keyValueEditor.variables.vehicleModel'), example: '${vehicle_model(1)}' },
+      { name: 'vehicle_type', syntax: '${vehicle_type(count)}', desc: t('apiTesting.component.keyValueEditor.variables.vehicleType'), example: '${vehicle_type(1)}' },
+      { name: 'vehicle_fuel_type', syntax: '${vehicle_fuel_type(count)}', desc: t('apiTesting.component.keyValueEditor.variables.vehicleFuelType'), example: '${vehicle_fuel_type(1)}' },
+      { name: 'database_type', syntax: '${database_type(count)}', desc: t('apiTesting.component.keyValueEditor.variables.databaseType'), example: '${database_type(1)}' },
+      { name: 'database_column', syntax: '${database_column(count)}', desc: t('apiTesting.component.keyValueEditor.variables.databaseColumn'), example: '${database_column(1)}' },
+      { name: 'database_engine', syntax: '${database_engine(count)}', desc: t('apiTesting.component.keyValueEditor.variables.databaseEngine'), example: '${database_engine(1)}' }
+    ]
+  },
+  {
+    label: t('apiTesting.component.keyValueEditor.categories.system'),
+    variables: [
+      { name: 'git_branch', syntax: '${git_branch(count)}', desc: t('apiTesting.component.keyValueEditor.variables.gitBranch'), example: '${git_branch(1)}' },
+      { name: 'git_commit_message', syntax: '${git_commit_message(count)}', desc: t('apiTesting.component.keyValueEditor.variables.gitCommitMessage'), example: '${git_commit_message(1)}' },
+      { name: 'git_commit_sha', syntax: '${git_commit_sha(count)}', desc: t('apiTesting.component.keyValueEditor.variables.gitCommitSha'), example: '${git_commit_sha(1)}' },
+      { name: 'git_short_commit_sha', syntax: '${git_short_commit_sha(count)}', desc: t('apiTesting.component.keyValueEditor.variables.gitShortCommitSha'), example: '${git_short_commit_sha(1)}' },
+      { name: 'system_file_name', syntax: '${system_file_name(count)}', desc: t('apiTesting.component.keyValueEditor.variables.systemFileName'), example: '${system_file_name(1)}' },
+      { name: 'system_file_ext', syntax: '${system_file_ext(count)}', desc: t('apiTesting.component.keyValueEditor.variables.systemFileExt'), example: '${system_file_ext(1)}' },
+      { name: 'system_directory_path', syntax: '${system_directory_path(count)}', desc: t('apiTesting.component.keyValueEditor.variables.systemDirectoryPath'), example: '${system_directory_path(1)}' },
+      { name: 'system_file_path', syntax: '${system_file_path(count)}', desc: t('apiTesting.component.keyValueEditor.variables.systemFilePath'), example: '${system_file_path(1)}' },
+      { name: 'system_mime_type', syntax: '${system_mime_type(count)}', desc: t('apiTesting.component.keyValueEditor.variables.systemMimeType'), example: '${system_mime_type(1)}' },
+      { name: 'system_semver', syntax: '${system_semver(count)}', desc: t('apiTesting.component.keyValueEditor.variables.systemSemver'), example: '${system_semver(1)}' },
+      { name: 'system_platform', syntax: '${system_platform(count)}', desc: t('apiTesting.component.keyValueEditor.variables.systemPlatform'), example: '${system_platform(1)}' },
+      { name: 'system_arch', syntax: '${system_arch(count)}', desc: t('apiTesting.component.keyValueEditor.variables.systemArch'), example: '${system_arch(1)}' }
+    ]
+  },
+  {
+    label: t('apiTesting.component.keyValueEditor.categories.entertainment'),
+    variables: [
+      { name: 'music_genre', syntax: '${music_genre(count)}', desc: t('apiTesting.component.keyValueEditor.variables.musicGenre'), example: '${music_genre(1)}' },
+      { name: 'music_song_name', syntax: '${music_song_name(count)}', desc: t('apiTesting.component.keyValueEditor.variables.musicSongName'), example: '${music_song_name(1)}' },
+      { name: 'music_artist', syntax: '${music_artist(count)}', desc: t('apiTesting.component.keyValueEditor.variables.musicArtist'), example: '${music_artist(1)}' },
+      { name: 'animal_type', syntax: '${animal_type(count)}', desc: t('apiTesting.component.keyValueEditor.variables.animalType'), example: '${animal_type(1)}' },
+      { name: 'animal_name', syntax: '${animal_name(count)}', desc: t('apiTesting.component.keyValueEditor.variables.animalName'), example: '${animal_name(1)}' },
+      { name: 'food_dish', syntax: '${food_dish(count)}', desc: t('apiTesting.component.keyValueEditor.variables.foodDish'), example: '${food_dish(1)}' },
+      { name: 'food_ingredient', syntax: '${food_ingredient(count)}', desc: t('apiTesting.component.keyValueEditor.variables.foodIngredient'), example: '${food_ingredient(1)}' },
+      { name: 'food_fruit', syntax: '${food_fruit(count)}', desc: t('apiTesting.component.keyValueEditor.variables.foodFruit'), example: '${food_fruit(1)}' },
+      { name: 'food_vegetable', syntax: '${food_vegetable(count)}', desc: t('apiTesting.component.keyValueEditor.variables.foodVegetable'), example: '${food_vegetable(1)}' }
+    ]
+  },
+  {
+    label: t('apiTesting.component.keyValueEditor.categories.mockImage'),
+    variables: [
+      { name: 'image_url', syntax: '${image_url(width, height)}', desc: t('apiTesting.component.keyValueEditor.variables.imageUrl'), example: '${image_url(200, 200)}' },
+      { name: 'image_avatar', syntax: '${image_avatar()}', desc: t('apiTesting.component.keyValueEditor.variables.imageAvatar'), example: '${image_avatar()}' },
+      { name: 'image_placeholder', syntax: '${image_placeholder(width, height, text)}', desc: t('apiTesting.component.keyValueEditor.variables.imagePlaceholder'), example: '${image_placeholder(300, 200, "Hello")}' }
     ]
   },
   {
@@ -511,6 +582,7 @@ const handleDataFactorySelect = (record) => {
 
 const openVariableHelper = (index) => {
   currentRowIndex.value = index
+  currentCategoryIndex.value = 0
   showVariableHelper.value = true
 }
 
@@ -692,35 +764,68 @@ defineExpose({
   background: #fafbfc;
 }
 
-/* 变量助手弹窗样式优化 */
+/* 变量助手弹窗样式优化 - 紫色主题 */
 .variable-helper-dialog {
   :deep(.el-dialog__body) {
-    padding: 0 20px 20px 20px;
+    padding: 0;
   }
 
-  .variable-tabs {
-    :deep(.el-tabs__header) {
-      margin-bottom: 10px;
-    }
+  .variable-helper-container {
+    display: flex;
+    height: 500px;
+    border-radius: 8px;
+    overflow: hidden;
+    border: 1px solid rgba(147, 112, 219, 0.2);
+  }
 
-    :deep(.el-tabs__nav-wrap) {
-      padding: 0 10px;
-    }
+  .category-sidebar {
+    width: 140px;
+    min-width: 140px;
+    background: linear-gradient(180deg, #f5f3ff 0%, #ede9fe 100%);
+    border-right: 1px solid rgba(147, 112, 219, 0.2);
+    overflow-y: auto;
+    padding: 8px 0;
 
-    :deep(.el-tabs__item) {
-      padding: 0 16px;
+    .category-menu-item {
+      padding: 12px 16px;
+      cursor: pointer;
       font-size: 14px;
-      height: 40px;
-      line-height: 40px;
-    }
-
-    :deep(.el-tabs__content) {
+      color: #5a32a3;
+      transition: all 0.3s ease;
+      border-left: 3px solid transparent;
+      white-space: nowrap;
       overflow: hidden;
-      height: 100%;
-    }
+      text-overflow: ellipsis;
 
-    :deep(.el-tab-pane) {
-      height: 100%;
+      &:hover {
+        background: rgba(123, 66, 246, 0.1);
+        color: #7b42f6;
+      }
+
+      &.active {
+        background: linear-gradient(90deg, rgba(123, 66, 246, 0.15) 0%, rgba(123, 66, 246, 0.05) 100%);
+        color: #7b42f6;
+        border-left-color: #7b42f6;
+        font-weight: 600;
+      }
+    }
+  }
+
+  .category-content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+
+    .content-body {
+      flex: 1;
+      padding: 10px;
+      overflow: hidden;
+      background: #fff;
+
+      :deep(.el-table) {
+        height: 100%;
+      }
     }
   }
 }
