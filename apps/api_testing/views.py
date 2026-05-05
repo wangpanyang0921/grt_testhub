@@ -1040,23 +1040,18 @@ class TestSuiteViewSet(viewsets.ModelViewSet):
                     # 检查所有断言是否通过
                     passed = True
                     error_message = ''
-                    
-                    # 检查套件请求的断言
-                    for assertion in suite_request.assertions:
-                        # 简单的状态码断言
-                        if assertion.get('type') == 'status_code':
-                            expected = assertion.get('value')
-                            if response.status_code != expected:
-                                passed = False
-                                error_message = f'状态码断言失败: 期望 {expected}, 实际 {response.status_code}'
-                                break
-                    
-                    # 检查接口自身的断言
-                    if passed and assertions_results:
+
+                    # 检查断言结果（已包含套件请求和接口自身的断言）
+                    if assertions_results:
                         for assertion_result in assertions_results:
                             if not assertion_result.get('passed', True):
                                 passed = False
-                                error_message = f"断言失败: {assertion_result.get('name', '未命名断言')} - {assertion_result.get('error', '断言不通过')}"
+                                # 如果error已经包含详细信息，直接使用
+                                error_detail = assertion_result.get('error')
+                                if error_detail:
+                                    error_message = f"{assertion_result.get('name', '未命名断言')}: {error_detail}"
+                                else:
+                                    error_message = f"{assertion_result.get('name', '未命名断言')}: 断言不通过"
                                 break
                     
                     # 解析响应体为 JSON
@@ -1213,9 +1208,12 @@ class TestSuiteViewSet(viewsets.ModelViewSet):
         request_ids = request.data.get('request_ids', [])
 
         try:
+            added_count = 0
+            existing_count = 0
+            
             for request_id in request_ids:
                 api_request = ApiRequest.objects.get(id=request_id)
-                TestSuiteRequest.objects.get_or_create(
+                suite_request, created = TestSuiteRequest.objects.get_or_create(
                     test_suite=test_suite,
                     request=api_request,
                     defaults={
@@ -1224,11 +1222,27 @@ class TestSuiteViewSet(viewsets.ModelViewSet):
                         'assertions': api_request.assertions or []
                     }
                 )
+                if created:
+                    added_count += 1
+                else:
+                    existing_count += 1
 
             # 更新套件的 updated_at 时间戳
             test_suite.save(update_fields=['updated_at'])
+            
+            # 返回包含套件数据的响应，确保前端能获取最新数据
+            serializer = self.get_serializer(test_suite)
+            
+            message = f'成功添加 {added_count} 个请求'
+            if existing_count > 0:
+                message += f'，{existing_count} 个请求已存在'
 
-            return Response({'message': '添加成功'})
+            return Response({
+                'message': message,
+                'added_count': added_count,
+                'existing_count': existing_count,
+                'suite': serializer.data
+            })
 
         except Exception as e:
             return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
@@ -1385,6 +1399,23 @@ class TestSuiteRequestViewSet(viewsets.ModelViewSet):
         return response
     
     def partial_update(self, request, *args, **kwargs):
+        # 处理 assertions 中的字符串 'null' 转换为真正的 None
+        if 'assertions' in request.data:
+            import copy
+            assertions = copy.deepcopy(request.data['assertions'])
+            if isinstance(assertions, list):
+                for assertion in assertions:
+                    if isinstance(assertion, dict):
+                        expected = assertion.get('expected')
+                        expected_value = assertion.get('expected_value')
+                        # 处理字符串 'null' 转换为 None
+                        if expected == 'null' or expected == 'NULL':
+                            assertion['expected'] = None
+                        if expected_value == 'null' or expected_value == 'NULL':
+                            assertion['expected_value'] = None
+            # 修改后的数据重新赋值
+            request.data['assertions'] = assertions
+        
         response = super().partial_update(request, *args, **kwargs)
         # 更新关联套件的 updated_at
         instance = self.get_object()
@@ -1412,24 +1443,854 @@ class TestSuiteRequestViewSet(viewsets.ModelViewSet):
         return response
 
 
-class TestExecutionViewSet(viewsets.ReadOnlyModelViewSet):
+class TestExecutionViewSet(viewsets.ModelViewSet):
     queryset = TestExecution.objects.all()
     serializer_class = TestExecutionSerializer
     permission_classes = [IsAuthenticated]
-    filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
+    filter_backends = [DjangoFilterBackend, filters.OrderingFilter, filters.SearchFilter]
     filterset_fields = ['status', 'test_suite']
+    search_fields = ['test_suite__name']
     ordering = ['-created_at']
     pagination_class = StandardPagination
     
     def get_queryset(self):
         # 返回所有测试执行记录，不进行权限过滤
         return TestExecution.objects.all()
+    
+    def destroy(self, request, *args, **kwargs):
+        """删除测试执行记录"""
+        instance = self.get_object()
+        test_suite = instance.test_suite
+        
+        # 执行删除
+        response = super().destroy(request, *args, **kwargs)
+        
+        # 更新关联套件的 updated_at
+        if test_suite:
+            test_suite.updated_at = timezone.now()
+            test_suite.save(update_fields=['updated_at'])
+        
+        return response
+
+    def _generate_report_for_execution(self, execution):
+        """为指定的 TestExecution 生成报告（供内部调用）"""
+        try:
+            # 创建报告目录
+            results_dir = os.path.join(settings.MEDIA_ROOT, 'api-testing', 'allure-results', f'execution_{execution.id}')
+            os.makedirs(results_dir, exist_ok=True)
+
+            # 生成测试结果文件
+            self._generate_test_result_files(execution, results_dir)
+
+            # 生成Allure报告
+            report_output_dir = os.path.join(settings.MEDIA_ROOT, 'api-testing', 'allure-reports', f'execution_{execution.id}')
+            os.makedirs(report_output_dir, exist_ok=True)
+
+            # 使用Allure命令行工具生成完整报告
+            import subprocess
+            import shutil
+            import time
+            from pathlib import Path
+
+            # 检查 Java 环境
+            java_available = self._check_java_environment()
+            if not java_available:
+                logger.warning("Java 环境未配置，将使用简单报告")
+
+            # Allure命令行工具路径 - 使用相对路径
+            base_dir = Path(__file__).resolve().parent.parent.parent
+
+            # 根据操作系统确定可执行文件名
+            if os.name == 'nt':
+                allure_executable = 'allure.bat'
+            else:
+                allure_executable = 'allure'
+
+            allure_cmd = base_dir / 'allure' / 'bin' / allure_executable
+
+            if not allure_cmd.exists():
+                logger.warning(f"Allure command not found at: {allure_cmd}, trying system paths")
+                # 尝试其他可能的路径
+                possible_paths = [
+                    Path('/usr/local/bin/allure'),  # 系统安装的allure
+                    Path('/usr/bin/allure'),  # 系统安装的allure
+                ]
+                allure_cmd = None
+                for path in possible_paths:
+                    if path.exists():
+                        allure_cmd = path
+                        break
+
+            # 确保所有目录存在
+            os.makedirs(results_dir, exist_ok=True)
+
+            if allure_cmd and java_available:
+                try:
+                    for _ in range(3):  # 重试机制
+                        try:
+                            # 如果目录已存在，先清理（处理权限问题）
+                            if os.path.exists(report_output_dir):
+                                try:
+                                    shutil.rmtree(report_output_dir)
+                                except PermissionError as pe:
+                                    logger.warning(f"无法删除目录（权限不足）：{report_output_dir}，尝试清理内容")
+                                    # 尝试只删除内容，保留目录
+                                    for item in os.listdir(report_output_dir):
+                                        item_path = os.path.join(report_output_dir, item)
+                                        try:
+                                            if os.path.isdir(item_path):
+                                                shutil.rmtree(item_path)
+                                            else:
+                                                os.remove(item_path)
+                                        except Exception:
+                                            pass  # 跳过无法删除的文件
+
+                            # 构建命令行参数（路径统一使用字符串格式）
+                            if os.name == 'nt':
+                                # Windows 下通过 cmd /c 执行批处理文件
+                                cmd_list = [
+                                    'cmd', '/c',
+                                    str(allure_cmd),
+                                    'generate',
+                                    str(Path(results_dir)),
+                                    '--clean',
+                                    '--output', str(Path(report_output_dir))
+                                ]
+                            else:
+                                # Linux/Mac 直接执行
+                                cmd_list = [
+                                    str(allure_cmd),
+                                    'generate',
+                                    str(Path(results_dir)),
+                                    '--clean',
+                                    '--output', str(Path(report_output_dir))
+                                ]
+
+                            # 生成Allure报告
+                            result = subprocess.run(
+                                cmd_list,
+                                check=True,
+                                capture_output=True,
+                                text=True,
+                                timeout=30
+                            )
+                            logger.info(f"Allure 报告生成成功: {result.stdout}")
+                            break
+                        except subprocess.TimeoutExpired:
+                            if _ == 2:  # 最后一次尝试
+                                raise
+                            logger.warning(f"Allure 命令超时，第 {_ + 1} 次重试...")
+                            time.sleep(1)
+                            continue
+                except (subprocess.CalledProcessError, FileNotFoundError, subprocess.TimeoutExpired) as e:
+                    # 如果Allure命令失败，记录详细错误信息
+                    error_detail = str(e)
+                    if hasattr(e, 'stderr') and e.stderr:
+                        error_detail = f"{error_detail}\nStderr: {e.stderr}"
+                    logger.error(f"Allure 命令执行失败: {error_detail}")
+
+                    # 不再使用回退方案，直接返回错误
+                    return {'error': 'Allure 报告生成失败', 'detail': error_detail}
+            else:
+                # 如果没有 Allure 工具或 Java 环境，生成简单的 HTML 报告
+                logger.warning("Allure 工具或 Java 环境不可用，生成简单报告")
+                os.makedirs(report_output_dir, exist_ok=True)
+                fallback_html = f"""<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>测试报告 - {execution.test_suite.name}</title>
+    <link rel="icon" type="image/png" href="/favicon.png">
+</head>
+<body>
+    <h1>测试报告</h1>
+    <p>测试套件: {execution.test_suite.name}</p>
+    <p>状态: {execution.get_status_display()}</p>
+    <p>总请求数: {execution.total_requests}</p>
+    <p>通过: {execution.passed_requests}</p>
+    <p>失败: {execution.failed_requests}</p>
+</body>
+</html>"""
+                with open(os.path.join(report_output_dir, 'index.html'), 'w', encoding='utf-8') as f:
+                    f.write(fallback_html)
+
+            # 计算执行时长和通过率
+            total = execution.total_requests or 0
+            passed = execution.passed_requests or 0
+            failed = execution.failed_requests or 0
+            pass_rate = (passed / total * 100) if total > 0 else 0
+
+            # 计算执行时长
+            duration_str = "N/A"
+            if execution.start_time and execution.end_time:
+                duration = (execution.end_time - execution.start_time).total_seconds()
+                if duration < 60:
+                    duration_str = f"{duration:.1f}秒"
+                else:
+                    duration_str = f"{duration/60:.1f}分钟"
+
+            # 安全获取测试套件和项目信息
+            test_suite_name = execution.test_suite.name if execution.test_suite else "未知套件"
+            project_name = execution.test_suite.project.name if execution.test_suite and execution.test_suite.project else "未知项目"
+
+            # 创建自定义的summary.html页面作为报告概览
+            status_class = "status-passed" if execution.status == "COMPLETED" else "status-failed"
+            status_icon = "✓" if execution.status == "COMPLETED" else "✗"
+            status_color = "#10b981" if execution.status == "COMPLETED" else "#ef4444"
+
+            index_content = f"""<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>测试报告 - {test_suite_name}</title>
+    <link rel="icon" type="image/png" href="/favicon.png">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <style>
+        * {{ margin: 0; padding: 0; box-sizing: border-box; }}
+
+        body {{
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: #f8fafc;
+            color: #1e293b;
+            line-height: 1.6;
+        }}
+
+        /* Header */
+        .header {{
+            background: #fff;
+            border-bottom: 1px solid #e2e8f0;
+            padding: 0;
+        }}
+
+        .header-top {{
+            max-width: 1280px;
+            margin: 0 auto;
+            padding: 20px 24px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }}
+
+        .header-brand {{
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }}
+
+        .header-brand h1 {{
+            font-size: 20px;
+            font-weight: 600;
+            color: #1e293b;
+        }}
+
+        .header-meta {{
+            display: flex;
+            align-items: center;
+            gap: 24px;
+            font-size: 13px;
+            color: #64748b;
+        }}
+
+        .header-meta span {{
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }}
+
+        .allure-btn {{
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 16px;
+            background: #7c3aed;
+            color: #fff;
+            text-decoration: none;
+            border: none;
+            border-radius: 6px;
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-family: inherit;
+        }}
+
+        .allure-btn:hover {{
+            background: #6d28d9;
+            transform: translateY(-1px);
+        }}
+
+        .allure-btn:disabled {{
+            background: #a78bfa;
+            cursor: not-allowed;
+            transform: none;
+        }}
+
+        /* Main Content */
+        .container {{
+            max-width: 1280px;
+            margin: 0 auto;
+            padding: 24px;
+        }}
+
+        /* Status Banner */
+        .status-banner {{
+            background: #fff;
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 24px;
+            border: 1px solid #e2e8f0;
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }}
+
+        .status-icon {{
+            width: 56px;
+            height: 56px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 28px;
+            flex-shrink: 0;
+        }}
+
+        .status-icon.success {{
+            background: #dcfce7;
+            color: #16a34a;
+        }}
+
+        .status-icon.failed {{
+            background: #fee2e2;
+            color: #dc2626;
+        }}
+
+        .status-info {{
+            flex: 1;
+        }}
+
+        .status-info h2 {{
+            font-size: 24px;
+            font-weight: 600;
+            color: #1e293b;
+            margin-bottom: 6px;
+        }}
+
+        .status-info p {{
+            color: #64748b;
+            font-size: 14px;
+        }}
+
+        .status-badge {{
+            padding: 6px 16px;
+            border-radius: 20px;
+            font-size: 14px;
+            font-weight: 500;
+        }}
+
+        .status-badge.success {{
+            background: #dcfce7;
+            color: #16a34a;
+        }}
+
+        .status-badge.failed {{
+            background: #fee2e2;
+            color: #dc2626;
+        }}
+
+        /* Stats Grid */
+        .stats-grid {{
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 20px;
+            margin-bottom: 24px;
+        }}
+
+        .stat-card {{
+            background: #fff;
+            border-radius: 12px;
+            padding: 24px;
+            border: 1px solid #e2e8f0;
+        }}
+
+        .stat-header {{
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+        }}
+
+        .stat-label {{
+            font-size: 14px;
+            color: #64748b;
+            font-weight: 500;
+        }}
+
+        .stat-icon {{
+            width: 32px;
+            height: 32px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+        }}
+
+        .stat-icon.total {{ background: #eff6ff; }}
+        .stat-icon.passed {{ background: #dcfce7; }}
+        .stat-icon.failed {{ background: #fee2e2; }}
+        .stat-icon.duration {{ background: #f3f0ff; }}
+
+        .stat-value {{
+            font-size: 36px;
+            font-weight: 700;
+            color: #1e293b;
+            margin-bottom: 4px;
+        }}
+
+        .stat-sublabel {{
+            font-size: 13px;
+            color: #94a3b8;
+        }}
+
+        /* Progress Section */
+        .progress-section {{
+            background: #fff;
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 24px;
+            border: 1px solid #e2e8f0;
+        }}
+
+        .progress-header {{
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+        }}
+
+        .progress-title {{
+            font-size: 16px;
+            font-weight: 600;
+            color: #1e293b;
+        }}
+
+        .progress-value {{
+            font-size: 18px;
+            font-weight: 700;
+            color: #16a34a;
+        }}
+
+        .progress-bar {{
+            height: 10px;
+            background: #e2e8f0;
+            border-radius: 5px;
+            overflow: hidden;
+            margin-bottom: 12px;
+        }}
+
+        .progress-fill {{
+            height: 100%;
+            background: linear-gradient(90deg, #22c55e, #16a34a);
+            border-radius: 5px;
+            transition: width 0.5s ease;
+        }}
+
+        .progress-legend {{
+            display: flex;
+            gap: 20px;
+            font-size: 13px;
+            color: #64748b;
+        }}
+
+        .progress-legend span {{
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }}
+
+        .legend-dot {{
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+        }}
+
+        .legend-dot.passed {{ background: #22c55e; }}
+        .legend-dot.failed {{ background: #ef4444; }}
+
+        /* Test Results */
+        .results-section {{
+            background: #fff;
+            border-radius: 12px;
+            padding: 24px;
+            border: 1px solid #e2e8f0;
+        }}
+
+        .results-header {{
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }}
+
+        .results-title {{
+            font-size: 18px;
+            font-weight: 600;
+            color: #1e293b;
+        }}
+
+        .results-count {{
+            font-size: 14px;
+            color: #64748b;
+        }}
+
+        .test-list {{
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }}
+
+        .test-item {{
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+            padding: 16px;
+            background: #f8fafc;
+            border-radius: 8px;
+            border: 1px solid #e2e8f0;
+        }}
+
+        .test-status {{
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            flex-shrink: 0;
+        }}
+
+        .test-status.passed {{
+            background: #dcfce7;
+            color: #16a34a;
+        }}
+
+        .test-status.failed {{
+            background: #fee2e2;
+            color: #dc2626;
+        }}
+
+        .test-content {{
+            flex: 1;
+        }}
+
+        .test-title-row {{
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 4px;
+        }}
+
+        .method-tag {{
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }}
+
+        .method-tag.get {{ background: #dbeafe; color: #2563eb; }}
+        .method-tag.post {{ background: #dcfce7; color: #16a34a; }}
+        .method-tag.put {{ background: #fef3c7; color: #d97706; }}
+        .method-tag.delete {{ background: #fee2e2; color: #dc2626; }}
+        .method-tag.patch {{ background: #f3e8ff; color: #9333ea; }}
+
+        .test-name {{
+            font-weight: 600;
+            color: #1e293b;
+            font-size: 14px;
+        }}
+
+        .test-url {{
+            font-size: 13px;
+            color: #64748b;
+            word-break: break-all;
+        }}
+
+        .test-error {{
+            margin-top: 8px;
+            padding: 8px 12px;
+            background: #fee2e2;
+            border-radius: 6px;
+            font-size: 13px;
+            color: #dc2626;
+        }}
+
+        /* Empty State */
+        .empty-state {{
+            text-align: center;
+            padding: 60px 20px;
+            color: #94a3b8;
+        }}
+
+        .empty-state svg {{
+            width: 64px;
+            height: 64px;
+            margin-bottom: 16px;
+            opacity: 0.5;
+        }}
+
+        /* Footer */
+        .footer {{
+            text-align: center;
+            padding: 40px 20px;
+            color: #94a3b8;
+            font-size: 13px;
+        }}
+
+        /* Responsive */
+        @media (max-width: 768px) {{
+            .stats-grid {{
+                grid-template-columns: repeat(2, 1fr);
+            }}
+
+            .header-top {{
+                flex-direction: column;
+                gap: 16px;
+                align-items: flex-start;
+            }}
+
+            .status-banner {{
+                flex-direction: column;
+                text-align: center;
+            }}
+        }}
+    </style>
+</head>
+<body>
+    <header class="header">
+        <div class="header-top">
+            <div class="header-brand">
+                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#7c3aed" stroke-width="2">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <path d="M12 6v6l4 2"></path>
+                </svg>
+                <h1>接口测试报告</h1>
+            </div>
+            <button onclick="captureReport()" class="allure-btn">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                    <circle cx="8.5" cy="8.5" r="1.5"></circle>
+                    <polyline points="21 15 16 10 5 21"></polyline>
+                </svg>
+                保存报告截图
+            </button>
+        </div>
+    </header>
+
+    <main class="container">
+        <!-- Status Banner -->
+        <div class="status-banner">
+            <div class="status-icon {'success' if execution.status == 'COMPLETED' else 'failed'}">
+                {status_icon}
+            </div>
+            <div class="status-info">
+                <h2>{test_suite_name}</h2>
+                <p>{project_name} · 执行于 {timezone.localtime(execution.created_at).strftime('%Y-%m-%d %H:%M:%S') if execution.created_at else 'N/A'}</p>
+            </div>
+            <span class="status-badge {'success' if execution.status == 'COMPLETED' else 'failed'}">
+                {execution.get_status_display()}
+            </span>
+        </div>
+
+        <!-- Stats Grid -->
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-header">
+                    <span class="stat-label">总请求数</span>
+                    <div class="stat-icon total">📊</div>
+                </div>
+                <div class="stat-value">{total}</div>
+                <div class="stat-sublabel">个测试用例</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-header">
+                    <span class="stat-label">通过</span>
+                    <div class="stat-icon passed">✓</div>
+                </div>
+                <div class="stat-value" style="color: #16a34a;">{passed}</div>
+                <div class="stat-sublabel">成功率 {pass_rate:.1f}%</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-header">
+                    <span class="stat-label">失败</span>
+                    <div class="stat-icon failed">✕</div>
+                </div>
+                <div class="stat-value" style="color: #dc2626;">{failed}</div>
+                <div class="stat-sublabel">需要关注</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-header">
+                    <span class="stat-label">执行时长</span>
+                    <div class="stat-icon duration">⏱</div>
+                </div>
+                <div class="stat-value">{duration_str}</div>
+                <div class="stat-sublabel">总耗时</div>
+            </div>
+        </div>
+
+        <!-- Progress Section -->
+        <div class="progress-section">
+            <div class="progress-header">
+                <span class="progress-title">测试通过率</span>
+                <span class="progress-value">{pass_rate:.1f}%</span>
+            </div>
+            <div class="progress-bar">
+                <div class="progress-fill" style="width: {pass_rate}%"></div>
+            </div>
+            <div class="progress-legend">
+                <span><span class="legend-dot passed"></span> 通过 {passed}</span>
+                <span><span class="legend-dot failed"></span> 失败 {failed}</span>
+            </div>
+        </div>
+
+        <!-- Test Results -->
+        <div class="results-section">
+            <div class="results-header">
+                <span class="results-title">测试结果详情</span>
+                <span class="results-count">共 {total} 个请求</span>
+            </div>
+            <div class="test-list">
+"""
+
+            # 添加测试详情
+            if execution.results:
+                for i, result in enumerate(execution.results):
+                    is_passed = result.get('passed', False)
+                    status_mark = "✓" if is_passed else "✗"
+                    method = result.get('method', 'GET').upper()
+                    method_class = method.lower()
+                    error_html = f'''<div class="test-error"><strong>错误:</strong> {result.get("error", "")}</div>''' if result.get('error') else ""
+
+                    index_content += f"""                <div class="test-item">
+                    <div class="test-status {'passed' if is_passed else 'failed'}">{status_mark}</div>
+                    <div class="test-content">
+                        <div class="test-title-row">
+                            <span class="method-tag {method_class}">{method}</span>
+                            <span class="test-name">{result.get('name', f'测试请求 {i+1}')}</span>
+                        </div>
+                        <div class="test-url">{result.get('url', '')}</div>
+                        {error_html}
+                    </div>
+                </div>
+"""
+            else:
+                index_content += """                <div class="empty-state">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                        <path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                    </svg>
+                    <p>暂无测试详情数据</p>
+                </div>
+"""
+
+            index_content += f"""            </div>
+        </div>
+
+        <footer class="footer">
+            <p>报告生成时间: {timezone.localtime(execution.created_at).strftime('%Y-%m-%d %H:%M:%S') if execution.created_at else 'N/A'} · 由 TestHub 生成</p>
+        </footer>
+    </main>
+
+    <script>
+        function captureReport() {{
+            const btn = document.querySelector('.allure-btn');
+            const originalText = btn.innerHTML;
+            btn.innerHTML = '<span>生成中...</span>';
+            btn.disabled = true;
+
+            // 临时隐藏按钮以获得干净的截图
+            btn.style.display = 'none';
+
+            html2canvas(document.body, {{
+                scale: 2, // 高清截图，2倍分辨率
+                useCORS: true,
+                allowTaint: true,
+                backgroundColor: '#f8fafc',
+                logging: false,
+                windowWidth: document.documentElement.scrollWidth,
+                windowHeight: document.documentElement.scrollHeight
+            }}).then(canvas => {{
+                // 恢复按钮
+                btn.style.display = 'inline-flex';
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+
+                // 下载图片
+                const link = document.createElement('a');
+                const timestamp = new Date().toISOString().slice(0, 19).replace(/:/g, '-');
+                link.download = '测试报告_' + '{test_suite_name}'.replace(/[^a-zA-Z0-9\u4e00-\u9fa5]/g, '_') + '_' + timestamp + '.png';
+                link.href = canvas.toDataURL('image/png');
+                link.click();
+            }}).catch(err => {{
+                console.error('截图失败:', err);
+                btn.style.display = 'inline-flex';
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+                alert('截图失败，请重试');
+            }});
+        }}
+    </script>
+</body>
+</html>
+"""
+            # 保存为summary.html，避免覆盖Allure生成的index.html
+            summary_file = os.path.join(report_output_dir, 'summary.html')
+            with open(summary_file, 'w', encoding='utf-8') as f:
+                f.write(index_content)
+
+            # 生成报告截图
+            screenshot_url = None
+            try:
+                screenshot_url = self._generate_report_screenshot(execution.id, report_output_dir)
+                logger.info(f"报告截图生成成功: {screenshot_url}")
+            except Exception as e:
+                logger.error(f"生成报告截图失败: {str(e)}", exc_info=True)
+                # 截图失败不影响报告生成
+
+            return {
+                'success': True,
+                'report_url': f'/api-testing/allure-reports/execution_{execution.id}/summary.html',
+                'screenshot_url': screenshot_url
+            }
+
+        except Exception as e:
+            import traceback
+            error_detail = str(e)
+            error_traceback = traceback.format_exc()
+            logger.error(f"生成报告失败: {error_detail}\n{error_traceback}")
+            return {'error': error_detail, 'detail': error_traceback}
 
     @action(detail=True, methods=['post'], url_path='generate-allure-report')
     def generate_allure_report(self, request, pk=None):
-        """生成Allure报告数据"""
+        """生成Allure报告数据（API接口）"""
         execution = self.get_object()
-        
+
+        result = self._generate_report_for_execution(execution)
+
+        if 'error' in result:
+            return Response({
+                'error': result['error'],
+                'detail': result.get('detail', '')
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+        return Response({
+            'message': 'Allure报告生成成功',
+            'report_url': result['report_url'],
+            'screenshot_url': result.get('screenshot_url')
+        })
+
         try:
             # 创建报告目录
             results_dir = os.path.join(settings.MEDIA_ROOT, 'api-testing', 'allure-results', f'execution_{execution.id}')
@@ -1566,6 +2427,7 @@ class TestExecutionViewSet(viewsets.ReadOnlyModelViewSet):
 <head>
     <meta charset="UTF-8">
     <title>测试报告 - {execution.test_suite.name}</title>
+    <link rel="icon" type="image/png" href="/favicon.png">
 </head>
 <body>
     <h1>测试报告</h1>
@@ -1579,268 +2441,666 @@ class TestExecutionViewSet(viewsets.ReadOnlyModelViewSet):
                 with open(os.path.join(report_output_dir, 'index.html'), 'w', encoding='utf-8') as f:
                     f.write(fallback_html)
             
+            # 计算执行时长和通过率
+            total = execution.total_requests or 0
+            passed = execution.passed_requests or 0
+            failed = execution.failed_requests or 0
+            pass_rate = (passed / total * 100) if total > 0 else 0
+            
+            # 计算执行时长
+            duration_str = "N/A"
+            if execution.start_time and execution.end_time:
+                duration = (execution.end_time - execution.start_time).total_seconds()
+                if duration < 60:
+                    duration_str = f"{duration:.1f}秒"
+                else:
+                    duration_str = f"{duration/60:.1f}分钟"
+            
+            # 安全获取测试套件和项目信息
+            test_suite_name = execution.test_suite.name if execution.test_suite else "未知套件"
+            project_name = execution.test_suite.project.name if execution.test_suite and execution.test_suite.project else "未知项目"
+            
             # 创建自定义的summary.html页面作为报告概览
             status_class = "status-passed" if execution.status == "COMPLETED" else "status-failed"
-            index_content = f"""
-<!DOCTYPE html>
-<html>
+            status_icon = "✓" if execution.status == "COMPLETED" else "✗"
+            status_color = "#10b981" if execution.status == "COMPLETED" else "#ef4444"
+            
+            index_content = f"""<!DOCTYPE html>
+<html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <title>测试报告概览 - {execution.test_suite.name}</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>测试报告 - {test_suite_name}</title>
+    <link rel="icon" type="image/png" href="/favicon.png">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <style>
+        * {{ margin: 0; padding: 0; box-sizing: border-box; }}
+
         body {{
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            margin: 0;
-            padding: 0;
-            background-color: #f5f7fa;
-            color: #333;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: #f8fafc;
+            color: #1e293b;
+            line-height: 1.6;
         }}
+        
+        /* Header */
         .header {{
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
+            background: #fff;
+            border-bottom: 1px solid #e2e8f0;
             padding: 0;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
         }}
-        .header-content {{
+        
+        .header-top {{
+            max-width: 1280px;
+            margin: 0 auto;
+            padding: 20px 24px;
             display: flex;
             justify-content: space-between;
-            align-items: flex-start;
-            padding: 2rem;
-            max-width: 1200px;
-            margin: 0 auto;
-            position: relative;
+            align-items: center;
         }}
-        .header-info {{
-            flex: 1;
-            text-align: center;
+        
+        .header-brand {{
+            display: flex;
+            align-items: center;
+            gap: 12px;
         }}
-        .header-actions {{
-            position: absolute;
-            right: 2rem;
-            bottom: 2rem;
+        
+        .header-brand h1 {{
+            font-size: 20px;
+            font-weight: 600;
+            color: #1e293b;
         }}
-        .allure-report-btn {{
-            display: inline-block;
-            padding: 0.8rem 1.5rem;
-            background: rgba(255, 255, 255, 0.2);
-            color: white;
-            border: 2px solid rgba(255, 255, 255, 0.3);
+        
+        .header-meta {{
+            display: flex;
+            align-items: center;
+            gap: 24px;
+            font-size: 13px;
+            color: #64748b;
+        }}
+        
+        .header-meta span {{
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }}
+        
+        .allure-btn {{
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 16px;
+            background: #7c3aed;
+            color: #fff;
+            text-decoration: none;
+            border: none;
             border-radius: 6px;
-            text-decoration: none;
-            font-weight: bold;
-            transition: all 0.3s ease;
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-family: inherit;
         }}
-        .allure-report-btn:hover {{
-            background: rgba(255, 255, 255, 0.3);
-            border-color: rgba(255, 255, 255, 0.5);
-            transform: translateY(-2px);
-            text-decoration: none;
+        
+        .allure-btn:hover {{
+            background: #6d28d9;
+            transform: translateY(-1px);
         }}
-        .status-row {{
-            display: flex;
-            align-items: center;
-            gap: 1rem;
-            margin-bottom: 1rem;
+        
+        .allure-btn:disabled {{
+            background: #a78bfa;
+            cursor: not-allowed;
+            transform: none;
         }}
-        .execution-time {{
-            color: #666;
-            font-size: 0.9rem;
-        }}
+        
+        /* Main Content */
         .container {{
-            max-width: 1200px;
+            max-width: 1280px;
             margin: 0 auto;
-            padding: 2rem;
+            padding: 24px;
         }}
-        .summary-card {{
-            background: white;
-            border-radius: 10px;
-            padding: 2rem;
-            margin-bottom: 2rem;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-        }}
-        .summary-grid {{
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 1rem;
-            margin-top: 1rem;
-        }}
-        .summary-item {{
-            text-align: center;
-            padding: 1rem;
-            border-radius: 8px;
-        }}
-        .summary-item.total {{
-            background: #e3f2fd;
-        }}
-        .summary-item.passed {{
-            background: #e8f5e9;
-        }}
-        .summary-item.failed {{
-            background: #ffebee;
-        }}
-        .summary-number {{
-            font-size: 2rem;
-            font-weight: bold;
-            display: block;
-        }}
-        .summary-label {{
-            font-size: 0.9rem;
-            opacity: 0.8;
-        }}
-        .status-badge {{
-            display: inline-block;
-            padding: 0.5rem 1rem;
-            border-radius: 20px;
-            font-weight: bold;
-            margin-bottom: 1rem;
-        }}
-        .status-passed {{
-            background: #4caf50;
-            color: white;
-        }}
-        .status-failed {{
-            background: #f44336;
-            color: white;
-        }}
-        .test-results {{
-            background: white;
-            border-radius: 10px;
-            padding: 2rem;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-        }}
-        .test-result-item {{
-            padding: 1rem;
-            border-left: 4px solid #eee;
-            margin-bottom: 1rem;
-            border-radius: 4px;
-        }}
-        .test-result-item.passed {{
-            border-left-color: #4caf50;
-            background: #f8fff8;
-        }}
-        .test-result-item.failed {{
-            border-left-color: #f44336;
-            background: #fff8f8;
-        }}
-        .test-header {{
+        
+        /* Status Banner */
+        .status-banner {{
+            background: #fff;
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 24px;
+            border: 1px solid #e2e8f0;
             display: flex;
             align-items: center;
-            gap: 0.5rem;
-            margin-bottom: 0.5rem;
+            gap: 20px;
         }}
-        .test-name {{
-            font-weight: bold;
-            font-size: 1.1rem;
+        
+        .status-icon {{
+            width: 56px;
+            height: 56px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 28px;
+            flex-shrink: 0;
         }}
-        .test-method {{
-            display: inline-block;
-            padding: 0.2rem 0.5rem;
+        
+        .status-icon.success {{
+            background: #dcfce7;
+            color: #16a34a;
+        }}
+        
+        .status-icon.failed {{
+            background: #fee2e2;
+            color: #dc2626;
+        }}
+        
+        .status-info {{
+            flex: 1;
+        }}
+        
+        .status-info h2 {{
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 4px;
+        }}
+        
+        .status-info p {{
+            color: #64748b;
+            font-size: 14px;
+        }}
+        
+        .status-badge {{
+            padding: 6px 14px;
+            border-radius: 20px;
+            font-size: 13px;
+            font-weight: 500;
+        }}
+        
+        .status-badge.success {{
+            background: #dcfce7;
+            color: #166534;
+        }}
+        
+        .status-badge.failed {{
+            background: #fee2e2;
+            color: #991b1b;
+        }}
+        
+        /* Stats Grid */
+        .stats-grid {{
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 16px;
+            margin-bottom: 24px;
+        }}
+        
+        @media (max-width: 1024px) {{
+            .stats-grid {{ grid-template-columns: repeat(2, 1fr); }}
+        }}
+        
+        @media (max-width: 640px) {{
+            .stats-grid {{ grid-template-columns: 1fr; }}
+        }}
+        
+        .stat-card {{
+            background: #fff;
+            border-radius: 10px;
+            padding: 20px;
+            border: 1px solid #e2e8f0;
+        }}
+        
+        .stat-header {{
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 12px;
+        }}
+        
+        .stat-label {{
+            font-size: 13px;
+            color: #64748b;
+            font-weight: 500;
+        }}
+        
+        .stat-icon {{
+            width: 32px;
+            height: 32px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+        }}
+        
+        .stat-icon.total {{ background: #eff6ff; color: #2563eb; }}
+        .stat-icon.passed {{ background: #f0fdf4; color: #16a34a; }}
+        .stat-icon.failed {{ background: #fef2f2; color: #dc2626; }}
+        .stat-icon.rate {{ background: #f5f3ff; color: #7c3aed; }}
+        .stat-icon.time {{ background: #f0f9ff; color: #0891b2; }}
+        
+        .stat-value {{
+            font-size: 28px;
+            font-weight: 700;
+            color: #1e293b;
+            margin-bottom: 4px;
+        }}
+        
+        .stat-sublabel {{
+            font-size: 12px;
+            color: #94a3b8;
+        }}
+        
+        /* Progress Bar */
+        .progress-section {{
+            background: #fff;
+            border-radius: 10px;
+            padding: 20px;
+            border: 1px solid #e2e8f0;
+            margin-bottom: 24px;
+        }}
+        
+        .progress-header {{
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+        }}
+        
+        .progress-title {{
+            font-size: 14px;
+            font-weight: 600;
+            color: #374151;
+        }}
+        
+        .progress-value {{
+            font-size: 14px;
+            font-weight: 600;
+            color: #16a34a;
+        }}
+        
+        .progress-bar {{
+            height: 8px;
+            background: #e2e8f0;
             border-radius: 4px;
-            font-size: 0.9rem;
-            margin-right: 0.5rem;
+            overflow: hidden;
         }}
-        .method-get {{ background: #2196f3; color: white; }}
-        .method-post {{ background: #4caf50; color: white; }}
-        .method-put {{ background: #ff9800; color: white; }}
-        .method-delete {{ background: #f44336; color: white; }}
+        
+        .progress-fill {{
+            height: 100%;
+            background: linear-gradient(90deg, #22c55e 0%, #16a34a 100%);
+            border-radius: 4px;
+            transition: width 0.5s ease;
+        }}
+        
+        .progress-legend {{
+            display: flex;
+            gap: 24px;
+            margin-top: 16px;
+            padding-top: 16px;
+            border-top: 1px solid #f1f5f9;
+        }}
+        
+        .legend-item {{
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 13px;
+            color: #64748b;
+        }}
+        
+        .legend-dot {{
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+        }}
+        
+        .legend-dot.passed {{ background: #22c55e; }}
+        .legend-dot.failed {{ background: #ef4444; }}
+        
+        /* Test Results */
+        .results-section {{
+            background: #fff;
+            border-radius: 10px;
+            border: 1px solid #e2e8f0;
+            overflow: hidden;
+        }}
+        
+        .results-header {{
+            padding: 20px 24px;
+            border-bottom: 1px solid #e2e8f0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }}
+        
+        .results-header h3 {{
+            font-size: 16px;
+            font-weight: 600;
+        }}
+        
+        .results-count {{
+            font-size: 13px;
+            color: #64748b;
+        }}
+        
+        .test-list {{
+            max-height: 600px;
+            overflow-y: auto;
+        }}
+        
+        .test-item {{
+            padding: 16px 24px;
+            border-bottom: 1px solid #f1f5f9;
+            display: flex;
+            align-items: flex-start;
+            gap: 16px;
+            transition: background 0.2s;
+        }}
+        
+        .test-item:hover {{
+            background: #f8fafc;
+        }}
+        
+        .test-item:last-child {{
+            border-bottom: none;
+        }}
+        
+        .test-status {{
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            flex-shrink: 0;
+            margin-top: 2px;
+        }}
+        
+        .test-status.passed {{
+            background: #dcfce7;
+            color: #16a34a;
+        }}
+        
+        .test-status.failed {{
+            background: #fee2e2;
+            color: #dc2626;
+        }}
+        
+        .test-content {{
+            flex: 1;
+            min-width: 0;
+        }}
+        
+        .test-title-row {{
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 6px;
+        }}
+        
+        .test-name {{
+            font-weight: 600;
+            font-size: 14px;
+            color: #1e293b;
+        }}
+        
+        .method-tag {{
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }}
+        
+        .method-tag.get {{ background: #dbeafe; color: #1d4ed8; }}
+        .method-tag.post {{ background: #dcfce7; color: #15803d; }}
+        .method-tag.put {{ background: #ffedd5; color: #9a3412; }}
+        .method-tag.delete {{ background: #fee2e2; color: #b91c1c; }}
+        .method-tag.patch {{ background: #f3e8ff; color: #7c3aed; }}
+        
         .test-url {{
-            color: #666;
-            font-size: 0.9rem;
-            margin: 0.5rem 0;
+            font-size: 13px;
+            color: #64748b;
+            font-family: 'Monaco', 'Menlo', monospace;
             word-break: break-all;
         }}
+        
         .test-error {{
-            color: #f44336;
-            font-size: 0.9rem;
-            margin-top: 0.5rem;
-            padding: 0.5rem;
-            background: #ffebee;
-            border-radius: 4px;
+            margin-top: 8px;
+            padding: 10px 12px;
+            background: #fef2f2;
+            border: 1px solid #fecaca;
+            border-radius: 6px;
+            font-size: 12px;
+            color: #991b1b;
         }}
-        .footer {{
+        
+        .test-error strong {{
+            color: #dc2626;
+        }}
+        
+        /* Empty State */
+        .empty-state {{
+            padding: 60px 24px;
             text-align: center;
-            margin-top: 2rem;
-            padding: 1rem;
-            color: #666;
-            font-size: 0.9rem;
+            color: #94a3b8;
         }}
-        a {{
-            color: #667eea;
-            text-decoration: none;
+        
+        .empty-state svg {{
+            width: 48px;
+            height: 48px;
+            margin-bottom: 16px;
+            opacity: 0.5;
         }}
-        a:hover {{
-            text-decoration: underline;
+        
+        /* Footer */
+        .footer {{
+            margin-top: 32px;
+            padding: 20px;
+            text-align: center;
+            color: #94a3b8;
+            font-size: 12px;
+            border-top: 1px solid #e2e8f0;
+        }}
+        
+        /* Scrollbar */
+        .test-list::-webkit-scrollbar {{
+            width: 6px;
+        }}
+        
+        .test-list::-webkit-scrollbar-track {{
+            background: #f1f5f9;
+        }}
+        
+        .test-list::-webkit-scrollbar-thumb {{
+            background: #cbd5e1;
+            border-radius: 3px;
+        }}
+        
+        .test-list::-webkit-scrollbar-thumb:hover {{
+            background: #94a3b8;
         }}
     </style>
 </head>
 <body>
-    <div class="header">
-        <div class="header-content">
-            <div class="header-info">
+    <header class="header">
+        <div class="header-top">
+            <div class="header-brand">
+                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <rect width="24" height="24" rx="6" fill="#7c3aed"/>
+                    <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
                 <h1>接口测试报告</h1>
-                <p>测试套件: {execution.test_suite.name}</p>
-                <p>项目: {execution.test_suite.project.name}</p>
             </div>
-            <div class="header-actions">
-                <a href="index.html" target="_blank" class="allure-report-btn">查看完整Allure报告</a>
+            <button onclick="captureReport()" class="allure-btn">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                    <circle cx="8.5" cy="8.5" r="1.5"></circle>
+                    <polyline points="21 15 16 10 5 21"></polyline>
+                </svg>
+                保存报告截图
+            </button>
+        </div>
+    </header>
+    
+    <main class="container">
+        <!-- Status Banner -->
+        <div class="status-banner">
+            <div class="status-icon {'success' if execution.status == 'COMPLETED' else 'failed'}">
+                {status_icon}
+            </div>
+            <div class="status-info">
+                <h2>{test_suite_name}</h2>
+                <p>{project_name} · 执行于 {timezone.localtime(execution.created_at).strftime('%Y-%m-%d %H:%M:%S') if execution.created_at else 'N/A'}</p>
+            </div>
+            <span class="status-badge {'success' if execution.status == 'COMPLETED' else 'failed'}">
+                {execution.get_status_display()}
+            </span>
+        </div>
+        
+        <!-- Stats Grid -->
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-header">
+                    <span class="stat-label">总请求数</span>
+                    <div class="stat-icon total">📊</div>
+                </div>
+                <div class="stat-value">{total}</div>
+                <div class="stat-sublabel">个测试用例</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-header">
+                    <span class="stat-label">通过</span>
+                    <div class="stat-icon passed">✓</div>
+                </div>
+                <div class="stat-value" style="color: #16a34a;">{passed}</div>
+                <div class="stat-sublabel">成功率 {pass_rate:.1f}%</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-header">
+                    <span class="stat-label">失败</span>
+                    <div class="stat-icon failed">✗</div>
+                </div>
+                <div class="stat-value" style="color: #dc2626;">{failed}</div>
+                <div class="stat-sublabel">需要关注</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-header">
+                    <span class="stat-label">执行时长</span>
+                    <div class="stat-icon time">⏱</div>
+                </div>
+                <div class="stat-value">{duration_str}</div>
+                <div class="stat-sublabel">总耗时</div>
             </div>
         </div>
-    </div>
-    
-    <div class="container">
-        <div class="summary-card">
-            <div class="status-row">
-                <div class="status-badge {status_class}">
-                    状态: {execution.get_status_display()}
-                </div>
-                <span class="execution-time">
-                    执行时间: {execution.created_at.strftime('%Y-%m-%d %H:%M:%S') if execution.created_at else 'N/A'}
-                </span>
+        
+        <!-- Progress Bar -->
+        <div class="progress-section">
+            <div class="progress-header">
+                <span class="progress-title">测试通过率</span>
+                <span class="progress-value">{pass_rate:.1f}%</span>
             </div>
-            
-            <div class="summary-grid">
-                <div class="summary-item total">
-                    <span class="summary-number">{execution.total_requests or 0}</span>
-                    <span class="summary-label">总请求数</span>
+            <div class="progress-bar">
+                <div class="progress-fill" style="width: {pass_rate}%"></div>
+            </div>
+            <div class="progress-legend">
+                <div class="legend-item">
+                    <span class="legend-dot passed"></span>
+                    <span>通过 {passed}</span>
                 </div>
-                <div class="summary-item passed">
-                    <span class="summary-number">{execution.passed_requests or 0}</span>
-                    <span class="summary-label">通过数</span>
-                </div>
-                <div class="summary-item failed">
-                    <span class="summary-number">{execution.failed_requests or 0}</span>
-                    <span class="summary-label">失败数</span>
+                <div class="legend-item">
+                    <span class="legend-dot failed"></span>
+                    <span>失败 {failed}</span>
                 </div>
             </div>
         </div>
         
-        <div class="test-results">
-            <h2>测试结果详情</h2>
+        <!-- Test Results -->
+        <div class="results-section">
+            <div class="results-header">
+                <h3>测试结果详情</h3>
+                <span class="results-count">共 {total} 个请求</span>
+            </div>
+            <div class="test-list">
 """
             
             # 添加测试结果列表
             if execution.results:
                 for i, result in enumerate(execution.results):
-                    result_class = "passed" if result.get('passed', False) else "failed"
-                    method_class = f"method-{result.get('method', 'GET').lower()}"
-                    index_content += f"""
-            <div class="test-result-item {result_class}">
-                <div class="test-header">
-                    <span class="test-method {method_class}">{result.get('method', 'GET')}</span>
-                    <span class="test-name">{result.get('name', f'测试请求 {i+1}')}</span>
+                    is_passed = result.get('passed', False)
+                    status_mark = "✓" if is_passed else "✗"
+                    method = result.get('method', 'GET').upper()
+                    method_class = method.lower()
+                    error_html = f'''<div class="test-error"><strong>错误:</strong> {result.get("error", "")}</div>''' if result.get('error') else ""
+                    
+                    index_content += f"""                <div class="test-item">
+                    <div class="test-status {'passed' if is_passed else 'failed'}">{status_mark}</div>
+                    <div class="test-content">
+                        <div class="test-title-row">
+                            <span class="method-tag {method_class}">{method}</span>
+                            <span class="test-name">{result.get('name', f'测试请求 {i+1}')}</span>
+                        </div>
+                        <div class="test-url">{result.get('url', '')}</div>
+                        {error_html}
+                    </div>
                 </div>
-                <div class="test-url">{result.get('url', '')}</div>
-                <div><strong>状态:</strong> {'通过' if result.get('passed', False) else '失败'}</div>
-                {f'<div class="test-error"><strong>错误:</strong> {result.get("error", "")}</div>' if result.get('error') else ""}
-            </div>
+"""
+            else:
+                index_content += """                <div class="empty-state">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                        <path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                    </svg>
+                    <p>暂无测试详情数据</p>
+                </div>
 """
             
-            index_content += f"""
+            index_content += f"""            </div>
         </div>
-        <div class="footer">
-            <p>报告生成时间: {execution.created_at.strftime('%Y-%m-%d %H:%M:%S') if execution.created_at else 'N/A'}</p>
-        </div>
-    </div>
+        
+        <footer class="footer">
+            <p>报告生成时间: {timezone.localtime(execution.created_at).strftime('%Y-%m-%d %H:%M:%S') if execution.created_at else 'N/A'} · 由 TestHub 生成</p>
+        </footer>
+    </main>
+    
+    <script>
+        function captureReport() {{
+            const btn = document.querySelector('.allure-btn');
+            const originalText = btn.innerHTML;
+            btn.innerHTML = '<span>生成中...</span>';
+            btn.disabled = true;
+            
+            // 临时隐藏按钮以获得干净的截图
+            btn.style.display = 'none';
+            
+            html2canvas(document.body, {{
+                scale: 2, // 高清截图，2倍分辨率
+                useCORS: true,
+                allowTaint: true,
+                backgroundColor: '#f8fafc',
+                logging: false,
+                windowWidth: document.documentElement.scrollWidth,
+                windowHeight: document.documentElement.scrollHeight
+            }}).then(canvas => {{
+                // 恢复按钮
+                btn.style.display = 'inline-flex';
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+                
+                // 下载图片
+                const link = document.createElement('a');
+                const timestamp = new Date().toISOString().slice(0, 19).replace(/:/g, '-');
+                link.download = '测试报告_' + '{test_suite_name}'.replace(/[^a-zA-Z0-9\u4e00-\u9fa5]/g, '_') + '_' + timestamp + '.png';
+                link.href = canvas.toDataURL('image/png');
+                link.click();
+            }}).catch(err => {{
+                console.error('截图失败:', err);
+                btn.style.display = 'inline-flex';
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+                alert('截图失败，请重试');
+            }});
+        }}
+    </script>
 </body>
 </html>
 """
@@ -1849,9 +3109,19 @@ class TestExecutionViewSet(viewsets.ReadOnlyModelViewSet):
             with open(summary_file, 'w', encoding='utf-8') as f:
                 f.write(index_content)
             
+            # 生成报告截图
+            screenshot_url = None
+            try:
+                screenshot_url = self._generate_report_screenshot(execution.id, report_output_dir)
+                logger.info(f"报告截图生成成功: {screenshot_url}")
+            except Exception as e:
+                logger.error(f"生成报告截图失败: {str(e)}", exc_info=True)
+                # 截图失败不影响报告生成
+            
             return Response({
                 'message': 'Allure报告生成成功',
-                'report_url': f'/api-testing/allure-reports/execution_{execution.id}/summary.html'
+                'report_url': f'/api-testing/allure-reports/execution_{execution.id}/summary.html',
+                'screenshot_url': screenshot_url
             })
         except Exception as e:
             import traceback
@@ -1870,7 +3140,7 @@ class TestExecutionViewSet(viewsets.ReadOnlyModelViewSet):
             java_home = os.environ.get('JAVA_HOME')
             if java_home:
                 logger.info(f"检测到 JAVA_HOME: {java_home}")
-            
+
             # 尝试执行 java -version 命令
             result = subprocess.run(
                 ['java', '-version'],
@@ -1878,7 +3148,7 @@ class TestExecutionViewSet(viewsets.ReadOnlyModelViewSet):
                 text=True,
                 timeout=5
             )
-            
+
             if result.returncode == 0:
                 # Java 可用，记录版本信息
                 java_version = result.stderr.split('\n')[0] if result.stderr else 'Unknown'
@@ -1887,11 +3157,56 @@ class TestExecutionViewSet(viewsets.ReadOnlyModelViewSet):
             else:
                 logger.warning(f"Java 命令执行失败: {result.stderr}")
                 return False
-                
+
         except (subprocess.CalledProcessError, FileNotFoundError, subprocess.TimeoutExpired) as e:
             logger.warning(f"Java 环境检查失败: {str(e)}")
             return False
-    
+
+    def _generate_report_screenshot(self, execution_id, report_output_dir):
+        """使用 Playwright 生成报告截图"""
+        import asyncio
+        from playwright.async_api import async_playwright
+
+        async def _capture_screenshot():
+            async with async_playwright() as p:
+                # 启动浏览器
+                browser = await p.chromium.launch(headless=True)
+                page = await browser.new_page(viewport={'width': 1920, 'height': 1080})
+
+                # 构建报告文件的本地路径
+                report_file = os.path.join(report_output_dir, 'summary.html')
+                file_url = f'file://{report_file}'
+
+                # 打开报告页面
+                await page.goto(file_url, wait_until='networkidle', timeout=30000)
+
+                # 等待页面内容加载完成
+                await page.wait_for_selector('.container', timeout=10000)
+
+                # 等待一段时间确保所有内容渲染完成
+                await asyncio.sleep(1)
+
+                # 获取页面完整高度
+                page_height = await page.evaluate('document.documentElement.scrollHeight')
+                await page.set_viewport_size({'width': 1920, 'height': min(page_height, 4000)})
+
+                # 创建截图保存目录
+                screenshot_dir = os.path.join(settings.MEDIA_ROOT, 'api-testing', 'report-screenshots')
+                os.makedirs(screenshot_dir, exist_ok=True)
+
+                # 截图保存路径
+                screenshot_path = os.path.join(screenshot_dir, f'execution_{execution_id}.png')
+
+                # 截取整个页面
+                await page.screenshot(path=screenshot_path, full_page=True)
+
+                await browser.close()
+
+                # 返回截图的 URL
+                return f'/media/api-testing/report-screenshots/execution_{execution_id}.png'
+
+        return asyncio.run(_capture_screenshot())
+
     def _generate_test_result_files(self, execution, report_dir):
         """生成测试结果文件"""
         try:
@@ -2126,6 +3441,27 @@ class ScheduledTaskViewSet(viewsets.ModelViewSet):
                 task.last_result = result
                 task.save()
                 
+                # 自动生成报告（如果是测试套件类型）
+                if task.task_type == 'TEST_SUITE' and result.get('execution_id'):
+                    try:
+                        from .models import TestExecution
+                        test_execution_id = result.get('execution_id')
+                        test_execution = TestExecution.objects.get(id=test_execution_id)
+                        logger.info(f"开始为 TestExecution {test_execution_id} 自动生成报告...")
+                        # 使用 TestExecutionViewSet 实例来生成报告
+                        test_execution_viewset = TestExecutionViewSet()
+                        report_result = test_execution_viewset._generate_report_for_execution(test_execution)
+                        if 'error' in report_result:
+                            logger.error(f"自动生成报告失败: {report_result['error']}")
+                        else:
+                            logger.info(f"自动生成报告成功: {report_result.get('report_url')}")
+                            # 将报告链接添加到结果中
+                            result['report_url'] = report_result.get('report_url')
+                            execution_log.result = result
+                            execution_log.save()
+                    except Exception as e:
+                        logger.error(f"自动生成报告时出错: {str(e)}", exc_info=True)
+                
                 logger.info("=== 开始检查发送成功通知 ===")
                 # 发送通知（如果配置了）
                 # 检查任务是否有通知设置
@@ -2162,12 +3498,33 @@ class ScheduledTaskViewSet(viewsets.ModelViewSet):
                 execution_log.end_time = timezone.now()
                 execution_log.error_message = str(e)
                 execution_log.save()
-                
+
                 # 更新任务统计
                 task.update_run_stats(success=False)
                 task.error_message = str(e)
                 task.save()
-                
+
+                # 尝试获取 result 中的 execution_id 并生成报告
+                try:
+                    if 'result' in locals() and result and result.get('execution_id'):
+                        from .models import TestExecution
+                        test_execution_id = result.get('execution_id')
+                        test_execution = TestExecution.objects.get(id=test_execution_id)
+                        logger.info(f"失败情况下为 TestExecution {test_execution_id} 生成报告...")
+                        # 使用 TestExecutionViewSet 实例来生成报告
+                        test_execution_viewset = TestExecutionViewSet()
+                        report_result = test_execution_viewset._generate_report_for_execution(test_execution)
+                        if 'error' in report_result:
+                            logger.error(f"失败情况下生成报告失败: {report_result['error']}")
+                        else:
+                            logger.info(f"失败情况下生成报告成功: {report_result.get('report_url')}")
+                            # 将报告链接添加到结果中
+                            result['report_url'] = report_result.get('report_url')
+                            execution_log.result = result
+                            execution_log.save()
+                except Exception as report_e:
+                    logger.error(f"失败情况下生成报告时出错: {str(report_e)}", exc_info=True)
+
                 logger.info("=== 开始检查发送失败通知 ===")
                 # 发送失败通知（如果配置了）
                 # 检查任务是否有通知设置
@@ -2345,7 +3702,7 @@ class ScheduledTaskViewSet(viewsets.ModelViewSet):
                     '失败数': result_data.get('failed_count'),
                     '通过率': f"{result_data.get('passed_count', 0) / result_data.get('total_count', 1) * 100:.1f}%" if result_data.get('total_count') else 'N/A'
                 }
-                summary_info = '\n            '.join([f'{k}: {v}' for k, v in summary_fields.items() if v is not None])
+                summary_info = '\n'.join([f'{k}: {v}' for k, v in summary_fields.items() if v is not None])
                 
                 # 详细请求结果
                 results = result_data.get('results', [])
@@ -2367,29 +3724,31 @@ class ScheduledTaskViewSet(viewsets.ModelViewSet):
                         if not result.get('passed'):
                             error_msg = result.get('error', '无错误信息')
                             url = result.get('url', 'N/A')
-                            failed_detail = f"""
-            ❌ [{method}] {name}
-               URL: {url}
-               状态码: {status_code}
-               错误: {error_msg}"""
+                            failed_detail = f"❌ [{method}] {name}\nURL: {url}\n状态码: {status_code}\n错误: {error_msg}"
                             failed_list.append(failed_detail)
                     
-                    detailed_results = '\n            '.join(detailed_results_list)
+                    detailed_results = '\n'.join(detailed_results_list)
                     
                     if failed_list:
                         failed_requests_detail = '\n'.join(failed_list)
                 
-                # 报告链接
+                # 报告链接 - 直接指向 HTML 报告文件
                 execution_id = result_data.get('execution_id')
                 if execution_id:
-                    report_url = f"{settings.SITE_URL if hasattr(settings, 'SITE_URL') else 'http://localhost:3000'}/api-testing/reports"
+                    local_ip = self._get_local_ip()
+                    site_url = getattr(settings, 'SITE_URL', f"http://{local_ip}:8000")
+                    if 'localhost' in site_url or '127.0.0.1' in site_url:
+                        site_url = f"http://{local_ip}:8000"
+                    report_url = f"{site_url}/api-testing/allure-reports/execution_{execution_id}/summary.html"
 
             # 构建完整邮件内容
+            # 将UTC时间转换为本地时间
+            local_execution_time = timezone.localtime(execution_log.created_at).strftime('%Y-%m-%d %H:%M:%S')
             message_parts = [
                 f"任务名称: {task.name}",
                 f"执行状态: {'成功' if success else '失败'}",
-                f"执行时间: {execution_log.created_at.strftime('%Y-%m-%d %H:%M:%S')}",
-                f"任务类型: {'测试套件执行' if task.task_type == 'TEST_SUITE' else 'API请求执行'}",
+                f"执行时间: {local_execution_time}",
+                f"任务类型: {'测试场景执行' if task.task_type == 'TEST_SUITE' else 'API请求执行'}",
                 "",
                 "═══════════ 执行概要 ═══════════",
                 summary_info,
@@ -2499,6 +3858,19 @@ class ScheduledTaskViewSet(viewsets.ModelViewSet):
             except:
                 pass
 
+    def _get_local_ip(self):
+        """获取本机局域网IP地址"""
+        try:
+            import socket
+            # 创建一个UDP连接来获取本机IP
+            s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            s.connect(("8.8.8.8", 80))
+            local_ip = s.getsockname()[0]
+            s.close()
+            return local_ip
+        except Exception:
+            return "127.0.0.1"
+
     def _send_webhook_notification(self, task, execution_log, notification_setting, notification_config, success):
         """发送Webhook通知"""
         try:
@@ -2569,6 +3941,41 @@ class ScheduledTaskViewSet(viewsets.ModelViewSet):
             status_text = '成功' if success else '失败'
             status_color = 'green' if success else 'red'
 
+            # 获取执行结果统计 - 从 result 中获取 TestExecution 相关信息
+            result = execution_log.result or {}
+            total_requests = result.get('total_count', 0)
+            passed_requests = result.get('passed_count', 0)
+            failed_requests = result.get('failed_count', 0)
+            pass_rate = f"{(passed_requests / total_requests * 100):.1f}%" if total_requests > 0 else "0.0%"
+
+            # 将UTC时间转换为本地时间
+            local_execution_time = timezone.localtime(execution_log.created_at).strftime('%Y-%m-%d %H:%M:%S')
+
+            # 获取 TestExecution ID（用于生成报告 URL）
+            test_execution_id = result.get('execution_id')
+
+            # 构建报告和截图链接
+            # 优先使用配置的 SITE_URL，如果没有则自动获取本地 IP
+            local_ip = self._get_local_ip()
+            default_site_url = f"http://{local_ip}:8000"
+            site_url = getattr(settings, 'SITE_URL', default_site_url)
+
+            # 如果 site_url 包含 localhost，替换为本地 IP
+            if 'localhost' in site_url or '127.0.0.1' in site_url:
+                site_url = f"http://{local_ip}:8000"
+
+            # 使用 TestExecution ID 构建报告 URL（如果存在）
+            # 优先使用 execution_log.result 中保存的报告链接和截图链接
+            if test_execution_id:
+                # 从 result 中获取已生成的报告链接
+                saved_report_url = result.get('report_url')
+                if saved_report_url and saved_report_url.startswith('/'):
+                    report_url = f"{site_url}{saved_report_url}"
+                else:
+                    report_url = saved_report_url or f"{site_url}/api-testing/allure-reports/execution_{test_execution_id}/summary.html"
+            else:
+                report_url = f"{site_url}/api-testing/reports"
+
             # 为不同的机器人平台准备消息格式
             for bot in all_webhook_bots:
                 if not bot.get('enabled', True) or not bot.get('webhook_url'):
@@ -2581,31 +3988,60 @@ class ScheduledTaskViewSet(viewsets.ModelViewSet):
 
                 # 根据机器人类型构造消息格式
                 if bot_type == 'wechat':  # 企业微信
+                    wechat_content = f"""**定时任务执行{status_text}**
+
+**任务名称:** {task.name}
+
+**执行状态:** {status_text}
+
+**执行统计:**
+> 总请求数: {total_requests}
+> 通过: {passed_requests}
+> 失败: {failed_requests}
+> 通过率: {pass_rate}
+
+**执行时间:** {local_execution_time}
+
+**任务类型:** {'测试场景执行' if task.task_type == 'TEST_SUITE' else 'API请求执行'}
+
+**查看报告:** [点击查看完整报告]({report_url})"""
+
                     message_data = {
                         "msgtype": "markdown",
                         "markdown": {
-                            "content": f"""**定时任务执行{status_text}**
-
-任务名称: {task.name}
-
-执行状态: {status_text}
-
-执行时间: {execution_log.created_at.strftime('%Y-%m-%d %H:%M:%S')}
-
-任务类型: {'测试套件执行' if task.task_type == 'TEST_SUITE' else 'API请求执行'}"""
+                            "content": wechat_content
                         }
                     }
                 elif bot_type == 'feishu':  # 飞书
+                    # 构建飞书卡片内容
+                    feishu_content = f"**任务名称:** {task.name}\n**执行状态:** {status_text}\n**执行时间:** {local_execution_time}\n**任务类型:** {'测试场景执行' if task.task_type == 'TEST_SUITE' else 'API请求执行'}\n\n**执行统计**\n总请求数: {total_requests}\n通过: {passed_requests}\n失败: {failed_requests}\n通过率: {pass_rate}"
+
                     message_data = {
                         "msg_type": "interactive",
                         "card": {
-                            "elements": [{
-                                "tag": "div",
-                                "text": {
-                                    "content": f"**定时任务执行{status_text}**\n任务名称: {task.name}\n执行状态: {status_text}\n执行时间: {execution_log.created_at.strftime('%Y-%m-%d %H:%M:%S')}\n任务类型: {'测试套件执行' if task.task_type == 'TEST_SUITE' else 'API请求执行'}",
-                                    "tag": "lark_md"
+                            "elements": [
+                                {
+                                    "tag": "div",
+                                    "text": {
+                                        "content": feishu_content,
+                                        "tag": "lark_md"
+                                    }
+                                },
+                                {
+                                    "tag": "action",
+                                    "actions": [
+                                        {
+                                            "tag": "button",
+                                            "text": {
+                                                "tag": "plain_text",
+                                                "content": "查看完整报告"
+                                            },
+                                            "type": "primary",
+                                            "url": report_url
+                                        }
+                                    ]
                                 }
-                            }],
+                            ],
                             "header": {
                                 "title": {
                                     "content": f"定时任务执行{status_text}",
@@ -2616,19 +4052,29 @@ class ScheduledTaskViewSet(viewsets.ModelViewSet):
                         }
                     }
                 elif bot_type == 'dingtalk':  # 钉钉
+                    dingtalk_text = f"""**定时任务执行{status_text}**
+
+**任务名称:** {task.name}
+
+**执行状态:** {status_text}
+
+**执行统计:**
+- 总请求数: {total_requests}
+- 通过: {passed_requests}
+- 失败: {failed_requests}
+- 通过率: {pass_rate}
+
+**执行时间:** {local_execution_time}
+
+**任务类型:** {'测试场景执行' if task.task_type == 'TEST_SUITE' else 'API请求执行'}
+
+**查看报告:** [点击查看完整报告]({report_url})"""
+
                     message_data = {
                         "msgtype": "markdown",
                         "markdown": {
                             "title": f"定时任务执行{status_text}",
-                            "text": f"""**定时任务执行{status_text}**
-
-任务名称: {task.name}
-
-执行状态: {status_text}
-
-执行时间: {execution_log.created_at.strftime('%Y-%m-%d %H:%M:%S')}
-
-任务类型: {'测试套件执行' if task.task_type == 'TEST_SUITE' else 'API请求执行'}"""
+                            "text": dingtalk_text
                         }
                     }
 
@@ -2662,7 +4108,7 @@ class ScheduledTaskViewSet(viewsets.ModelViewSet):
                         logger.info("钉钉机器人未配置签名密钥，使用无签名模式")
                 else:  # 通用格式
                     message_data = {
-                        "text": f"定时任务执行{status_text}\n任务名称: {task.name}\n执行状态: {status_text}\n执行时间: {execution_log.created_at.strftime('%Y-%m-%d %H:%M:%S')}\n任务类型: {'测试套件执行' if task.task_type == 'TEST_SUITE' else 'API请求执行'}"
+                        "text": f"定时任务执行{status_text}\n任务名称: {task.name}\n执行状态: {status_text}\n执行时间: {local_execution_time}\n任务类型: {'测试场景执行' if task.task_type == 'TEST_SUITE' else 'API请求执行'}"
                     }
 
                 # 发送webhook请求

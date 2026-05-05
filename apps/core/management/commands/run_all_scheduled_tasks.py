@@ -14,8 +14,8 @@ class Command(BaseCommand):
         parser.add_argument(
             '--interval',
             type=int,
-            default=60,
-            help='检查间隔（秒），默认60秒'
+            default=20,
+            help='检查间隔（秒），默认20秒'
         )
         parser.add_argument(
             '--once',

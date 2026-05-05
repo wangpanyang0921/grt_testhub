@@ -5,8 +5,59 @@ from .models import RequestHistory
 from .variable_resolver import VariableResolver
 
 
+def _smart_compare(actual, expected):
+    """智能比较函数，处理布尔值、数字和字符串的等价比较"""
+    # 如果类型相同，直接比较
+    if type(actual) == type(expected):
+        return actual == expected
+
+    # 处理布尔值比较
+    if isinstance(actual, bool):
+        # 将期望值转换为布尔值
+        if isinstance(expected, str):
+            expected_lower = expected.lower()
+            if expected_lower in ('true', '1', 'yes', 'on'):
+                return actual is True
+            elif expected_lower in ('false', '0', 'no', 'off'):
+                return actual is False
+    elif isinstance(expected, bool):
+        # 将实际值转换为布尔值
+        if isinstance(actual, str):
+            actual_lower = actual.lower()
+            if actual_lower in ('true', '1', 'yes', 'on'):
+                return expected is True
+            elif actual_lower in ('false', '0', 'no', 'off'):
+                return expected is False
+
+    # 处理数字比较
+    try:
+        # 尝试将两者都转为浮点数比较
+        return float(actual) == float(expected)
+    except (ValueError, TypeError):
+        pass
+
+    # 默认使用字符串比较（不区分大小写）
+    return str(actual).lower() == str(expected).lower()
+
+
+def _convert_null_strings(obj):
+    """递归地将字符串 'null' 转换为 None"""
+    if obj is None:
+        return None
+    if isinstance(obj, str) and obj.lower() == 'null':
+        return None
+    if isinstance(obj, dict):
+        return {k: _convert_null_strings(v) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [_convert_null_strings(item) for item in obj]
+    return obj
+
+
 def execute_assertions(response, assertions):
     """执行断言验证"""
+    # 处理断言数据，将字符串 'null' 转换为 None
+    assertions = _convert_null_strings(assertions)
+    
     results = []
     
     for assertion in assertions:
@@ -45,24 +96,66 @@ def execute_assertions(response, assertions):
                 expected_value = assertion.get('expected')
                 actual = None
                 passed = False
-                
+
                 try:
                     # 检查响应是否为JSON格式
                     content_type = response.headers.get('content-type', '').lower()
                     if 'application/json' not in content_type:
                         raise ValueError(f"响应不是JSON格式，Content-Type: {content_type}")
-                    
+
                     response_json = json.loads(response.text)
-                    
+
                     # 检查JSONPath表达式是否为空
                     if not json_path:
                         raise ValueError("JSON路径表达式不能为空")
-                    
+
                     from jsonpath_ng import parse
                     matches = parse(json_path).find(response_json)
                     actual = matches[0].value if matches else None
-                    passed = str(actual) == str(expected_value)
-                    
+
+                    # 处理特殊期望值：not_null, not_empty, null, empty
+                    if expected_value is not None and isinstance(expected_value, str) and expected_value.lower() in ('not_null', 'notnull', 'not_none', 'notnone'):
+                        # 检查字段存在且不为null
+                        passed = actual is not None
+                        result['expected_desc'] = '不为null'
+                    elif expected_value is not None and isinstance(expected_value, str) and expected_value.lower() in ('not_empty', 'notempty'):
+                        # 检查字段存在且不为空（非None、非空字符串、非空列表、非空字典）
+                        if actual is None:
+                            passed = False
+                        elif isinstance(actual, str) and actual.strip() == '':
+                            passed = False
+                        elif isinstance(actual, (list, dict)) and len(actual) == 0:
+                            passed = False
+                        else:
+                            passed = True
+                        result['expected_desc'] = '不为空'
+                    elif expected_value is None:
+                        # 期望值是 None (JSON null)，检查字段是否为 null
+                        passed = actual is None
+                        result['expected_desc'] = '为null'
+                    elif expected_value is not None and isinstance(expected_value, str) and expected_value.lower() in ('null', 'none'):
+                        # 字符串 "null" 或 "none"，检查字段是否为 null
+                        passed = actual is None
+                        result['expected_desc'] = '为null'
+                    elif expected_value is not None and isinstance(expected_value, str) and expected_value.lower() in ('empty', 'isempty'):
+                        # 检查字段为空
+                        if actual is None:
+                            passed = True
+                        elif isinstance(actual, str) and actual.strip() == '':
+                            passed = True
+                        elif isinstance(actual, (list, dict)) and len(actual) == 0:
+                            passed = True
+                        else:
+                            passed = False
+                        result['expected_desc'] = '为空'
+                    elif expected_value is not None and isinstance(expected_value, str) and expected_value.lower() in ('exist', 'exists', '存在'):
+                        # 检查字段存在（包括null值）
+                        passed = len(matches) > 0
+                        result['expected_desc'] = '存在'
+                    else:
+                        # 智能比较：处理布尔值、数字和字符串
+                        passed = _smart_compare(actual, expected_value)
+
                     # 确保actual值被正确设置到result中
                     result['actual'] = actual
                 except json.JSONDecodeError as e:
@@ -98,13 +191,14 @@ def execute_assertions(response, assertions):
                 expected_value = assertion.get('expected_value', assertion.get('expected'))
                 actual = None
                 passed = False
-                
+
                 try:
                     response_json = json.loads(response.text)
                     from jsonpath_ng import parse
                     matches = parse(json_path).find(response_json)
                     actual = matches[0].value if matches else None
-                    passed = str(actual) == str(expected_value)
+                    # 智能比较：处理布尔值、数字和字符串
+                    passed = _smart_compare(actual, expected_value)
                     result['actual'] = actual
                 except Exception as e:
                     result['error'] = f"JSON提取失败: {str(e)}"
@@ -121,12 +215,13 @@ def execute_assertions(response, assertions):
                     from jsonpath_ng import parse
                     matches = parse(json_path).find(response_json)
                     actual = matches[0].value if matches else None
-                    passed = str(actual) != str(expected_value)
+                    # 智能比较：处理布尔值、数字和字符串
+                    passed = not _smart_compare(actual, expected_value)
                     result['actual'] = actual
                 except Exception as e:
                     result['error'] = f"JSON提取失败: {str(e)}"
                     passed = False
-            
+
             elif assertion_type == 'not_empty':
                 # 不为空断言
                 json_path = assertion.get('json_path', '')
@@ -381,7 +476,7 @@ def execute_assertions(response, assertions):
             if 'actual' not in result or result['actual'] is None:
                 result['actual'] = actual
             result['passed'] = passed
-            
+
         except Exception as e:
             result['error'] = str(e)
             result['passed'] = False
@@ -396,6 +491,8 @@ def execute_test_suite(test_suite, environment, executed_by):
     from .models import TestExecution, RequestHistory
     import requests
     import time
+    
+    execution = None
     
     try:
         # 创建变量解析器
@@ -493,8 +590,21 @@ def execute_test_suite(test_suite, environment, executed_by):
                 end_time = time.time()
                 response_time = (end_time - start_time) * 1000
                 
-                # 执行断言验证
-                assertions = api_request.assertions or []
+                # 执行断言验证 - 优先使用套件请求的断言，如果没有则使用接口的断言
+                # 强制刷新从数据库获取最新的断言数据
+                suite_request.refresh_from_db()
+                
+                # 调试日志
+                print(f"[断言来源调试] suite_request.assertions: {suite_request.assertions}")
+                print(f"[断言来源调试] api_request.assertions: {api_request.assertions}")
+                
+                assertions = suite_request.assertions or api_request.assertions or []
+                
+                print(f"[断言来源调试] 最终使用的assertions: {assertions}")
+                
+                # 转换字符串 'null' 为 None
+                assertions = _convert_null_strings(assertions)
+                
                 for assertion in assertions:
                     if assertion.get('type') == 'response_time':
                         assertion['actual_time'] = response_time
@@ -504,22 +614,18 @@ def execute_test_suite(test_suite, environment, executed_by):
                 # 检查所有断言是否通过
                 passed = True
                 error_message = ''
-                
-                # 检查套件请求的断言
-                for assertion in suite_request.assertions:
-                    if assertion.get('type') == 'status_code':
-                        expected = assertion.get('value')
-                        if response.status_code != expected:
-                            passed = False
-                            error_message = f'状态码断言失败: 期望 {expected}, 实际 {response.status_code}'
-                            break
-                
-                # 检查接口自身的断言
-                if passed and assertions_results:
+
+                # 检查断言结果
+                if assertions_results:
                     for assertion_result in assertions_results:
                         if not assertion_result.get('passed', True):
                             passed = False
-                            error_message = f"断言失败: {assertion_result.get('name', '未命名断言')} - {assertion_result.get('error', '断言不通过')}"
+                            # 如果error已经包含详细信息，直接使用
+                            error_detail = assertion_result.get('error')
+                            if error_detail:
+                                error_message = f"{assertion_result.get('name', '未命名断言')}: {error_detail}"
+                            else:
+                                error_message = f"{assertion_result.get('name', '未命名断言')}: 断言不通过"
                             break
                 
                 if passed:
@@ -586,8 +692,18 @@ def execute_test_suite(test_suite, environment, executed_by):
             'total_count': execution.total_requests,
             'results': results
         }
-        
+
     except Exception as e:
+        # 即使失败也返回 execution_id（如果已创建）
+        if execution:
+            execution.status = 'FAILED'
+            execution.end_time = timezone.now()
+            execution.save()
+            return {
+                'success': False,
+                'execution_id': execution.id,
+                'error': str(e)
+            }
         return {
             'success': False,
             'error': str(e)

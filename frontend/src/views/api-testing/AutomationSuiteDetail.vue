@@ -564,6 +564,21 @@
             <div v-for="(item, idx) in currentRequestDetail.assertions_results" :key="idx" class="assertion-item" :class="item.passed ? 'passed' : 'failed'">
               <el-icon><CircleCheck v-if="item.passed" /><CircleClose v-else /></el-icon>
               <span class="assertion-name">{{ item.name }}</span>
+              <span class="assertion-detail">
+                <span class="detail-item expected">
+                  <span class="label">期望</span>
+                  <span class="value" :class="{ null: item.expected === null, object: typeof item.expected === 'object' }">
+                    {{ item.expected === null ? 'null' : (typeof item.expected === 'object' ? JSON.stringify(item.expected).substring(0, 30) + '...' : item.expected) }}
+                  </span>
+                </span>
+                <span class="separator">|</span>
+                <span class="detail-item actual" :class="{ mismatch: !item.passed && item.actual !== item.expected }">
+                  <span class="label">实际</span>
+                  <span class="value" :class="{ null: item.actual === null, object: typeof item.actual === 'object' }">
+                    {{ item.actual === null ? 'null' : (typeof item.actual === 'object' ? JSON.stringify(item.actual).substring(0, 30) + '...' : item.actual) }}
+                  </span>
+                </span>
+              </span>
               <span v-if="item.error" class="assertion-error">{{ item.error }}</span>
             </div>
           </div>
@@ -1254,13 +1269,21 @@ const addSelectedRequests = async () => {
 
   addingRequests.value = true
   try {
-    await api.post(`/api-testing/test-suites/${suite.value.id}/add-requests/`, {
+    const response = await api.post(`/api-testing/test-suites/${suite.value.id}/add-requests/`, {
       request_ids: requestIds
     })
 
-    ElMessage.success(t('apiTesting.messages.success.addSuccess'))
+    // 直接使用返回的套件数据更新列表
+    if (response.data && response.data.suite) {
+      suite.value = response.data.suite
+      // 重新初始化拖拽
+      nextTick(() => {
+        initSortable()
+      })
+    }
+
+    ElMessage.success(response.data.message || t('apiTesting.messages.success.addSuccess'))
     showAddRequestDialog.value = false
-    await loadSuiteDetail()
   } catch (error) {
     ElMessage.error(t('apiTesting.messages.error.addFailed'))
   } finally {
@@ -1283,8 +1306,18 @@ const updateRequestEnabled = async (suiteRequest) => {
 
 const editAssertions = (suiteRequest) => {
   currentEditingRequest.value = suiteRequest
-  // 深拷贝断言数据
-  editingAssertions.value = JSON.parse(JSON.stringify(suiteRequest.assertions || []))
+  // 深拷贝断言数据，并将 null 值转换为字符串 'null' 以便显示
+  const assertions = JSON.parse(JSON.stringify(suiteRequest.assertions || []))
+  editingAssertions.value = assertions.map(assertion => {
+    // 将 null 转换为字符串 'null' 以便在输入框中显示
+    if (assertion.expected === null) {
+      assertion.expected = 'null'
+    }
+    if (assertion.expected_value === null) {
+      assertion.expected_value = 'null'
+    }
+    return assertion
+  })
   showAssertionsDialog.value = true
 }
 
@@ -1327,10 +1360,28 @@ const saveAssertions = async () => {
     }
   }
 
+  // 处理断言数据，将字符串 'null' 转换为真正的 null
+  const processedAssertions = editingAssertions.value.map(assertion => {
+    const processed = { ...assertion }
+    // 处理 json_path 类型的 expected
+    if (processed.type === 'json_path' && processed.expected !== undefined) {
+      if (processed.expected === 'null' || processed.expected === 'NULL') {
+        processed.expected = null
+      }
+    }
+    // 处理 header 类型的 expected_value
+    if (processed.type === 'header' && processed.expected_value !== undefined) {
+      if (processed.expected_value === 'null' || processed.expected_value === 'NULL') {
+        processed.expected_value = null
+      }
+    }
+    return processed
+  })
+
   savingAssertions.value = true
   try {
     await api.patch(`/api-testing/test-suite-requests/${currentEditingRequest.value.id}/`, {
-      assertions: editingAssertions.value
+      assertions: processedAssertions
     })
     ElMessage.success(t('apiTesting.messages.success.saveSuccess'))
     showAssertionsDialog.value = false
@@ -2307,6 +2358,7 @@ onMounted(async () => {
 /* 请求详情抽屉样式 - 现代简洁设计 */
 .request-detail-drawer {
   padding: 24px;
+  min-height: 100%;
 
   /* 顶部状态栏 - 无边框设计 */
   .request-header {
@@ -2424,6 +2476,9 @@ onMounted(async () => {
       font-size: 13px;
       color: #cf1322;
       line-height: 1.5;
+      word-break: break-all;
+      white-space: pre-wrap;
+      overflow-wrap: break-word;
     }
   }
 
@@ -2547,7 +2602,7 @@ onMounted(async () => {
 
       .assertion-item {
         display: flex;
-        align-items: center;
+        align-items: flex-start;
         gap: 10px;
         padding: 10px 0;
         border-bottom: 1px solid #f0f0f0;
@@ -2564,17 +2619,79 @@ onMounted(async () => {
         }
 
         .assertion-name {
-          flex: 1;
+          flex-shrink: 0;
           color: #333;
+          max-width: 150px;
+          word-break: break-all;
+        }
+
+        .assertion-detail {
+          flex: 1;
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          font-size: 12px;
+          flex-wrap: wrap;
+
+          .detail-item {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 2px 8px;
+            border-radius: 4px;
+            background: #f5f5f5;
+            font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace;
+
+            .label {
+              color: #999;
+              font-size: 11px;
+            }
+
+            .value {
+              color: #333;
+              font-weight: 500;
+
+              &.null {
+                color: #999;
+                font-style: italic;
+              }
+
+              &.object {
+                color: #1890ff;
+              }
+            }
+
+            &.expected {
+              background: #e6f7ff;
+              .label { color: #1890ff; }
+            }
+
+            &.actual {
+              background: #f6ffed;
+              .label { color: #52c41a; }
+
+              &.mismatch {
+                background: #fff2f0;
+                .label { color: #f5222d; }
+                .value { color: #f5222d; }
+              }
+            }
+          }
+
+          .separator {
+            color: #d9d9d9;
+            font-size: 11px;
+          }
         }
 
         .assertion-error {
           color: #f5222d;
           font-size: 12px;
-          max-width: 200px;
-          overflow: hidden;
-          text-overflow: ellipsis;
-          white-space: nowrap;
+          flex: 1;
+          word-break: break-all;
+          white-space: pre-wrap;
+          overflow-wrap: break-word;
+          line-height: 1.4;
         }
 
         &.passed {
@@ -2664,8 +2781,6 @@ onMounted(async () => {
   overflow-x: auto;
   white-space: pre-wrap;
   word-wrap: break-word;
-  max-height: 300px;
-  overflow-y: auto;
   color: #4a4a4a;
 }
 
@@ -2911,6 +3026,17 @@ onMounted(async () => {
   .el-drawer__body {
     padding: 20px;
     background: #fafbfc;
+    height: 100%;
+    overflow-y: auto;
+  }
+}
+
+// 详情抽屉特定样式
+:deep(.detail-drawer) {
+  .el-drawer__body {
+    padding: 0;
+    height: calc(100vh - 60px);
+    overflow-y: auto;
   }
 }
 

@@ -54,119 +54,105 @@
       </div>
     </div>
 
-    <!-- 详情对话框 -->
-    <el-dialog
+    <!-- 请求详情抽屉 -->
+    <el-drawer
       v-model="showDetailDialog"
-      :title="$t('apiTesting.history.requestDetail')"
-      width="80%"
-      :top="'5vh'"
-      class="detail-dialog"
+      title="请求执行详情"
+      size="50%"
+      direction="rtl"
+      :destroy-on-close="true"
+      class="detail-drawer"
     >
-      <div v-if="selectedHistory" class="history-detail">
-        <el-descriptions :title="$t('apiTesting.history.basicInfo')" :column="2" border class="custom-descriptions">
-          <el-descriptions-item :label="$t('apiTesting.interface.requestName')">
-            {{ selectedHistory.request.name }}
-          </el-descriptions-item>
-          <el-descriptions-item :label="$t('apiTesting.history.requestMethod')">
-            <span class="method-badge" :class="getMethodClass(selectedHistory.request.method)">
-              {{ selectedHistory.request.method }}
+      <div v-if="selectedHistory" class="request-detail-drawer">
+        <!-- 顶部状态栏 -->
+        <div class="request-header">
+          <div class="request-title-row">
+            <span class="request-name">{{ selectedHistory.request?.name || '未命名请求' }}</span>
+            <span class="method-tag" :class="selectedHistory.request?.method?.toLowerCase()">{{ selectedHistory.request?.method }}</span>
+            <span class="status-tag" :class="getStatusClass(selectedHistory.status_code)">
+              {{ getStatusText(selectedHistory.status_code) }}
             </span>
-          </el-descriptions-item>
-          <el-descriptions-item :label="$t('apiTesting.history.statusCode')">
-            <span class="status-badge" :class="getStatusClass(selectedHistory.status_code)">
-              {{ selectedHistory.status_code || $t('apiTesting.history.noResponse') }}
-            </span>
-          </el-descriptions-item>
-          <el-descriptions-item :label="$t('apiTesting.history.responseTime')">
-            <span class="response-time">{{ selectedHistory.response_time?.toFixed(0) || 0 }}ms</span>
-          </el-descriptions-item>
-          <el-descriptions-item :label="$t('apiTesting.history.executionTime')">
-            {{ formatDate(selectedHistory.executed_at) }}
-          </el-descriptions-item>
-          <el-descriptions-item :label="$t('apiTesting.history.executor')">
-            {{ selectedHistory.executed_by.username }}
-          </el-descriptions-item>
-        </el-descriptions>
+            <span class="meta-tag time-tag">{{ selectedHistory.response_time?.toFixed(0) }}ms</span>
+            <span class="meta-tag code-tag">{{ selectedHistory.status_code || '-' }}</span>
+          </div>
+          <div class="request-url">{{ selectedHistory.request_data?.url }}</div>
+        </div>
 
-        <el-tabs v-model="detailTab" class="detail-tabs custom-tabs">
-          <el-tab-pane :label="$t('apiTesting.history.requestInfo')" name="request">
-            <div class="detail-section">
-              <h4 class="section-title">{{ $t('apiTesting.history.requestUrl') }}</h4>
-              <el-input v-model="selectedHistory.request_data.url" readonly class="readonly-input" />
+        <!-- 错误信息 -->
+        <div v-if="selectedHistory.error_message" class="error-banner">
+          <el-icon><WarningFilled /></el-icon>
+          <span>{{ selectedHistory.error_message }}</span>
+        </div>
 
-              <h4 class="section-title">{{ $t('apiTesting.history.requestHeaders') }}</h4>
-              <el-table :data="formatHeaders(selectedHistory.request_data.headers)" style="width: 100%" class="custom-table">
-                <el-table-column prop="key" label="Key" width="200" header-align="center" align="center" />
-                <el-table-column prop="value" label="Value" header-align="center" align="center" />
-              </el-table>
+        <!-- 数据交换区域 -->
+        <div class="data-section" v-if="selectedHistory.request_data || selectedHistory.response_data">
+          <!-- 主标签切换 -->
+          <div class="main-tabs">
+            <button
+              class="main-tab-btn"
+              :class="{ active: activeMainTab === '请求' }"
+              @click="activeMainTab = '请求'"
+            >
+              请求
+            </button>
+            <button
+              class="main-tab-btn"
+              :class="{ active: activeMainTab === '响应' }"
+              @click="activeMainTab = '响应'"
+            >
+              响应
+            </button>
+          </div>
 
-              <h4 v-if="selectedHistory.request_data.params && Object.keys(selectedHistory.request_data.params).length > 0" class="section-title">
-                {{ $t('apiTesting.history.requestParams') }}
-              </h4>
-              <el-table
-                v-if="selectedHistory.request_data.params && Object.keys(selectedHistory.request_data.params).length > 0"
-                :data="formatHeaders(selectedHistory.request_data.params)"
-                style="width: 100%"
-                class="custom-table"
-              >
-                <el-table-column prop="key" label="Key" width="200" header-align="center" align="center" />
-                <el-table-column prop="value" label="Value" header-align="center" align="center" />
-              </el-table>
-
-              <h4 v-if="selectedHistory.request_data.body" class="section-title">{{ $t('apiTesting.history.requestBody') }}</h4>
-              <pre v-if="selectedHistory.request_data.body" class="json-content">
-                {{ JSON.stringify(selectedHistory.request_data.body, null, 2) }}
-              </pre>
-            </div>
-          </el-tab-pane>
-
-          <el-tab-pane :label="$t('apiTesting.history.responseInfo')" name="response">
-            <div v-if="selectedHistory.response_data" class="detail-section">
-              <h4 class="section-title">{{ $t('apiTesting.history.responseHeaders') }}</h4>
-              <el-table :data="formatHeaders(selectedHistory.response_data.headers)" style="width: 100%" class="custom-table">
-                <el-table-column prop="key" label="Key" width="200" header-align="center" align="center" />
-                <el-table-column prop="value" label="Value" header-align="center" align="center" />
-              </el-table>
-
-              <h4 class="section-title">{{ $t('apiTesting.history.responseBody') }}</h4>
-              <div class="response-actions">
-                <el-button size="small" @click="formatResponseBody" class="action-btn">
-                  <el-icon><DocumentChecked /></el-icon>
-                  <span>{{ $t('apiTesting.interface.format') }}</span>
-                </el-button>
-                <el-button size="small" @click="copyResponseBody" class="action-btn">
-                  <el-icon><DocumentCopy /></el-icon>
-                  <span>{{ $t('apiTesting.common.copy') }}</span>
-                </el-button>
+          <!-- 请求内容 -->
+          <div v-if="activeMainTab === '请求' && selectedHistory.request_data" class="data-panel">
+            <div class="panel-header">
+              <div class="sub-tabs">
+                <button
+                  v-for="tab in ['body', 'headers', 'params']"
+                  :key="tab"
+                  class="sub-tab-btn"
+                  :class="{ active: activeRequestSubTab === tab }"
+                  @click="activeRequestSubTab = tab"
+                >
+                  {{ tab.toUpperCase() }}
+                </button>
               </div>
-              <pre class="json-content">{{ responseBodyText }}</pre>
+              <span class="data-badge">{{ activeRequestSubTab.toUpperCase() }}</span>
             </div>
+            <div class="code-container">
+              <pre v-if="activeRequestSubTab === 'body'" class="code-block">{{ formatJson(selectedHistory.request_data.body) || '无请求体' }}</pre>
+              <pre v-else-if="activeRequestSubTab === 'headers'" class="code-block">{{ formatJson(selectedHistory.request_data.headers) || '无请求头' }}</pre>
+              <pre v-else-if="activeRequestSubTab === 'params'" class="code-block">{{ formatJson(selectedHistory.request_data.params) || '无请求参数' }}</pre>
+            </div>
+          </div>
 
-            <div v-else-if="selectedHistory.error_message" class="error-section">
-              <h4 class="section-title">{{ $t('apiTesting.automation.status.failed') }}</h4>
-              <el-alert
-                :title="selectedHistory.error_message"
-                type="error"
-                :closable="false"
-                show-icon
-              />
+          <!-- 响应内容 -->
+          <div v-if="activeMainTab === '响应' && selectedHistory.response_data" class="data-panel">
+            <div class="panel-header">
+              <div class="sub-tabs">
+                <button
+                  v-for="tab in ['body', 'headers', 'json']"
+                  :key="tab"
+                  class="sub-tab-btn"
+                  :class="{ active: activeResponseSubTab === tab }"
+                  @click="activeResponseSubTab = tab"
+                >
+                  {{ tab.toUpperCase() }}
+                </button>
+              </div>
+              <span class="data-badge">{{ activeResponseSubTab.toUpperCase() }}</span>
             </div>
-
-            <div v-else class="empty-response">
-              <el-empty :description="$t('apiTesting.history.noResponseData')" />
+            <div class="code-container">
+              <pre v-if="activeResponseSubTab === 'body'" class="code-block">{{ responseBodyText || '无响应体' }}</pre>
+              <pre v-else-if="activeResponseSubTab === 'headers'" class="code-block">{{ formatJson(selectedHistory.response_data.headers) || '无响应头' }}</pre>
+              <pre v-else-if="activeResponseSubTab === 'json'" class="code-block">{{ responseBodyText || '无响应体' }}</pre>
             </div>
-          </el-tab-pane>
-        </el-tabs>
+          </div>
+        </div>
       </div>
 
-      <template #footer>
-        <el-button @click="showDetailDialog = false" class="cancel-btn">{{ $t('apiTesting.common.close') }}</el-button>
-        <el-button type="primary" @click="retryRequest(selectedHistory)" class="confirm-btn">
-          <el-icon><RefreshRight /></el-icon>
-          <span>{{ $t('apiTesting.history.retryRequest') }}</span>
-        </el-button>
-      </template>
-    </el-dialog>
+    </el-drawer>
   </div>
 </template>
 
@@ -192,6 +178,42 @@ const total = ref(0)
 const showDetailDialog = ref(false)
 const selectedHistory = ref(null)
 const detailTab = ref('request')
+
+// 详情弹窗相关
+const activeMainTab = ref('响应')
+const activeRequestSubTab = ref('body')
+const activeResponseSubTab = ref('json')
+
+const requestSubTabs = [
+  { label: 'BODY', value: 'body' },
+  { label: 'HEADERS', value: 'headers' },
+  { label: 'PARAMS', value: 'params' }
+]
+
+const responseSubTabs = [
+  { label: 'BODY', value: 'body' },
+  { label: 'HEADERS', value: 'headers' },
+  { label: 'JSON', value: 'json' }
+]
+
+// 获取状态文本
+const getStatusText = (status) => {
+  if (!status) return '未知'
+  if (status >= 200 && status < 300) return '通过'
+  if (status >= 300 && status < 400) return '重定向'
+  if (status >= 400) return '失败'
+  return '未知'
+}
+
+// 格式化 JSON
+const formatJson = (data) => {
+  if (!data) return ''
+  try {
+    return JSON.stringify(data, null, 2)
+  } catch (e) {
+    return String(data)
+  }
+}
 
 const currentHistory = computed(() => {
   return activeTab.value === 'HTTP' ? httpHistory.value : websocketHistory.value
@@ -291,6 +313,9 @@ const handleCurrentChange = (page) => {
 const viewDetail = (history) => {
   selectedHistory.value = history
   detailTab.value = 'request'
+  activeMainTab.value = '请求'
+  activeRequestSubTab.value = 'body'
+  activeResponseSubTab.value = 'body'
   showDetailDialog.value = true
 }
 
@@ -824,227 +849,269 @@ onMounted(() => {
   }
 }
 
-// 详情对话框样式
-.detail-dialog {
-  :deep(.el-dialog) {
-    border-radius: 12px;
-    box-shadow: 0 12px 24px rgba(147, 112, 219, 0.2);
+// 详情抽屉样式
+// 抽屉样式
+:deep(.el-drawer) {
+  .el-drawer__header {
+    background: linear-gradient(135deg, #f8f7ff 0%, #ffffff 100%);
+    padding: 20px 24px;
+    border-bottom: 1px solid #ebeef5;
+    margin: 0;
 
-    .el-dialog__header {
-      background: linear-gradient(135deg, #f8f7ff 0%, #ffffff 100%);
-      padding: 20px 24px;
-      border-bottom: 1px solid #ebeef5;
-      margin: 0;
-
-      .el-dialog__title {
-        font-size: 18px;
-        font-weight: 600;
-        color: #5a32a3;
-      }
-    }
-
-    .el-dialog__body {
-      padding: 24px;
-    }
-
-    .el-dialog__footer {
-      padding: 16px 24px 20px;
-      border-top: 1px solid #ebeef5;
-      background: #fafafa;
-    }
-  }
-}
-
-.history-detail {
-  max-height: 70vh;
-  overflow-y: auto;
-}
-
-// 自定义描述列表样式
-.custom-descriptions {
-  :deep(.el-descriptions__header) {
-    margin-bottom: 16px;
-
-    .el-descriptions__title {
-      font-size: 16px;
+    .el-drawer__title {
+      font-size: 18px;
       font-weight: 600;
       color: #5a32a3;
     }
+
+    .el-drawer__close-btn {
+      color: #7b42f6;
+      font-size: 18px;
+
+      &:hover {
+        color: #5a32a3;
+      }
+    }
   }
 
-  :deep(.el-descriptions__label) {
-    color: #5a32a3;
-    font-weight: 500;
-    background: #f8f7ff;
-  }
-
-  :deep(.el-descriptions__content) {
-    color: #595959;
-  }
-}
-
-// 方法徽章样式
-.method-badge {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 4px 10px;
-  border-radius: 4px;
-  font-size: 12px;
-  font-weight: 600;
-  transition: all 0.3s ease;
-  white-space: nowrap;
-
-  &.get {
-    background: #f6ffed;
-    color: #52c41a;
-  }
-
-  &.post {
-    background: #e6f7ff;
-    color: #1890ff;
-  }
-
-  &.put {
-    background: #fff7e6;
-    color: #fa8c16;
-  }
-
-  &.delete {
-    background: #fff1f0;
-    color: #ff4d4f;
-  }
-
-  &.patch {
-    background: #f9f0ff;
-    color: #722ed1;
-  }
-
-  &.default {
-    background: #f5f5f5;
-    color: #8c8c8c;
+  .el-drawer__body {
+    padding: 20px;
+    background: #fafbfc;
+    height: 100%;
+    overflow-y: auto;
   }
 }
 
-// 状态徽章样式
-.status-badge {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 4px 10px;
-  border-radius: 4px;
-  font-size: 12px;
-  font-weight: 600;
-  transition: all 0.3s ease;
-  white-space: nowrap;
-
-  &.success {
-    background: #f6ffed;
-    color: #52c41a;
-  }
-
-  &.warning {
-    background: #fff7e6;
-    color: #fa8c16;
-  }
-
-  &.error {
-    background: #fff1f0;
-    color: #ff4d4f;
-  }
-
-  &.default {
-    background: #f5f5f5;
-    color: #8c8c8c;
+// 详情抽屉特定样式
+:deep(.detail-drawer) {
+  .el-drawer__body {
+    padding: 0;
+    height: calc(100vh - 60px);
+    overflow-y: auto;
   }
 }
 
-.response-time {
-  color: #7b42f6;
-  font-weight: 600;
-}
+/* 请求详情抽屉样式 - 现代简洁设计 */
+.request-detail-drawer {
+  padding: 24px;
+  min-height: 100%;
 
-.detail-tabs {
-  margin-top: 24px;
-}
+  /* 顶部状态栏 - 无边框设计 */
+  .request-header {
+    padding: 0 0 20px 0;
+    margin-bottom: 20px;
+    border-bottom: 1px solid rgba(147, 112, 219, 0.1);
 
-.detail-section {
-  padding: 10px 0;
-}
+    .request-title-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 12px;
+      flex-wrap: wrap;
 
-.section-title {
-  margin: 20px 0 12px 0;
-  color: #5a32a3;
-  font-size: 14px;
-  font-weight: 600;
+      .request-name {
+        font-size: 18px;
+        font-weight: 600;
+        color: #1a1a2e;
+      }
 
-  &:first-child {
-    margin-top: 0;
+      .method-tag {
+        padding: 4px 10px;
+        border-radius: 6px;
+        font-size: 12px;
+        font-weight: 600;
+        text-transform: uppercase;
+
+        &.get {
+          background: #e6f7ff;
+          color: #1890ff;
+        }
+
+        &.post {
+          background: #f6ffed;
+          color: #52c41a;
+        }
+
+        &.put {
+          background: #fff7e6;
+          color: #fa8c16;
+        }
+
+        &.delete {
+          background: #fff1f0;
+          color: #f5222d;
+        }
+
+        &.patch {
+          background: #e6fffb;
+          color: #13c2c2;
+        }
+      }
+
+      .status-tag {
+        padding: 4px 12px;
+        border-radius: 6px;
+        font-size: 12px;
+        font-weight: 500;
+
+        &.success {
+          background: #f6ffed;
+          color: #52c41a;
+        }
+
+        &.failed, &.error {
+          background: #fff1f0;
+          color: #f5222d;
+        }
+      }
+
+      .meta-tag {
+        padding: 4px 10px;
+        border-radius: 6px;
+        font-size: 12px;
+        font-weight: 500;
+
+        &.time-tag {
+          background: #f0f5ff;
+          color: #2f54eb;
+        }
+
+        &.code-tag {
+          background: #f6ffed;
+          color: #389e0d;
+        }
+      }
+    }
+
+    .request-url {
+      font-size: 13px;
+      color: #666;
+      font-family: 'Courier New', Consolas, Monaco, monospace;
+      word-break: break-all;
+      padding: 8px 0;
+    }
+  }
+
+  /* 错误横幅 - 简洁设计 */
+  .error-banner {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 12px 0;
+    margin-bottom: 20px;
+    border-bottom: 1px solid #ffccc7;
+
+    .el-icon {
+      font-size: 16px;
+      color: #f5222d;
+      margin-top: 2px;
+      flex-shrink: 0;
+    }
+
+    span {
+      font-size: 13px;
+      color: #cf1322;
+      line-height: 1.5;
+    }
+  }
+
+  /* 数据区域 - 现代卡片式设计 */
+  .data-section {
+    margin-bottom: 24px;
+
+    /* 主标签 - 简洁文字切换 */
+    .main-tabs {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 24px;
+
+      .main-tab-btn {
+        display: flex;
+        align-items: center;
+        padding: 10px 20px;
+        border: none;
+        border-radius: 8px;
+        background: transparent;
+        color: #666;
+        font-size: 15px;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.2s ease;
+
+        &:hover {
+          color: #333;
+          background: #f5f5f5;
+        }
+
+        &.active {
+          background: #7b42f6;
+          color: #fff;
+        }
+      }
+    }
+
+    /* 数据面板 - 无边框直接展示 */
+    .data-panel {
+      .panel-header {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 16px;
+
+        .sub-tabs {
+          display: flex;
+          gap: 4px;
+
+          .sub-tab-btn {
+            padding: 6px 14px;
+            border: none;
+            border-radius: 6px;
+            background: transparent;
+            color: #666;
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+
+            &:hover {
+              color: #333;
+              background: #f0f0f0;
+            }
+
+            &.active {
+              background: #f0e6ff;
+              color: #7b42f6;
+            }
+          }
+        }
+
+        .data-badge {
+          display: none;
+        }
+      }
+
+      .code-container {
+        background: transparent !important;
+        border: none !important;
+
+        .code-block {
+          margin: 0;
+          padding: 0;
+          font-family: 'JetBrains Mono', 'Fira Code', 'Courier New', Consolas, Monaco, monospace;
+          font-size: 13px;
+          line-height: 1.7;
+          color: #333;
+          white-space: pre-wrap;
+          word-wrap: break-word;
+          background: transparent !important;
+          border: none !important;
+        }
+      }
+    }
   }
 }
 
-.readonly-input {
-  :deep(.el-input__wrapper) {
-    background: #f8f7ff;
-    border: 1px solid rgba(147, 112, 219, 0.2);
-    border-radius: 8px;
-    box-shadow: none;
-  }
 
-  :deep(.el-input__inner) {
-    color: #595959;
-  }
-}
-
-.json-content {
-  background: #f8f9fa;
-  padding: 16px;
-  border-radius: 8px;
-  font-family: 'Courier New', monospace;
-  font-size: 13px;
-  max-height: 400px;
-  overflow: auto;
-  white-space: pre-wrap;
-  word-break: break-all;
-  border: 1px solid rgba(147, 112, 219, 0.15);
-  color: #595959;
-}
-
-.response-actions {
-  margin-bottom: 12px;
-  display: flex;
-  gap: 8px;
-}
-
-.error-section {
-  padding: 20px 0;
-}
-
-.empty-response {
-  padding: 40px 0;
-  text-align: center;
-}
-
-.cancel-btn {
-  font-weight: 500;
-  padding: 8px 20px;
-  border-radius: 8px;
-}
-
-.confirm-btn {
-  font-weight: 600;
-  padding: 8px 20px;
-  border-radius: 8px;
-  background: linear-gradient(135deg, #7b42f6 0%, #5a32a3 100%) !important;
-  border: none !important;
-  color: white !important;
-
-  &:hover {
-    background: linear-gradient(135deg, #6d33e6 0%, #4a249c 100%) !important;
-    transform: translateY(-1px);
-    box-shadow: 0 4px 12px rgba(123, 66, 246, 0.4);
-  }
-}
 
 @media screen and (max-width: 1200px) {
   .page-header {

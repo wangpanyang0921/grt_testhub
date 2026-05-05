@@ -71,7 +71,7 @@
       <el-table-column prop="tool_name_display" label="工具名称" min-width="180" show-overflow-tooltip header-align="center" align="center" />
       <el-table-column prop="tool_category_display" label="分类" min-width="120" header-align="center" align="center">
         <template #default="{ row }">
-          <span class="category-badge">{{ row.tool_category_display }}</span>
+          <span :class="['category-badge', row.tool_category || 'other']">{{ getCategoryDisplayName(row.tool_category) }}</span>
         </template>
       </el-table-column>
       <el-table-column prop="created_at" label="创建时间" min-width="180" header-align="center" align="center">
@@ -155,6 +155,28 @@ interface DataFactoryRecord {
   created_at?: string
   tags?: string[]
   data?: any
+}
+
+// 分类中英文映射
+const categoryMapping: Record<string, string> = {
+  'random': '随机数',
+  'string': '字符工具',
+  'test_data': '测试数据',
+  'datetime': '时间日期',
+  'encode': '编码转换',
+  'crypto': '加密哈希',
+  'crontab': 'Crontab',
+  'professional': '专业工具',
+  'system': '系统工具',
+  'entertainment': '娱乐工具',
+  'mock': 'Mock图片',
+  'other': '其他'
+}
+
+// 获取分类中文显示名
+const getCategoryDisplayName = (category?: string): string => {
+  if (!category) return '其他'
+  return categoryMapping[category] || category
 }
 
 const props = defineProps<{
@@ -478,12 +500,12 @@ onMounted(() => {
   display: flex;
   align-items: center;
   gap: 16px;
-  padding: 20px 24px;
-  background: linear-gradient(135deg, #ffffff 0%, #f8f7ff 100%);
-  border-radius: 12px;
-  box-shadow: 0 4px 16px rgba(147, 112, 219, 0.1);
-  border: 1px solid rgba(147, 112, 219, 0.1);
-  margin-bottom: 20px;
+  padding: 0;
+  background: none;
+  border-radius: 0;
+  box-shadow: none;
+  border: none;
+  margin-bottom: 16px;
 
   .filter-input {
     flex: 1;
@@ -505,7 +527,7 @@ onMounted(() => {
 
       &:hover, &.is-focus {
         border-color: #7b42f6;
-        box-shadow: 0 0 0 3px rgba(123, 66, 246, 0.1);
+        box-shadow: none;
       }
     }
 
@@ -539,9 +561,14 @@ onMounted(() => {
   border-radius: 8px;
   overflow: hidden;
   box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.04);
+  border-top: none !important;
 
   &::before {
     display: none;
+  }
+
+  :deep(.el-table__inner-wrapper::before) {
+    display: none !important;
   }
 
   :deep(.el-table__header-wrapper) {
@@ -555,7 +582,8 @@ onMounted(() => {
         color: #5a32a3;
         font-weight: 600;
         font-size: 14px;
-        border-bottom: 1px solid #e9ecef;
+        border-bottom: none;
+        border-top: none;
         padding: 16px;
         text-align: center;
         line-height: 24px;
@@ -628,14 +656,72 @@ onMounted(() => {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    padding: 6px 16px;
+    padding: 6px 14px;
     border-radius: 4px;
-    font-size: 13px;
-    font-weight: 500;
+    font-size: 12px;
+    font-weight: 600;
     transition: all 0.3s ease;
     white-space: nowrap;
-    background: #f0edff;
-    color: #5a32a3;
+
+    &.random {
+      background: rgba(64, 158, 255, 0.15);
+      color: #409eff;
+    }
+
+    &.string {
+      background: rgba(103, 194, 58, 0.15);
+      color: #67c23a;
+    }
+
+    &.test_data {
+      background: rgba(230, 162, 60, 0.15);
+      color: #e6a23c;
+    }
+
+    &.datetime {
+      background: rgba(144, 147, 153, 0.15);
+      color: #909399;
+    }
+
+    &.encode {
+      background: rgba(64, 158, 255, 0.15);
+      color: #409eff;
+    }
+
+    &.crypto {
+      background: rgba(245, 108, 108, 0.15);
+      color: #f56c6c;
+    }
+
+    &.crontab {
+      background: rgba(155, 105, 245, 0.15);
+      color: #9b69f5;
+    }
+
+    &.professional {
+      background: rgba(131, 85, 210, 0.15);
+      color: #8355d2;
+    }
+
+    &.system {
+      background: rgba(96, 98, 102, 0.15);
+      color: #606266;
+    }
+
+    &.entertainment {
+      background: rgba(255, 193, 7, 0.15);
+      color: #ffc107;
+    }
+
+    &.mock {
+      background: rgba(121, 85, 72, 0.15);
+      color: #795548;
+    }
+
+    &.other {
+      background: rgba(144, 147, 153, 0.15);
+      color: #909399;
+    }
   }
 
   .tag-item {

@@ -12,6 +12,19 @@ class NullableDateField(serializers.DateField):
             return None
         # 否则使用父类的正常处理
         return super().to_internal_value(value)
+
+
+def convert_null_strings(obj):
+    """递归地将字符串 'null' 转换为 None"""
+    if obj is None:
+        return None
+    if isinstance(obj, str) and obj.lower() == 'null':
+        return None
+    if isinstance(obj, dict):
+        return {k: convert_null_strings(v) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [convert_null_strings(item) for item in obj]
+    return obj
 from .models import (
     ApiProject, ApiCollection, ApiRequest, Environment,
     RequestHistory, TestSuite, TestExecution, TestSuiteRequest,
@@ -189,11 +202,37 @@ class TestSuiteRequestSerializer(serializers.ModelSerializer):
         model = TestSuiteRequest
         fields = ['id', 'request', 'order', 'assertions', 'enabled']
 
+    def validate_assertions(self, value):
+        """验证并处理 assertions 数据，将字符串 'null' 转换为 None"""
+        if value:
+            return convert_null_strings(value)
+        return value
+
+    def update(self, instance, validated_data):
+        """更新时处理 assertions 数据"""
+        assertions = validated_data.get('assertions')
+        if assertions is not None:
+            assertions = convert_null_strings(assertions)
+            validated_data['assertions'] = assertions
+        return super().update(instance, validated_data)
+
+    def to_representation(self, instance):
+        """序列化输出时也将字符串 'null' 转换为 None"""
+        data = super().to_representation(instance)
+        if data.get('assertions'):
+            data['assertions'] = convert_null_strings(data['assertions'])
+        return data
+
 
 class TestSuiteSerializer(serializers.ModelSerializer):
     created_by = UserSerializer(read_only=True)
-    suite_requests = TestSuiteRequestSerializer(source='testsuiterequest_set', many=True, read_only=True)
+    suite_requests = serializers.SerializerMethodField()
     environment = EnvironmentSerializer(read_only=True)
+
+    def get_suite_requests(self, obj):
+        """获取按order排序的套件请求列表"""
+        requests = obj.testsuiterequest_set.all().order_by('order')
+        return TestSuiteRequestSerializer(requests, many=True, read_only=True).data
     environment_id = serializers.PrimaryKeyRelatedField(
         queryset=Environment.objects.all(),
         source='environment',

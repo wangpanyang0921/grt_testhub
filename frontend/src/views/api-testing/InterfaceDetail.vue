@@ -3032,6 +3032,10 @@ const goBack = () => {
       :deep(.el-table) {
         height: 100%;
       }
+
+      :deep(.el-table__inner-wrapper::before) {
+        display: none !important;
+      }
     }
   }
 }
