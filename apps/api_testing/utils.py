@@ -627,7 +627,13 @@ def execute_test_suite(test_suite, environment, executed_by):
                             else:
                                 error_message = f"{assertion_result.get('name', '未命名断言')}: 断言不通过"
                             break
-                
+
+                # 检查状态码，>= 400 视为失败（与前端逻辑保持一致）
+                if response.status_code >= 400:
+                    passed = False
+                    if not error_message:
+                        error_message = f"状态码错误: {response.status_code}"
+
                 if passed:
                     passed_count += 1
                 else:
