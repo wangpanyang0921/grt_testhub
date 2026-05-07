@@ -4380,7 +4380,7 @@ class ApiDashboardViewSet(viewsets.ViewSet):
                 'pass_rate': pass_rate
             })
 
-        # 团队总体统计
+        # 团队总体统计 - TestExecution 统计
         team_execution_count = TestExecution.objects.filter(
             created_at__gte=query_date,
             created_at__lt=next_month
@@ -4398,15 +4398,55 @@ class ApiDashboardViewSet(viewsets.ViewSet):
             status='COMPLETED'
         ).aggregate(total=Sum('failed_requests'))['total'] or 0
 
-        team_total_cases = team_passed_cases + team_failed_cases
-        team_pass_rate = round(team_passed_cases / team_total_cases * 100, 2) if team_total_cases > 0 else 0
+        # 统计 RequestHistory 中的单接口执行记录
+        # 获取当月的所有请求历史
+        request_histories = RequestHistory.objects.filter(
+            executed_at__gte=query_date,
+            executed_at__lt=next_month
+        )
+
+        # 单接口执行次数
+        history_execution_count = request_histories.count()
+
+        # 计算请求历史中的成功/失败数量
+        history_passed = 0
+        history_failed = 0
+        for history in request_histories:
+            # 判断逻辑与前端保持一致
+            status_code = history.status_code
+            if not status_code:
+                history_failed += 1
+            elif status_code >= 400:
+                history_failed += 1
+            elif history.assertions_results and isinstance(history.assertions_results, list):
+                # 检查断言是否失败
+                has_failed_assertion = any(
+                    result.get('passed') is False for result in history.assertions_results
+                )
+                if has_failed_assertion:
+                    history_failed += 1
+                else:
+                    history_passed += 1
+            else:
+                # 状态码 200-399 且无断言失败，视为成功
+                history_passed += 1
+
+        # 合并统计结果
+        total_passed_cases = team_passed_cases + history_passed
+        total_failed_cases = team_failed_cases + history_failed
+
+        team_total_cases = total_passed_cases + total_failed_cases
+        team_pass_rate = round(total_passed_cases / team_total_cases * 100, 2) if team_total_cases > 0 else 0
+
+        # 合并总执行次数（测试套件执行 + 单接口执行）
+        total_execution_count = team_execution_count + history_execution_count
 
         return Response({
             'month': query_date.strftime('%Y-%m'),
             'team_summary': {
-                'total_execution_count': team_execution_count,
-                'total_passed_cases': team_passed_cases,
-                'total_failed_cases': team_failed_cases,
+                'total_execution_count': total_execution_count,
+                'total_passed_cases': total_passed_cases,
+                'total_failed_cases': total_failed_cases,
                 'total_pass_rate': team_pass_rate
             },
             'execution_rank': execution_rank_list,
