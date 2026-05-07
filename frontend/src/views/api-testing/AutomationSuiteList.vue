@@ -642,14 +642,13 @@ onMounted(() => {
     width: 240px;
 
     :deep(.el-input__wrapper) {
-      box-shadow: none;
-      border: 1px solid rgba(147, 112, 219, 0.2);
+      box-shadow: 0 0 0 1px rgba(147, 112, 219, 0.2) inset;
       border-radius: 8px;
       background-color: transparent;
 
       &:hover,
       &.is-focus {
-        border-color: #7b42f6;
+        box-shadow: 0 0 0 1px #7b42f6 inset;
       }
     }
   }
@@ -658,14 +657,13 @@ onMounted(() => {
     width: 140px;
 
     :deep(.el-input__wrapper) {
-      box-shadow: none;
-      border: 1px solid rgba(147, 112, 219, 0.2);
+      box-shadow: 0 0 0 1px rgba(147, 112, 219, 0.2) inset;
       border-radius: 8px;
       background-color: transparent;
 
       &:hover,
       &.is-focus {
-        border-color: #7b42f6;
+        box-shadow: 0 0 0 1px #7b42f6 inset;
       }
     }
   }
@@ -674,14 +672,13 @@ onMounted(() => {
     width: 280px;
 
     :deep(.el-input__wrapper) {
-      box-shadow: none;
-      border: 1px solid rgba(147, 112, 219, 0.2);
+      box-shadow: 0 0 0 1px rgba(147, 112, 219, 0.2) inset;
       border-radius: 8px;
       background-color: transparent;
 
       &:hover,
       &.is-focus {
-        border-color: #7b42f6;
+        box-shadow: 0 0 0 1px #7b42f6 inset;
       }
     }
   }

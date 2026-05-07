@@ -21,6 +21,7 @@ import ApiEnvironmentManagement from '@/views/api-testing/EnvironmentManagement.
 import ApiReportView from '@/views/api-testing/ReportView.vue'
 import ApiScheduledTasks from '@/views/api-testing/ScheduledTasks.vue'
 import ApiAIServiceConfig from '@/views/api-testing/AIServiceConfig.vue'
+import ApiTeamStatistics from '@/views/api-testing/TeamStatistics.vue'
 import NotificationLogs from '@/views/notification/NotificationLogs.vue'
 import UiDashboard from '@/views/ui-automation/dashboard/Dashboard.vue'
 import UiProjectList from '@/views/ui-automation/projects/ProjectList.vue'
@@ -223,12 +224,11 @@ const routes = [
     children: [
       {
         path: '',
-        redirect: 'dashboard'
+        redirect: '/api-testing/team-statistics'
       },
       {
         path: 'dashboard',
-        name: 'ApiDashboard',
-        component: ApiDashboard
+        redirect: '/api-testing/team-statistics'
       },
       {
         path: 'projects',
@@ -289,6 +289,11 @@ const routes = [
         path: 'ai-service-config',
         name: 'ApiAIServiceConfig',
         component: ApiAIServiceConfig
+      },
+      {
+        path: 'team-statistics',
+        name: 'ApiTeamStatistics',
+        component: ApiTeamStatistics
       },
       {
         path: 'notification-logs',

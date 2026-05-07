@@ -6,7 +6,62 @@ import json
 User = get_user_model()
 
 
-class ApiProject(models.Model):
+class SoftDeleteQuerySet(models.QuerySet):
+    """软删除 QuerySet"""
+
+    def alive(self):
+        """返回未删除的数据"""
+        return self.filter(is_deleted=False)
+
+    def deleted(self):
+        """返回已删除的数据"""
+        return self.filter(is_deleted=True)
+
+
+class SoftDeleteManager(models.Manager):
+    """软删除 Manager - 默认只返回未删除的数据"""
+
+    def get_queryset(self):
+        return SoftDeleteQuerySet(self.model, using=self._db).alive()
+
+    def all_with_deleted(self):
+        """返回所有数据（包括已删除的）"""
+        return SoftDeleteQuerySet(self.model, using=self._db)
+
+    def deleted(self):
+        """只返回已删除的数据"""
+        return SoftDeleteQuerySet(self.model, using=self._db).deleted()
+
+
+class SoftDeleteModel(models.Model):
+    """软删除基础模型"""
+    is_deleted = models.BooleanField(default=False, verbose_name='是否已删除')
+    deleted_at = models.DateTimeField(null=True, blank=True, verbose_name='删除时间')
+
+    objects = SoftDeleteManager()
+    all_objects = models.Manager()  # 原始管理器，可访问所有数据
+
+    class Meta:
+        abstract = True
+
+    def delete(self, using=None, keep_parents=False):
+        """软删除：标记为已删除而不是物理删除"""
+        self.is_deleted = True
+        self.deleted_at = timezone.now()
+        self.save(update_fields=['is_deleted', 'deleted_at'])
+
+    def hard_delete(self, using=None, keep_parents=False):
+        """物理删除：真正从数据库中删除"""
+        super().delete(using=using, keep_parents=keep_parents)
+
+    def restore(self):
+        """恢复已删除的数据"""
+        self.is_deleted = False
+        self.deleted_at = None
+        self.save(update_fields=['is_deleted', 'deleted_at'])
+
+
+class ApiProject(SoftDeleteModel):
     """API项目模型"""
     PROJECT_TYPE_CHOICES = [
         ('HTTP', 'HTTP'),
@@ -40,7 +95,7 @@ class ApiProject(models.Model):
         return self.name
 
 
-class ApiCollection(models.Model):
+class ApiCollection(SoftDeleteModel):
     """API集合模型"""
     name = models.CharField(max_length=200, verbose_name='集合名称')
     description = models.TextField(blank=True, verbose_name='集合描述')
@@ -63,7 +118,7 @@ class ApiCollection(models.Model):
         return self.name
 
 
-class ApiRequest(models.Model):
+class ApiRequest(SoftDeleteModel):
     """API请求模型"""
     REQUEST_TYPE_CHOICES = [
         ('HTTP', 'HTTP'),
@@ -138,7 +193,7 @@ class Environment(models.Model):
         return f"{self.name} ({self.get_scope_display()})"
 
 
-class RequestHistory(models.Model):
+class RequestHistory(SoftDeleteModel):
     """请求历史模型"""
     request = models.ForeignKey(ApiRequest, on_delete=models.CASCADE, related_name='histories', verbose_name='关联请求')
     environment = models.ForeignKey(Environment, on_delete=models.SET_NULL, null=True, blank=True,
@@ -162,7 +217,7 @@ class RequestHistory(models.Model):
         return f"{self.request.name} - {self.executed_at}"
 
 
-class TestSuite(models.Model):
+class TestSuite(SoftDeleteModel):
     """测试套件模型（自动化测试）"""
     project = models.ForeignKey(ApiProject, on_delete=models.CASCADE, related_name='test_suites',
                                 verbose_name='所属项目')
@@ -188,7 +243,7 @@ class TestSuite(models.Model):
         return self.name
 
 
-class TestSuiteRequest(models.Model):
+class TestSuiteRequest(SoftDeleteModel):
     """测试套件中的请求关联模型"""
     test_suite = models.ForeignKey(TestSuite, on_delete=models.CASCADE, verbose_name='测试套件')
     request = models.ForeignKey(ApiRequest, on_delete=models.CASCADE, verbose_name='API请求')
@@ -208,7 +263,7 @@ class TestSuiteRequest(models.Model):
         return f"{self.test_suite.name} - {self.request.name}"
 
 
-class TestExecution(models.Model):
+class TestExecution(SoftDeleteModel):
     """测试执行模型"""
     EXECUTION_STATUS_CHOICES = [
         ('PENDING', '待执行'),
@@ -242,7 +297,7 @@ class TestExecution(models.Model):
 
 
 # 定时任务相关模型
-class ScheduledTask(models.Model):
+class ScheduledTask(SoftDeleteModel):
     """定时任务模型"""
     TASK_TYPE_CHOICES = [
         ('TEST_SUITE', '测试套件执行'),
@@ -645,7 +700,7 @@ class AIServiceConfig(models.Model):
 
 
 
-class TestSuiteReviewRecord(models.Model):
+class TestSuiteReviewRecord(SoftDeleteModel):
     """测试套件评审记录模型"""
     REVIEW_STATUS_CHOICES = [
         ('pending', '待评审'),

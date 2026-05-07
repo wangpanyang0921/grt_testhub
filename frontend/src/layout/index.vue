@@ -11,6 +11,7 @@
         </div>
         <el-menu
           :default-active="$route.path"
+          :default-openeds="defaultOpeneds"
           router
           text-color="#fff"
           active-text-color="#fff"
@@ -118,9 +119,9 @@
 
           <!-- 接口测试模块菜单 -->
           <template v-else-if="currentModule === 'api-testing'">
-            <el-menu-item index="/api-testing/dashboard">
+            <el-menu-item index="/api-testing/team-statistics">
               <el-icon><Odometer /></el-icon>
-              <span>{{ $t('menu.dashboard') }}</span>
+              <span>数据看板</span>
             </el-menu-item>
             <el-menu-item index="/api-testing/projects">
               <el-icon><Folder /></el-icon>
@@ -131,13 +132,13 @@
                 <el-icon><Link /></el-icon>
                 <span>{{ $t('menu.interfaceManagement') }}</span>
               </template>
-              <el-menu-item index="/api-testing/interfaces">
-                <el-icon><Document /></el-icon>
-                <span>接口列表</span>
-              </el-menu-item>
               <el-menu-item index="/api-testing/collections">
                 <el-icon><Folder /></el-icon>
                 <span>合集管理</span>
+              </el-menu-item>
+              <el-menu-item index="/api-testing/interfaces">
+                <el-icon><Document /></el-icon>
+                <span>接口列表</span>
               </el-menu-item>
             </el-sub-menu>
             <el-menu-item index="/api-testing/automation">
@@ -513,6 +514,14 @@ const currentModule = computed(() => {
   return ''
 })
 
+// 默认展开的子菜单（接口测试模块默认展开接口管理）
+const defaultOpeneds = computed(() => {
+  if (currentModule.value === 'api-testing') {
+    return ['/api-testing/interfaces']
+  }
+  return []
+})
+
 const moduleName = computed(() => {
   // Bug 分析相关页面特殊处理
   if (route.path.startsWith('/ai-generation/bug-analysis')) {
@@ -572,13 +581,9 @@ const moduleRoute = computed(() => {
     return '/ai-generation/bug-analysis/summary'
   }
 
-  // 接口测试子页面，返回到接口列表
-  if (path.startsWith('/api-testing/interfaces')) {
-    return '/api-testing/interfaces'
-  }
-  // 自动化测试套件详情页，返回到自动化测试列表
-  if (path.match(/^\/api-testing\/automation\/\d+$/)) {
-    return '/api-testing/automation'
+  // 接口测试模块 - 所有子页面返回到数据看板
+  if (path.startsWith('/api-testing/')) {
+    return '/api-testing/team-statistics'
   }
 
   // 其他模块可以根据需要添加
@@ -650,8 +655,10 @@ const breadcrumbTitle = computed(() => {
 
     // 接口测试
     '/api-testing/dashboard': t('menu.dashboard'),
+    '/api-testing/team-statistics': '数据看板',
     '/api-testing/projects': t('menu.projectManagement'),
-    '/api-testing/interfaces': t('menu.interfaceManagement'),
+    '/api-testing/interfaces': '接口列表',
+    '/api-testing/collections': '合集管理',
     '/api-testing/interfaces/create': '创建接口',
     '/api-testing/automation': t('menu.automationTesting'),
     '/api-testing/history': t('menu.requestHistory'),
@@ -951,42 +958,42 @@ const handleCommand = async (command) => {
   }
   
   :deep(.el-menu-item.is-active) {
-    background: linear-gradient(135deg, #7b42f6 0%, #5a32a3 100%) !important;
-    color: #ffffff !important;
+    background: rgba(123, 66, 246, 0.15) !important;
+    color: #5a32a3 !important;
     font-weight: 600 !important;
     border-right: none !important;
     transition: all 0.3s ease !important;
     padding-left: 20px !important;
     margin: 6px 12px !important;
     border-radius: 8px !important;
-    box-shadow: 0 2px 8px rgba(147, 112, 219, 0.05) !important;
+    box-shadow: 0 2px 8px rgba(147, 112, 219, 0.1), inset 0 0 0 1px rgba(123, 66, 246, 0.2) !important;
     backdrop-filter: blur(10px) !important;
     outline: none !important;
     border: none !important;
 
     &:focus {
       outline: none !important;
-      box-shadow: 0 2px 8px rgba(147, 112, 219, 0.05) !important;
+      box-shadow: 0 2px 8px rgba(147, 112, 219, 0.1), inset 0 0 0 1px rgba(123, 66, 246, 0.2) !important;
     }
   }
 
   :deep(.el-sub-menu__title.is-active) {
-    background: linear-gradient(135deg, #7b42f6 0%, #5a32a3 100%) !important;
-    color: #ffffff !important;
+    background: rgba(123, 66, 246, 0.15) !important;
+    color: #5a32a3 !important;
     font-weight: 600 !important;
     border-right: none !important;
     transition: all 0.3s ease !important;
     padding-left: 20px !important;
     margin: 6px 12px !important;
     border-radius: 8px !important;
-    box-shadow: 0 2px 8px rgba(147, 112, 219, 0.05) !important;
+    box-shadow: 0 2px 8px rgba(147, 112, 219, 0.1), inset 0 0 0 1px rgba(123, 66, 246, 0.2) !important;
     backdrop-filter: blur(10px) !important;
     outline: none !important;
     border: none !important;
 
     &:focus {
       outline: none !important;
-      box-shadow: 0 2px 8px rgba(147, 112, 219, 0.05) !important;
+      box-shadow: 0 2px 8px rgba(147, 112, 219, 0.1), inset 0 0 0 1px rgba(123, 66, 246, 0.2) !important;
     }
   }
 
@@ -1029,42 +1036,42 @@ const handleCommand = async (command) => {
   }
 
   :deep(.el-menu-item.is-active:hover) {
-    background: linear-gradient(135deg, #6d33e6 0%, #4a249c 100%) !important;
-    color: #ffffff !important;
+    background: rgba(123, 66, 246, 0.25) !important;
+    color: #5a32a3 !important;
     font-weight: 600 !important;
     border-right: none !important;
     transition: all 0.3s ease !important;
     padding-left: 20px !important;
     margin: 6px 12px !important;
     border-radius: 8px !important;
-    box-shadow: 0 2px 8px rgba(147, 112, 219, 0.05) !important;
+    box-shadow: 0 2px 8px rgba(147, 112, 219, 0.15), inset 0 0 0 1px rgba(123, 66, 246, 0.3) !important;
     backdrop-filter: blur(10px) !important;
     outline: none !important;
     border: none !important;
 
     &:focus {
       outline: none !important;
-      box-shadow: 0 2px 8px rgba(147, 112, 219, 0.05) !important;
+      box-shadow: 0 2px 8px rgba(147, 112, 219, 0.15), inset 0 0 0 1px rgba(123, 66, 246, 0.3) !important;
     }
   }
 
   :deep(.el-sub-menu__title.is-active:hover) {
-    background: linear-gradient(135deg, #6d33e6 0%, #4a249c 100%) !important;
-    color: #ffffff !important;
+    background: rgba(123, 66, 246, 0.25) !important;
+    color: #5a32a3 !important;
     font-weight: 600 !important;
     border-right: none !important;
     transition: all 0.3s ease !important;
     padding-left: 20px !important;
     margin: 6px 12px !important;
     border-radius: 8px !important;
-    box-shadow: 0 2px 8px rgba(147, 112, 219, 0.05) !important;
+    box-shadow: 0 2px 8px rgba(147, 112, 219, 0.15), inset 0 0 0 1px rgba(123, 66, 246, 0.3) !important;
     backdrop-filter: blur(10px) !important;
     outline: none !important;
     border: none !important;
 
     &:focus {
       outline: none !important;
-      box-shadow: 0 2px 8px rgba(147, 112, 219, 0.05) !important;
+      box-shadow: 0 2px 8px rgba(147, 112, 219, 0.15), inset 0 0 0 1px rgba(123, 66, 246, 0.3) !important;
     }
   }
   

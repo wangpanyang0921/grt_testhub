@@ -4284,6 +4284,199 @@ class ApiDashboardViewSet(viewsets.ViewSet):
             'history_count': history_count
         })
 
+    @action(detail=False, methods=['get'])
+    def team_stats(self, request):
+        """获取团队月度统计"""
+        from django.db.models import Count, Sum, Q
+        from django.contrib.auth import get_user_model
+        import datetime
+
+        User = get_user_model()
+
+        # 获取查询月份，默认为当前月
+        month_str = request.query_params.get('month')
+        if month_str:
+            try:
+                year, month = map(int, month_str.split('-'))
+                query_date = datetime.date(year, month, 1)
+            except (ValueError, IndexError):
+                return Response({'error': '月份格式错误，应为 YYYY-MM'}, status=400)
+        else:
+            query_date = datetime.date.today().replace(day=1)
+
+        # 计算月份范围
+        if query_date.month == 12:
+            next_month = query_date.replace(year=query_date.year + 1, month=1)
+        else:
+            next_month = query_date.replace(month=query_date.month + 1)
+
+        # 团队成员执行统计排行（只统计已完成的执行）
+        execution_rank = TestExecution.objects.filter(
+            created_at__gte=query_date,
+            created_at__lt=next_month,
+            status='COMPLETED'
+        ).values('executed_by__id', 'executed_by__username').annotate(
+            execution_count=Count('id'),
+            passed_cases=Sum('passed_requests'),
+            failed_cases=Sum('failed_requests')
+        ).order_by('-execution_count')[:10]
+
+        execution_rank_list = []
+        for item in execution_rank:
+            total = (item['passed_cases'] or 0) + (item['failed_cases'] or 0)
+            pass_rate = round((item['passed_cases'] or 0) / total * 100, 2) if total > 0 else 0
+            execution_rank_list.append({
+                'user_id': item['executed_by__id'],
+                'username': item['executed_by__username'],
+                'execution_count': item['execution_count'],
+                'passed_cases': item['passed_cases'] or 0,
+                'failed_cases': item['failed_cases'] or 0,
+                'pass_rate': pass_rate
+            })
+
+        # 团队成员评审统计排行（按创建人统计测试套件的评审通过情况）
+        from django.db.models import OuterRef, Subquery
+
+        # 获取本月创建的测试套件，按创建人分组统计
+        review_rank = TestSuite.objects.filter(
+            created_at__gte=query_date,
+            created_at__lt=next_month
+        ).values('created_by__id', 'created_by__username').annotate(
+            total_count=Count('id'),
+            approved_count=Count(
+                'id',
+                filter=Q(review_records__status='approved')
+            ),
+            pending_count=Count(
+                'id',
+                filter=~Q(review_records__status='approved') & ~Q(review_records__status='rejected')
+            ),
+            rejected_count=Count(
+                'id',
+                filter=Q(review_records__status='rejected')
+            )
+        ).order_by('-approved_count')[:10]
+
+        review_rank_list = []
+        for item in review_rank:
+            total = item['total_count']
+            approved = item['approved_count']
+            pass_rate = round(approved / total * 100, 2) if total > 0 else 0
+            review_rank_list.append({
+                'user_id': item['created_by__id'],
+                'username': item['created_by__username'],
+                'total_count': total,
+                'approved_count': approved,
+                'pending_count': item['pending_count'],
+                'rejected_count': item['rejected_count'],
+                'pass_rate': pass_rate
+            })
+
+        # 团队总体统计
+        team_execution_count = TestExecution.objects.filter(
+            created_at__gte=query_date,
+            created_at__lt=next_month
+        ).count()
+
+        team_passed_cases = TestExecution.objects.filter(
+            created_at__gte=query_date,
+            created_at__lt=next_month,
+            status='COMPLETED'
+        ).aggregate(total=Sum('passed_requests'))['total'] or 0
+
+        team_failed_cases = TestExecution.objects.filter(
+            created_at__gte=query_date,
+            created_at__lt=next_month,
+            status='COMPLETED'
+        ).aggregate(total=Sum('failed_requests'))['total'] or 0
+
+        team_total_cases = team_passed_cases + team_failed_cases
+        team_pass_rate = round(team_passed_cases / team_total_cases * 100, 2) if team_total_cases > 0 else 0
+
+        return Response({
+            'month': query_date.strftime('%Y-%m'),
+            'team_summary': {
+                'total_execution_count': team_execution_count,
+                'total_passed_cases': team_passed_cases,
+                'total_failed_cases': team_failed_cases,
+                'total_pass_rate': team_pass_rate
+            },
+            'execution_rank': execution_rank_list,
+            'review_rank': review_rank_list
+        })
+
+    @action(detail=False, methods=['get'])
+    def monthly_trend(self, request):
+        """获取月度趋势数据"""
+        from django.db.models import Count, Sum
+        import datetime
+
+        # 获取月份数量，默认6个月
+        try:
+            months = int(request.query_params.get('months', 6))
+        except ValueError:
+            months = 6
+
+        months = min(max(months, 1), 12)  # 限制1-12个月
+
+        end_date = datetime.date.today().replace(day=1)
+        trends = []
+
+        for i in range(months - 1, -1, -1):
+            # 计算当前月份
+            if end_date.month - i <= 0:
+                year = end_date.year - 1
+                month = end_date.month - i + 12
+            else:
+                year = end_date.year
+                month = end_date.month - i
+
+            query_date = datetime.date(year, month, 1)
+            if month == 12:
+                next_month = datetime.date(year + 1, 1, 1)
+            else:
+                next_month = datetime.date(year, month + 1, 1)
+
+            # 统计该月数据
+            execution_count = TestExecution.objects.filter(
+                created_at__gte=query_date,
+                created_at__lt=next_month
+            ).count()
+
+            passed_cases = TestExecution.objects.filter(
+                created_at__gte=query_date,
+                created_at__lt=next_month,
+                status='COMPLETED'
+            ).aggregate(total=Sum('passed_requests'))['total'] or 0
+
+            failed_cases = TestExecution.objects.filter(
+                created_at__gte=query_date,
+                created_at__lt=next_month,
+                status='COMPLETED'
+            ).aggregate(total=Sum('failed_requests'))['total'] or 0
+
+            total_cases = passed_cases + failed_cases
+            pass_rate = round(passed_cases / total_cases * 100, 2) if total_cases > 0 else 0
+
+            review_count = TestSuiteReviewRecord.objects.filter(
+                reviewed_at__gte=query_date,
+                reviewed_at__lt=next_month
+            ).count()
+
+            trends.append({
+                'month': query_date.strftime('%Y-%m'),
+                'execution_count': execution_count,
+                'passed_cases': passed_cases,
+                'failed_cases': failed_cases,
+                'pass_rate': pass_rate,
+                'review_count': review_count
+            })
+
+        return Response({
+            'months': months,
+            'trends': trends
+        })
+
 
 class AIServiceConfigViewSet(viewsets.ModelViewSet):
     """AI服务配置视图集"""

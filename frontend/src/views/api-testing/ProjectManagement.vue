@@ -177,14 +177,14 @@
         <el-descriptions-item :label="$t('apiTesting.project.projectName')">{{ viewedProject?.name }}</el-descriptions-item>
         <el-descriptions-item :label="$t('apiTesting.project.projectDescription')">{{ viewedProject?.description || $t('apiTesting.project.none') }}</el-descriptions-item>
         <el-descriptions-item :label="$t('apiTesting.project.projectType')">
-          <el-tag :type="viewedProject?.project_type === 'HTTP' ? 'primary' : 'success'">
+          <span class="status-badge" :class="viewedProject?.project_type === 'HTTP' ? 'http' : 'websocket'">
             {{ viewedProject?.project_type }}
-          </el-tag>
+          </span>
         </el-descriptions-item>
         <el-descriptions-item :label="$t('apiTesting.project.projectStatus')">
-          <el-tag :type="getStatusTagType(viewedProject?.status)">
+          <span class="status-badge" :class="getStatusClass(viewedProject?.status)">
             {{ getStatusText(viewedProject?.status) }}
-          </el-tag>
+          </span>
         </el-descriptions-item>
         <el-descriptions-item :label="$t('apiTesting.project.owner')">{{ viewedProject?.owner?.username }}</el-descriptions-item>
         <el-descriptions-item :label="$t('apiTesting.project.teamMembers')">

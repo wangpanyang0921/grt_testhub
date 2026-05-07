@@ -5,11 +5,13 @@
         v-model="searchText"
         :placeholder="$t('uiAutomation.project.searchPlaceholder')"
         clearable
-        @input="handleSearch"
+        @clear="handleSearch"
+        @keyup.enter="handleSearch"
         style="width: 300px;"
+        class="search-input"
       >
-        <template #prefix>
-          <el-icon><Search /></el-icon>
+        <template #suffix>
+          <el-icon @click="handleSearch" style="cursor: pointer;"><Search /></el-icon>
         </template>
       </el-input>
       <!-- 状态筛选已隐藏 -->
@@ -611,23 +613,21 @@ onMounted(() => {
   align-items: center;
   gap: 12px;
 
-  :deep(.el-input__wrapper),
-  :deep(.el-select .el-input__wrapper) {
-    box-shadow: 0 2px 8px rgba(147, 112, 219, 0.08);
-    border-radius: 8px;
-    border: 1px solid rgba(147, 112, 219, 0.2);
-    background: #ffffff;
+  .search-input {
+    :deep(.el-input__wrapper) {
+      border-radius: 8px;
+      box-shadow: 0 0 0 1px rgba(147, 112, 219, 0.2) inset;
+      background: #ffffff;
 
-    &:hover,
-    &:focus {
-      box-shadow: 0 2px 8px rgba(147, 112, 219, 0.15);
-      border-color: #7b42f6;
+      &:hover, &.is-focus {
+        box-shadow: 0 0 0 1px #7b42f6 inset;
+      }
     }
-  }
 
-  :deep(.el-input__inner) {
-    color: #5a32a3;
-    font-weight: 500;
+    :deep(.el-input__inner) {
+      color: #5a32a3;
+      font-weight: 500;
+    }
   }
 
   .filter-bar-spacer {

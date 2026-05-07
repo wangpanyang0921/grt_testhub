@@ -8,6 +8,24 @@ export function getDashboardStats() {
   })
 }
 
+// 获取团队月度统计
+export function getTeamStats(params) {
+  return request({
+    url: '/api-testing/dashboard/team_stats/',
+    method: 'get',
+    params
+  })
+}
+
+// 获取月度趋势数据
+export function getMonthlyTrend(params) {
+  return request({
+    url: '/api-testing/dashboard/monthly_trend/',
+    method: 'get',
+    params
+  })
+}
+
 // 获取定时任务列表
 export function getScheduledTasks(params) {
   return request({

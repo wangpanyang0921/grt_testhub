@@ -9,11 +9,12 @@
         :placeholder="$t('uiAutomation.execution.searchPlaceholder')"
         clearable
         @clear="handleSearch"
-        @keydown="($event) => { if ($event.key === 'Enter') handleSearch() }"
+        @keyup.enter="handleSearch"
         style="width: 300px;"
+        class="search-input"
       >
-        <template #prefix>
-          <el-icon><Search /></el-icon>
+        <template #suffix>
+          <el-icon @click="handleSearch" style="cursor: pointer;"><Search /></el-icon>
         </template>
       </el-input>
       <el-select v-model="queryParams.status" :placeholder="$t('uiAutomation.execution.statusFilter')" clearable @change="handleSearch" style="width: 160px;">
@@ -652,44 +653,40 @@ onMounted(async () => {
   align-items: center;
   gap: 12px;
 
-  :deep(.el-input__wrapper),
-  :deep(.el-select .el-input__wrapper) {
-    border-radius: 8px;
-    border: 1px solid rgba(147, 112, 219, 0.2);
-    background: #ffffff;
-    box-shadow: none;
+  .search-input,
+  .project-select {
+    :deep(.el-input__wrapper) {
+      border-radius: 8px;
+      box-shadow: 0 0 0 1px rgba(147, 112, 219, 0.2) inset;
+      background: #ffffff;
 
-    &:hover {
-      border-color: #7b42f6;
-      box-shadow: 0 0 0 3px rgba(123, 66, 246, 0.1);
+      &:hover {
+        box-shadow: 0 0 0 1px #7b42f6 inset;
+      }
+
+      &.is-focus {
+        box-shadow: 0 0 0 1px #7b42f6 inset;
+      }
     }
 
-    &.is-focus {
-      border-color: #7b42f6;
-      box-shadow: 0 0 0 3px rgba(123, 66, 246, 0.15);
+    :deep(.el-input__inner) {
+      color: #5a32a3;
+      font-weight: 500;
     }
-  }
-
-  :deep(.el-input__inner) {
-    color: #5a32a3;
-    font-weight: 500;
   }
 
   .project-select {
     :deep(.el-input__wrapper) {
       border-radius: 8px;
-      border: 1px solid rgba(147, 112, 219, 0.2);
+      box-shadow: 0 0 0 1px rgba(147, 112, 219, 0.2) inset;
       background: #ffffff;
-      box-shadow: none;
 
       &:hover {
-        border-color: #7b42f6;
-        box-shadow: 0 0 0 3px rgba(123, 66, 246, 0.1);
+        box-shadow: 0 0 0 1px #7b42f6 inset;
       }
 
       &.is-focus {
-        border-color: #7b42f6;
-        box-shadow: 0 0 0 3px rgba(123, 66, 246, 0.15);
+        box-shadow: 0 0 0 1px #7b42f6 inset;
       }
     }
 

@@ -92,43 +92,43 @@ const handleItemClick = (item) => {
   }
   
   &.is-active {
-    background: #5a32a3 !important;
-    color: #ffffff !important;
+    background: rgba(123, 66, 246, 0.15) !important;
+    color: #5a32a3 !important;
     font-weight: 600 !important;
     border-right: none !important;
     transition: all 0.3s ease !important;
     padding-left: 20px !important;
     margin: 6px 12px !important;
     border-radius: 8px !important;
-    box-shadow: 0 4px 12px rgba(90, 50, 163, 0.3) !important;
+    box-shadow: 0 2px 8px rgba(147, 112, 219, 0.1), inset 0 0 0 1px rgba(123, 66, 246, 0.2) !important;
     backdrop-filter: blur(10px) !important;
-    
+
     &:focus {
       outline: none !important;
-      box-shadow: 0 4px 12px rgba(90, 50, 163, 0.3) !important;
+      box-shadow: 0 2px 8px rgba(147, 112, 219, 0.1), inset 0 0 0 1px rgba(123, 66, 246, 0.2) !important;
     }
   }
-  
+
   &.is-active:hover {
-    background: #4a148c !important;
-    color: #ffffff !important;
+    background: rgba(123, 66, 246, 0.25) !important;
+    color: #5a32a3 !important;
     font-weight: 600 !important;
     border-right: none !important;
     transition: all 0.3s ease !important;
     padding-left: 20px !important;
     margin: 6px 12px !important;
     border-radius: 8px !important;
-    box-shadow: 0 6px 16px rgba(74, 20, 140, 0.4) !important;
+    box-shadow: 0 2px 8px rgba(147, 112, 219, 0.15), inset 0 0 0 1px rgba(123, 66, 246, 0.3) !important;
     backdrop-filter: blur(10px) !important;
-    
+
     &:focus {
       outline: none !important;
-      box-shadow: 0 6px 16px rgba(74, 20, 140, 0.4) !important;
+      box-shadow: 0 2px 8px rgba(147, 112, 219, 0.15), inset 0 0 0 1px rgba(123, 66, 246, 0.3) !important;
     }
   }
-  
+
   &.is-active .el-icon {
-    color: #ffffff !important; /* 激活状态时图标为白色 */
+    color: #5a32a3 !important;
   }
   
   :deep(.el-dropdown) {

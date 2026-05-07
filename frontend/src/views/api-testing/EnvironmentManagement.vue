@@ -774,13 +774,12 @@ onMounted(async () => {
 
     :deep(.el-select__wrapper) {
       background-color: #ffffff;
-      border: 1px solid rgba(147, 112, 219, 0.2);
       border-radius: 8px;
-      box-shadow: none;
+      box-shadow: 0 0 0 1px rgba(147, 112, 219, 0.2) inset;
 
       &:hover,
       &.is-focused {
-        border-color: #7b42f6;
+        box-shadow: 0 0 0 1px #7b42f6 inset;
       }
     }
   }
@@ -790,13 +789,12 @@ onMounted(async () => {
 
     :deep(.el-select__wrapper) {
       background-color: #ffffff;
-      border: 1px solid rgba(147, 112, 219, 0.2);
       border-radius: 8px;
-      box-shadow: none;
+      box-shadow: 0 0 0 1px rgba(147, 112, 219, 0.2) inset;
 
       &:hover,
       &.is-focused {
-        border-color: #7b42f6;
+        box-shadow: 0 0 0 1px #7b42f6 inset;
       }
     }
   }

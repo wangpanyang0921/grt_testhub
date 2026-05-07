@@ -85,6 +85,98 @@ body {
   text-overflow: ellipsis;
 }
 
+// 全局覆盖 Element Plus 输入框和下拉框背景色
+// 使用 html body 前缀提高优先级
+html body .el-input__wrapper {
+  background-color: #ffffff !important;
+  background: #ffffff !important;
+  box-shadow: 0 0 0 1px #dcdfe6 inset !important;
+}
+
+html body .el-input__inner {
+  background-color: #ffffff !important;
+  background: #ffffff !important;
+}
+
+html body .el-select .el-input__wrapper {
+  background-color: #ffffff !important;
+  background: #ffffff !important;
+  box-shadow: 0 0 0 1px #dcdfe6 inset !important;
+}
+
+html body .el-select .el-input__inner {
+  background-color: #ffffff !important;
+  background: #ffffff !important;
+}
+
+// Element Plus 2.x 使用 .el-select__wrapper
+html body .el-select .el-select__wrapper {
+  background-color: #ffffff !important;
+  background: #ffffff !important;
+  box-shadow: 0 0 0 1px #dcdfe6 inset !important;
+}
+
+// 统一输入框聚焦时的边框粗细
+html body .el-input__wrapper.is-focus,
+html body .el-input__wrapper:focus {
+  box-shadow: 0 0 0 1px #7b42f6 inset !important;
+}
+
+html body .el-select .el-input__wrapper.is-focus,
+html body .el-select .el-input.is-focus .el-input__wrapper {
+  box-shadow: 0 0 0 1px #7b42f6 inset !important;
+}
+
+html body .el-select .el-select__wrapper.is-focused {
+  box-shadow: 0 0 0 1px #7b42f6 inset !important;
+}
+
+// 覆盖 Element Plus CSS 变量
+html body {
+  --el-input-bg-color: #ffffff !important;
+  --el-fill-color-blank: #ffffff !important;
+  --el-select-bg-color: #ffffff !important;
+  --el-border-color: #dcdfe6 !important;
+  --el-color-primary: #7b42f6 !important;
+}
+
+// 统一输入框悬停时的边框颜色
+html body .el-input__wrapper:hover,
+html body .el-select .el-input__wrapper:hover,
+html body .el-select:hover .el-select__wrapper {
+  box-shadow: 0 0 0 1px #7b42f6 inset !important;
+}
+
+// 覆盖下拉框选中项的蓝色背景，使用平台紫色主题
+html body .el-select-dropdown__item.selected {
+  background-color: #f8f7ff !important;
+  color: #7b42f6 !important;
+  font-weight: 600;
+}
+
+html body .el-select-dropdown__item:hover {
+  background-color: #f8f7ff !important;
+  color: #7b42f6 !important;
+}
+
+html body .el-select-dropdown__item.is-selected {
+  background-color: #f8f7ff !important;
+  color: #7b42f6 !important;
+}
+
+// 覆盖浏览器自动填充的黄色/紫色背景
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus,
+input:-webkit-autofill:active {
+  -webkit-box-shadow: 0 0 0 1000px #ffffff inset !important;
+  box-shadow: 0 0 0 1000px #ffffff inset !important;
+  -webkit-text-fill-color: #1f2937 !important;
+  background-color: #ffffff !important;
+  background: #ffffff !important;
+  transition: background-color 5000s ease-in-out 0s !important;
+}
+
 @media screen and (max-width: 1920px) {
   body {
     font-size: 14px;
@@ -111,273 +203,4 @@ body {
   .page-header .page-title {
     font-size: 20px;
   }
-}
-
-@media screen and (max-width: 1440px) {
-  body {
-    font-size: 13px;
-  }
-  
-  .page-container {
-    padding: 14px;
-  }
-  
-  .page-header .page-title {
-    font-size: 18px;
-  }
-}
-
-@media screen and (max-width: 1366px) {
-  body {
-    font-size: 13px;
-  }
-  
-  .page-container {
-    padding: 12px;
-  }
-  
-  .page-header .page-title {
-    font-size: 18px;
-  }
-}
-
-@media screen and (max-width: 1280px) {
-  body {
-    font-size: 13px;
-  }
-  
-  .page-container {
-    padding: 12px;
-  }
-  
-  .page-header .page-title {
-    font-size: 16px;
-  }
-}
-
-@media screen and (max-width: 1024px) {
-  body {
-    font-size: 12px;
-  }
-  
-  .page-container {
-    padding: 10px;
-  }
-  
-  .page-header .page-title {
-    font-size: 16px;
-  }
-  
-  .card-container {
-    padding: 15px;
-  }
-}
-
-@media screen and (max-width: 768px) {
-  body {
-    font-size: 12px;
-  }
-  
-  .page-container {
-    padding: 8px;
-  }
-  
-  .page-header {
-    flex-direction: column;
-    align-items: flex-start;
-    
-    .page-title {
-      font-size: 16px;
-    }
-  }
-  
-  .card-container {
-    padding: 12px;
-    border-radius: 6px;
-  }
-}
-
-@media screen and (max-width: 480px) {
-  body {
-    font-size: 11px;
-  }
-  
-  .page-container {
-    padding: 6px;
-  }
-  
-  .page-header .page-title {
-    font-size: 14px;
-  }
-  
-  .card-container {
-    padding: 10px;
-    border-radius: 4px;
-  }
-}
-
-/* Element Plus 菜单全局样式覆盖 - 防止紫色边框闪烁 */
-.el-menu {
-  .el-menu-item,
-  .el-sub-menu__title {
-    &:focus,
-    &:focus-visible,
-    &:active {
-      outline: none !important;
-      outline-offset: 0 !important;
-      border: 1px solid rgba(147, 112, 219, 0.08) !important;
-      box-shadow: 0 2px 8px rgba(147, 112, 219, 0.05) !important;
-      background: rgba(255, 255, 255, 0.9) !important;
-      color: #7b42f6 !important;
-      transform: none !important;
-    }
-    
-    &::after {
-      display: none !important;
-    }
-    
-    &:focus-visible::after {
-      display: none !important;
-    }
-  }
-}
-
-/* Element Plus 下拉菜单样式覆盖 - 修复选中项蓝色问题 */
-/* 下拉菜单渲染在 body 上，需要全局样式 */
-.el-select-dropdown__item {
-  &.selected,
-  &.is-selected {
-    color: #5a32a3 !important;
-    background-color: rgba(90, 50, 163, 0.1) !important;
-    font-weight: 600;
-
-    &:hover {
-      color: #5a32a3 !important;
-      background-color: rgba(90, 50, 163, 0.15) !important;
-    }
-  }
-
-  &:hover,
-  &.hover {
-    background-color: rgba(90, 50, 163, 0.08) !important;
-    color: #5a32a3 !important;
-  }
-}
-
-/* 覆盖 el-select-dropdown 的选中高亮样式 */
-.el-select-dropdown__item.is-selected {
-  color: #5a32a3 !important;
-  background-color: rgba(90, 50, 163, 0.1) !important;
-}
-
-/* 覆盖 el-select-dropdown 的 hover 样式 */
-.el-select-dropdown__item:hover {
-  background-color: rgba(90, 50, 163, 0.08) !important;
-  color: #5a32a3 !important;
-}
-
-/* 覆盖 el-dropdown-menu 的样式 - 修复蓝色问题 */
-.el-dropdown-menu {
-  .el-dropdown-menu__item {
-    color: #374151 !important;
-    
-    &:hover,
-    &:focus,
-    &:active,
-    &.el-dropdown-menu__item--active {
-      background: rgba(139, 92, 246, 0.1) !important;
-      color: #7c3aed !important;
-    }
-    
-    &:not(.is-disabled) {
-      color: #374151 !important;
-    }
-    
-    &:not(.is-disabled):hover,
-    &:not(.is-disabled):focus,
-    &:not(.is-disabled):active,
-    &:not(.is-disabled).el-dropdown-menu__item--active {
-      background: rgba(139, 92, 246, 0.1) !important;
-      color: #7c3aed !important;
-    }
-    
-    .el-icon {
-      color: #6b7280 !important;
-    }
-    
-    &:hover .el-icon,
-    &:focus .el-icon,
-    &:active .el-icon,
-    &.el-dropdown-menu__item--active .el-icon {
-      color: #7c3aed !important;
-    }
-    
-    a,
-    a:link,
-    a:visited,
-    a:hover,
-    a:active,
-    span {
-      color: inherit !important;
-    }
-  }
-}
-
-/* 自定义 Tooltip 样式 */
-.custom-tooltip {
-  background: linear-gradient(135deg, #7b42f6 0%, #5a32a3 100%) !important;
-  color: #ffffff !important;
-  border-radius: 10px !important;
-  padding: 12px 16px !important;
-  font-size: 14px !important;
-  line-height: 1.6 !important;
-  box-shadow: 0 8px 24px rgba(123, 66, 246, 0.3) !important;
-  border: 1px solid rgba(255, 255, 255, 0.2) !important;
-  max-width: 450px !important;
-  word-wrap: break-word !important;
-}
-
-.custom-tooltip .el-popper__arrow::before {
-  background: linear-gradient(135deg, #7b42f6 0%, #5a32a3 100%) !important;
-  border: 1px solid rgba(255, 255, 255, 0.2) !important;
-}
-
-.custom-tooltip .tooltip-content {
-  .tooltip-line {
-    margin-bottom: 6px;
-    white-space: normal;
-    word-break: break-all;
-    &:last-child {
-      margin-bottom: 0;
-    }
-  }
-}
-
-/* 全局覆盖 Element Plus 输入框和下拉框的聚焦边框颜色 */
-:root {
-  --el-color-primary: #7b42f6 !important;
-}
-
-/* 覆盖所有 el-input 的聚焦边框 */
-.el-input__wrapper.is-focus {
-  box-shadow: 0 0 0 1px #7b42f6 inset !important;
-}
-
-/* 覆盖 el-select 的聚焦边框 */
-.el-select .el-input__wrapper.is-focus {
-  box-shadow: 0 0 0 1px #7b42f6 inset !important;
-}
-
-.el-select.is-focus .el-input__wrapper {
-  box-shadow: 0 0 0 1px #7b42f6 inset !important;
-}
-
-/* 覆盖所有输入框的聚焦状态 */
-.el-input__wrapper:focus-within {
-  box-shadow: 0 0 0 1px #7b42f6 inset !important;
-}
-
-/* 覆盖 el-input 的聚焦样式 */
-.el-input.is-focus .el-input__wrapper {
-  box-shadow: 0 0 0 1px #7b42f6 inset !important;
 }

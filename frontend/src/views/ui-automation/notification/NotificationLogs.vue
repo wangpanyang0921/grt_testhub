@@ -11,8 +11,8 @@
         style="width: 260px;"
         class="search-input"
       >
-        <template #prefix>
-          <el-icon><Search /></el-icon>
+        <template #suffix>
+          <el-icon @click="handleSearch" style="cursor: pointer;"><Search /></el-icon>
         </template>
       </el-input>
       <el-select
@@ -655,12 +655,11 @@ export default {
   .search-input {
     :deep(.el-input__wrapper) {
       border-radius: 8px;
-      border: 1px solid rgba(147, 112, 219, 0.3);
-      box-shadow: none;
+      box-shadow: 0 0 0 1px rgba(147, 112, 219, 0.2) inset;
+      background: #ffffff;
 
       &:hover, &.is-focus {
-        border-color: #7b42f6;
-        box-shadow: 0 0 0 3px rgba(123, 66, 246, 0.1);
+        box-shadow: 0 0 0 1px #7b42f6 inset;
       }
     }
 

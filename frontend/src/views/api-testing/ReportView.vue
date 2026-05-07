@@ -350,18 +350,15 @@ onMounted(() => {
 
       :deep(.el-input__wrapper) {
         border-radius: 8px;
-        border: 1px solid rgba(147, 112, 219, 0.2);
         background: #ffffff !important;
-        box-shadow: none;
+        box-shadow: 0 0 0 1px rgba(147, 112, 219, 0.2) inset;
 
         &:hover {
-          border-color: #7b42f6;
-          box-shadow: 0 0 0 3px rgba(123, 66, 246, 0.1);
+          box-shadow: 0 0 0 1px #7b42f6 inset;
         }
 
         &.is-focus {
-          border-color: #7b42f6;
-          box-shadow: 0 0 0 3px rgba(123, 66, 246, 0.15);
+          box-shadow: 0 0 0 1px #7b42f6 inset;
         }
       }
 

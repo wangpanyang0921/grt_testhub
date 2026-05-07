@@ -16,11 +16,11 @@
           placeholder="搜索合集名称"
           clearable
           class="search-input"
-          style="width: 200px; margin-left: 12px;"
-          @input="onSearchInput"
+          style="width: 200px;"
+          @keyup.enter="handleSearch"
         >
-          <template #prefix>
-            <el-icon><Search /></el-icon>
+          <template #suffix>
+            <el-icon @click="handleSearch" style="cursor: pointer;"><Search /></el-icon>
           </template>
         </el-input>
       </div>
@@ -282,8 +282,8 @@ const filterCollections = () => {
   )
 }
 
-// 搜索输入事件
-const onSearchInput = () => {
+// 搜索事件
+const handleSearch = () => {
   filterCollections()
 }
 
@@ -508,18 +508,15 @@ const resetForm = () => {
     :deep(.el-input__wrapper),
     :deep(.el-select .el-input__wrapper) {
       border-radius: 8px;
-      border: 1px solid rgba(147, 112, 219, 0.2);
+      box-shadow: 0 0 0 1px rgba(147, 112, 219, 0.2) inset;
       background: #ffffff !important;
-      box-shadow: none;
 
       &:hover {
-        border-color: #7b42f6;
-        box-shadow: 0 0 0 3px rgba(123, 66, 246, 0.1);
+        box-shadow: 0 0 0 1px #7b42f6 inset;
       }
 
       &.is-focus {
-        border-color: #7b42f6;
-        box-shadow: 0 0 0 3px rgba(123, 66, 246, 0.15);
+        box-shadow: 0 0 0 1px #7b42f6 inset;
       }
     }
 
@@ -531,18 +528,15 @@ const resetForm = () => {
     .project-select {
       :deep(.el-input__wrapper) {
         border-radius: 8px;
-        border: 1px solid rgba(147, 112, 219, 0.2);
+        box-shadow: 0 0 0 1px rgba(147, 112, 219, 0.2) inset;
         background: #ffffff;
-        box-shadow: none;
 
         &:hover {
-          border-color: #7b42f6;
-          box-shadow: 0 0 0 3px rgba(123, 66, 246, 0.1);
+          box-shadow: 0 0 0 1px #7b42f6 inset;
         }
 
         &.is-focus {
-          border-color: #7b42f6;
-          box-shadow: 0 0 0 3px rgba(123, 66, 246, 0.15);
+          box-shadow: 0 0 0 1px #7b42f6 inset;
         }
       }
 
@@ -555,18 +549,15 @@ const resetForm = () => {
     .search-input {
       :deep(.el-input__wrapper) {
         border-radius: 8px;
-        border: 1px solid rgba(147, 112, 219, 0.2);
+        box-shadow: 0 0 0 1px rgba(147, 112, 219, 0.2) inset;
         background: #ffffff !important;
-        box-shadow: none;
 
         &:hover {
-          border-color: #7b42f6;
-          box-shadow: 0 0 0 3px rgba(123, 66, 246, 0.1);
+          box-shadow: 0 0 0 1px #7b42f6 inset;
         }
 
         &.is-focus {
-          border-color: #7b42f6;
-          box-shadow: 0 0 0 3px rgba(123, 66, 246, 0.15);
+          box-shadow: 0 0 0 1px #7b42f6 inset;
         }
       }
 

@@ -8,10 +8,10 @@
           :placeholder="$t('apiTesting.history.searchRequest')"
           class="search-input"
           clearable
-          @input="loadHistory"
+          @keyup.enter="handleSearch"
         >
-          <template #prefix>
-            <el-icon><Search /></el-icon>
+          <template #suffix>
+            <el-icon @click="handleSearch" style="cursor: pointer;"><Search /></el-icon>
           </template>
         </el-input>
       </div>
@@ -264,6 +264,11 @@ const formatHeaders = (headers) => {
   }))
 }
 
+const handleSearch = () => {
+  currentPage.value = 1
+  loadHistory()
+}
+
 const loadHistory = async () => {
   loading.value = true
   try {
@@ -447,30 +452,18 @@ onMounted(() => {
 
     :deep(.el-input__wrapper) {
       background-color: #ffffff;
-      border: 1px solid rgba(147, 112, 219, 0.2);
       border-radius: 8px;
-      box-shadow: none;
-      padding: 0 11px;
+      box-shadow: 0 0 0 1px rgba(147, 112, 219, 0.2) inset;
 
       &:hover,
       &.is-focus {
-        border-color: #7b42f6;
+        box-shadow: 0 0 0 1px #7b42f6 inset;
       }
     }
 
     :deep(.el-input__inner) {
-      height: 30px;
-      line-height: 30px;
-    }
-
-    :deep(.el-input__prefix) {
-      color: #7b42f6;
-    }
-
-    :deep(.el-input__prefix-inner) {
-      height: 30px;
-      display: flex;
-      align-items: center;
+      color: #5a32a3;
+      font-weight: 500;
     }
   }
 }

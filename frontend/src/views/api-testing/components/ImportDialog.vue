@@ -347,213 +347,86 @@ const handleImport = async () => {
 
 // 提取请求详情
 const extractRequestDetails = (raw) => {
-  const details = {}
-  const { details: apiDetails, globalParams = { headers: [], params: [] } } = raw
+  const details = raw.details
+  const globalParams = raw.globalParams || { headers: [], params: [] }
 
-  // 全局 header 名称集合（用于判断是否是全局 header）- 使用小写进行不区分大小写的匹配
-  const globalHeaderNames = new Set(globalParams.headers.map(h => h.key.toLowerCase()))
-  const globalParamNames = new Set(globalParams.params.map(p => p.key.toLowerCase()))
+  const params = []
+  const pathParams = []
+  let body = null
+  const variableExtractors = []
+  const assertions = []
 
-  console.log('全局 header 名称集合:', Array.from(globalHeaderNames))
-  console.log('接口 parameters:', apiDetails?.parameters)
-
-  if (apiDetails) {
-    // 提取 headers（包含直接定义的和引用的）
-    // 注意：API Fox 导出的文件中，所有 in: 'header' 的 parameters 都是全局 headers
-    if (apiDetails.parameters) {
-      const headerParams = []
-      const interfaceSpecificHeaders = []
-
-      apiDetails.parameters.forEach(p => {
-        // 处理 $ref 引用
-        if (p.$ref) {
-          const refName = p.$ref.split('/').pop()
-          const globalHeader = globalParams.headers.find(h => h.key === refName || h.key === refName.replace(/-/g, '_'))
-          if (globalHeader) {
-            headerParams.push({
-              ...globalHeader,
-              is_global: true
-            })
-          }
-        } else if (p.in === 'header') {
-          // API Fox 导出时，所有 header 类型的参数都视为全局 header
-          const headerInfo = {
-            key: p.name,
-            value: p.schema?.default || p.example || '',
-            description: p.description || '',
-            type: p.schema?.type || 'string',
-            is_global: true  // 所有 header 都标记为全局
-          }
-          headerParams.push(headerInfo)
-        }
-      })
-
-      // 合并：全局 headers 放在前面
-      details.headers = [...headerParams, ...interfaceSpecificHeaders]
-
-      console.log('提取的接口 headers:', details.headers)
-      console.log('  - 全局 headers:', headerParams)
-      console.log('  - 接口特定 headers:', interfaceSpecificHeaders)
-    }
-
-    // 提取 query 参数
-    if (apiDetails.parameters) {
-      const queryParams = []
-
-      apiDetails.parameters.forEach(p => {
-        // 处理 $ref 引用
-        if (p.$ref) {
-          const refName = p.$ref.split('/').pop()
-          const globalParam = globalParams.params.find(param => param.key === refName)
-          if (globalParam) {
-            queryParams.push({
-              ...globalParam,
-              is_global: true
-            })
-          }
-        } else if (p.in === 'query') {
-          queryParams.push({
-            key: p.name,
-            value: p.default || p.example || '',
-            type: p.schema?.type || p.type || 'string',
-            description: p.description || '',
-            is_global: globalParamNames.has(p.name.toLowerCase())
+  // 提取路径参数
+  if (details.parameters) {
+    details.parameters.forEach(param => {
+      if (param.in === 'path') {
+        pathParams.push({
+          key: param.name,
+          value: param.schema?.default || param.example || '',
+          description: param.description || '',
+          type: param.schema?.type || 'string',
+          enabled: true
+        })
+      } else if (param.in === 'query') {
+        // 检查是否是全局参数
+        const isGlobal = globalParams.params.some(gp => gp.key === param.name)
+        if (!isGlobal) {
+          params.push({
+            key: param.name,
+            value: param.schema?.default || param.example || '',
+            description: param.description || '',
+            type: param.schema?.type || 'string',
+            enabled: true
           })
         }
-      })
-
-      details.params = queryParams
-    }
-
-    // 提取 path 参数
-    if (apiDetails.parameters) {
-      const pathParams = []
-
-      apiDetails.parameters.forEach(p => {
-        if (p.in === 'path') {
-          pathParams.push({
-            key: p.name,
-            value: '',
-            type: p.schema?.type || p.type || 'string',
-            description: p.description || ''
-          })
-        }
-      })
-
-      details.path_params = pathParams
-    }
-
-    // 提取 body
-    if (apiDetails.requestBody?.content) {
-      const content = apiDetails.requestBody.content
-
-      // 尝试提取 application/json
-      if (content['application/json']) {
-        const jsonContent = content['application/json']
-        let bodyData = null
-
-        // 优先使用 example
-        if (jsonContent.example !== undefined) {
-          bodyData = jsonContent.example
-          // 如果 example 是字符串，尝试解析为 JSON
-          if (typeof bodyData === 'string') {
-            try {
-              bodyData = JSON.parse(bodyData)
-              // 处理双重转义的情况：如果解析后还是字符串，再次解析
-              if (typeof bodyData === 'string') {
-                try {
-                  bodyData = JSON.parse(bodyData)
-                } catch {
-                  // 第二次解析失败，保持第一次解析的结果
-                }
-              }
-            } catch {
-              // 解析失败，保持字符串原样，但仍然是 json 类型
-              // 因为 content-type 是 application/json
-            }
-          }
-        }
-        // 如果没有 example，尝试从 schema 生成示例
-        else if (jsonContent.schema) {
-          bodyData = generateExampleFromSchema(jsonContent.schema)
-        }
-
-        details.body = bodyData
-        details.request_type = 'json'
       }
-      // 尝试提取其他类型
-      else if (content['application/x-www-form-urlencoded']) {
-        const formContent = content['application/x-www-form-urlencoded']
-        if (formContent.schema?.properties) {
-          const formData = {}
-          for (const [key, prop] of Object.entries(formContent.schema.properties)) {
-            formData[key] = prop.example || prop.default || ''
-          }
-          details.body = formData
-          details.request_type = 'form'
-        }
-      }
-      // text/plain
-      else if (content['text/plain']) {
-        details.body = content['text/plain'].example || ''
-        details.request_type = 'raw'
-      }
-    }
-
-    // 提取变量提取规则（从 x-apifox-extractors 或其他自定义字段）
-    if (apiDetails['x-apifox-extractors']) {
-      details.variable_extractors = apiDetails['x-apifox-extractors']
-    }
-
-    // 提取断言（从 x-apifox-assertions 或其他自定义字段）
-    if (apiDetails['x-apifox-assertions']) {
-      details.assertions = apiDetails['x-apifox-assertions']
-    }
+    })
   }
 
-  return details
-}
-
-// 从 schema 生成示例数据
-const generateExampleFromSchema = (schema) => {
-  if (!schema) return null
-
-  // 如果有 example，直接使用
-  if (schema.example !== undefined) {
-    return schema.example
-  }
-
-  // 根据类型生成示例
-  switch (schema.type) {
-    case 'string':
-      return schema.example || schema.default || ''
-    case 'integer':
-    case 'number':
-      return schema.example || schema.default || 0
-    case 'boolean':
-      return schema.example || schema.default || false
-    case 'array':
-      if (schema.items) {
-        return [generateExampleFromSchema(schema.items)]
-      }
-      return []
-    case 'object':
-      if (schema.properties) {
-        const obj = {}
+  // 提取请求体
+  if (details.requestBody?.content) {
+    const content = details.requestBody.content
+    if (content['application/json']?.schema) {
+      const schema = content['application/json'].schema
+      if (schema.example) {
+        body = JSON.stringify(schema.example, null, 2)
+      } else if (schema.properties) {
+        const example = {}
         for (const [key, prop] of Object.entries(schema.properties)) {
-          obj[key] = generateExampleFromSchema(prop)
+          example[key] = prop.example || prop.default || ''
         }
-        return obj
+        body = JSON.stringify(example, null, 2)
       }
-      return {}
-    default:
-      return null
+    } else if (content['application/x-www-form-urlencoded']?.schema) {
+      const schema = content['application/x-www-form-urlencoded'].schema
+      if (schema.properties) {
+        const formData = []
+        for (const [key, prop] of Object.entries(schema.properties)) {
+          formData.push({
+            key: key,
+            value: prop.example || prop.default || '',
+            description: prop.description || '',
+            type: prop.type || 'string',
+            enabled: true
+          })
+        }
+        body = JSON.stringify(formData)
+      }
+    }
+  }
+
+  return {
+    params,
+    path_params: pathParams,
+    body,
+    variable_extractors: variableExtractors,
+    assertions: assertions
   }
 }
 
-// 重置数据
-watch(visible, (val) => {
-  if (!val) {
+// 监听对话框打开，重置数据
+watch(() => props.modelValue, (val) => {
+  if (val) {
     targetCollection.value = ''
     previewData.value = []
     selectedInterfaces.value = []
@@ -587,12 +460,26 @@ watch(visible, (val) => {
     padding: 24px;
     max-height: 70vh;
     overflow-y: auto;
+    background-color: #ffffff;
   }
 
   // 对话框底部
   .el-dialog__footer {
     padding: 16px 24px;
     border-top: 1px solid #f3f4f6;
+  }
+
+  // 对话框中的选择框样式 - 强制白色背景
+  .el-select .el-input__wrapper {
+    background-color: #ffffff !important;
+    background: #ffffff !important;
+    --el-input-bg-color: #ffffff !important;
+    --el-fill-color-blank: #ffffff !important;
+  }
+
+  .el-select .el-input__inner {
+    background-color: #ffffff !important;
+    background: #ffffff !important;
   }
 }
 
@@ -663,159 +550,105 @@ watch(visible, (val) => {
     transform: translateY(0);
   }
 
-  &:disabled {
-    background: #e5e7eb;
-    color: #9ca3af;
+  &[disabled] {
+    background: linear-gradient(135deg, #d1d5db 0%, #9ca3af 100%);
+    cursor: not-allowed;
     transform: none;
     box-shadow: none;
   }
 }
 
-// 步骤样式
-.import-steps {
-  .step {
-    .step-content {
-      margin-top: 0;
-    }
-  }
-}
-
-// 输入框样式
-.input-label {
-  font-size: 14px;
-  font-weight: 500;
-  color: #374151;
-  margin-bottom: 8px;
-}
-
 // 预览区域样式
 .preview-section {
-  margin-top: 20px;
   border: 1px solid #e5e7eb;
   border-radius: 8px;
-  padding: 16px;
-  background: #fafafa;
+  overflow: hidden;
 }
 
-// 列表表头样式
 .preview-list-header {
-  display: flex;
-  align-items: center;
-  padding: 12px 16px;
-  background: #f3f4f6;
-  border-radius: 6px;
-  margin-bottom: 8px;
-  font-weight: 500;
+  background: #f9fafb;
+  border-bottom: 1px solid #e5e7eb;
+  font-weight: 600;
   font-size: 13px;
-  color: #6b7280;
-
-  .el-checkbox {
-    margin-right: 12px;
-  }
+  color: #374151;
 
   .header-method {
-    width: 70px;
     text-align: center;
-    flex-shrink: 0;
-  }
-
-  .header-name {
-    width: 200px;
-    flex-shrink: 0;
-    padding-left: 10px;
-  }
-
-  .header-path {
-    flex: 1;
-    padding-left: 10px;
   }
 }
 
-// 列表项样式
+.preview-list {
+  max-height: 300px;
+  overflow-y: auto;
+}
+
 .preview-item {
-  display: flex;
-  align-items: center;
-  padding: 12px 16px;
-  border-radius: 6px;
-  margin-bottom: 4px;
+  border-bottom: 1px solid #f3f4f6;
   transition: background-color 0.2s;
 
+  &:last-child {
+    border-bottom: none;
+  }
+
   &:hover {
-    background: #f3f4f6;
+    background: #f9fafb;
+  }
+}
+
+.method-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+
+  &.get {
+    background: #dbeafe;
+    color: #2563eb;
   }
 
-  :deep(.el-checkbox) {
-    margin-right: 0;
-    width: 100%;
-
-    .el-checkbox__label {
-      padding-left: 0;
-      width: 100%;
-    }
+  &.post {
+    background: #dcfce7;
+    color: #16a34a;
   }
 
-  .item-content {
-    display: flex;
-    align-items: center;
-    width: 100%;
+  &.put {
+    background: #fef3c7;
+    color: #d97706;
   }
 
-  .method-badge {
-    width: 70px;
-    flex-shrink: 0;
-    text-align: center;
-    font-size: 12px;
-    font-weight: 600;
-    padding: 4px 8px;
-    border-radius: 4px;
-
-    &.get {
-      background: #dcfce7;
-      color: #16a34a;
-    }
-
-    &.post {
-      background: #dbeafe;
-      color: #2563eb;
-    }
-
-    &.put {
-      background: #fef3c7;
-      color: #d97706;
-    }
-
-    &.delete {
-      background: #fee2e2;
-      color: #dc2626;
-    }
-
-    &.patch {
-      background: #f3e8ff;
-      color: #7c3aed;
-    }
+  &.delete {
+    background: #fee2e2;
+    color: #dc2626;
   }
 
-  .interface-name {
-    width: 200px;
-    flex-shrink: 0;
-    padding-left: 10px;
-    font-size: 14px;
-    color: #374151;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+  &.patch {
+    background: #f3e8ff;
+    color: #7c3aed;
   }
+}
 
-  .interface-path {
-    flex: 1;
-    padding-left: 10px;
-    font-size: 13px;
-    color: #6b7280;
-    font-family: 'SF Mono', 'Monaco', 'Menlo', 'Consolas', monospace;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
+.interface-name {
+  width: 200px;
+  flex-shrink: 0;
+  padding-left: 10px;
+  font-size: 14px;
+  color: #374151;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.interface-path {
+  flex: 1;
+  padding-left: 10px;
+  font-size: 13px;
+  color: #6b7280;
+  font-family: 'SF Mono', 'Monaco', 'Menlo', 'Consolas', monospace;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 // 复选框样式
@@ -831,22 +664,6 @@ watch(visible, (val) => {
 :deep(.el-checkbox__input.is-checked .el-checkbox__inner) {
   background-color: #7b42f6;
   border-color: #7b42f6;
-}
-
-// 选择框样式
-:deep(.el-select) {
-  .el-input__wrapper {
-    border-radius: 8px;
-    box-shadow: 0 0 0 1px #e5e7eb;
-
-    &:hover {
-      box-shadow: 0 0 0 1px #7b42f6;
-    }
-
-    &.is-focus {
-      box-shadow: 0 0 0 1px #7b42f6;
-    }
-  }
 }
 
 // 滚动条样式
@@ -867,5 +684,64 @@ watch(visible, (val) => {
   &::-webkit-scrollbar-thumb:hover {
     background: #9ca3af;
   }
+}
+</style>
+
+<style lang="scss">
+// 全局样式 - 覆盖 import-interface-dialog 中的 el-select
+// Element Plus 2.x 使用 .el-select__wrapper 作为选择框包装器
+html body .import-interface-dialog {
+  // 覆盖 CSS 变量
+  --el-input-bg-color: #ffffff !important;
+  --el-fill-color-blank: #ffffff !important;
+  --el-bg-color: #ffffff !important;
+  --el-input-text-color: #1f2937 !important;
+  
+  .el-select {
+    --el-input-bg-color: #ffffff !important;
+    --el-fill-color-blank: #ffffff !important;
+    --el-input-text-color: #1f2937 !important;
+    
+    // Element Plus 2.x 的主要选择器
+    .el-select__wrapper {
+      background-color: #ffffff !important;
+      background: #ffffff !important;
+      box-shadow: 0 0 0 1px #e5e7eb inset !important;
+    }
+    
+    // 备用选择器
+    .el-input__wrapper {
+      background-color: #ffffff !important;
+      background: #ffffff !important;
+      box-shadow: 0 0 0 1px #e5e7eb inset !important;
+    }
+    
+    .el-input__inner {
+      background-color: #ffffff !important;
+      background: #ffffff !important;
+      -webkit-text-fill-color: #1f2937 !important;
+    }
+    
+    // 占位符
+    .el-select__placeholder {
+      color: #6b7280 !important;
+    }
+  }
+}
+
+// 额外全局覆盖
+html body .el-select .el-select__wrapper {
+  background-color: #ffffff !important;
+  background: #ffffff !important;
+}
+
+html body .el-select .el-input__wrapper {
+  background-color: #ffffff !important;
+  background: #ffffff !important;
+}
+
+html body .el-select .el-input__inner {
+  background-color: #ffffff !important;
+  background: #ffffff !important;
 }
 </style>
