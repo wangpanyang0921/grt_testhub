@@ -69,8 +69,8 @@
           <div class="request-title-row">
             <span class="request-name">{{ selectedHistory.request?.name || '未命名请求' }}</span>
             <span class="method-tag" :class="selectedHistory.request?.method?.toLowerCase()">{{ selectedHistory.request?.method }}</span>
-            <span class="status-tag" :class="getStatusClass(selectedHistory.status_code)">
-              {{ getStatusText(selectedHistory.status_code) }}
+            <span class="status-tag" :class="getDetailStatusClass(selectedHistory)">
+              {{ getDetailStatusText(selectedHistory) }}
             </span>
             <span class="meta-tag time-tag">{{ selectedHistory.response_time?.toFixed(0) }}ms</span>
             <span class="meta-tag code-tag">{{ selectedHistory.status_code || '-' }}</span>
@@ -132,21 +132,45 @@
             <div class="panel-header">
               <div class="sub-tabs">
                 <button
-                  v-for="tab in ['body', 'headers', 'json']"
-                  :key="tab"
+                  v-for="tab in responseTabs"
+                  :key="tab.key"
                   class="sub-tab-btn"
-                  :class="{ active: activeResponseSubTab === tab }"
-                  @click="activeResponseSubTab = tab"
+                  :class="{ active: activeResponseSubTab === tab.key }"
+                  @click="activeResponseSubTab = tab.key"
                 >
-                  {{ tab.toUpperCase() }}
+                  {{ tab.label }}
                 </button>
               </div>
               <span class="data-badge">{{ activeResponseSubTab.toUpperCase() }}</span>
             </div>
-            <div class="code-container">
+            <div class="code-container" v-if="activeResponseSubTab !== 'assertions'">
               <pre v-if="activeResponseSubTab === 'body'" class="code-block">{{ responseBodyText || '无响应体' }}</pre>
               <pre v-else-if="activeResponseSubTab === 'headers'" class="code-block">{{ formatJson(selectedHistory.response_data.headers) || '无响应头' }}</pre>
               <pre v-else-if="activeResponseSubTab === 'json'" class="code-block">{{ responseBodyText || '无响应体' }}</pre>
+            </div>
+            <div class="assertions-container" v-else>
+              <div class="assertion-list">
+                <div v-for="(item, idx) in selectedHistory.assertions_results" :key="idx" class="assertion-item" :class="item.passed ? 'passed' : 'failed'">
+                  <el-icon><CircleCheck v-if="item.passed" /><CircleClose v-else /></el-icon>
+                  <span class="assertion-name">{{ item.name }}</span>
+                  <span class="assertion-detail">
+                    <span class="detail-item expected">
+                      <span class="label">期望</span>
+                      <span class="value" :class="{ null: item.expected === null && !item.expected_desc, object: typeof item.expected === 'object' }">
+                        {{ item.expected_desc || (item.expected === null ? 'null' : (typeof item.expected === 'object' ? JSON.stringify(item.expected).substring(0, 30) + '...' : item.expected)) }}
+                      </span>
+                    </span>
+                    <span class="separator">|</span>
+                    <span class="detail-item actual" :class="{ mismatch: !item.passed && item.actual !== item.expected }">
+                      <span class="label">实际</span>
+                      <span class="value" :class="{ null: item.actual === null, object: typeof item.actual === 'object' }">
+                        {{ item.actual === null ? 'null' : (typeof item.actual === 'object' ? JSON.stringify(item.actual).substring(0, 30) + '...' : item.actual) }}
+                      </span>
+                    </span>
+                  </span>
+                  <span v-if="item.error" class="assertion-error">{{ item.error }}</span>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -160,7 +184,7 @@
 import { ref, onMounted, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useI18n } from 'vue-i18n'
-import { Search, Delete, DocumentChecked, DocumentCopy, RefreshRight } from '@element-plus/icons-vue'
+import { Search, Delete, DocumentChecked, DocumentCopy, RefreshRight, CircleCheck, CircleClose, WarningFilled } from '@element-plus/icons-vue'
 import api from '@/utils/api'
 import { deleteRequestHistory, batchDeleteRequestHistory } from '@/api/api-testing'
 import dayjs from 'dayjs'
@@ -196,12 +220,45 @@ const responseSubTabs = [
   { label: 'JSON', value: 'json' }
 ]
 
-// 获取状态文本
+// 响应 Tab 列表（动态包含断言 Tab）
+const responseTabs = computed(() => {
+  const tabs = [
+    { key: 'body', label: 'BODY' },
+    { key: 'headers', label: 'HEADERS' },
+    { key: 'json', label: 'JSON' }
+  ]
+  if (selectedHistory.value?.assertions_results?.length > 0) {
+    tabs.push({ key: 'assertions', label: `断言(${selectedHistory.value.assertions_results.length})` })
+  }
+  return tabs
+})
+
+// 检查断言是否失败
+const hasAssertionsFailed = (history) => {
+  if (!history?.assertions_results || !Array.isArray(history.assertions_results)) {
+    return false
+  }
+  return history.assertions_results.some(result => result.passed === false)
+}
+
+// 获取状态文本（仅基于状态码，用于列表）
 const getStatusText = (status) => {
   if (!status) return '未知'
   if (status >= 200 && status < 300) return '通过'
   if (status >= 300 && status < 400) return '重定向'
   if (status >= 400) return '失败'
+  return '未知'
+}
+
+// 获取详情页状态文本（同时考虑状态码和断言结果）
+const getDetailStatusText = (history) => {
+  const status = history?.status_code
+  if (!status) return '未知'
+  if (status >= 400) return '失败'
+  // 检查断言是否失败
+  if (hasAssertionsFailed(history)) return '失败'
+  if (status >= 200 && status < 300) return '通过'
+  if (status >= 300 && status < 400) return '重定向'
   return '未知'
 }
 
@@ -249,6 +306,18 @@ const getStatusClass = (status) => {
   if (status >= 200 && status < 300) return 'success'
   if (status >= 300 && status < 400) return 'warning'
   if (status >= 400) return 'error'
+  return 'default'
+}
+
+// 获取详情页状态样式（同时考虑状态码和断言结果）
+const getDetailStatusClass = (history) => {
+  const status = history?.status_code
+  if (!status) return 'default'
+  if (status >= 400) return 'error'
+  // 检查断言是否失败
+  if (hasAssertionsFailed(history)) return 'error'
+  if (status >= 200 && status < 300) return 'success'
+  if (status >= 300 && status < 400) return 'warning'
   return 'default'
 }
 
@@ -1098,6 +1167,120 @@ onMounted(() => {
           word-wrap: break-word;
           background: transparent !important;
           border: none !important;
+        }
+      }
+
+      /* 断言容器 - 在响应 Tab 内 */
+      .assertions-container {
+        .assertion-list {
+          padding: 8px 0;
+
+          .assertion-item {
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+            padding: 10px 0;
+            border-bottom: 1px solid #f0f0f0;
+            font-size: 13px;
+
+            &:last-child {
+              border-bottom: none;
+              margin-bottom: 0;
+            }
+
+            .el-icon {
+              font-size: 16px;
+              flex-shrink: 0;
+            }
+
+            .assertion-name {
+              flex-shrink: 0;
+              color: #333;
+              max-width: 150px;
+              word-break: break-all;
+            }
+
+            .assertion-detail {
+              flex: 1;
+              display: flex;
+              align-items: center;
+              gap: 8px;
+              font-size: 12px;
+              flex-wrap: wrap;
+
+              .detail-item {
+                display: inline-flex;
+                align-items: center;
+                gap: 4px;
+                padding: 2px 8px;
+                border-radius: 4px;
+                background: #f5f5f5;
+                font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace;
+
+                .label {
+                  color: #999;
+                  font-size: 11px;
+                }
+
+                .value {
+                  color: #333;
+                  font-weight: 500;
+
+                  &.null {
+                    color: #999;
+                    font-style: italic;
+                  }
+
+                  &.object {
+                    color: #1890ff;
+                  }
+                }
+
+                &.expected {
+                  background: #e6f7ff;
+                  .label { color: #1890ff; }
+                }
+
+                &.actual {
+                  background: #f6ffed;
+                  .label { color: #52c41a; }
+
+                  &.mismatch {
+                    background: #fff2f0;
+                    .label { color: #f5222d; }
+                    .value { color: #f5222d; }
+                  }
+                }
+              }
+
+              .separator {
+                color: #d9d9d9;
+                font-size: 11px;
+              }
+            }
+
+            .assertion-error {
+              color: #f5222d;
+              font-size: 12px;
+              flex: 1;
+              word-break: break-all;
+              white-space: pre-wrap;
+              overflow-wrap: break-word;
+              line-height: 1.4;
+            }
+
+            &.passed {
+              .el-icon {
+                color: #52c41a;
+              }
+            }
+
+            &.failed {
+              .el-icon {
+                color: #f5222d;
+              }
+            }
+          }
         }
       }
     }

@@ -26,7 +26,7 @@
           </template>
         </el-table-column>
         <el-table-column prop="test_suite_name" :label="$t('apiTesting.report.testSuite')" min-width="200" header-align="center" align="center" />
-        <el-table-column prop="status" :label="$t('apiTesting.common.status')" width="120" header-align="center" align="center">
+        <el-table-column prop="status" label="执行结果" width="120" header-align="center" align="center">
           <template #default="{ row }">
             <span class="status-badge" :class="getStatusClass(row.status)">
               {{ getStatusText(row.status) }}

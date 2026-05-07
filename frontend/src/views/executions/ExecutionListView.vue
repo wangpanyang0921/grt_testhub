@@ -766,20 +766,17 @@ onMounted(() => {
         width: 200px;
 
         :deep(.el-input__wrapper) {
-          box-shadow: 0 2px 8px rgba(147, 112, 219, 0.08);
+          box-shadow: 0 0 0 1px rgba(147, 112, 219, 0.25);
           border-radius: 8px;
           background: #ffffff;
-          border: 1px solid rgba(147, 112, 219, 0.2);
           transition: all 0.3s ease;
 
           &:hover {
-            box-shadow: 0 2px 8px rgba(147, 112, 219, 0.15);
-            border-color: #9370db;
+            box-shadow: 0 0 0 1px #9370db;
           }
 
           &.is-focus {
-            box-shadow: 0 0 0 2px rgba(147, 112, 219, 0.2);
-            border-color: #5a32a3;
+            box-shadow: 0 0 0 1px #5a32a3;
           }
         }
 

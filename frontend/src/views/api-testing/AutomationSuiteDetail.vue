@@ -537,49 +537,43 @@
             <div class="panel-header">
               <div class="sub-tabs">
                 <button 
-                  v-for="tab in ['body', 'headers', 'json']" 
-                  :key="tab"
+                  v-for="tab in responseTabs" 
+                  :key="tab.key"
                   class="sub-tab-btn"
-                  :class="{ active: activeResponseTab === tab }"
-                  @click="activeResponseTab = tab"
+                  :class="{ active: activeResponseTab === tab.key }"
+                  @click="activeResponseTab = tab.key"
                 >
-                  {{ tab.toUpperCase() }}
+                  {{ tab.label }}
                 </button>
               </div>
               <span class="data-badge">{{ activeResponseTab.toUpperCase() }}</span>
             </div>
-            <div class="code-container">
+            <div class="code-container" v-if="activeResponseTab !== 'assertions'">
               <pre class="code-block">{{ getResponseData() }}</pre>
             </div>
-          </div>
-        </div>
-
-        <!-- 断言结果 -->
-        <div v-if="currentRequestDetail.assertions_results?.length > 0" class="assertions-section">
-          <div class="section-title-compact">
-            <el-icon><Check /></el-icon>
-            <span>断言检查 ({{ currentRequestDetail.assertions_results.length }})</span>
-          </div>
-          <div class="assertion-list">
-            <div v-for="(item, idx) in currentRequestDetail.assertions_results" :key="idx" class="assertion-item" :class="item.passed ? 'passed' : 'failed'">
-              <el-icon><CircleCheck v-if="item.passed" /><CircleClose v-else /></el-icon>
-              <span class="assertion-name">{{ item.name }}</span>
-              <span class="assertion-detail">
-                <span class="detail-item expected">
-                  <span class="label">期望</span>
-                  <span class="value" :class="{ null: item.expected === null, object: typeof item.expected === 'object' }">
-                    {{ item.expected === null ? 'null' : (typeof item.expected === 'object' ? JSON.stringify(item.expected).substring(0, 30) + '...' : item.expected) }}
+            <div class="assertions-container" v-else>
+              <div class="assertion-list">
+                <div v-for="(item, idx) in currentRequestDetail.assertions_results" :key="idx" class="assertion-item" :class="item.passed ? 'passed' : 'failed'">
+                  <el-icon><CircleCheck v-if="item.passed" /><CircleClose v-else /></el-icon>
+                  <span class="assertion-name">{{ item.name }}</span>
+                  <span class="assertion-detail">
+                    <span class="detail-item expected">
+                      <span class="label">期望</span>
+                      <span class="value" :class="{ null: item.expected === null && !item.expected_desc, object: typeof item.expected === 'object' }">
+                        {{ item.expected_desc || (item.expected === null ? 'null' : (typeof item.expected === 'object' ? JSON.stringify(item.expected).substring(0, 30) + '...' : item.expected)) }}
+                      </span>
+                    </span>
+                    <span class="separator">|</span>
+                    <span class="detail-item actual" :class="{ mismatch: !item.passed && item.actual !== item.expected }">
+                      <span class="label">实际</span>
+                      <span class="value" :class="{ null: item.actual === null, object: typeof item.actual === 'object' }">
+                        {{ item.actual === null ? 'null' : (typeof item.actual === 'object' ? JSON.stringify(item.actual).substring(0, 30) + '...' : item.actual) }}
+                      </span>
+                    </span>
                   </span>
-                </span>
-                <span class="separator">|</span>
-                <span class="detail-item actual" :class="{ mismatch: !item.passed && item.actual !== item.expected }">
-                  <span class="label">实际</span>
-                  <span class="value" :class="{ null: item.actual === null, object: typeof item.actual === 'object' }">
-                    {{ item.actual === null ? 'null' : (typeof item.actual === 'object' ? JSON.stringify(item.actual).substring(0, 30) + '...' : item.actual) }}
-                  </span>
-                </span>
-              </span>
-              <span v-if="item.error" class="assertion-error">{{ item.error }}</span>
+                  <span v-if="item.error" class="assertion-error">{{ item.error }}</span>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -787,6 +781,19 @@ const currentRequestDetail = ref(null)
 const activeDataTab = ref('request')
 const activeRequestTab = ref('body')
 const activeResponseTab = ref('body')
+
+// 响应 Tab 列表（动态包含断言 Tab）
+const responseTabs = computed(() => {
+  const tabs = [
+    { key: 'body', label: 'BODY' },
+    { key: 'headers', label: 'HEADERS' },
+    { key: 'json', label: 'JSON' }
+  ]
+  if (currentRequestDetail.value?.assertions_results?.length > 0) {
+    tabs.push({ key: 'assertions', label: `断言(${currentRequestDetail.value.assertions_results.length})` })
+  }
+  return tabs
+})
 
 // 断言编辑相关
 const showAssertionsDialog = ref(false)
@@ -2577,26 +2584,8 @@ onMounted(async () => {
     }
   }
 
-  /* 断言区域 - 简洁列表设计 */
-  .assertions-section {
-    margin-bottom: 24px;
-
-    .section-title-compact {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      padding: 0 0 12px 0;
-      font-size: 14px;
-      font-weight: 600;
-      color: #5a32a3;
-      border-bottom: 1px solid rgba(147, 112, 219, 0.1);
-
-      .el-icon {
-        font-size: 16px;
-        color: #7b42f6;
-      }
-    }
-
+  /* 断言容器 - 在响应 Tab 内 */
+  .assertions-container {
     .assertion-list {
       padding: 8px 0;
 

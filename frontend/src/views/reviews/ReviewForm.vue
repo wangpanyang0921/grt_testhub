@@ -622,16 +622,14 @@ onMounted(() => {
       // 输入框样式
       .el-input {
         .el-input__wrapper {
-          box-shadow: 0 2px 8px rgba(147, 112, 219, 0.08);
+          box-shadow: 0 0 0 1px rgba(147, 112, 219, 0.25);
           border-radius: 8px;
-          border: 1px solid rgba(147, 112, 219, 0.15);
           background: #ffffff;
           transition: all 0.3s ease;
 
           &:hover,
           &.is-focus {
-            border-color: #7b42f6;
-            box-shadow: 0 2px 8px rgba(147, 112, 219, 0.15), 0 0 0 3px rgba(123, 66, 246, 0.1);
+            box-shadow: 0 0 0 1px #7b42f6;
           }
 
           .el-input__inner {
@@ -648,9 +646,8 @@ onMounted(() => {
       // 文本域样式
       .el-textarea {
         .el-textarea__inner {
-          box-shadow: 0 2px 8px rgba(147, 112, 219, 0.08);
+          box-shadow: 0 0 0 1px rgba(147, 112, 219, 0.25);
           border-radius: 8px;
-          border: 1px solid rgba(147, 112, 219, 0.15);
           background: #ffffff;
           transition: all 0.3s ease;
           padding: 12px 16px;
@@ -658,8 +655,7 @@ onMounted(() => {
 
           &:hover,
           &:focus {
-            border-color: #7b42f6;
-            box-shadow: 0 2px 8px rgba(147, 112, 219, 0.15), 0 0 0 3px rgba(123, 66, 246, 0.1);
+            box-shadow: 0 0 0 1px #7b42f6;
           }
 
           &::placeholder {
@@ -673,16 +669,14 @@ onMounted(() => {
         width: 100%;
 
         .el-input__wrapper {
-          box-shadow: 0 2px 8px rgba(147, 112, 219, 0.08);
+          box-shadow: 0 0 0 1px rgba(147, 112, 219, 0.25);
           border-radius: 8px;
-          border: 1px solid rgba(147, 112, 219, 0.15);
           background: #ffffff;
           transition: all 0.3s ease;
 
           &:hover,
           &.is-focus {
-            border-color: #7b42f6;
-            box-shadow: 0 2px 8px rgba(147, 112, 219, 0.15), 0 0 0 3px rgba(123, 66, 246, 0.1);
+            box-shadow: 0 0 0 1px #7b42f6;
           }
 
           .el-input__inner {
@@ -701,16 +695,14 @@ onMounted(() => {
         width: 100%;
 
         .el-input__wrapper {
-          box-shadow: 0 2px 8px rgba(147, 112, 219, 0.08);
+          box-shadow: 0 0 0 1px rgba(147, 112, 219, 0.25);
           border-radius: 8px;
-          border: 1px solid rgba(147, 112, 219, 0.15);
           background: #ffffff;
           transition: all 0.3s ease;
 
           &:hover,
           &.is-focus {
-            border-color: #7b42f6;
-            box-shadow: 0 2px 8px rgba(147, 112, 219, 0.15), 0 0 0 3px rgba(123, 66, 246, 0.1);
+            box-shadow: 0 0 0 1px #7b42f6;
           }
         }
       }
@@ -840,16 +832,14 @@ onMounted(() => {
     margin-bottom: 16px;
 
     .el-input__wrapper {
-      box-shadow: 0 2px 8px rgba(147, 112, 219, 0.08);
+      box-shadow: 0 0 0 1px rgba(147, 112, 219, 0.25);
       border-radius: 8px;
-      border: 1px solid rgba(147, 112, 219, 0.15);
       background: #ffffff;
       transition: all 0.3s ease;
 
       &:hover,
       &.is-focus {
-        border-color: #7b42f6;
-        box-shadow: 0 2px 8px rgba(147, 112, 219, 0.15), 0 0 0 3px rgba(123, 66, 246, 0.1);
+        box-shadow: 0 0 0 1px #7b42f6;
       }
     }
   }

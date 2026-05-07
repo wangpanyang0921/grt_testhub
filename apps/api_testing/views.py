@@ -457,6 +457,7 @@ class ApiRequestViewSet(viewsets.ModelViewSet):
                 },
                 status_code=response.status_code,
                 response_time=response_time,
+                assertions_results=assertions_results,
                 executed_by=request.user
             )
 
@@ -1027,8 +1028,9 @@ class TestSuiteViewSet(viewsets.ModelViewSet):
                     end_time = time.time()
                     response_time = (end_time - start_time) * 1000
                     
-                    # 执行断言验证
-                    assertions = api_request.assertions or []
+                    # 执行断言验证 - 使用套件请求的断言（支持在套件中为每个请求单独配置断言）
+                    # 优先使用 suite_request.assertions，如果没有则回退到 api_request.assertions
+                    assertions = suite_request.assertions or api_request.assertions or []
                     # 添加响应时间到断言中
                     for assertion in assertions:
                         if assertion.get('type') == 'response_time':

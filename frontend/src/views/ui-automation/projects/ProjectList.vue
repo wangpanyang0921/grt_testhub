@@ -1074,14 +1074,12 @@ onMounted(() => {
         .el-input__wrapper,
         .el-select .el-input__wrapper,
         .el-date-picker .el-input__wrapper {
-          box-shadow: 0 2px 8px rgba(147, 112, 219, 0.08);
+          box-shadow: 0 0 0 1px rgba(147, 112, 219, 0.25);
           border-radius: 8px;
-          border: 1px solid rgba(147, 112, 219, 0.2);
 
           &:hover,
           &:focus {
-            box-shadow: 0 2px 8px rgba(147, 112, 219, 0.15);
-            border-color: #7b42f6;
+            box-shadow: 0 0 0 1px #7b42f6;
           }
         }
 

@@ -36,7 +36,7 @@
         <!-- 汇总列表 -->
         <div class="records-selector">
           <el-table
-            :data="filteredSummaryList"
+            :data="paginatedSummaryList"
             row-key="id"
             style="width: 100%"
             stripe
@@ -87,7 +87,7 @@
                 <span class="count-badge bug-count">{{ row.total_bugs || 0 }}</span>
               </template>
             </el-table-column>
-            <el-table-column prop="group_by" label="时间聚合" width="120" header-align="center" align="center">
+            <el-table-column prop="group_by" label="时间聚合" width="120" header-align="center" align="center" class-name="group-by-column">
               <template #default="{ row }">
                 <span class="group-tag">{{ formatGroupBy(row.group_by) }}</span>
               </template>
@@ -112,6 +112,19 @@
               </template>
             </el-table-column>
           </el-table>
+        </div>
+
+        <!-- 分页 -->
+        <div class="pagination-container" v-if="filteredSummaryList.length > 0">
+          <el-pagination
+            v-model:current-page="currentPage"
+            v-model:page-size="pageSize"
+            :page-sizes="[10, 20, 50, 100]"
+            :total="filteredSummaryList.length"
+            layout="total, sizes, prev, pager, next, jumper"
+            @size-change="handleSizeChange"
+            @current-change="handleCurrentChange"
+          />
         </div>
 
         <!-- 空状态提示 - 无汇总分析 -->
@@ -465,6 +478,10 @@ const summaryList = ref([])
 const loadingSummaryList = ref(false)
 const summarySearchQuery = ref('')
 
+// 分页相关
+const currentPage = ref(1)
+const pageSize = ref(10)
+
 // 文件选择弹窗相关
 const selectDialogVisible = ref(false)
 const availableRecords = ref([])
@@ -485,7 +502,7 @@ const isCurrentAnalyzing = computed(() => {
   return currentSummaryId.value && aiAnalyzingIds.value.has(currentSummaryId.value)
 })
 
-// 过滤后的汇总列表
+// 过滤后的汇总列表（不分页，用于分页组件计算总数）
 const filteredSummaryList = computed(() => {
   if (!summarySearchQuery.value.trim()) {
     return summaryList.value
@@ -495,6 +512,13 @@ const filteredSummaryList = computed(() => {
     const name = (summary.name || '').toLowerCase()
     return name.includes(query)
   })
+})
+
+// 分页后的汇总列表（用于表格展示）
+const paginatedSummaryList = computed(() => {
+  const start = (currentPage.value - 1) * pageSize.value
+  const end = start + pageSize.value
+  return filteredSummaryList.value.slice(start, end)
 })
 
 // 过滤后的记录列表（弹窗内）
@@ -557,6 +581,11 @@ watch(() => route.query.view, (newView) => {
   }
 })
 
+// 监听搜索词变化，重置页码到第一页
+watch(summarySearchQuery, () => {
+  currentPage.value = 1
+})
+
 // 获取汇总分析列表
 const fetchSummaryList = async () => {
   loadingSummaryList.value = true
@@ -573,6 +602,17 @@ const fetchSummaryList = async () => {
   } finally {
     loadingSummaryList.value = false
   }
+}
+
+// 分页大小变化
+const handleSizeChange = (val) => {
+  pageSize.value = val
+  currentPage.value = 1
+}
+
+// 页码变化
+const handleCurrentChange = (val) => {
+  currentPage.value = val
 }
 
 // 打开文件选择弹窗
@@ -980,7 +1020,7 @@ window.addEventListener('resize', () => {
 })
 </script>
 
-<style scoped>
+<style scoped lang="scss">
 /* 页面容器 - 参考 XMindConverter.vue 紫色主题 */
 .bug-analysis-container {
   padding: 24px;
@@ -1000,15 +1040,13 @@ window.addEventListener('resize', () => {
   margin-bottom: 20px;
 
   :deep(.el-input__wrapper) {
-    box-shadow: 0 2px 8px rgba(147, 112, 219, 0.08);
+    box-shadow: 0 0 0 1px rgba(147, 112, 219, 0.25);
     border-radius: 8px;
-    border: 1px solid rgba(147, 112, 219, 0.2);
     background: #ffffff;
 
     &:hover,
     &:focus {
-      box-shadow: 0 2px 8px rgba(147, 112, 219, 0.15);
-      border-color: #7b42f6;
+      box-shadow: 0 0 0 1px #7b42f6;
     }
   }
 
@@ -1022,15 +1060,13 @@ window.addEventListener('resize', () => {
   }
 
   :deep(.el-select .el-input__wrapper) {
-    box-shadow: 0 2px 8px rgba(147, 112, 219, 0.08);
+    box-shadow: 0 0 0 1px rgba(147, 112, 219, 0.25);
     border-radius: 8px;
-    border: 1px solid rgba(147, 112, 219, 0.2);
     background: #ffffff;
 
     &:hover,
     &:focus {
-      box-shadow: 0 2px 8px rgba(147, 112, 219, 0.15);
-      border-color: #7b42f6;
+      box-shadow: 0 0 0 1px #7b42f6;
     }
   }
 
@@ -1283,6 +1319,12 @@ window.addEventListener('resize', () => {
     display: flex;
     justify-content: center;
     align-items: center;
+  }
+
+  /* 时间聚合列 - 修复徽章显示多余的点 */
+  :deep(.group-by-column .cell) {
+    overflow: visible;
+    text-overflow: clip;
   }
 
   /* 空状态样式 */
@@ -1784,22 +1826,20 @@ window.addEventListener('resize', () => {
   }
 
   :deep(.el-input__wrapper) {
-    box-shadow: 0 2px 8px rgba(147, 112, 219, 0.08);
+    box-shadow: 0 0 0 1px rgba(147, 112, 219, 0.25);
     border-radius: 8px;
-    border: 1px solid rgba(147, 112, 219, 0.2);
 
     &:hover, &:focus {
-      border-color: #7b42f6;
+      box-shadow: 0 0 0 1px #7b42f6;
     }
   }
 
   :deep(.el-select .el-input__wrapper) {
-    box-shadow: 0 2px 8px rgba(147, 112, 219, 0.08);
+    box-shadow: 0 0 0 1px rgba(147, 112, 219, 0.25);
     border-radius: 8px;
-    border: 1px solid rgba(147, 112, 219, 0.2);
 
     &:hover, &:focus {
-      border-color: #7b42f6;
+      box-shadow: 0 0 0 1px #7b42f6;
     }
   }
 }
@@ -1861,6 +1901,193 @@ window.addEventListener('resize', () => {
 
   &:hover {
     color: #5a32a3;
+  }
+}
+
+/* 分页容器样式 */
+.pagination-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 16px 0;
+  margin-top: 8px;
+  background: transparent;
+  border: none;
+  transition: all 0.3s ease;
+
+  /* 定义主题变量 - 浅紫色风格 */
+  --primary-color: #a78bfa;
+  --primary-dark: #8b5cf6;
+  --primary-light: #f3f0ff;
+  --text-primary: #262626;
+  --text-secondary: #595959;
+  --text-tertiary: #8c8c8c;
+
+  /* 覆盖 Element Plus 默认主题变量 */
+  --el-color-primary: var(--primary-color);
+  --el-color-primary-light-3: #c4b5fd;
+  --el-color-primary-light-5: #ddd6fe;
+  --el-color-primary-light-7: #ede9fe;
+  --el-color-primary-light-9: #f5f3ff;
+  --el-border-color: rgba(167, 139, 250, 0.3);
+  --el-border-color-light: rgba(167, 139, 250, 0.2);
+  --el-border-color-lighter: rgba(167, 139, 250, 0.1);
+  --el-fill-color-light: #f5f3ff;
+  --el-fill-color-lighter: #f5f3ff;
+  --el-fill-color-blank: #f5f3ff;
+  --el-text-color-primary: var(--text-primary);
+  --el-text-color-regular: var(--text-secondary);
+  --el-text-color-secondary: var(--text-tertiary);
+
+  :deep(.el-pagination) {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-weight: 500;
+
+    // 总条数
+    .el-pagination__total {
+      color: #6b7280;
+      font-size: 14px;
+      font-weight: 500;
+      margin-right: 12px;
+    }
+
+    // 每页条数选择器
+    .el-pagination__sizes {
+      margin-right: 12px;
+
+      .el-select {
+        .el-input__wrapper {
+          border-radius: 8px;
+          border: 1px solid #e5e7eb;
+          background: #ffffff;
+          box-shadow: none;
+
+          &:hover {
+            border-color: #a78bfa;
+            box-shadow: 0 0 0 3px rgba(167, 139, 250, 0.1);
+          }
+
+          &.is-focus {
+            border-color: #a78bfa;
+            box-shadow: 0 0 0 3px rgba(167, 139, 250, 0.15);
+          }
+        }
+
+        .el-input__inner {
+          color: #374151;
+          font-weight: 500;
+        }
+      }
+    }
+
+    // 上一页/下一页按钮
+    .btn-prev,
+    .btn-next {
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      border: 1px solid #e5e7eb;
+      background: #ffffff;
+      color: #6b7280;
+      transition: all 0.3s ease;
+
+      &:hover:not(:disabled) {
+        background: #f5f3ff;
+        border-color: #a78bfa;
+        color: #8b5cf6;
+        transform: translateY(-1px);
+        box-shadow: 0 2px 8px rgba(167, 139, 250, 0.2);
+      }
+
+      &:disabled {
+        background: #f5f5f5;
+        border-color: #e0e0e0;
+        color: #c0c0c0;
+      }
+
+      .el-icon {
+        font-size: 14px;
+        font-weight: bold;
+      }
+    }
+
+    // 页码按钮
+    .el-pager {
+      display: flex;
+      gap: 8px;
+
+      li {
+        min-width: 32px;
+        height: 32px;
+        padding: 0 8px;
+        border-radius: 8px;
+        border: 1px solid #d1d5db;
+        background: #ffffff;
+        color: #6b7280;
+        font-size: 14px;
+        font-weight: 500;
+        transition: all 0.3s ease;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+
+        &:hover:not(.is-active) {
+          background: #f5f3ff;
+          border-color: #a78bfa;
+          color: #8b5cf6;
+          transform: translateY(-1px);
+        }
+
+        &.is-active {
+          background: #f5f3ff;
+          border-color: #a78bfa;
+          color: #8b5cf6;
+          box-shadow: 0 2px 8px rgba(167, 139, 250, 0.2);
+        }
+
+        &.is-active:hover {
+          background: #ede9fe;
+          border-color: #8b5cf6;
+        }
+      }
+    }
+
+    // 跳转输入框
+    .el-pagination__jump {
+      color: #6b7280;
+      font-weight: 500;
+      margin-left: 12px;
+
+      .el-input {
+        width: 50px;
+        margin: 0 4px;
+
+        .el-input__wrapper {
+          border-radius: 8px;
+          border: 1px solid #e5e7eb;
+          background: #ffffff;
+          box-shadow: none;
+
+          &:hover {
+            border-color: #a78bfa;
+            box-shadow: 0 0 0 3px rgba(167, 139, 250, 0.1);
+          }
+
+          &.is-focus {
+            border-color: #a78bfa;
+            box-shadow: 0 0 0 3px rgba(167, 139, 250, 0.15);
+          }
+        }
+
+        .el-input__inner {
+          color: #374151;
+          font-weight: 500;
+          text-align: center;
+        }
+      }
+    }
   }
 }
 </style>

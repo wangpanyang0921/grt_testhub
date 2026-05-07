@@ -20,6 +20,16 @@
           <span v-else class="status-badge error">{{ $t('apiTesting.component.historyTable.error') }}</span>
         </template>
       </el-table-column>
+      <el-table-column label="执行结果" width="120" header-align="center" align="center">
+        <template #default="scope">
+          <span
+            class="status-badge"
+            :class="getOverallStatusClass(scope.row)"
+          >
+            {{ getOverallStatusText(scope.row) }}
+          </span>
+        </template>
+      </el-table-column>
       <el-table-column prop="response_time" :label="$t('apiTesting.component.historyTable.responseTime')" width="120" header-align="center" align="center">
         <template #default="scope">
           <span class="response-time">{{ scope.row.response_time?.toFixed(0) || 0 }}ms</span>
@@ -88,6 +98,36 @@ const getStatusClass = (status) => {
   if (status >= 300 && status < 400) return 'warning'
   if (status >= 400) return 'error'
   return 'default'
+}
+
+// 检查断言是否失败
+const hasAssertionsFailed = (row) => {
+  if (!row?.assertions_results || !Array.isArray(row.assertions_results)) {
+    return false
+  }
+  return row.assertions_results.some(result => result.passed === false)
+}
+
+// 获取整体状态文本（同时考虑状态码和断言结果）
+const getOverallStatusText = (row) => {
+  const status = row?.status_code
+  if (!status) return '失败'
+  if (status >= 400) return '失败'
+  if (hasAssertionsFailed(row)) return '失败'
+  if (status >= 200 && status < 300) return '成功'
+  if (status >= 300 && status < 400) return '成功'
+  return '失败'
+}
+
+// 获取整体状态样式
+const getOverallStatusClass = (row) => {
+  const status = row?.status_code
+  if (!status) return 'error'
+  if (status >= 400) return 'error'
+  if (hasAssertionsFailed(row)) return 'error'
+  if (status >= 200 && status < 300) return 'success'
+  if (status >= 300 && status < 400) return 'warning'
+  return 'error'
 }
 
 const formatDate = (dateString) => {

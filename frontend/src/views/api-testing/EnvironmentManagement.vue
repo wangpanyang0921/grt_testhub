@@ -205,7 +205,7 @@
               <div class="column">{{ $t('apiTesting.environment.variableName') }}</div>
               <div class="column">{{ $t('apiTesting.environment.initialValue') }}</div>
               <div class="column">{{ $t('apiTesting.environment.currentValue') }}</div>
-              <div class="column header-column">可被接口引用</div>
+              <div class="column header-column">接口引用</div>
               <div class="column">{{ $t('apiTesting.common.operation') }}</div>
             </div>
 
@@ -276,44 +276,26 @@
       </template>
     </el-dialog>
 
-    <!-- 查看变量对话框 -->
-    <el-dialog
+    <!-- 查看变量抽屉 -->
+    <el-drawer
       v-model="showViewDialog"
       :title="$t('apiTesting.environment.environmentVariableDetail')"
-      width="900px"
-      class="view-dialog"
+      size="900px"
+      direction="rtl"
+      class="view-drawer"
     >
       <div v-if="viewingEnvironment" class="view-variables">
-        <!-- 环境基本信息 -->
-        <div class="env-info-section">
-          <el-descriptions :column="3" border>
-            <el-descriptions-item :label="$t('apiTesting.environment.environmentName')">
-              {{ viewingEnvironment.name }}
-            </el-descriptions-item>
-            <el-descriptions-item :label="$t('apiTesting.environment.scope')">
-              <el-tag :type="viewingEnvironment.scope === 'GLOBAL' ? 'primary' : 'success'" size="small">
-                {{ viewingEnvironment.scope === 'GLOBAL' ? $t('apiTesting.environment.scopeTypes.global') : $t('apiTesting.environment.scopeTypes.local') }}
-              </el-tag>
-            </el-descriptions-item>
-            <el-descriptions-item :label="$t('apiTesting.environment.status')">
-              <el-tag v-if="viewingEnvironment.is_active" type="success" size="small">{{ $t('apiTesting.environment.activated') }}</el-tag>
-              <el-tag v-else type="info" size="small">{{ $t('apiTesting.environment.notActivated') }}</el-tag>
-            </el-descriptions-item>
-          </el-descriptions>
-        </div>
-
         <!-- 变量列表 -->
         <div class="variables-table-section">
-          <div class="section-title">{{ $t('apiTesting.component.environmentTable.variableList') }}</div>
           <el-table
             :data="viewVariables"
             style="width: 100%"
-            :max-height="400"
-            border
+            :max-height="calcDrawerTableHeight()"
             stripe
+            class="modern-table"
           >
-            <el-table-column type="index" :label="$t('apiTesting.common.sequence')" width="60" align="center" />
-            <el-table-column :label="$t('apiTesting.environment.variableName')" min-width="150">
+            <el-table-column type="index" :label="$t('apiTesting.common.sequence')" width="70" align="center" />
+            <el-table-column :label="$t('apiTesting.environment.variableName')" min-width="120">
               <template #default="{ row }">
                 <el-tooltip
                   v-if="row.key"
@@ -330,7 +312,7 @@
                 <div v-else class="ellipsis-text">{{ row.key || '-' }}</div>
               </template>
             </el-table-column>
-            <el-table-column :label="$t('apiTesting.environment.initialValue')" min-width="200">
+            <el-table-column :label="$t('apiTesting.environment.initialValue')" min-width="150">
               <template #default="{ row }">
                 <el-tooltip
                   v-if="row.initialValue"
@@ -347,7 +329,7 @@
                 <div v-else class="ellipsis-text">{{ row.initialValue || '-' }}</div>
               </template>
             </el-table-column>
-            <el-table-column :label="$t('apiTesting.environment.currentValue')" min-width="200">
+            <el-table-column :label="$t('apiTesting.environment.currentValue')" min-width="150">
               <template #default="{ row }">
                 <el-tooltip
                   v-if="row.currentValue"
@@ -364,20 +346,21 @@
                 <div v-else class="ellipsis-text">{{ row.currentValue || '-' }}</div>
               </template>
             </el-table-column>
-            <el-table-column prop="isHeader" :label="$t('apiTesting.component.environmentTable.canBeUsedAsHeader')" width="120" align="center">
+            <el-table-column prop="isHeader" label="接口引用" width="100" align="center">
               <template #default="{ row }">
-                <el-tag v-if="row.isHeader" type="success" size="small">是</el-tag>
-                <el-tag v-else type="info" size="small">否</el-tag>
+                <el-switch
+                  v-model="row.isHeader"
+                  :active-value="true"
+                  :inactive-value="false"
+                  size="small"
+                  @change="toggleVariableHeader(row)"
+                />
               </template>
             </el-table-column>
           </el-table>
         </div>
       </div>
-
-      <template #footer>
-        <el-button @click="showViewDialog = false">{{ $t('apiTesting.common.close') }}</el-button>
-      </template>
-    </el-dialog>
+    </el-drawer>
   </div>
 </template>
 
@@ -458,9 +441,45 @@ const formatDate = (dateString) => {
   return dayjs(dateString).format('YYYY-MM-DD HH:mm')
 }
 
+const calcDrawerTableHeight = () => {
+  return window.innerHeight - 320
+}
+
 const viewEnvironment = (environment) => {
   viewingEnvironment.value = environment
   showViewDialog.value = true
+}
+
+const toggleVariableHeader = async (row) => {
+  if (!viewingEnvironment.value) return
+
+  try {
+    const envId = viewingEnvironment.value.id
+    const variables = { ...viewingEnvironment.value.variables }
+
+    // 更新对应变量的 isHeader 值
+    if (variables[row.key]) {
+      if (typeof variables[row.key] === 'object' && variables[row.key] !== null) {
+        variables[row.key].isHeader = row.isHeader
+      } else {
+        variables[row.key] = {
+          initialValue: variables[row.key],
+          currentValue: variables[row.key],
+          isHeader: row.isHeader
+        }
+      }
+    }
+
+    await api.patch(`/api-testing/environments/${envId}/`, {
+      variables: variables
+    })
+
+    ElMessage.success(t('apiTesting.messages.success.updateSuccess'))
+  } catch (error) {
+    ElMessage.error(t('apiTesting.messages.error.updateFailed'))
+    // 恢复原值
+    row.isHeader = !row.isHeader
+  }
 }
 
 const loadProjects = async () => {
@@ -1250,8 +1269,12 @@ onMounted(async () => {
   }
 }
 
-// 查看对话框样式
-.view-dialog {
+// 查看抽屉样式
+.view-drawer {
+  :deep(.el-drawer__body) {
+    background: #ffffff !important;
+  }
+
   .view-variables {
     padding: 0;
 
@@ -1259,54 +1282,120 @@ onMounted(async () => {
       margin-bottom: 20px;
 
       :deep(.el-descriptions) {
+        .el-descriptions__header {
+          display: none;
+        }
+
         .el-descriptions__label {
           color: #5a32a3;
           font-weight: 500;
-          background: #f8f7ff;
+          background: #ffffff;
           text-align: center;
+          width: 80px;
         }
 
         .el-descriptions__content {
           color: #333;
           text-align: center;
+          background: #ffffff;
         }
 
         .el-descriptions__cell {
           text-align: center;
+          padding: 8px 12px;
+        }
+
+        .el-descriptions__body {
+          background: #ffffff;
+        }
+
+        table {
+          table-layout: fixed;
+          width: 100%;
+        }
+
+        td {
+          width: 33.33%;
         }
       }
     }
 
     .variables-table-section {
-      .section-title {
-        font-size: 14px;
-        font-weight: 600;
-        color: #5a32a3;
-        margin-bottom: 12px;
-        padding-left: 8px;
-        border-left: 3px solid #7b42f6;
-      }
+      padding: 0;
 
       :deep(.el-table) {
-        border-radius: 8px;
-        overflow: hidden;
+        background: transparent;
+        box-shadow: none;
+        border: none;
+
+        // 表头样式 - 简洁无边框风格
+        .el-table__header-wrapper,
+        .el-table__header,
+        thead {
+          background: transparent !important;
+        }
 
         .el-table__header {
           th {
-            background: #f8f7ff;
+            background: transparent !important;
             color: #5a32a3;
             font-weight: 600;
+            font-size: 13px;
             text-align: center;
+            padding: 12px 8px;
+            border-bottom: 1px solid #e8e4f7;
 
             .cell {
               text-align: center;
+              line-height: 1.4;
             }
           }
         }
 
+        // 表体样式
+        .el-table__body-wrapper {
+          background: transparent;
+        }
+
         .el-table__row {
+          background: transparent;
+          transition: all 0.2s ease;
+
+          td {
+            background: transparent;
+            padding: 10px 8px;
+            border-bottom: 1px solid #f0f0f0;
+            font-size: 13px;
+            color: #333;
+          }
+
           &:hover {
-            background: #f8f7ff;
+            background: #faf9ff;
+
+            td {
+              background: #faf9ff;
+            }
+          }
+
+          &:last-child td {
+            border-bottom: none;
+          }
+        }
+
+        // 斑马纹 - 更柔和的交替
+        .el-table__row.el-table__row--striped {
+          background: #fafaff;
+
+          td {
+            background: #fafaff;
+          }
+
+          &:hover {
+            background: #f5f3ff;
+
+            td {
+              background: #f5f3ff;
+            }
           }
         }
 
@@ -1314,6 +1403,23 @@ onMounted(async () => {
           white-space: nowrap;
           overflow: hidden;
           text-overflow: ellipsis;
+          line-height: 1.5;
+        }
+
+        // 开关样式优化
+        .el-switch {
+          --el-switch-on-color: #7b42f6;
+          --el-switch-off-color: #dcdfe6;
+
+          .el-switch__core {
+            border-radius: 10px;
+          }
+        }
+
+        // 序号列样式
+        .el-table-column--index {
+          color: #999;
+          font-size: 12px;
         }
       }
 

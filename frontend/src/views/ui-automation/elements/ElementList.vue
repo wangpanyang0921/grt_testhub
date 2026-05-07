@@ -649,12 +649,12 @@ onMounted(async () => {
     width: 200px;
 
     :deep(.el-input__wrapper) {
-      box-shadow: 0 2px 8px rgba(147, 112, 219, 0.08);
+      box-shadow: 0 0 0 1px rgba(147, 112, 219, 0.25);
       border-radius: 8px;
 
       &:hover,
       &:focus {
-        box-shadow: 0 2px 8px rgba(147, 112, 219, 0.15);
+        box-shadow: 0 0 0 1px #7b42f6;
       }
     }
   }
@@ -700,12 +700,12 @@ onMounted(async () => {
 
       .el-input__wrapper,
       .el-select .el-input__wrapper {
-        box-shadow: 0 2px 8px rgba(147, 112, 219, 0.08);
+        box-shadow: 0 0 0 1px rgba(147, 112, 219, 0.25);
         border-radius: 8px;
 
         &:hover,
         &:focus {
-          box-shadow: 0 2px 8px rgba(147, 112, 219, 0.15);
+          box-shadow: 0 0 0 1px #7b42f6;
         }
       }
     }

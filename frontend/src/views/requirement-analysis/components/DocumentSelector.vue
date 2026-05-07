@@ -208,16 +208,14 @@ const formatDate = (dateString) => {
     max-width: 400px;
 
     :deep(.el-input__wrapper) {
-      box-shadow: 0 2px 8px rgba(147, 112, 219, 0.08);
+      box-shadow: 0 0 0 1px rgba(147, 112, 219, 0.25);
       border-radius: 10px;
-      border: 1px solid rgba(147, 112, 219, 0.15);
       background: #ffffff;
       padding: 4px 12px;
 
       &:hover,
       &.is-focus {
-        box-shadow: 0 2px 12px rgba(147, 112, 219, 0.12);
-        border-color: #7b42f6;
+        box-shadow: 0 0 0 1px #7b42f6;
       }
     }
 

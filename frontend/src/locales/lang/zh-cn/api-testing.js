@@ -314,8 +314,8 @@ export default {
     status: {
       pending: '待执行',
       running: '执行中',
-      completed: '已完成',
-      failed: '执行失败',
+      completed: '成功',
+      failed: '失败',
       cancelled: '已取消'
     },
     testStatus: {
@@ -489,8 +489,8 @@ export default {
     status: {
       pending: '待执行',
       running: '执行中',
-      completed: '已完成',
-      failed: '执行失败',
+      completed: '成功',
+      failed: '失败',
       cancelled: '已取消'
     }
   },
