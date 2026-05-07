@@ -46,7 +46,7 @@ export default {
 
     // Status
     draft: '草稿',
-    active: '激活',
+    active: '启用',
     deprecated: '废弃',
 
     // Step modes
