@@ -46,6 +46,7 @@ from .utils import execute_assertions
 from .operation_logger import log_operation
 from .variable_resolver import VariableResolver
 from .variable_extractor import extract_variables, save_variables_to_environment
+from .scenario_engine.context import ScenarioContext
 from .serializers import (
     ApiProjectSerializer, ApiCollectionSerializer, ApiRequestSerializer,
     EnvironmentSerializer, RequestHistorySerializer, TestSuiteSerializer,
@@ -478,6 +479,8 @@ class ApiRequestViewSet(viewsets.ModelViewSet):
 
             return Response(history_data)
             
+        except Environment.DoesNotExist:
+            return Response({'error': '指定的执行环境不存在'}, status=status.HTTP_404_NOT_FOUND)
         except Exception as e:
             # 保存错误历史
             history = RequestHistory.objects.create(
@@ -493,15 +496,86 @@ class ApiRequestViewSet(viewsets.ModelViewSet):
                 error_message=str(e),
                 executed_by=request.user
             )
-            
-            return Response(RequestHistorySerializer(history).data, status=status.HTTP_400_BAD_REQUEST)
+
+            return Response(RequestHistorySerializer(history).data, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     
-    def _replace_variables(self, text, variables):
-        """替换文本中的变量"""
+    def _replace_variables(self, text, variables, step_context=None):
+        """替换文本中的变量，支持跨步骤引用"""
         if not isinstance(text, str):
             return text
 
         result = text
+
+        # 首先处理跨步骤变量引用格式: {{$.N.request.body.xxx}} 或 {{$.N.response.body.xxx}}
+        if step_context:
+            import re
+            # 匹配跨步骤引用: {{$.数字.request.xxx}} 或 {{$.数字.response.xxx}}
+            # 注意: Apifox 格式是 {{$.11.response.body.data[0].id}}
+            cross_step_pattern = r'\{\{\$\.(\d+)\.(request|response)(?:\.(.+?))?\}\}'
+            
+            # 调试: 检查是否匹配到跨步骤变量
+            matches = list(re.finditer(cross_step_pattern, result))
+            logger.info(f"DEBUG - _replace_variables: text='{text}', step_context={list(step_context.keys()) if step_context else None}, matches={len(matches)}")
+            if matches:
+                logger.info(f"DEBUG - _replace_variables: 找到 {len(matches)} 个跨步骤引用")
+                for m in matches:
+                    logger.info(f"DEBUG - 匹配: step={m.group(1)}, type={m.group(2)}, path={m.group(3)}")
+
+            def replace_cross_step_ref(match):
+                step_num = int(match.group(1))
+                data_type = match.group(2)  # request or response
+                json_path = match.group(3) or ''
+
+                if step_num not in step_context:
+                    logger.warning(f"步骤 {step_num} 不存在于上下文中")
+                    return match.group(0)  # 返回原始字符串
+
+                data_source = step_context[step_num].get(data_type)
+                if not data_source:
+                    return match.group(0)
+
+                # 如果没有进一步的路径，返回整个数据源
+                if not json_path:
+                    return json.dumps(data_source) if isinstance(data_source, dict) else str(data_source)
+
+                # 解析具体路径
+                try:
+                    # 支持 body.data[0].id 或 headers.Authorization 格式
+                    current = data_source
+                    parts = re.findall(r'([^\.\[\]]+)|\[(\d+)\]', json_path)
+                    # 解析路径部分
+                    path_parts = []
+                    for part in re.finditer(r'\[(\d+)\]|([^\.\[\]]+)', json_path):
+                        if part.group(1):  # 数组索引 [0]
+                            path_parts.append(int(part.group(1)))
+                        else:  # 属性名
+                            path_parts.append(part.group(2))
+
+                    for part in path_parts:
+                        if isinstance(current, dict):
+                            current = current.get(part)
+                        elif isinstance(current, list) and isinstance(part, int):
+                            if 0 <= part < len(current):
+                                current = current[part]
+                            else:
+                                return match.group(0)
+                        else:
+                            return match.group(0)
+
+                        if current is None:
+                            return match.group(0)
+
+                    # 返回提取的值
+                    if isinstance(current, (dict, list)):
+                        return json.dumps(current)
+                    return str(current)
+                except Exception as e:
+                    logger.warning(f"解析跨步骤引用失败: {match.group(0)}, 错误: {e}")
+                    return match.group(0)
+
+            result = re.sub(cross_step_pattern, replace_cross_step_ref, result)
+
+        # 然后处理普通变量: {{variable_name}}
         for key, value in (variables or {}).items():
             if isinstance(value, dict):
                 # 支持下划线命名和小驼峰命名
@@ -516,14 +590,15 @@ class ApiRequestViewSet(viewsets.ModelViewSet):
             result = result.replace(f'{{{{{key}}}}}', replacement)
         return result
 
-    def _replace_variables_in_dict(self, data, variables):
-        """递归替换字典中的变量"""
+    def _replace_variables_in_dict(self, data, variables, step_context=None):
+        """递归替换字典中的变量，支持跨步骤引用"""
         if isinstance(data, dict):
-            return {k: self._replace_variables_in_dict(v, variables) for k, v in data.items()}
+            return {k: self._replace_variables_in_dict(v, variables, step_context) for k, v in data.items()}
         elif isinstance(data, list):
-            return [self._replace_variables_in_dict(item, variables) for item in data]
+            return [self._replace_variables_in_dict(item, variables, step_context) for item in data]
         elif isinstance(data, str):
-            return self._replace_variables(data, variables)
+            print(f"DEBUG - _replace_variables_in_dict processing str: '{data[:50]}...', step_context={list(step_context.keys()) if step_context else None}")
+            return self._replace_variables(data, variables, step_context)
         else:
             return data
 
@@ -665,16 +740,43 @@ class RequestHistoryViewSet(viewsets.ModelViewSet):
         ids = request.data.get('ids', [])
         if not ids:
             return Response({'error': '未提供要删除的记录ID'}, status=status.HTTP_400_BAD_REQUEST)
-        
+
         # 确保只能删除有权限的记录
         # 先获取有权限的ID列表，避免在distinct()后调用delete()
         queryset = self.get_queryset()
         valid_ids = list(queryset.filter(id__in=ids).values_list('id', flat=True))
-        
+
         # 使用有权限的ID列表进行删除
         deleted_count, _ = RequestHistory.objects.filter(id__in=valid_ids).delete()
-        
+
         return Response({'message': f'成功删除 {deleted_count} 条记录'})
+
+    @action(detail=False, methods=['get'], url_path='latest')
+    def latest(self, request):
+        """获取指定接口的最新执行记录"""
+        request_id = request.query_params.get('request_id')
+        if not request_id:
+            return Response({'error': '缺少 request_id 参数'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            # 将 request_id 转换为整数
+            try:
+                request_id = int(request_id)
+            except (ValueError, TypeError):
+                return Response({'error': 'request_id 必须是有效的整数'}, status=status.HTTP_400_BAD_REQUEST)
+
+            # 获取该接口的最新执行记录
+            latest_history = self.get_queryset().filter(
+                request_id=request_id
+            ).order_by('-executed_at').first()
+
+            if not latest_history:
+                return Response({'error': '未找到该接口的执行记录'}, status=status.HTTP_404_NOT_FOUND)
+
+            serializer = self.get_serializer(latest_history)
+            return Response(serializer.data)
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 class TestSuiteViewSet(viewsets.ModelViewSet):
@@ -739,6 +841,135 @@ class TestSuiteViewSet(viewsets.ModelViewSet):
 
         return queryset
 
+    def _replace_variables(self, text, variables, step_context=None):
+        """替换文本中的变量，支持跨步骤引用"""
+        if not isinstance(text, str):
+            return text
+
+        result = text
+
+        # 首先处理跨步骤变量引用格式: {{$.N.request.body.xxx}} 或 {{$.N.response.body.xxx}}
+        if step_context:
+            import re
+            # 匹配跨步骤引用: {{$.数字.request.xxx}} 或 {{$.数字.response.xxx}}
+            # 注意: Apifox 格式是 {{$.11.response.body.data[0].id}}
+            cross_step_pattern = r'\{\{\$\.(\d+)\.(request|response)(?:\.(.+?))?\}\}'
+
+            # 调试日志
+            matches = list(re.finditer(cross_step_pattern, result))
+            print(f"DEBUG - TestSuiteViewSet._replace_variables: text='{text}', step_context={list(step_context.keys()) if step_context else None}, matches={len(matches)}")
+
+            def replace_cross_step_ref(match):
+                step_num = int(match.group(1))
+                data_type = match.group(2)  # request or response
+                json_path = match.group(3) or ''
+
+                print(f"DEBUG - replace_cross_step_ref: step_num={step_num}, data_type={data_type}, json_path={json_path}")
+                print(f"DEBUG - step_context keys: {list(step_context.keys())}")
+
+                if step_num not in step_context:
+                    print(f"DEBUG - step {step_num} not in step_context")
+                    return match.group(0)  # 返回原始字符串
+
+                data_source = step_context[step_num].get(data_type)
+                print(f"DEBUG - data_source for {data_type}: {data_source is not None}")
+                if not data_source:
+                    return match.group(0)
+
+                # 如果没有进一步的路径，返回整个数据源
+                if not json_path:
+                    return json.dumps(data_source) if isinstance(data_source, dict) else str(data_source)
+
+                # 解析具体路径
+                try:
+                    # 支持 body.data[0].id 或 headers.Authorization 格式
+                    current = data_source
+                    print(f"DEBUG - current data_source type: {type(current)}")
+                    # 解析路径部分
+                    path_parts = []
+                    for part in re.finditer(r'\[(\d+)\]|([^\.\[\]]+)', json_path):
+                        if part.group(1):  # 数组索引 [0]
+                            path_parts.append(int(part.group(1)))
+                        else:  # 属性名
+                            path_parts.append(part.group(2))
+                    print(f"DEBUG - path_parts: {path_parts}")
+
+                    for i, part in enumerate(path_parts):
+                        print(f"DEBUG - processing part {i}: {part}, current type: {type(current)}")
+                        # 如果当前是字符串（通常是 body），尝试解析为 JSON
+                        if isinstance(current, str) and i > 0:  # i > 0 确保不是第一层
+                            try:
+                                current = json.loads(current)
+                                print(f"DEBUG - parsed string to JSON")
+                            except:
+                                pass  # 如果不是有效 JSON，保持原样
+
+                        if isinstance(current, dict):
+                            current = current.get(part)
+                            print(f"DEBUG - got from dict: {current}")
+                        elif isinstance(current, list) and isinstance(part, int):
+                            if 0 <= part < len(current):
+                                current = current[part]
+                            else:
+                                print(f"DEBUG - index {part} out of range")
+                                return match.group(0)
+                        else:
+                            print(f"DEBUG - cannot navigate: current is {type(current)}, part is {part}")
+                            return match.group(0)
+
+                        if current is None:
+                            print(f"DEBUG - current is None after part {part}")
+                            return match.group(0)
+
+                    # 返回提取的值
+                    print(f"DEBUG - final value: {current}")
+                    if isinstance(current, (dict, list)):
+                        return json.dumps(current)
+                    return str(current)
+                except Exception as e:
+                    print(f"DEBUG - exception: {e}")
+                    return match.group(0)
+
+            result = re.sub(cross_step_pattern, replace_cross_step_ref, result)
+
+        # 然后处理普通变量: {{variable_name}}
+        for key, value in (variables or {}).items():
+            if isinstance(value, dict):
+                # 支持下划线命名和小驼峰命名
+                replacement = str(
+                    value.get('current_value', '') or
+                    value.get('currentValue', '') or
+                    value.get('initial_value', '') or
+                    value.get('initialValue', '')
+                )
+            else:
+                replacement = str(value) if value is not None else ''
+            result = result.replace(f'{{{{{key}}}}}', replacement)
+        return result
+
+    def _replace_variables_in_dict(self, data, variables, step_context=None):
+        """递归替换字典中的变量，支持跨步骤引用"""
+        if isinstance(data, dict):
+            return {k: self._replace_variables_in_dict(v, variables, step_context) for k, v in data.items()}
+        elif isinstance(data, list):
+            return [self._replace_variables_in_dict(item, variables, step_context) for item in data]
+        elif isinstance(data, str):
+            print(f"DEBUG - TestSuiteViewSet._replace_variables_in_dict processing str: '{data[:50]}...', step_context={list(step_context.keys()) if step_context else None}")
+            return self._replace_variables(data, variables, step_context)
+        else:
+            return data
+
+    def _resolve_variables_in_dict(self, data, resolver):
+        """递归解析字典中的动态函数占位符"""
+        if isinstance(data, dict):
+            return {k: self._resolve_variables_in_dict(v, resolver) for k, v in data.items()}
+        elif isinstance(data, list):
+            return [self._resolve_variables_in_dict(item, resolver) for item in data]
+        elif isinstance(data, str):
+            return resolver.resolve(data)
+        else:
+            return data
+
     @action(detail=True, methods=['post'])
     def execute(self, request, pk=None):
         """执行测试套件"""
@@ -772,21 +1003,37 @@ class TestSuiteViewSet(viewsets.ModelViewSet):
             # 用于存储执行过程中提取的变量
             extracted_variables = {}
             
+            # 用于支持跨步骤变量引用的步骤上下文
+            step_context = {}
+            current_step_index = 0
+            
             # 初始化logger
             import logging
             logger = logging.getLogger(__name__)
 
             # 执行每个请求
             for suite_request in suite_requests:
+                current_step_index = suite_request.order
                 api_request = suite_request.request
+
+                # 跳过分组类型步骤（group 只是容器，不是真正的接口请求）
+                if suite_request.step_type == 'group' or api_request is None:
+                    step_name = api_request.name if api_request else '未命名分组'
+                    logger.info(f"DEBUG - 跳过分组步骤: order={current_step_index}, name={step_name}")
+                    continue
+
+                logger.info(f"DEBUG - 开始执行步骤: order={current_step_index}, name={api_request.name}, id={api_request.id}")
 
                 try:
                     # 调试日志 - 打印完整的请求信息
                     logger.info(f"DEBUG - api_request.id: {api_request.id}")
                     logger.info(f"DEBUG - api_request.name: {api_request.name}")
                     logger.info(f"DEBUG - api_request.url: {api_request.url}")
+                    logger.info(f"DEBUG - api_request.variable_extractors: {api_request.variable_extractors}")
                     logger.info(f"DEBUG - api_request.headers type: {type(api_request.headers)}")
                     logger.info(f"DEBUG - api_request.headers value: {api_request.headers}")
+                    logger.info(f"DEBUG - suite_request.override_url: {suite_request.override_url}")
+                    logger.info(f"DEBUG - suite_request.override_method: {suite_request.override_method}")
                     
                     # 解析环境变量 - 重新查询确保获取最新数据
                     variables = {}
@@ -803,8 +1050,49 @@ class TestSuiteViewSet(viewsets.ModelViewSet):
                     variables.update(extracted_variables)
                     logger.info(f"DEBUG - 合并后用于替换的 variables: {variables}")
                     
-                    # 替换URL中的变量（先解析动态函数，再替换环境变量）
-                    url = self._replace_variables(api_request.url, variables)
+                    # 更新 resolver.context 以便支持 {{variable_name}} 格式的变量替换
+                    logger.info(f"DEBUG - 更新前 resolver_id={id(resolver)}, context={resolver.context}")
+                    resolver.context.update(extracted_variables)
+                    logger.info(f"DEBUG - 更新后 resolver_id={id(resolver)}, context: {resolver.context}")
+                    
+                    # 获取有效的请求配置（优先使用覆盖配置）
+                    effective_method = suite_request.get_effective_method()
+                    effective_url = suite_request.get_effective_url()
+                    effective_headers = suite_request.get_effective_headers()
+                    effective_params = suite_request.get_effective_params()
+                    effective_body = suite_request.get_effective_body()
+                    
+                    logger.info(f"DEBUG - effective_method: {effective_method}")
+                    logger.info(f"DEBUG - effective_url: {effective_url}")
+                    logger.info(f"DEBUG - effective_headers: {effective_headers}")
+                    
+                    # 执行前置脚本
+                    if suite_request.pre_script:
+                        try:
+                            logger.info(f"DEBUG - 执行前置脚本")
+                            script_context = {
+                                'variables': variables,
+                                'request': {
+                                    'method': effective_method,
+                                    'url': effective_url,
+                                    'headers': effective_headers,
+                                    'params': effective_params,
+                                    'body': effective_body
+                                }
+                            }
+                            exec(suite_request.pre_script, script_context)
+                            # 更新变量
+                            if 'variables' in script_context:
+                                variables.update(script_context['variables'])
+                                logger.info(f"DEBUG - 前置脚本更新后的变量: {variables}")
+                        except Exception as script_error:
+                            logger.error(f"DEBUG - 前置脚本执行失败: {str(script_error)}")
+                    
+                    # 替换URL中的变量（先处理跨步骤引用，再解析动态函数，最后替换环境变量）
+                    logger.info(f"DEBUG - Before replace: effective_url={effective_url}")
+                    logger.info(f"DEBUG - step_context keys: {list(step_context.keys())}")
+                    url = self._replace_variables(effective_url, variables, step_context)
+                    logger.info(f"DEBUG - After replace: url={url}")
                     url = resolver.resolve(url)
 
                     # 如果URL是相对路径，自动拼接base_url
@@ -832,7 +1120,7 @@ class TestSuiteViewSet(viewsets.ModelViewSet):
                     # 准备请求头
                     headers = {}
                     # 调试日志
-                    logger.info(f"DEBUG - api_request.headers: {api_request.headers}")
+                    logger.info(f"DEBUG - effective_headers: {effective_headers}")
                     logger.info(f"DEBUG - variables: {variables}")
                     
                     # 1. 首先添加环境变量中的常用 Headers (TenantId, Authorization 等)
@@ -852,43 +1140,43 @@ class TestSuiteViewSet(viewsets.ModelViewSet):
                                 header_value = str(var_value) if var_value is not None else ''
                             
                             # 解析变量引用
-                            header_value = self._replace_variables(header_value, variables)
+                            header_value = self._replace_variables(header_value, variables, step_context)
                             header_value = resolver.resolve(header_value)
                             
                             if header_value:
                                 headers[var_name] = header_value
                                 logger.info(f"DEBUG - Header from env: {var_name}={header_value}")
                     
-                    # 2. 再添加接口定义中的 Headers
+                    # 2. 再添加覆盖配置中的 Headers（优先于原始接口配置）
                     # 支持新的数组格式和旧的对象格式
-                    if isinstance(api_request.headers, list):
+                    if isinstance(effective_headers, list):
                         # 新的数组格式 [{"key": "Authorization", "value": "Bearer {{token}}", "enabled": true, "description": "..."}]
-                        for header_item in api_request.headers:
+                        for header_item in effective_headers:
                             if header_item.get('enabled', True) and header_item.get('key'):
                                 key = header_item['key']
-                                value = self._replace_variables(str(header_item.get('value', '')), variables)
+                                value = self._replace_variables(str(header_item.get('value', '')), variables, step_context)
                                 value = resolver.resolve(value)
                                 headers[key] = value
-                                logger.info(f"DEBUG - Header from request: {key}={value}")
+                                logger.info(f"DEBUG - Header from effective: {key}={value}")
                     else:
                         # 旧的对象格式 {"Authorization": "Bearer {{token}}"}
-                        for key, value in api_request.headers.items():
-                            processed_value = self._replace_variables(str(value), variables)
+                        for key, value in effective_headers.items():
+                            processed_value = self._replace_variables(str(value), variables, step_context)
                             processed_value = resolver.resolve(processed_value)
                             headers[key] = processed_value
-                            logger.info(f"DEBUG - Header from request: {key}={processed_value}")
+                            logger.info(f"DEBUG - Header from effective: {key}={processed_value}")
 
-                    params = api_request.params.copy()
+                    params = effective_params.copy() if effective_params else {}
                     for key, value in params.items():
-                        params[key] = self._replace_variables(str(value), variables)
+                        params[key] = self._replace_variables(str(value), variables, step_context)
                         params[key] = resolver.resolve(params[key])
 
                     # 准备请求体 - 与单接口执行逻辑保持一致
                     body_data = None
                     body_type = 'none'
-                    if api_request.body and api_request.method in ['POST', 'PUT', 'PATCH']:
+                    if effective_body and effective_method in ['POST', 'PUT', 'PATCH']:
                         # 处理 body 可能是字符串的情况（API Fox 导入的数据）
-                        body = api_request.body
+                        body = effective_body
                         if isinstance(body, str):
                             try:
                                 body = json.loads(body) if body else {}
@@ -900,20 +1188,24 @@ class TestSuiteViewSet(viewsets.ModelViewSet):
 
                         if body_type == 'json':
                             if isinstance(body_content, dict):
-                                body_data = self._replace_variables_in_dict(body_content, variables)
+                                logger.info(f"DEBUG - json body_content before replace: {body_content}")
+                                logger.info(f"DEBUG - step_context keys: {list(step_context.keys())}")
+                                body_data = self._replace_variables_in_dict(body_content, variables, step_context)
+                                logger.info(f"DEBUG - json body_data after replace: {body_data}")
                                 body_data = self._resolve_variables_in_dict(body_data, resolver)
+                                logger.info(f"DEBUG - json body_data after resolve: {body_data}")
                             elif isinstance(body_content, str):
                                 # 字符串需要先解析为 JSON
                                 try:
                                     parsed = json.loads(body_content)
                                     if isinstance(parsed, dict):
-                                        body_data = self._replace_variables_in_dict(parsed, variables)
+                                        body_data = self._replace_variables_in_dict(parsed, variables, step_context)
                                         body_data = self._resolve_variables_in_dict(body_data, resolver)
                                     else:
                                         body_data = parsed
                                 except json.JSONDecodeError:
                                     # 不是有效 JSON（可能包含变量占位符），先进行变量替换
-                                    body_data = self._replace_variables(body_content, variables)
+                                    body_data = self._replace_variables(body_content, variables, step_context)
                                     body_data = resolver.resolve(body_data)
                                     # 变量替换后，再次尝试解析为 JSON
                                     if isinstance(body_data, str):
@@ -935,7 +1227,7 @@ class TestSuiteViewSet(viewsets.ModelViewSet):
                             if isinstance(body_content, str):
                                 logger.info(f"DEBUG - raw body_content before replace: {body_content}")
                                 logger.info(f"DEBUG - variables for replace: {variables}")
-                                body_data = self._replace_variables(body_content, variables)
+                                body_data = self._replace_variables(body_content, variables, step_context)
                                 logger.info(f"DEBUG - raw body_data after replace: {body_data}")
                                 body_data = resolver.resolve(body_data)
                                 logger.info(f"DEBUG - raw body_data after resolve: {body_data}")
@@ -943,7 +1235,7 @@ class TestSuiteViewSet(viewsets.ModelViewSet):
                                 body_data = body_content
                         elif body_type in ['form-data', 'x-www-form-urlencoded']:
                             if isinstance(body_content, list):
-                                body_data = self._replace_variables_in_dict(body_content, variables)
+                                body_data = self._replace_variables_in_dict(body_content, variables, step_context)
                                 body_data = self._resolve_variables_in_dict(body_data, resolver)
                             else:
                                 body_data = body_content
@@ -961,7 +1253,7 @@ class TestSuiteViewSet(viewsets.ModelViewSet):
                                 json_data = json.loads(body_data)
                                 # 是有效的 JSON，使用 json 参数发送（自动设置 Content-Type）
                                 response = requests.request(
-                                    method=api_request.method,
+                                    method=effective_method,
                                     url=url,
                                     headers=headers,
                                     params=params,
@@ -971,7 +1263,7 @@ class TestSuiteViewSet(viewsets.ModelViewSet):
                             except (json.JSONDecodeError, TypeError):
                                 # 不是 JSON，作为原始字符串发送
                                 response = requests.request(
-                                    method=api_request.method,
+                                    method=effective_method,
                                     url=url,
                                     headers=headers,
                                     params=params,
@@ -981,7 +1273,7 @@ class TestSuiteViewSet(viewsets.ModelViewSet):
                         else:
                             # body_data 不是字符串，直接使用 data 参数
                             response = requests.request(
-                                method=api_request.method,
+                                method=effective_method,
                                 url=url,
                                 headers=headers,
                                 params=params,
@@ -995,7 +1287,7 @@ class TestSuiteViewSet(viewsets.ModelViewSet):
                             try:
                                 json_data = json.loads(body_data)
                                 response = requests.request(
-                                    method=api_request.method,
+                                    method=effective_method,
                                     url=url,
                                     headers=headers,
                                     params=params,
@@ -1009,7 +1301,7 @@ class TestSuiteViewSet(viewsets.ModelViewSet):
                                 headers = headers.copy()
                                 headers['Content-Type'] = 'application/json'
                                 response = requests.request(
-                                    method=api_request.method,
+                                    method=effective_method,
                                     url=url,
                                     headers=headers,
                                     params=params,
@@ -1018,7 +1310,7 @@ class TestSuiteViewSet(viewsets.ModelViewSet):
                                 )
                         else:
                             response = requests.request(
-                                method=api_request.method,
+                                method=effective_method,
                                 url=url,
                                 headers=headers,
                                 params=params,
@@ -1031,13 +1323,17 @@ class TestSuiteViewSet(viewsets.ModelViewSet):
                     # 执行断言验证 - 使用套件请求的断言（支持在套件中为每个请求单独配置断言）
                     # 优先使用 suite_request.assertions，如果没有则回退到 api_request.assertions
                     assertions = suite_request.assertions or api_request.assertions or []
+                    logger.info(f"DEBUG - 断言数据: suite_request.assertions={suite_request.assertions}, api_request.assertions={api_request.assertions}")
+                    logger.info(f"DEBUG - 最终使用的 assertions={assertions}")
                     # 添加响应时间到断言中
                     for assertion in assertions:
                         if assertion.get('type') == 'response_time':
                             assertion['actual_time'] = response_time
                     
-                    # 使用共享的断言执行方法
-                    assertions_results = execute_assertions(response, assertions)
+                    # 使用共享的断言执行方法，传入 resolver 和 step_context 用于变量替换
+                    logger.info(f"DEBUG - 调用 execute_assertions, assertions count={len(assertions)}, resolver_id={id(resolver)}, context={resolver.context}")
+                    assertions_results = execute_assertions(response, assertions, resolver, step_context)
+                    logger.info(f"DEBUG - 断言执行结果: {assertions_results}")
                     
                     # 检查所有断言是否通过
                     passed = True
@@ -1072,6 +1368,23 @@ class TestSuiteViewSet(viewsets.ModelViewSet):
                     except:
                         response_json = None
 
+                    # 记录步骤上下文（用于跨步骤变量引用）
+                    step_context[current_step_index] = {
+                        'request': {
+                            'method': effective_method,
+                            'url': url,
+                            'headers': headers,
+                            'params': params,
+                            'body': body_data
+                        },
+                        'response': {
+                            'status_code': response.status_code,
+                            'headers': dict(response.headers),
+                            'body': response_json if response_json is not None else response.text
+                        }
+                    }
+                    logger.info(f"DEBUG - 记录步骤 {current_step_index} 上下文")
+
                     # 执行变量提取
                     extraction_result = {'variables': {}, 'results': []}
                     logger.info(f"DEBUG - 变量提取检查: api_request.variable_extractors={api_request.variable_extractors}, response_json={response_json is not None}")
@@ -1089,6 +1402,35 @@ class TestSuiteViewSet(viewsets.ModelViewSet):
                     else:
                         logger.info(f"DEBUG - 跳过变量提取: variable_extractors={api_request.variable_extractors}, response_json={response_json}")
 
+                    # 执行后置脚本
+                    if suite_request.post_script:
+                        try:
+                            logger.info(f"DEBUG - 执行后置脚本")
+                            script_context = {
+                                'variables': variables,
+                                'response': {
+                                    'status_code': response.status_code,
+                                    'headers': dict(response.headers),
+                                    'body': response_json or response.text,
+                                    'text': response.text
+                                },
+                                'request': {
+                                    'method': effective_method,
+                                    'url': url,
+                                    'headers': headers,
+                                    'params': params,
+                                    'body': body_data
+                                }
+                            }
+                            exec(suite_request.post_script, script_context)
+                            # 更新变量
+                            if 'variables' in script_context:
+                                variables.update(script_context['variables'])
+                                extracted_variables.update(script_context['variables'])
+                                logger.info(f"DEBUG - 后置脚本更新后的变量: {variables}")
+                        except Exception as script_error:
+                            logger.error(f"DEBUG - 后置脚本执行失败: {str(script_error)}")
+
                     if passed:
                         passed_count += 1
                     else:
@@ -1096,7 +1438,7 @@ class TestSuiteViewSet(viewsets.ModelViewSet):
 
                     results.append({
                         'name': api_request.name,
-                        'method': api_request.method,
+                        'method': effective_method,
                         'url': url,
                         'status_code': response.status_code,
                         'response_time': response_time,
@@ -1107,7 +1449,7 @@ class TestSuiteViewSet(viewsets.ModelViewSet):
                         'extracted_variables': extraction_result['variables'],
                         'request_data': {
                             'url': url,
-                            'method': api_request.method,
+                            'method': effective_method,
                             'headers': headers,
                             'params': params,
                             'body': body_data
@@ -1125,7 +1467,7 @@ class TestSuiteViewSet(viewsets.ModelViewSet):
                         environment=test_suite.environment,
                         request_data={
                             'url': url,
-                            'method': api_request.method,
+                            'method': effective_method,
                             'headers': headers,
                             'params': params,
                             'body': body_data
@@ -1145,7 +1487,7 @@ class TestSuiteViewSet(viewsets.ModelViewSet):
                     failed_count += 1
                     results.append({
                         'name': api_request.name,
-                        'method': api_request.method,
+                        'method': effective_method,
                         'url': api_request.url,
                         'passed': False,
                         'error': str(e)
@@ -1170,11 +1512,20 @@ class TestSuiteViewSet(viewsets.ModelViewSet):
 
             return Response(TestExecutionSerializer(execution).data)
             
-        except Exception as e:
+        except Environment.DoesNotExist:
             execution.status = 'FAILED'
             execution.end_time = timezone.now()
             execution.save()
-            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({'error': '指定的执行环境不存在'}, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            import traceback
+            error_detail = traceback.format_exc()
+            logger.error(f"执行测试套件失败: {str(e)}")
+            logger.error(f"错误堆栈: {error_detail}")
+            execution.status = 'FAILED'
+            execution.end_time = timezone.now()
+            execution.save()
+            return Response({'error': str(e), 'detail': error_detail}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     def perform_create(self, serializer):
         """创建测试套件时记录日志"""
@@ -1254,42 +1605,6 @@ class TestSuiteViewSet(viewsets.ModelViewSet):
 
         except Exception as e:
             return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
-    
-    def _replace_variables(self, text, variables):
-        """替换文本中的变量"""
-        if not isinstance(text, str):
-            return text
-        
-        result = text
-        for key, value in (variables or {}).items():
-            if isinstance(value, dict):
-                replacement = str(value.get('currentValue', '') or value.get('initialValue', ''))
-            else:
-                replacement = str(value) if value is not None else ''
-            result = result.replace(f'{{{{{key}}}}}', replacement)
-        return result
-    
-    def _replace_variables_in_dict(self, data, variables):
-        """递归替换字典中的变量"""
-        if isinstance(data, dict):
-            return {k: self._replace_variables_in_dict(v, variables) for k, v in data.items()}
-        elif isinstance(data, list):
-            return [self._replace_variables_in_dict(item, variables) for item in data]
-        elif isinstance(data, str):
-            return self._replace_variables(data, variables)
-        else:
-            return data
-    
-    def _resolve_variables_in_dict(self, data, resolver):
-        """递归解析字典中的动态函数占位符"""
-        if isinstance(data, dict):
-            return {k: self._resolve_variables_in_dict(v, resolver) for k, v in data.items()}
-        elif isinstance(data, list):
-            return [self._resolve_variables_in_dict(item, resolver) for item in data]
-        elif isinstance(data, str):
-            return resolver.resolve(data)
-        else:
-            return data
 
     @action(detail=True, methods=['get'])
     def reviews(self, request, pk=None):
@@ -4616,7 +4931,7 @@ class AIServiceConfigViewSet(viewsets.ModelViewSet):
             request_info = {
                 'name': api_request.name,
                 'description': api_request.description,
-                'method': api_request.method,
+                'method': effective_method,
                 'url': api_request.url,
                 'headers': api_request.headers,
                 'params': api_request.params,
@@ -5313,7 +5628,7 @@ def import_interfaces(request):
                 return Response({'error': '未找到可用的API文档提取AI配置'}, status=status.HTTP_400_BAD_REQUEST)
 
             request_data = {
-                'method': api_request.method,
+                'method': effective_method,
                 'url': api_request.url,
                 'headers': api_request.headers,
                 'params': api_request.params,

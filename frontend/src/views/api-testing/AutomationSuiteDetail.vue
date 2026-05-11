@@ -69,58 +69,20 @@
           <h4>场景编排</h4>
         </div>
         
-        <el-table
-          ref="requestTableRef"
-          :data="suite.suite_requests"
-          style="width: 100%"
-          v-if="suite.suite_requests?.length > 0"
-          row-key="id"
-        >
-          <el-table-column type="index" :label="$t('apiTesting.common.sequence')" width="70" align="center">
-            <template #default="scope">
-              <div class="drag-handle">
-                <el-icon class="drag-icon"><Rank /></el-icon>
-                <span>{{ scope.$index + 1 }}</span>
-              </div>
-            </template>
-          </el-table-column>
-          <el-table-column prop="request.name" :label="$t('apiTesting.automation.requestName')" min-width="200" />
-          <el-table-column prop="request.method" :label="$t('apiTesting.automation.method')" width="130" align="center">
-            <template #default="scope">
-              <span class="method-badge" :class="scope.row.request.method?.toLowerCase()">
-                {{ scope.row.request.method }}
-              </span>
-            </template>
-          </el-table-column>
-          <el-table-column prop="request.url" label="请求地址" min-width="280" show-overflow-tooltip />
-          <el-table-column prop="enabled" :label="$t('apiTesting.automation.enabled')" width="110" align="center">
-            <template #default="scope">
-              <el-switch
-                v-model="scope.row.enabled"
-                @change="updateRequestEnabled(scope.row)"
-              />
-            </template>
-          </el-table-column>
-          <el-table-column :label="$t('apiTesting.automation.assertions')" width="110" align="center">
-            <template #default="scope">
-              {{ $t('apiTesting.automation.assertionCount', { n: scope.row.assertions?.length || 0 }) }}
-            </template>
-          </el-table-column>
-          <el-table-column :label="$t('apiTesting.common.operation')" width="180" fixed="right" align="center">
-            <template #default="scope">
-              <div class="operation-btns">
-                <el-button size="small" class="action-btn edit-assertion-btn" @click="editAssertions(scope.row)">
-                  {{ $t('apiTesting.automation.editAssertions') }}
-                </el-button>
-                <el-button size="small" class="action-btn remove-btn" @click="removeRequest(scope.row)">
-                  {{ $t('apiTesting.automation.remove') }}
-                </el-button>
-              </div>
-            </template>
-          </el-table-column>
-        </el-table>
+        <div class="requests-tree" v-if="suite.suite_requests?.length > 0">
+          <suite-request-tree
+            v-for="(req, index) in suite.suite_requests"
+            :key="req.id"
+            :request="req"
+            :index="index"
+            :level="0"
+            @edit="editRequest"
+            @remove="removeRequest"
+            @toggle-enabled="updateRequestEnabled"
+          />
+        </div>
         
-        <el-empty v-else :description="$t('apiTesting.automation.noRequests')" />
+        <el-empty v-else :description="$t('apiTesting.automation.noRequests')" class="requests-empty" />
       </div>
 
       <!-- 评审区域 - 有评审记录且(未通过或非创建人)时显示 -->
@@ -528,7 +490,10 @@
               <span class="data-badge">{{ activeRequestTab.toUpperCase() }}</span>
             </div>
             <div class="code-container">
-              <pre class="code-block">{{ getRequestData() }}</pre>
+              <json-tree-viewer 
+                :data="getRequestDataRaw()" 
+                :root-path="getRequestJsonPathRoot()"
+              />
             </div>
           </div>
           
@@ -549,7 +514,10 @@
               <span class="data-badge">{{ activeResponseTab.toUpperCase() }}</span>
             </div>
             <div class="code-container" v-if="activeResponseTab !== 'assertions'">
-              <pre class="code-block">{{ getResponseData() }}</pre>
+              <json-tree-viewer 
+                :data="getResponseDataRaw()" 
+                :root-path="getJsonPathRoot()"
+              />
             </div>
             <div class="assertions-container" v-else>
               <div class="assertion-list">
@@ -594,140 +562,557 @@
       </div>
     </el-drawer>
 
-    <!-- 断言编辑对话框 -->
-    <el-dialog
-      v-model="showAssertionsDialog"
-      :title="t('apiTesting.automation.editAssertions')"
-      width="800px"
-      :close-on-click-modal="false"
+    <!-- 接口编辑抽屉 -->
+    <el-drawer
+      v-model="showEditRequestDialog"
+      title="编辑接口"
+      size="900px"
+      destroy-on-close
+      class="edit-request-drawer"
     >
-      <div v-if="currentEditingRequest" class="assertions-editor">
-        <div class="assertions-header">
-          <span class="request-name">{{ currentEditingRequest.request?.name }}</span>
-          <el-button size="small" type="primary" @click="addAssertion">
-            <el-icon><Plus /></el-icon>
-            {{ t('apiTesting.interface.addAssertion') }}
-          </el-button>
-        </div>
+      <el-tabs v-model="editDrawerActiveTab" class="drawer-tabs">
+        <!-- 基础信息 -->
+        <el-tab-pane label="基础信息" name="basic">
+          <el-form :model="editingRequestData" label-width="100px">
+            <el-form-item label="接口名称">
+              <el-input v-model="editingRequestData.name" placeholder="输入接口名称" />
+            </el-form-item>
+            <el-form-item label="请求方法">
+              <el-select v-model="editingRequestData.method" style="width: 120px">
+                <el-option label="GET" value="GET" />
+                <el-option label="POST" value="POST" />
+                <el-option label="PUT" value="PUT" />
+                <el-option label="DELETE" value="DELETE" />
+                <el-option label="PATCH" value="PATCH" />
+                <el-option label="HEAD" value="HEAD" />
+                <el-option label="OPTIONS" value="OPTIONS" />
+              </el-select>
+            </el-form-item>
+            <el-form-item label="请求URL">
+              <el-input ref="urlInputRef" v-model="editingRequestData.url" placeholder="输入完整的请求URL">
+                <template #append>
+                  <el-button @click="openVariablePicker('url')" title="插入变量">
+                    <el-icon><MagicStick /></el-icon>
+                  </el-button>
+                </template>
+              </el-input>
+            </el-form-item>
+          </el-form>
+        </el-tab-pane>
 
-        <div class="assertions-table" v-if="editingAssertions.length > 0">
-          <div class="assertions-table-header">
-            <div class="col-name">断言名称</div>
-            <div class="col-type">断言类型</div>
-            <div class="col-params">参数</div>
-            <div class="col-action">操作</div>
-          </div>
-          <div class="assertions-table-body">
-            <div
-              v-for="(assertion, index) in editingAssertions"
-              :key="index"
-              class="assertion-row"
-            >
-              <div class="col-name">
-                <el-input
-                  v-model="assertion.name"
-                  :placeholder="t('apiTesting.interface.assertionName')"
-                  size="small"
-                />
-              </div>
-              <div class="col-type">
-                <el-select
-                  v-model="assertion.type"
-                  :placeholder="t('apiTesting.interface.selectAssertionType')"
-                  size="small"
-                  @change="onAssertionTypeChange(assertion)"
-                >
-                  <el-option :label="t('apiTesting.interface.assertionTypes.statusCode')" value="status_code" />
-                  <el-option :label="t('apiTesting.interface.assertionTypes.responseTime')" value="response_time" />
-                  <el-option :label="t('apiTesting.interface.assertionTypes.contains')" value="contains" />
-                  <el-option :label="t('apiTesting.interface.assertionTypes.jsonPath')" value="json_path" />
-                  <el-option :label="t('apiTesting.interface.assertionTypes.header')" value="header" />
-                  <el-option :label="t('apiTesting.interface.assertionTypes.equals')" value="equals" />
-                </el-select>
-              </div>
-              <div class="col-params">
-                <el-input-number
-                  v-if="assertion.type === 'status_code'"
-                  v-model="assertion.expected"
-                  :min="100"
-                  :max="599"
-                  size="small"
-                  :placeholder="t('apiTesting.interface.expectedStatusCode')"
-                />
-                <el-input-number
-                  v-else-if="assertion.type === 'response_time'"
-                  v-model="assertion.expected"
-                  :min="1"
-                  size="small"
-                  :placeholder="t('apiTesting.interface.maxResponseTime')"
-                />
-                <el-input
-                  v-else-if="assertion.type === 'contains'"
-                  v-model="assertion.expected"
-                  :placeholder="t('apiTesting.interface.expectedContains')"
-                  size="small"
-                />
-                <div v-else-if="assertion.type === 'json_path'" class="params-row">
-                  <el-input
-                    v-model="assertion.json_path"
-                    :placeholder="t('apiTesting.interface.jsonPathExpression')"
-                    size="small"
-                  />
-                  <el-input
-                    v-model="assertion.expected"
-                    :placeholder="t('apiTesting.interface.expectedValue')"
-                    size="small"
-                  />
-                </div>
-                <div v-else-if="assertion.type === 'header'" class="params-row">
-                  <el-input
-                    v-model="assertion.header_name"
-                    :placeholder="t('apiTesting.interface.headerNameLabel')"
-                    size="small"
-                  />
-                  <el-input
-                    v-model="assertion.expected_value"
-                    :placeholder="t('apiTesting.interface.expectedValue')"
-                    size="small"
-                  />
-                </div>
-                <el-input
-                  v-else-if="assertion.type === 'equals'"
-                  v-model="assertion.expected"
-                  :placeholder="t('apiTesting.interface.expectedMatch')"
-                  size="small"
-                />
-                <el-input
-                  v-else
-                  :placeholder="t('apiTesting.interface.selectAssertionTypeFirst')"
-                  size="small"
-                  disabled
-                />
-              </div>
-              <div class="col-action">
-                <el-button
-                  size="small"
-                  type="danger"
-                  @click="removeAssertion(index)"
-                  circle
-                >
+        <!-- 请求头 -->
+        <el-tab-pane label="请求头" name="headers">
+          <div class="key-value-editor">
+            <div class="editor-header">
+              <el-button size="small" @click="addEditingHeader">
+                <el-icon><Plus /></el-icon> 添加
+              </el-button>
+            </div>
+            <div class="kv-list">
+              <div v-for="(item, index) in editingHeadersList" :key="index" class="kv-item">
+                <el-input v-model="item.key" placeholder="Header 名称" class="kv-key" />
+                <el-input v-model="item.value" placeholder="Header 值" class="kv-value">
+                  <template #append>
+                    <el-button @click="openVariablePicker('header', index)" title="插入变量">
+                      <el-icon><MagicStick /></el-icon>
+                    </el-button>
+                  </template>
+                </el-input>
+                <el-button type="danger" size="small" circle @click="removeEditingHeader(index)">
                   <el-icon><Delete /></el-icon>
                 </el-button>
               </div>
             </div>
           </div>
+        </el-tab-pane>
+
+        <!-- 请求参数 -->
+        <el-tab-pane label="请求参数" name="params">
+          <div class="key-value-editor">
+            <div class="editor-header">
+              <el-button size="small" @click="addEditingParam">
+                <el-icon><Plus /></el-icon> 添加
+              </el-button>
+            </div>
+            <div class="kv-list">
+              <div v-for="(item, index) in editingParamsList" :key="index" class="kv-item">
+                <el-input v-model="item.key" placeholder="参数名" class="kv-key" />
+                <el-input v-model="item.value" placeholder="参数值" class="kv-value">
+                  <template #append>
+                    <el-button @click="openVariablePicker('param', index)" title="插入变量">
+                      <el-icon><MagicStick /></el-icon>
+                    </el-button>
+                  </template>
+                </el-input>
+                <el-button type="danger" size="small" circle @click="removeEditingParam(index)">
+                  <el-icon><Delete /></el-icon>
+                </el-button>
+              </div>
+            </div>
+          </div>
+        </el-tab-pane>
+
+        <!-- 请求体 -->
+        <el-tab-pane label="请求体" name="body" v-if="['POST', 'PUT', 'PATCH'].includes(editingRequestData.method)">
+          <div class="body-editor">
+            <div class="body-toolbar">
+              <el-radio-group v-model="editingRequestData.bodyType" size="small">
+                <el-radio-button label="json">JSON</el-radio-button>
+                <el-radio-button label="raw">Raw</el-radio-button>
+              </el-radio-group>
+              <el-button 
+                size="small"
+                @click="openVariablePicker('body')"
+                title="插入变量"
+              >
+                <el-icon><MagicStick /></el-icon>
+                插入变量
+              </el-button>
+            </div>
+            <div class="body-input-wrapper">
+              <el-input
+                ref="bodyInputRef"
+                v-model="editingRequestData.bodyContent"
+                type="textarea"
+                :rows="15"
+                placeholder="输入请求体内容，支持 {{$env.variable}} 语法引用环境变量"
+              />
+            </div>
+          </div>
+        </el-tab-pane>
+
+        <!-- 提取变量 -->
+        <el-tab-pane label="提取变量" name="extractors">
+          <div class="variable-extractors-editor">
+            <div class="extractors-header" style="margin-bottom: 16px;">
+              <el-button size="small" type="primary" @click="addEditingExtractor">
+                <el-icon><Plus /></el-icon> 添加提取规则
+              </el-button>
+              <span class="extractors-hint" style="margin-left: 12px; color: #909399; font-size: 12px;">从响应中提取变量供后续接口使用</span>
+            </div>
+            <div class="extractors-table" v-if="editingExtractorsList && editingExtractorsList.length > 0">
+              <div class="extractors-table-header" style="display: flex; padding: 8px; background: #f5f7fa; font-weight: 500; font-size: 13px;">
+                <div style="flex: 1.5;">规则名称</div>
+                <div style="flex: 1;">提取来源</div>
+                <div style="flex: 2;">提取路径/Header名</div>
+                <div style="flex: 1;">变量名</div>
+                <div style="width: 50px;">操作</div>
+              </div>
+              <div class="extractors-table-body">
+                <div
+                  v-for="(extractor, index) in editingExtractorsList"
+                  :key="index"
+                  style="display: flex; padding: 8px; align-items: center; border-bottom: 1px solid #ebeef5;"
+                >
+                  <div style="flex: 1.5; padding-right: 8px;">
+                    <el-input
+                      v-model="extractor.name"
+                      placeholder="规则名称"
+                      size="small"
+                    />
+                  </div>
+                  <div style="flex: 1; padding-right: 8px;">
+                    <el-select
+                      v-model="extractor.source"
+                      placeholder="选择来源"
+                      size="small"
+                    >
+                      <el-option label="JSON Body" value="json_body" />
+                      <el-option label="Response Header" value="header" />
+                    </el-select>
+                  </div>
+                  <div style="flex: 2; padding-right: 8px;">
+                    <el-input
+                      v-if="extractor.source === 'json_body'"
+                      v-model="extractor.json_path"
+                      placeholder="JSON Path 表达式"
+                      size="small"
+                    >
+                      <template #append>
+                        <el-button @click="openVariablePicker('extractor_json_path', index)" title="插入变量">
+                          <el-icon><MagicStick /></el-icon>
+                        </el-button>
+                      </template>
+                    </el-input>
+                    <el-input
+                      v-else-if="extractor.source === 'header'"
+                      v-model="extractor.header_name"
+                      placeholder="Header 名称"
+                      size="small"
+                    >
+                      <template #append>
+                        <el-button @click="openVariablePicker('extractor_header_name', index)" title="插入变量">
+                          <el-icon><MagicStick /></el-icon>
+                        </el-button>
+                      </template>
+                    </el-input>
+                    <el-input
+                      v-else
+                      placeholder="请先选择提取来源"
+                      size="small"
+                      disabled
+                    />
+                  </div>
+                  <div style="flex: 1; padding-right: 8px;">
+                    <el-input
+                      v-model="extractor.variable_name"
+                      placeholder="变量名"
+                      size="small"
+                    />
+                  </div>
+                  <div style="width: 50px;">
+                    <el-button
+                      size="small"
+                      type="danger"
+                      @click="removeEditingExtractor(index)"
+                      circle
+                    >
+                      <el-icon><Delete /></el-icon>
+                    </el-button>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div v-else style="text-align: center; padding: 40px; color: #909399;">
+              <p>暂无提取规则</p>
+              <el-button size="small" type="primary" @click="addEditingExtractor">
+                <el-icon><Plus /></el-icon> 添加第一条规则
+              </el-button>
+            </div>
+          </div>
+        </el-tab-pane>
+
+        <!-- 断言 -->
+        <el-tab-pane label="断言" name="assertions">
+          <div class="assertions-editor">
+            <div class="assertions-header" style="margin-bottom: 16px; display: flex; gap: 12px;">
+              <el-button size="small" type="primary" @click="addEditingAssertion">
+                <el-icon><Plus /></el-icon> 添加断言
+              </el-button>
+            </div>
+            <div class="assertions-table" v-if="editingAssertionsList && editingAssertionsList.length > 0">
+              <div class="assertions-table-header" style="display: flex; padding: 8px; background: #f5f7fa; font-weight: 500; font-size: 13px;">
+                <div style="flex: 1.5;">断言名称</div>
+                <div style="flex: 1;">断言类型</div>
+                <div style="flex: 2.5;">参数</div>
+                <div style="width: 50px;">操作</div>
+              </div>
+              <div class="assertions-table-body">
+                <div
+                  v-for="(assertion, index) in editingAssertionsList"
+                  :key="index"
+                  style="display: flex; padding: 8px; align-items: center; border-bottom: 1px solid #ebeef5;"
+                >
+                  <div style="flex: 1.5; padding-right: 8px;">
+                    <el-input
+                      v-model="assertion.name"
+                      placeholder="断言名称"
+                      size="small"
+                    />
+                  </div>
+                  <div style="flex: 1; padding-right: 8px;">
+                    <el-select
+                      v-model="assertion.type"
+                      placeholder="选择类型"
+                      size="small"
+                      @change="onEditingAssertionTypeChange(assertion)"
+                    >
+                      <el-option label="状态码" value="status_code" />
+                      <el-option label="响应时间" value="response_time" />
+                      <el-option label="包含文本" value="contains" />
+                      <el-option label="JSON Path" value="json_path" />
+                      <el-option label="Header" value="header" />
+                      <el-option label="完全匹配" value="equals" />
+                    </el-select>
+                  </div>
+                  <div style="flex: 2.5; padding-right: 8px;">
+                    <el-input-number
+                      v-if="assertion.type === 'status_code'"
+                      v-model="assertion.expected"
+                      :min="100"
+                      :max="599"
+                      size="small"
+                      placeholder="预期状态码"
+                    />
+                    <el-input-number
+                      v-else-if="assertion.type === 'response_time'"
+                      v-model="assertion.expected"
+                      :min="1"
+                      size="small"
+                      placeholder="最大响应时间(ms)"
+                    />
+                    <el-input
+                      v-else-if="assertion.type === 'contains'"
+                      v-model="assertion.expected"
+                      placeholder="预期包含的文本"
+                      size="small"
+                    >
+                      <template #append>
+                        <el-button @click="openVariablePicker('assertion_contains', index)" title="插入变量">
+                          <el-icon><MagicStick /></el-icon>
+                        </el-button>
+                      </template>
+                    </el-input>
+                    <div v-else-if="assertion.type === 'json_path'" style="display: flex; gap: 8px;">
+                      <el-input
+                        v-model="assertion.json_path"
+                        placeholder="JSON Path"
+                        size="small"
+                        style="flex: 1;"
+                      >
+                        <template #append>
+                          <el-button @click="openVariablePicker('assertion_json_path', index)" title="插入变量">
+                            <el-icon><MagicStick /></el-icon>
+                          </el-button>
+                        </template>
+                      </el-input>
+                      <el-input
+                        v-model="assertion.expected"
+                        :placeholder="getExpectedPlaceholder(assertion)"
+                        size="small"
+                        style="flex: 1;"
+                      >
+                        <template #append>
+                          <el-button @click="openVariablePicker('assertion_json_expected', index)" title="插入变量">
+                            <el-icon><MagicStick /></el-icon>
+                          </el-button>
+                        </template>
+                      </el-input>
+                    </div>
+                    <div v-else-if="assertion.type === 'header'" style="display: flex; gap: 8px;">
+                      <el-input
+                        v-model="assertion.header_name"
+                        placeholder="Header名称"
+                        size="small"
+                        style="flex: 1;"
+                      >
+                        <template #append>
+                          <el-button @click="openVariablePicker('assertion_header_name', index)" title="插入变量">
+                            <el-icon><MagicStick /></el-icon>
+                          </el-button>
+                        </template>
+                      </el-input>
+                      <el-input
+                        v-model="assertion.expected_value"
+                        placeholder="预期值"
+                        size="small"
+                        style="flex: 1;"
+                      >
+                        <template #append>
+                          <el-button @click="openVariablePicker('assertion_header_expected', index)" title="插入变量">
+                            <el-icon><MagicStick /></el-icon>
+                          </el-button>
+                        </template>
+                      </el-input>
+                    </div>
+                    <el-input
+                      v-else-if="assertion.type === 'equals'"
+                      v-model="assertion.expected"
+                      placeholder="预期匹配内容"
+                      size="small"
+                    >
+                      <template #append>
+                        <el-button @click="openVariablePicker('assertion_equals', index)" title="插入变量">
+                          <el-icon><MagicStick /></el-icon>
+                        </el-button>
+                      </template>
+                    </el-input>
+                    <el-input
+                      v-else
+                      placeholder="请先选择断言类型"
+                      size="small"
+                      disabled
+                    />
+                  </div>
+                  <div style="width: 50px;">
+                    <el-button
+                      size="small"
+                      type="danger"
+                      @click="removeEditingAssertion(index)"
+                      circle
+                    >
+                      <el-icon><Delete /></el-icon>
+                    </el-button>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div v-else style="text-align: center; padding: 40px; color: #909399;">
+              <p>暂无断言</p>
+              <el-button size="small" type="primary" @click="addEditingAssertion">
+                <el-icon><Plus /></el-icon> 添加第一条断言
+              </el-button>
+            </div>
+          </div>
+        </el-tab-pane>
+      </el-tabs>
+
+      <template #footer>
+        <div class="drawer-footer">
+          <el-button @click="showEditRequestDialog = false">取消</el-button>
+          <el-button type="primary" @click="saveRequestEdit" :loading="savingRequestEdit">保存</el-button>
+        </div>
+      </template>
+    </el-drawer>
+
+    <!-- 变量选择器抽屉 -->
+    <el-drawer
+      v-model="showVariablePickerDialog"
+      title="插入动态值"
+      size="450px"
+      direction="rtl"
+      :close-on-click-modal="false"
+      append-to-body
+    >
+      <div class="variable-picker-content">
+        <div class="picker-section">
+          <div class="section-title">选择变量类型</div>
+          <el-radio-group v-model="selectedVarCategory" size="small">
+            <el-radio-button label="prev">前置接口</el-radio-button>
+            <el-radio-button label="env">环境变量</el-radio-button>
+            <el-radio-button label="global">全局变量</el-radio-button>
+            <el-radio-button label="dynamic">动态函数</el-radio-button>
+          </el-radio-group>
         </div>
 
-        <el-empty v-else :description="t('apiTesting.interface.noAssertions')" />
+        <!-- 前置接口变量 -->
+        <div v-if="selectedVarCategory === 'prev'" class="picker-section">
+          <div v-if="previousRequests.length === 0" class="no-prev-requests">
+            <el-alert
+              title="没有可用的前置接口"
+              type="warning"
+              :closable="false"
+              description="当前接口是集合中的第一个接口，或集合中没有其他接口。"
+            />
+          </div>
+          <div v-else>
+            <div class="section-title">选择前置接口</div>
+            <el-select v-model="selectedPrevRequestId" placeholder="选择要引用的接口" style="width: 100%" @change="onPrevRequestChange">
+              <el-option
+                v-for="req in previousRequests"
+                :key="req.id"
+                :label="`${req.displayOrder}. ${req.alias || req.request?.name || '未命名接口'}`"
+                :value="req.id"
+              >
+                <div class="request-option">
+                  <span class="request-order">{{ req.displayOrder }}</span>
+                  <span class="request-name">{{ req.alias || req.request?.name || '未命名接口' }}</span>
+                  <el-tag v-if="req.alias" size="small" type="info">别名: {{ req.alias }}</el-tag>
+                </div>
+              </el-option>
+            </el-select>
+
+            <div v-if="selectedPrevRequest" class="var-type-section">
+              <div class="section-title">选择变量类型</div>
+              <el-radio-group v-model="selectedVarType" size="small" @change="onVarTypeChange">
+                <el-radio-button label="request.body">请求体</el-radio-button>
+                <el-radio-button label="response.body">响应体</el-radio-button>
+                <el-radio-button label="response.headers">响应头</el-radio-button>
+                <el-radio-button label="response.status_code">状态码</el-radio-button>
+                <el-radio-button label="response.response_time">响应时间</el-radio-button>
+              </el-radio-group>
+            </div>
+
+            <!-- 执行结果展示区域 -->
+            <div v-if="selectedPrevRequest && selectedVarType && previewData" class="execution-preview-section">
+              <div class="section-title">
+                点击字段复制路径
+                <el-tag v-if="selectedPrevRequestExecution" size="small" :type="selectedPrevRequestExecution.passed ? 'success' : 'danger'">
+                  {{ selectedPrevRequestExecution.passed ? '通过' : '失败' }}
+                </el-tag>
+              </div>
+              <div class="preview-data-container">
+                <json-tree-viewer
+                  :data="previewData"
+                  :root-path="getVariablePreviewRoot()"
+                  @copy-path="onJsonPathCopy"
+                />
+              </div>
+            </div>
+
+            <div v-if="selectedPrevRequest && loadingExecution" class="execution-loading">
+              <el-skeleton :rows="3" animated />
+            </div>
+
+            <div v-if="selectedPrevRequest && executionError" class="execution-error">
+              <el-alert
+                :title="executionError"
+                type="warning"
+                :closable="false"
+                show-icon
+              />
+            </div>
+
+            <div v-if="selectedPrevRequest && needsJsonPath" class="json-path-section">
+              <div class="section-title">
+                JSON Path（已自动填充，可手动修改）
+                <el-tooltip content="例如: $.data.id 或 $.list[0].name">
+                  <el-icon><InfoFilled /></el-icon>
+                </el-tooltip>
+              </div>
+              <el-input
+                v-model="jsonPath"
+                placeholder="点击上方字段自动生成"
+                clearable
+              />
+            </div>
+          </div>
+        </div>
+
+        <!-- 环境变量 -->
+        <div v-if="selectedVarCategory === 'env'" class="picker-section">
+          <div class="section-title">环境变量名</div>
+          <el-input
+            v-model="varName"
+            placeholder="如: base_url, api_key"
+          />
+          <div class="var-hint" v-pre>用法: {{$env.变量名}}</div>
+        </div>
+
+        <!-- 全局变量 -->
+        <div v-if="selectedVarCategory === 'global'" class="picker-section">
+          <div class="section-title">全局变量名</div>
+          <el-input
+            v-model="varName"
+            placeholder="如: token, user_id"
+          />
+          <div class="var-hint" v-pre>用法: {{$global.变量名}}</div>
+        </div>
+
+        <!-- 动态函数 -->
+        <div v-if="selectedVarCategory === 'dynamic'" class="picker-section">
+          <div class="section-title">选择函数</div>
+          <el-select v-model="selectedFunction" style="width: 100%">
+            <el-option label="随机字符串" value="random_string" />
+            <el-option label="随机数字" value="random_int" />
+            <el-option label="UUID" value="uuid" />
+            <el-option label="时间戳" value="timestamp" />
+          </el-select>
+          <div v-if="selectedFunction === 'random_string' || selectedFunction === 'random_int'" class="function-params">
+            <div class="section-title">参数</div>
+            <el-input-number v-model="funcParam1" :min="1" :max="100" style="width: 120px" />
+            <span class="param-hint">长度/范围</span>
+          </div>
+          <div class="var-hint" v-pre>用法: {{$函数名(参数)}}</div>
+        </div>
+
+        <div class="preview-section">
+          <div class="section-title">预览</div>
+          <el-input v-model="variablePreview" readonly class="preview-input">
+            <template #append>
+              <el-button @click="copyVariableToClipboard">
+                <el-icon><CopyDocument /></el-icon>
+              </el-button>
+            </template>
+          </el-input>
+        </div>
       </div>
 
       <template #footer>
-        <el-button @click="showAssertionsDialog = false">{{ $t('apiTesting.common.cancel') }}</el-button>
-        <el-button type="primary" @click="saveAssertions" :loading="savingAssertions">
-          {{ $t('apiTesting.common.save') }}
-        </el-button>
+        <el-button @click="closeVariablePicker">取消</el-button>
+        <el-button type="primary" @click="confirmVariableInsertion">插入</el-button>
       </template>
-    </el-dialog>
+    </el-drawer>
   </div>
 </template>
 
@@ -738,7 +1123,10 @@ import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import Sortable from 'sortablejs'
 import api from '@/utils/api'
-import { VideoPlay, Plus, Refresh, Folder, Document, Check, Close, RefreshLeft, Edit, Delete, Rank, CircleCheck, CircleClose, TrendCharts, List, InfoFilled, WarningFilled, Upload, Download, Collection, Timer, DocumentChecked } from '@element-plus/icons-vue'
+import { updateTestSuiteRequest } from '@/api/api-testing'
+import SuiteRequestTree from './components/SuiteRequestTree.vue'
+import JsonTreeViewer from '@/components/JsonTreeViewer.vue'
+import { VideoPlay, Plus, Refresh, Folder, Document, Check, Close, RefreshLeft, Edit, Delete, Rank, CircleCheck, CircleClose, TrendCharts, List, InfoFilled, WarningFilled, Upload, Download, Collection, Timer, DocumentChecked, MagicStick, CopyDocument } from '@element-plus/icons-vue'
 
 const router = useRouter()
 const route = useRoute()
@@ -795,13 +1183,393 @@ const responseTabs = computed(() => {
   return tabs
 })
 
-// 断言编辑相关
-const showAssertionsDialog = ref(false)
-const savingAssertions = ref(false)
-const currentEditingRequest = ref(null)
-const editingAssertions = ref([])
+// 接口编辑相关
+const showEditRequestDialog = ref(false)
+const editDrawerActiveTab = ref('body')
+const savingRequestEdit = ref(false)
+const editingRequestData = ref({
+  id: null,
+  name: '',
+  method: 'GET',
+  url: '',
+  headers: {},
+  params: {},
+  body: {},
+  bodyType: 'json',
+  bodyContent: ''
+})
+const editingHeadersList = ref([])
+const editingParamsList = ref([])
+const editingExtractorsList = ref([])
+const editingAssertionsList = ref([])
 
-// 表单
+// ========== 变量选择器相关 ==========
+const showVariablePickerDialog = ref(false)
+const selectedVarCategory = ref('env')
+const varName = ref('')
+const selectedFunction = ref('random_string')
+const funcParam1 = ref(8)
+const variablePickerTarget = ref({ type: '', index: -1 })
+
+// 输入框 refs（用于光标位置插入）
+const urlInputRef = ref(null)
+const bodyInputRef = ref(null)
+
+// 光标位置状态
+const cursorPosition = ref({ type: '', index: -1, start: 0, end: 0 })
+
+// 跨接口变量选择
+const selectedPrevRequestId = ref(null)
+const selectedVarType = ref('response.body')
+const jsonPath = ref('')
+const currentEditingRequestId = ref(null)
+
+// 前置接口执行记录（用于变量选择器展示）
+const selectedPrevRequestExecution = ref(null)
+const loadingExecution = ref(false)
+const executionError = ref('')
+
+// 获取预览数据（用于 JSON 树形展示）
+const previewData = computed(() => {
+  if (!selectedPrevRequestExecution.value) return null
+
+  const dataType = selectedVarType.value
+  const requestData = selectedPrevRequestExecution.value.request_data || {}
+  const responseData = selectedPrevRequestExecution.value.response_data || {}
+
+  switch (dataType) {
+    case 'request.body':
+      return requestData.body || {}
+    case 'request.headers':
+      return requestData.headers || {}
+    case 'request.params':
+      return requestData.params || {}
+    case 'response.body':
+      return responseData.body || responseData.json || {}
+    case 'response.headers':
+      return responseData.headers || {}
+    case 'response.status_code':
+      return responseData.status_code
+    case 'response.response_time':
+      return selectedPrevRequestExecution.value.response_time
+    default:
+      return null
+  }
+})
+
+// 获取所有实际请求（排除分组/文件夹节点）的扁平列表
+const getAllRequestsFlat = (requests) => {
+  const result = []
+  const traverse = (items) => {
+    items.forEach((item) => {
+      // 如果有 request 对象，说明是实际请求
+      if (item.request) {
+        result.push({
+          ...item,
+          // 使用数据库的 order 字段，而不是列表索引
+          displayOrder: item.order
+        })
+      }
+      // 如果有子节点，递归遍历
+      if (item.children && item.children.length > 0) {
+        traverse(item.children)
+      }
+    })
+  }
+  traverse(requests)
+  return result
+}
+
+// 获取前置接口列表（在同集合中，排在当前接口之前的接口）
+const previousRequests = computed(() => {
+  if (!suite.value || !suite.value.suite_requests || !currentEditingRequestId.value) return []
+  
+  // 获取扁平化的所有请求列表
+  const flatRequests = getAllRequestsFlat(suite.value.suite_requests)
+  const currentIndex = flatRequests.findIndex(r => r.id === currentEditingRequestId.value)
+  if (currentIndex === -1) return []
+  
+  // 返回当前接口之前的所有接口
+  return flatRequests.slice(0, currentIndex)
+})
+
+// 选中的前置接口
+const selectedPrevRequest = computed(() => {
+  return previousRequests.value.find(r => r.id === selectedPrevRequestId.value)
+})
+
+// 是否需要 JSON Path
+const needsJsonPath = computed(() => {
+  return selectedVarType.value.includes('body') || selectedVarType.value.includes('headers')
+})
+
+// 变量预览
+const variablePreview = computed(() => {
+  // 前置接口变量
+  if (selectedVarCategory.value === 'prev') {
+    if (!selectedPrevRequest.value) return '{{$.接口名.变量类型}}'
+    const requestRef = selectedPrevRequest.value.alias || selectedPrevRequest.value.displayOrder
+    if (needsJsonPath.value && jsonPath.value) {
+      return `{{$.${requestRef}.${selectedVarType.value}.${jsonPath.value}}}`
+    }
+    return `{{$.${requestRef}.${selectedVarType.value}}}`
+  }
+  
+  // 环境变量
+  if (selectedVarCategory.value === 'env') {
+    return varName.value ? `{{$env.${varName.value}}}` : '{{$env.变量名}}'
+  } else if (selectedVarCategory.value === 'global') {
+    return varName.value ? `{{$global.${varName.value}}}` : '{{$global.变量名}}'
+  } else if (selectedVarCategory.value === 'dynamic') {
+    if (selectedFunction.value === 'random_string' || selectedFunction.value === 'random_int') {
+      return `{{$${selectedFunction.value}(${funcParam1.value})}}`
+    }
+    return `{{$${selectedFunction.value}()}}`
+  }
+  return ''
+})
+
+// 打开变量选择器
+const openVariablePicker = (type, index = -1) => {
+  variablePickerTarget.value = { type, index }
+
+  // 记录光标位置
+  let inputEl = null
+  switch (type) {
+    case 'url':
+      inputEl = urlInputRef.value?.$el?.querySelector('input')
+      break
+    case 'header':
+      // 对于 header 和 param，通过 document.querySelector 获取当前活动的输入框
+      inputEl = document.activeElement
+      break
+    case 'param':
+      inputEl = document.activeElement
+      break
+    case 'body':
+      inputEl = bodyInputRef.value?.$el?.querySelector('textarea')
+      break
+  }
+
+  if (inputEl && (inputEl.tagName === 'INPUT' || inputEl.tagName === 'TEXTAREA')) {
+    cursorPosition.value = {
+      type,
+      index,
+      start: inputEl.selectionStart || 0,
+      end: inputEl.selectionEnd || 0
+    }
+  } else {
+    // 如果无法获取光标位置，则默认在末尾插入
+    let currentValue = ''
+    switch (type) {
+      case 'url':
+        currentValue = editingRequestData.value.url || ''
+        break
+      case 'header':
+        currentValue = index >= 0 ? (editingHeadersList.value[index]?.value || '') : ''
+        break
+      case 'param':
+        currentValue = index >= 0 ? (editingParamsList.value[index]?.value || '') : ''
+        break
+      case 'body':
+        currentValue = editingRequestData.value.bodyContent || ''
+        break
+    }
+    cursorPosition.value = {
+      type,
+      index,
+      start: currentValue.length,
+      end: currentValue.length
+    }
+  }
+
+  // 记录当前正在编辑的接口ID（用于获取前置接口）
+  currentEditingRequestId.value = editingRequestData.value.id
+  // 重置跨接口变量选择状态
+  selectedPrevRequestId.value = null
+  selectedVarType.value = 'response.body'
+  jsonPath.value = ''
+  // 默认选中"前置接口"（如果有前置接口），否则选中"环境变量"
+  if (previousRequests.value.length > 0) {
+    selectedVarCategory.value = 'prev'
+  } else {
+    selectedVarCategory.value = 'env'
+    varName.value = ''
+    selectedFunction.value = 'random_string'
+    funcParam1.value = 8
+  }
+  showVariablePickerDialog.value = true
+}
+
+// 关闭变量选择器
+const closeVariablePicker = () => {
+  showVariablePickerDialog.value = false
+  variablePickerTarget.value = { type: '', index: -1 }
+  // 清空执行记录
+  selectedPrevRequestExecution.value = null
+  executionError.value = ''
+}
+
+// 前置接口变更时加载执行记录
+const onPrevRequestChange = async () => {
+  if (!selectedPrevRequest.value) return
+
+  loadingExecution.value = true
+  executionError.value = ''
+  selectedPrevRequestExecution.value = null
+
+  try {
+    // request 可能是对象 {id: xxx, ...} 或直接的 ID
+    let requestId = null
+    const request = selectedPrevRequest.value?.request
+
+    if (request) {
+      if (typeof request === 'object') {
+        requestId = request.id
+      } else if (typeof request === 'number') {
+        requestId = request
+      } else if (typeof request === 'string') {
+        requestId = parseInt(request, 10)
+      }
+    }
+
+    if (!requestId) {
+      executionError.value = '该接口没有关联的请求ID'
+      return
+    }
+
+    // 确保 requestId 是数字
+    const numericRequestId = Number(requestId)
+
+    const response = await api.get('/api-testing/histories/latest/', {
+      params: { request_id: numericRequestId }
+    })
+
+    selectedPrevRequestExecution.value = response.data
+  } catch (error) {
+    console.error('加载执行记录失败:', error)
+    executionError.value = error.response?.data?.error || '加载执行记录失败，请确保该接口已执行过'
+  } finally {
+    loadingExecution.value = false
+  }
+}
+
+// 变量类型变更时清空 JSON Path
+const onVarTypeChange = () => {
+  jsonPath.value = ''
+}
+
+// 获取变量预览的根路径
+const getVariablePreviewRoot = () => {
+  if (!selectedPrevRequest.value) return '$'
+  const requestRef = selectedPrevRequest.value.alias || selectedPrevRequest.value.displayOrder
+  return `$.${requestRef}.${selectedVarType.value}`
+}
+
+// 点击 JSON 字段复制路径
+const onJsonPathCopy = (fullPath) => {
+  // 从完整路径中提取 JSON Path 部分
+  // 例如: $.2.response.body.data.id -> data.id
+  const match = fullPath.match(/\$\.\w+\.(request|response)\.(body|headers|params)\.?(.+)?/)
+  if (match && match[3]) {
+    jsonPath.value = match[3]
+  } else if (match) {
+    jsonPath.value = ''
+  }
+}
+
+// 确认插入变量
+const confirmVariableInsertion = () => {
+  const variable = variablePreview.value
+  const { type, index } = variablePickerTarget.value
+  const { start, end } = cursorPosition.value
+
+  switch (type) {
+    case 'url': {
+      const currentUrl = editingRequestData.value.url || ''
+      editingRequestData.value.url = currentUrl.substring(0, start) + variable + currentUrl.substring(end)
+      break
+    }
+    case 'header':
+      if (index >= 0 && editingHeadersList.value[index]) {
+        const currentValue = editingHeadersList.value[index].value || ''
+        editingHeadersList.value[index].value = currentValue.substring(0, start) + variable + currentValue.substring(end)
+      }
+      break
+    case 'param':
+      if (index >= 0 && editingParamsList.value[index]) {
+        const currentValue = editingParamsList.value[index].value || ''
+        editingParamsList.value[index].value = currentValue.substring(0, start) + variable + currentValue.substring(end)
+      }
+      break
+    case 'body': {
+      const currentBody = editingRequestData.value.bodyContent || ''
+      editingRequestData.value.bodyContent = currentBody.substring(0, start) + variable + currentBody.substring(end)
+      break
+    }
+    case 'extractor_json_path':
+      if (index >= 0 && editingExtractorsList.value[index]) {
+        const currentValue = editingExtractorsList.value[index].json_path || ''
+        editingExtractorsList.value[index].json_path = currentValue.substring(0, start) + variable + currentValue.substring(end)
+      }
+      break
+    case 'extractor_header_name':
+      if (index >= 0 && editingExtractorsList.value[index]) {
+        const currentValue = editingExtractorsList.value[index].header_name || ''
+        editingExtractorsList.value[index].header_name = currentValue.substring(0, start) + variable + currentValue.substring(end)
+      }
+      break
+    case 'assertion_contains':
+      if (index >= 0 && editingAssertionsList.value[index]) {
+        const currentValue = editingAssertionsList.value[index].expected || ''
+        editingAssertionsList.value[index].expected = currentValue.substring(0, start) + variable + currentValue.substring(end)
+      }
+      break
+    case 'assertion_json_path':
+      if (index >= 0 && editingAssertionsList.value[index]) {
+        const currentValue = editingAssertionsList.value[index].json_path || ''
+        editingAssertionsList.value[index].json_path = currentValue.substring(0, start) + variable + currentValue.substring(end)
+      }
+      break
+    case 'assertion_json_expected':
+      if (index >= 0 && editingAssertionsList.value[index]) {
+        const currentValue = editingAssertionsList.value[index].expected || ''
+        editingAssertionsList.value[index].expected = currentValue.substring(0, start) + variable + currentValue.substring(end)
+      }
+      break
+    case 'assertion_header_name':
+      if (index >= 0 && editingAssertionsList.value[index]) {
+        const currentValue = editingAssertionsList.value[index].header_name || ''
+        editingAssertionsList.value[index].header_name = currentValue.substring(0, start) + variable + currentValue.substring(end)
+      }
+      break
+    case 'assertion_header_expected':
+      if (index >= 0 && editingAssertionsList.value[index]) {
+        const currentValue = editingAssertionsList.value[index].expected_value || ''
+        editingAssertionsList.value[index].expected_value = currentValue.substring(0, start) + variable + currentValue.substring(end)
+      }
+      break
+    case 'assertion_equals':
+      if (index >= 0 && editingAssertionsList.value[index]) {
+        const currentValue = editingAssertionsList.value[index].expected || ''
+        editingAssertionsList.value[index].expected = currentValue.substring(0, start) + variable + currentValue.substring(end)
+      }
+      break
+  }
+
+  closeVariablePicker()
+}
+
+// 复制变量到剪贴板
+const copyVariableToClipboard = () => {
+  navigator.clipboard.writeText(variablePreview.value).then(() => {
+    ElMessage.success('已复制到剪贴板')
+  }).catch(() => {
+    ElMessage.error('复制失败')
+  })
+}
+
+// 编辑接口请求表单
 const editFormRef = ref(null)
 const editForm = ref({
   name: '',
@@ -1033,6 +1801,44 @@ const getRequestData = () => {
   }
 }
 
+// 获取请求数据（原始格式，用于 JSON 树形展示）
+const getRequestDataRaw = () => {
+  if (!currentRequestDetail.value?.request_data) return ''
+  const data = currentRequestDetail.value.request_data
+  switch (activeRequestTab.value) {
+    case 'body':
+      return data.body || ''
+    case 'headers':
+      return data.headers || {}
+    case 'params':
+      return data.params || {}
+    default:
+      return ''
+  }
+}
+
+// 获取请求 JSONPath 根路径（用于跨步骤引用）
+const getRequestJsonPathRoot = () => {
+  // 获取当前接口的别名或序号
+  if (!currentRequestDetail.value) return '$.request.body'
+
+  // 尝试从 suite_requests 中找到当前接口的别名
+  const flatRequests = getAllRequestsFlat(suite.value?.suite_requests || [])
+  const currentRequest = flatRequests.find(r => r.id === currentRequestDetail.value.request_id)
+  const requestRef = currentRequest?.alias || currentRequest?.displayOrder || 'current'
+
+  switch (activeRequestTab.value) {
+    case 'body':
+      return `$.${requestRef}.request.body`
+    case 'headers':
+      return `$.${requestRef}.request.headers`
+    case 'params':
+      return `$.${requestRef}.request.params`
+    default:
+      return `$.${requestRef}.request.body`
+  }
+}
+
 const getResponseData = () => {
   if (!currentRequestDetail.value?.response_data) return ''
   const data = currentRequestDetail.value.response_data
@@ -1045,6 +1851,44 @@ const getResponseData = () => {
       return formatJson(data.json)
     default:
       return ''
+  }
+}
+
+// 获取响应数据（原始格式，用于 JSON 树形展示）
+const getResponseDataRaw = () => {
+  if (!currentRequestDetail.value?.response_data) return ''
+  const data = currentRequestDetail.value.response_data
+  switch (activeResponseTab.value) {
+    case 'body':
+      return data.body || ''
+    case 'headers':
+      return data.headers || {}
+    case 'json':
+      return data.json || {}
+    default:
+      return ''
+  }
+}
+
+// 获取 JSONPath 根路径（用于跨步骤引用）
+const getJsonPathRoot = () => {
+  // 获取当前接口的别名或序号
+  if (!currentRequestDetail.value) return '$.response.body'
+  
+  // 尝试从 suite_requests 中找到当前接口的别名
+  const flatRequests = getAllRequestsFlat(suite.value?.suite_requests || [])
+  const currentRequest = flatRequests.find(r => r.id === currentRequestDetail.value.request_id)
+  const requestRef = currentRequest?.alias || currentRequest?.displayOrder || 'current'
+  
+  switch (activeResponseTab.value) {
+    case 'body':
+      return `$.${requestRef}.response.body`
+    case 'headers':
+      return `$.${requestRef}.response.headers`
+    case 'json':
+      return `$.${requestRef}.response.json`
+    default:
+      return `$.${requestRef}.response.body`
   }
 }
 
@@ -1311,25 +2155,127 @@ const updateRequestEnabled = async (suiteRequest) => {
   }
 }
 
-const editAssertions = (suiteRequest) => {
-  currentEditingRequest.value = suiteRequest
-  // 深拷贝断言数据，并将 null 值转换为字符串 'null' 以便显示
-  const assertions = JSON.parse(JSON.stringify(suiteRequest.assertions || []))
-  editingAssertions.value = assertions.map(assertion => {
-    // 将 null 转换为字符串 'null' 以便在输入框中显示
-    if (assertion.expected === null) {
-      assertion.expected = 'null'
+// 编辑接口请求
+const editRequest = (suiteRequest) => {
+  const request = suiteRequest.request || {}
+  
+  // 合并原始接口参数和覆盖参数（覆盖参数优先）
+  const mergedHeaders = { ...(request.headers || {}), ...(suiteRequest.override_headers || {}) }
+  const mergedParams = { ...(request.params || {}), ...(suiteRequest.override_params || {}) }
+  
+  // 确定使用哪个 body：优先使用覆盖的 body，否则使用原始接口的 body
+  let mergedBody = suiteRequest.override_body
+  if (!mergedBody || Object.keys(mergedBody).length === 0) {
+    mergedBody = request.body || {}
+  }
+  
+  // 初始化编辑数据
+  editingRequestData.value = {
+    id: suiteRequest.id,
+    name: suiteRequest.override_name || request.name || '',
+    method: suiteRequest.override_method || request.method || 'GET',
+    url: suiteRequest.override_url || request.url || '',
+    headers: mergedHeaders,
+    params: mergedParams,
+    body: mergedBody,
+    bodyType: 'json',
+    bodyContent: ''
+  }
+  
+  // 初始化 body 内容
+  const body = editingRequestData.value.body
+  if (body && typeof body === 'object') {
+    const bodyType = body['type']
+    const bodyData = body['data']
+    if (bodyType === 'json' || bodyType === 'raw') {
+      editingRequestData.value.bodyType = bodyType
+      editingRequestData.value.bodyContent = typeof bodyData === 'string' ? bodyData : JSON.stringify(bodyData, null, 2)
+    } else {
+      editingRequestData.value.bodyType = 'json'
+      editingRequestData.value.bodyContent = JSON.stringify(body, null, 2)
     }
-    if (assertion.expected_value === null) {
-      assertion.expected_value = 'null'
-    }
-    return assertion
-  })
-  showAssertionsDialog.value = true
+  } else if (body) {
+    editingRequestData.value.bodyType = 'raw'
+    editingRequestData.value.bodyContent = String(body)
+  }
+  
+  // 初始化 headers 列表
+  editingHeadersList.value = Object.entries(editingRequestData.value.headers || {}).map(([key, value]) => ({ key, value }))
+  if (editingHeadersList.value.length === 0) {
+    editingHeadersList.value.push({ key: '', value: '' })
+  }
+  
+  // 初始化 params 列表
+  editingParamsList.value = Object.entries(editingRequestData.value.params || {}).map(([key, value]) => ({ key, value }))
+  if (editingParamsList.value.length === 0) {
+    editingParamsList.value.push({ key: '', value: '' })
+  }
+  
+  // 初始化提取变量列表 - 优先使用 suite_request 的 extracted_variables，否则使用 request 的 variable_extractors
+  let extractors = suiteRequest.extracted_variables
+  // 如果为空对象或空数组，则使用 request 的 variable_extractors
+  if (!extractors || (Array.isArray(extractors) && extractors.length === 0) || (typeof extractors === 'object' && Object.keys(extractors).length === 0)) {
+    extractors = request.variable_extractors
+  }
+  // 确保是数组类型
+  if (!Array.isArray(extractors)) {
+    extractors = []
+  }
+  editingExtractorsList.value = extractors.map(extractor => ({ ...extractor }))
+  
+  // 初始化断言列表 - 优先使用 suite_request 的 assertions，否则使用 request 的 assertions
+  let assertions = suiteRequest.assertions
+  // 如果为空数组，则使用 request 的 assertions
+  if (!assertions || (Array.isArray(assertions) && assertions.length === 0)) {
+    assertions = request.assertions
+  }
+  // 确保是数组类型
+  if (!Array.isArray(assertions)) {
+    assertions = []
+  }
+  editingAssertionsList.value = assertions.map(assertion => ({ ...assertion }))
+  
+  const method = suiteRequest.override_method || request.method || 'GET'
+  editDrawerActiveTab.value = ['POST', 'PUT', 'PATCH'].includes(method) ? 'body' : 'basic'
+  
+  showEditRequestDialog.value = true
 }
 
-const addAssertion = () => {
-  editingAssertions.value.push({
+// Headers 操作
+const addEditingHeader = () => editingHeadersList.value.push({ key: '', value: '' })
+const removeEditingHeader = (index) => {
+  editingHeadersList.value.splice(index, 1)
+  if (editingHeadersList.value.length === 0) {
+    editingHeadersList.value.push({ key: '', value: '' })
+  }
+}
+
+// Params 操作
+const addEditingParam = () => editingParamsList.value.push({ key: '', value: '' })
+const removeEditingParam = (index) => {
+  editingParamsList.value.splice(index, 1)
+  if (editingParamsList.value.length === 0) {
+    editingParamsList.value.push({ key: '', value: '' })
+  }
+}
+
+// 提取变量操作
+const addEditingExtractor = () => {
+  editingExtractorsList.value.push({
+    name: '',
+    source: 'json_body',
+    json_path: '',
+    header_name: '',
+    variable_name: ''
+  })
+}
+const removeEditingExtractor = (index) => {
+  editingExtractorsList.value.splice(index, 1)
+}
+
+// 断言操作
+const addEditingAssertion = () => {
+  editingAssertionsList.value.push({
     name: '',
     type: 'status_code',
     expected: 200,
@@ -1338,17 +2284,15 @@ const addAssertion = () => {
     expected_value: ''
   })
 }
-
-const removeAssertion = (index) => {
-  editingAssertions.value.splice(index, 1)
+const removeEditingAssertion = (index) => {
+  editingAssertionsList.value.splice(index, 1)
 }
-
-const onAssertionTypeChange = (assertion) => {
+const onEditingAssertionTypeChange = (assertion) => {
   assertion.expected = null
   assertion.json_path = ''
   assertion.header_name = ''
   assertion.expected_value = ''
-  // 根据类型设置默认值
+  // 设置默认值
   if (assertion.type === 'status_code') {
     assertion.expected = 200
   } else if (assertion.type === 'response_time') {
@@ -1356,48 +2300,90 @@ const onAssertionTypeChange = (assertion) => {
   }
 }
 
-const saveAssertions = async () => {
-  if (!currentEditingRequest.value) return
-
-  // 验证断言数据
-  for (const assertion of editingAssertions.value) {
-    if (!assertion.name.trim()) {
-      ElMessage.error(t('apiTesting.messages.error.assertionNameRequired'))
-      return
-    }
+// 获取预期值的占位符
+const getExpectedPlaceholder = (assertion) => {
+  if (assertion.expected === 'not_null') {
+    return '不为空'
+  } else if (assertion.expected === 'not_undefined') {
+    return '不为undefined'
+  } else if (assertion.expected === 'not_empty') {
+    return '不为空'
   }
+  return assertion.expected_display || '预期值'
+}
 
-  // 处理断言数据，将字符串 'null' 转换为真正的 null
-  const processedAssertions = editingAssertions.value.map(assertion => {
-    const processed = { ...assertion }
-    // 处理 json_path 类型的 expected
-    if (processed.type === 'json_path' && processed.expected !== undefined) {
-      if (processed.expected === 'null' || processed.expected === 'NULL') {
-        processed.expected = null
-      }
-    }
-    // 处理 header 类型的 expected_value
-    if (processed.type === 'header' && processed.expected_value !== undefined) {
-      if (processed.expected_value === 'null' || processed.expected_value === 'NULL') {
-        processed.expected_value = null
-      }
-    }
-    return processed
-  })
-
-  savingAssertions.value = true
+// 保存接口编辑
+const saveRequestEdit = async () => {
+  if (!editingRequestData.value.id) return
+  
+  savingRequestEdit.value = true
   try {
-    await api.patch(`/api-testing/test-suite-requests/${currentEditingRequest.value.id}/`, {
-      assertions: processedAssertions
+    // 转换 headers
+    const headers = {}
+    editingHeadersList.value.forEach(item => {
+      if (item.key.trim()) headers[item.key.trim()] = item.value
     })
-    ElMessage.success(t('apiTesting.messages.success.saveSuccess'))
-    showAssertionsDialog.value = false
+    
+    // 转换 params
+    const params = {}
+    editingParamsList.value.forEach(item => {
+      if (item.key.trim()) params[item.key.trim()] = item.value
+    })
+    
+    // 转换 body
+    let body = {}
+    if (['POST', 'PUT', 'PATCH'].includes(editingRequestData.value.method)) {
+      if (editingRequestData.value.bodyType === 'json') {
+        try {
+          body = { type: 'json', data: JSON.parse(editingRequestData.value.bodyContent) }
+        } catch {
+          body = { type: 'raw', data: editingRequestData.value.bodyContent }
+        }
+      } else {
+        body = { type: 'raw', data: editingRequestData.value.bodyContent }
+      }
+    }
+    
+    // 转换提取变量 - 过滤掉空名称的规则
+    const extractors = editingExtractorsList.value.filter(item => item.name.trim()).map(item => ({
+      name: item.name.trim(),
+      source: item.source,
+      json_path: item.json_path,
+      header_name: item.header_name,
+      variable_name: item.variable_name
+    }))
+    
+    // 转换断言 - 过滤掉空名称的断言
+    const assertions = editingAssertionsList.value.filter(item => item.name.trim()).map(item => ({
+      name: item.name.trim(),
+      type: item.type,
+      expected: item.expected,
+      json_path: item.json_path,
+      header_name: item.header_name,
+      expected_value: item.expected_value
+    }))
+    
+    const updateData = {
+      override_name: editingRequestData.value.name,
+      override_method: editingRequestData.value.method,
+      override_url: editingRequestData.value.url,
+      override_headers: headers,
+      override_params: params,
+      override_body: body,
+      extracted_variables: extractors,
+      assertions: assertions
+    }
+    
+    await updateTestSuiteRequest(editingRequestData.value.id, updateData)
+    ElMessage.success('保存成功')
+    showEditRequestDialog.value = false
+    // 重新加载套件详情
     await loadSuiteDetail()
   } catch (error) {
-    console.error('保存断言失败:', error)
-    ElMessage.error(t('apiTesting.messages.error.saveFailed'))
+    console.error('保存失败:', error)
+    ElMessage.error('保存失败')
   } finally {
-    savingAssertions.value = false
+    savingRequestEdit.value = false
   }
 }
 
@@ -1706,10 +2692,71 @@ onMounted(async () => {
 .executions-section,
 .review-section {
   background: #ffffff;
-  border: 1px solid rgba(147, 112, 219, 0.12);
-  border-radius: 12px;
-  box-shadow: 0 4px 16px rgba(147, 112, 219, 0.08);
-  padding: 20px;
+  border: 1px solid rgba(147, 112, 219, 0.08);
+  border-radius: 16px;
+  box-shadow: 0 4px 20px rgba(147, 112, 219, 0.06),
+              0 1px 3px rgba(0, 0, 0, 0.04);
+  padding: 24px;
+  transition: box-shadow 0.3s ease;
+
+  &:hover {
+    box-shadow: 0 8px 30px rgba(147, 112, 219, 0.1),
+                0 2px 8px rgba(0, 0, 0, 0.04);
+  }
+
+  // Section header 优化
+  .section-header {
+    display: flex;
+    align-items: center;
+    margin-bottom: 20px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid #f0f0f0;
+
+    h4 {
+      font-size: 16px;
+      font-weight: 600;
+      color: #1a1a2e;
+      margin: 0;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+
+      &::before {
+        content: '';
+        width: 4px;
+        height: 18px;
+        background: linear-gradient(180deg, #7b42f6 0%, #5a32a3 100%);
+        border-radius: 2px;
+      }
+    }
+  }
+
+  // 树形结构容器
+  .requests-tree {
+    border: 1px solid #f0f0f0;
+    border-radius: 12px;
+    overflow: hidden;
+    background: #fafafa;
+    box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.02);
+  }
+
+  // 空状态样式
+  .requests-empty {
+    padding: 60px 20px;
+    background: #fafafa;
+    border-radius: 12px;
+    border: 2px dashed #e0e0e0;
+
+    :deep(.el-empty__description) {
+      color: #8c8c8c;
+      font-size: 14px;
+      margin-top: 16px;
+    }
+
+    :deep(.el-empty__image) {
+      opacity: 0.6;
+    }
+  }
 
   // 操作按钮容器
   .operation-btns,
@@ -2568,6 +3615,18 @@ onMounted(async () => {
         background: transparent !important;
         border: none !important;
 
+        .json-path-hint {
+          margin-bottom: 12px;
+
+          .el-alert {
+            padding: 8px 12px;
+
+            .el-alert__title {
+              font-size: 12px;
+            }
+          }
+        }
+
         .code-block {
           margin: 0;
           padding: 0;
@@ -3301,6 +4360,542 @@ onMounted(async () => {
     &:hover,
     &:focus {
       border-color: #7b42f6 !important;
+    }
+  }
+}
+
+// 接口编辑抽屉样式
+.edit-request-drawer {
+  :deep(.el-drawer__header) {
+    margin-bottom: 0;
+    padding: 20px 24px;
+    border-bottom: 1px solid #f0f0f0;
+
+    .el-drawer__title {
+      font-size: 18px;
+      font-weight: 600;
+      color: #1a1a2e;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+
+      &::before {
+        content: '';
+        width: 4px;
+        height: 20px;
+        background: linear-gradient(180deg, #7b42f6 0%, #5a32a3 100%);
+        border-radius: 2px;
+      }
+    }
+
+    .el-drawer__close-btn {
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      transition: all 0.2s ease;
+
+      &:hover {
+        background: #f5f5f5;
+        color: #7b42f6;
+      }
+    }
+  }
+
+  :deep(.el-drawer__body) {
+    padding: 0;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    background: #fafafa;
+  }
+
+  :deep(.el-drawer__footer) {
+    padding: 16px 24px;
+    border-top: 1px solid #f0f0f0;
+    background: #ffffff;
+  }
+
+  .drawer-tabs {
+    flex: 1;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+
+    :deep(.el-tabs__header) {
+      margin: 0;
+      background: #ffffff;
+      border-bottom: 1px solid #f0f0f0;
+      padding: 0 24px;
+
+      .el-tabs__nav {
+        border: none;
+      }
+
+      .el-tabs__item {
+        height: 48px;
+        line-height: 48px;
+        font-size: 14px;
+        color: #595959;
+        border: none;
+        border-bottom: 2px solid transparent;
+        transition: all 0.2s ease;
+        padding: 0 20px;
+        margin-right: 8px;
+
+        &:hover {
+          color: #7b42f6;
+        }
+
+        &.is-active {
+          color: #7b42f6;
+          border-bottom-color: #7b42f6;
+          font-weight: 500;
+        }
+      }
+
+      .el-tabs__active-bar {
+        background: #7b42f6;
+      }
+    }
+
+    :deep(.el-tabs__content) {
+      flex: 1;
+      overflow-y: auto;
+      padding: 24px;
+    }
+
+    :deep(.el-tab-pane) {
+      height: 100%;
+    }
+  }
+
+  .drawer-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+
+    .el-button {
+      border-radius: 8px;
+      padding: 10px 24px;
+      font-weight: 500;
+      transition: all 0.25s ease;
+
+      &.el-button--default {
+        border-color: #d9d9d9;
+        color: #595959;
+
+        &:hover {
+          border-color: #7b42f6;
+          color: #7b42f6;
+        }
+      }
+
+      &.el-button--primary {
+        background: linear-gradient(135deg, #7b42f6 0%, #5a32a3 100%);
+        border: none;
+        box-shadow: 0 4px 12px rgba(123, 66, 246, 0.3);
+
+        &:hover {
+          background: linear-gradient(135deg, #6d33e6 0%, #4a249c 100%);
+          transform: translateY(-1px);
+          box-shadow: 0 6px 16px rgba(123, 66, 246, 0.4);
+        }
+      }
+    }
+  }
+
+  .key-value-editor {
+    background: #ffffff;
+    border-radius: 12px;
+    padding: 20px;
+    border: 1px solid #f0f0f0;
+
+    .editor-header {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 16px;
+      padding-bottom: 16px;
+      border-bottom: 1px solid #f5f5f5;
+
+      .el-button {
+        border-radius: 6px;
+      }
+    }
+
+    .kv-list {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .kv-item {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      padding: 12px;
+      background: #fafafa;
+      border-radius: 8px;
+      transition: all 0.2s ease;
+
+      &:hover {
+        background: #f5f0ff;
+      }
+
+      .kv-key {
+        width: 200px;
+      }
+
+      .kv-value {
+        flex: 1;
+      }
+
+      .el-button--danger {
+        border-radius: 6px;
+      }
+    }
+  }
+
+  .body-editor {
+    background: transparent;
+    padding: 0;
+
+    .body-toolbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 12px;
+
+      .el-radio-group {
+        .el-radio-button__inner {
+          border-radius: 6px;
+        }
+      }
+    }
+
+    .body-input-wrapper {
+      position: relative;
+      background: #ffffff;
+      border-radius: 8px;
+
+      :deep(.el-textarea) {
+        background: #ffffff;
+
+        .el-textarea__inner {
+          border-radius: 8px;
+          font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace;
+          font-size: 13px;
+          line-height: 1.6;
+          background: #ffffff;
+          border: none;
+          box-shadow: inset 0 0 0 1px #e8e8e8;
+          padding: 16px;
+
+          &:focus {
+            box-shadow: inset 0 0 0 1px #7b42f6, 0 0 0 2px rgba(123, 66, 246, 0.1);
+          }
+        }
+      }
+    }
+  }
+
+  .el-form {
+    background: #ffffff;
+    border-radius: 12px;
+    padding: 24px;
+    border: 1px solid #f0f0f0;
+
+    .el-form-item {
+      margin-bottom: 20px;
+
+      &:last-child {
+        margin-bottom: 0;
+      }
+
+      .el-form-item__label {
+        color: #262626;
+        font-weight: 500;
+      }
+
+      .el-input__wrapper,
+      .el-select .el-input__wrapper {
+        border-radius: 8px;
+        box-shadow: 0 0 0 1px #e4e7ed inset;
+
+        &:hover,
+        &.is-focus {
+          box-shadow: 0 0 0 1px #7b42f6 inset;
+        }
+      }
+    }
+  }
+
+  // 断言编辑器样式
+  .assertions-editor {
+    background: #ffffff;
+    border-radius: 12px;
+    padding: 20px;
+    border: 1px solid #f0f0f0;
+
+    .assertions-header {
+      margin-bottom: 16px;
+      display: flex;
+      gap: 12px;
+      padding-bottom: 16px;
+      border-bottom: 1px solid #f5f5f5;
+
+      .el-button {
+        border-radius: 6px;
+      }
+    }
+
+    .assertions-table {
+      .assertions-table-header {
+        display: flex;
+        padding: 12px 16px;
+        background: #fafafa;
+        border-radius: 8px 8px 0 0;
+        font-weight: 500;
+        font-size: 13px;
+        color: #595959;
+        border-bottom: 1px solid #f0f0f0;
+      }
+
+      .assertions-table-body {
+        > div {
+          display: flex;
+          padding: 12px 16px;
+          align-items: center;
+          border-bottom: 1px solid #f5f5f5;
+          background: #ffffff;
+          transition: all 0.2s ease;
+
+          &:hover {
+            background: #fafafa;
+          }
+
+          &:last-child {
+            border-bottom: none;
+            border-radius: 0 0 8px 8px;
+          }
+
+          > div {
+            padding-right: 12px;
+
+            &:last-child {
+              padding-right: 0;
+            }
+          }
+
+          .el-input__wrapper,
+          .el-select .el-input__wrapper {
+            border-radius: 6px;
+          }
+
+          .el-button--danger {
+            border-radius: 6px;
+          }
+        }
+      }
+    }
+
+    .el-empty {
+      padding: 40px;
+      color: #8c8c8c;
+
+      .el-button {
+        margin-top: 16px;
+        border-radius: 6px;
+      }
+    }
+  }
+
+  // 提取规则编辑器样式
+  .variable-extractors-editor {
+    background: #ffffff;
+    border-radius: 12px;
+    padding: 20px;
+    border: 1px solid #f0f0f0;
+
+    .extractors-header {
+      margin-bottom: 16px;
+      padding-bottom: 16px;
+      border-bottom: 1px solid #f5f5f5;
+
+      .el-button {
+        border-radius: 6px;
+      }
+    }
+
+    .extractors-table {
+      .extractors-table-header {
+        display: flex;
+        padding: 12px 16px;
+        background: #fafafa;
+        border-radius: 8px 8px 0 0;
+        font-weight: 500;
+        font-size: 13px;
+        color: #595959;
+        border-bottom: 1px solid #f0f0f0;
+      }
+
+      .extractors-table-body {
+        > div {
+          display: flex;
+          padding: 12px 16px;
+          align-items: center;
+          border-bottom: 1px solid #f5f5f5;
+          background: #ffffff;
+          transition: all 0.2s ease;
+
+          &:hover {
+            background: #fafafa;
+          }
+
+          &:last-child {
+            border-bottom: none;
+            border-radius: 0 0 8px 8px;
+          }
+
+          > div {
+            padding-right: 12px;
+
+            &:last-child {
+              padding-right: 0;
+            }
+          }
+
+          .el-input__wrapper,
+          .el-select .el-input__wrapper {
+            border-radius: 6px;
+          }
+
+          .el-button--danger {
+            border-radius: 6px;
+          }
+        }
+      }
+    }
+
+    .el-empty {
+      padding: 40px;
+      color: #8c8c8c;
+
+      .el-button {
+        margin-top: 16px;
+        border-radius: 6px;
+      }
+    }
+  }
+}
+
+// 变量选择器样式
+.variable-picker-content {
+  .picker-section {
+    margin-bottom: 20px;
+
+    .section-title {
+      font-weight: 600;
+      margin-bottom: 10px;
+      color: #303133;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+
+      .el-icon {
+        color: #909399;
+        cursor: help;
+      }
+    }
+
+    .var-hint {
+      margin-top: 8px;
+      color: #909399;
+      font-size: 12px;
+      font-family: monospace;
+    }
+
+    .function-params {
+      margin-top: 12px;
+
+      .param-hint {
+        margin-left: 8px;
+        color: #909399;
+        font-size: 12px;
+      }
+    }
+
+    // 前置接口选择样式
+    .no-prev-requests {
+      margin-top: 16px;
+    }
+
+    .var-type-section,
+    .json-path-section {
+      margin-top: 16px;
+    }
+
+    // 执行结果预览区域
+    .execution-preview-section {
+      margin-top: 16px;
+      border: 1px solid #e4e7ed;
+      border-radius: 8px;
+      overflow: hidden;
+
+      .section-title {
+        padding: 12px 16px;
+        background: #f5f7fa;
+        border-bottom: 1px solid #e4e7ed;
+        margin-bottom: 0;
+      }
+
+      .preview-data-container {
+        max-height: 300px;
+        overflow-y: auto;
+        padding: 12px;
+        background: #fff;
+      }
+    }
+
+    .execution-loading,
+    .execution-error {
+      margin-top: 16px;
+    }
+
+    .request-option {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+
+      .request-order {
+        display: inline-block;
+        width: 22px;
+        height: 22px;
+        line-height: 22px;
+        text-align: center;
+        background: #409eff;
+        color: #fff;
+        border-radius: 50%;
+        font-size: 12px;
+        font-weight: 600;
+      }
+
+      .request-name {
+        flex: 1;
+      }
+    }
+  }
+
+  .preview-section {
+    padding: 16px;
+    background: #f5f7fa;
+    border-radius: 8px;
+    margin-top: 20px;
+
+    .preview-input {
+      :deep(.el-input__inner) {
+        font-family: monospace;
+        color: #409eff;
+      }
     }
   }
 }

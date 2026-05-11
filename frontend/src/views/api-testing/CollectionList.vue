@@ -25,6 +25,15 @@
         </el-input>
       </div>
       <div class="header-actions">
+        <el-button
+          v-if="selectedCollections.length > 0"
+          type="danger"
+          class="batch-delete-btn"
+          @click="handleBatchDelete"
+        >
+          <el-icon style="margin-right: 4px;"><Delete /></el-icon>
+          批量删除 ({{ selectedCollections.length }})
+        </el-button>
         <el-button type="primary" class="import-btn" @click="showApifoxImport = true">
           <el-icon style="margin-right: 4px;"><Upload /></el-icon>
           导入合集
@@ -52,8 +61,10 @@
           v-loading="loading"
           style="width: 100%"
           class="custom-table"
+          @selection-change="handleSelectionChange"
         >
-          <el-table-column label="序号" width="80" header-align="center" align="center">
+          <el-table-column type="selection" width="55" header-align="center" align="center" />
+          <el-table-column label="序号" width="90" header-align="center" align="center">
             <template #default="{ $index }">
               <span>{{ $index + 1 }}</span>
             </template>
@@ -182,6 +193,7 @@ const collectionList = ref([])
 const flatCollections = ref([])
 const searchKeyword = ref('')
 const filteredCollectionList = ref([])
+const selectedCollections = ref([])
 
 // 对话框相关
 const showCreateDialog = ref(false)
@@ -285,6 +297,11 @@ const filterCollections = () => {
 // 搜索事件
 const handleSearch = () => {
   filterCollections()
+}
+
+// 表格选择变化事件
+const handleSelectionChange = (selection) => {
+  selectedCollections.value = selection
 }
 
 const buildTree = (data) => {
@@ -406,6 +423,35 @@ const handleDelete = async (row) => {
     if (error !== 'cancel') {
       console.error('Delete error:', error)
       ElMessage.error(error.response?.data?.detail || '删除失败')
+    }
+  }
+}
+
+const handleBatchDelete = async () => {
+  if (selectedCollections.value.length === 0) {
+    ElMessage.warning('请先选择要删除的合集')
+    return
+  }
+
+  try {
+    await ElMessageBox.confirm(
+      `确定要删除选中的 ${selectedCollections.value.length} 个合集吗？删除后这些合集中的接口将变为未分类状态。`,
+      '确认批量删除',
+      { type: 'warning' }
+    )
+
+    const deletePromises = selectedCollections.value.map(row =>
+      api.delete(`/api-testing/collections/${row.id}/`)
+    )
+
+    await Promise.all(deletePromises)
+    ElMessage.success(`成功删除 ${selectedCollections.value.length} 个合集`)
+    selectedCollections.value = []
+    await loadCollections()
+  } catch (error) {
+    if (error !== 'cancel') {
+      console.error('Batch delete error:', error)
+      ElMessage.error(error.response?.data?.detail || '批量删除失败')
     }
   }
 }

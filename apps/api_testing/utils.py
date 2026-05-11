@@ -5,6 +5,54 @@ from .models import RequestHistory
 from .variable_resolver import VariableResolver
 
 
+def _extract_variables(response, extractors):
+    """从响应中提取变量
+
+    Args:
+        response: HTTP 响应对象
+        extractors: 变量提取规则列表
+
+    Returns:
+        dict: 提取的变量字典 {variable_name: value}
+    """
+    extracted = {}
+
+    if not extractors:
+        return extracted
+
+    for extractor in extractors:
+        try:
+            source = extractor.get('source', 'json_body')
+            json_path = extractor.get('json_path', '')
+            var_name = extractor.get('variable_name') or extractor.get('name', '')
+
+            if not var_name:
+                continue
+
+            if source == 'json_body':
+                # 从 JSON 响应中提取
+                try:
+                    response_json = response.json()
+                    from jsonpath_ng import parse
+                    matches = parse(json_path).find(response_json)
+                    if matches:
+                        value = matches[0].value
+                        extracted[var_name] = value
+                except Exception as e:
+                    print(f"[变量提取失败] {var_name}: {e}")
+            elif source == 'header':
+                # 从响应头中提取
+                header_name = extractor.get('header_name', '')
+                if header_name and header_name in response.headers:
+                    extracted[var_name] = response.headers[header_name]
+
+        except Exception as e:
+            print(f"[变量提取错误] {extractor}: {e}")
+            continue
+
+    return extracted
+
+
 def _smart_compare(actual, expected):
     """智能比较函数，处理布尔值、数字和字符串的等价比较"""
     # 如果类型相同，直接比较
@@ -53,26 +101,103 @@ def _convert_null_strings(obj):
     return obj
 
 
-def execute_assertions(response, assertions):
+def _resolve_step_variable(text, step_context):
+    """解析跨步骤变量引用格式: {{$.N.request.body.xxx}} 或 {{$.N.response.body.xxx}}"""
+    if not isinstance(text, str) or not step_context:
+        return text
+
+    import re
+    # 匹配跨步骤引用: {{$.数字.request.xxx}} 或 {{$.数字.response.xxx}}
+    pattern = r'\{\{\$\.(\d+)\.(request|response)\.(body|headers|params)(?:\.(.*))?\}\}'
+
+    def replace_step_var(match):
+        step_num = int(match.group(1))
+        data_type = match.group(2)  # request or response
+        data_part = match.group(3)  # body, headers, or params
+        json_path = match.group(4) or ''
+
+        if step_num not in step_context:
+            print(f"[步骤变量] 步骤 {step_num} 不存在于上下文中")
+            return match.group(0)  # 返回原始字符串
+
+        data_source = step_context[step_num].get(data_type)
+        if not data_source:
+            print(f"[步骤变量] 步骤 {step_num} 没有 {data_type} 数据")
+            return match.group(0)
+
+        # 获取数据部分 (body, headers, params)
+        if data_part == 'body':
+            data = data_source.get('body')
+            # 如果 body 是字符串，尝试解析为 JSON
+            if isinstance(data, str):
+                try:
+                    data = json.loads(data)
+                except:
+                    pass
+        elif data_part == 'headers':
+            data = data_source.get('headers', {})
+        elif data_part == 'params':
+            data = data_source.get('params', {})
+        else:
+            return match.group(0)
+
+        # 使用 JSONPath 提取值
+        if json_path:
+            try:
+                from jsonpath_ng import parse
+                matches = parse(json_path).find(data)
+                if matches:
+                    value = matches[0].value
+                    print(f"[步骤变量] 成功提取: {match.group(0)} -> {value}")
+                    return str(value) if value is not None else ''
+            except Exception as e:
+                print(f"[步骤变量] JSONPath 提取失败: {json_path}, 错误: {e}")
+                return match.group(0)
+        else:
+            # 没有 JSONPath，返回整个数据
+            return str(data) if data is not None else ''
+
+    return re.sub(pattern, replace_step_var, text)
+
+
+def execute_assertions(response, assertions, resolver=None, step_context=None):
     """执行断言验证"""
     # 处理断言数据，将字符串 'null' 转换为 None
     assertions = _convert_null_strings(assertions)
-    
+
     results = []
-    
+
     for assertion in assertions:
-        result = {
-            'name': assertion.get('name', '未命名断言'),
-            'type': assertion.get('type'),
+        # 保留原始断言的所有字段
+        result = dict(assertion)
+        result.update({
             'passed': False,
-            'expected': assertion.get('expected'),
             'actual': None,
             'error': None
-        }
-        
+        })
+
         try:
             assertion_type = assertion.get('type')
             expected = assertion.get('expected')
+
+            # 第一步：处理跨步骤变量引用 {{$.N.request.body.xxx}}
+            if isinstance(expected, str) and step_context:
+                original_expected = expected
+                expected = _resolve_step_variable(expected, step_context)
+                if original_expected != expected:
+                    print(f"[断言调试] 步骤变量替换: '{original_expected}' -> '{expected}'")
+
+            # 第二步：使用 resolver 处理普通变量 {{variable_name}} 和动态函数 ${function()}
+            resolver_context = resolver.context if resolver else None
+            print(f"[断言调试] assertion_type={assertion_type}, expected={expected}, resolver_id={id(resolver)}, context={resolver_context}")
+            if resolver and isinstance(expected, str):
+                original_expected = expected
+                expected = resolver.resolve(expected)
+                print(f"[断言调试] 变量替换: '{original_expected}' -> '{expected}'")
+
+            # 更新 result 中的 expected 为替换后的值
+            result['expected'] = expected
+
             actual = None
             passed = False
             
@@ -93,7 +218,7 @@ def execute_assertions(response, assertions):
                 
             elif assertion_type == 'json_path':
                 json_path = assertion.get('json_path', '')
-                expected_value = assertion.get('expected')
+                expected_value = expected  # 使用替换后的 expected 值
                 actual = None
                 passed = False
 
@@ -188,7 +313,7 @@ def execute_assertions(response, assertions):
             elif assertion_type == 'equal':
                 # 使用 json_path 提取的值进行比较
                 json_path = assertion.get('json_path', '')
-                expected_value = assertion.get('expected_value', assertion.get('expected'))
+                expected_value = expected  # 使用替换后的 expected 值
                 actual = None
                 passed = False
 
@@ -203,13 +328,13 @@ def execute_assertions(response, assertions):
                 except Exception as e:
                     result['error'] = f"JSON提取失败: {str(e)}"
                     passed = False
-            
+
             elif assertion_type == 'not_equal':
                 json_path = assertion.get('json_path', '')
-                expected_value = assertion.get('expected_value', assertion.get('expected'))
+                expected_value = expected  # 使用替换后的 expected 值
                 actual = None
                 passed = False
-                
+
                 try:
                     response_json = json.loads(response.text)
                     from jsonpath_ng import parse
@@ -282,7 +407,7 @@ def execute_assertions(response, assertions):
             elif assertion_type == 'greater_than':
                 # 大于断言
                 json_path = assertion.get('json_path', '')
-                expected_value = assertion.get('expected_value', assertion.get('expected'))
+                expected_value = expected  # 使用替换后的 expected 值
                 actual = None
                 passed = False
                 
@@ -304,7 +429,7 @@ def execute_assertions(response, assertions):
             elif assertion_type == 'greater_than_or_equal':
                 # 大于等于断言
                 json_path = assertion.get('json_path', '')
-                expected_value = assertion.get('expected_value', assertion.get('expected'))
+                expected_value = expected  # 使用替换后的 expected 值
                 actual = None
                 passed = False
                 
@@ -325,7 +450,7 @@ def execute_assertions(response, assertions):
             elif assertion_type == 'less_than':
                 # 小于断言
                 json_path = assertion.get('json_path', '')
-                expected_value = assertion.get('expected_value', assertion.get('expected'))
+                expected_value = expected  # 使用替换后的 expected 值
                 actual = None
                 passed = False
                 
@@ -346,7 +471,7 @@ def execute_assertions(response, assertions):
             elif assertion_type == 'less_than_or_equal':
                 # 小于等于断言
                 json_path = assertion.get('json_path', '')
-                expected_value = assertion.get('expected_value', assertion.get('expected'))
+                expected_value = expected  # 使用替换后的 expected 值
                 actual = None
                 passed = False
                 
@@ -367,7 +492,7 @@ def execute_assertions(response, assertions):
             elif assertion_type == 'regex_match':
                 # 正则匹配断言
                 json_path = assertion.get('json_path', '')
-                expected_value = assertion.get('expected_value', assertion.get('expected'))
+                expected_value = expected  # 使用替换后的 expected 值
                 actual = None
                 passed = False
                 
@@ -387,7 +512,7 @@ def execute_assertions(response, assertions):
             elif assertion_type == 'starts_with':
                 # 开头是断言
                 json_path = assertion.get('json_path', '')
-                expected_value = assertion.get('expected_value', assertion.get('expected'))
+                expected_value = expected  # 使用替换后的 expected 值
                 actual = None
                 passed = False
                 
@@ -405,7 +530,7 @@ def execute_assertions(response, assertions):
             elif assertion_type == 'ends_with':
                 # 结尾是断言
                 json_path = assertion.get('json_path', '')
-                expected_value = assertion.get('expected_value', assertion.get('expected'))
+                expected_value = expected  # 使用替换后的 expected 值
                 actual = None
                 passed = False
                 
@@ -423,7 +548,7 @@ def execute_assertions(response, assertions):
             # ==================== 长度比较断言 ====================
             elif assertion_type == 'length_equal':
                 json_path = assertion.get('json_path', '')
-                expected_value = assertion.get('expected_value', assertion.get('expected'))
+                expected_value = expected  # 使用替换后的 expected 值
                 actual = None
                 passed = False
                 
@@ -440,7 +565,7 @@ def execute_assertions(response, assertions):
             
             elif assertion_type == 'length_greater_than':
                 json_path = assertion.get('json_path', '')
-                expected_value = assertion.get('expected_value', assertion.get('expected'))
+                expected_value = expected  # 使用替换后的 expected 值
                 actual = None
                 passed = False
                 
@@ -457,7 +582,7 @@ def execute_assertions(response, assertions):
             
             elif assertion_type == 'length_less_than':
                 json_path = assertion.get('json_path', '')
-                expected_value = assertion.get('expected_value', assertion.get('expected'))
+                expected_value = expected  # 使用替换后的 expected 值
                 actual = None
                 passed = False
                 
@@ -519,6 +644,10 @@ def execute_test_suite(test_suite, environment, executed_by):
         # 执行每个请求
         for suite_request in suite_requests:
             api_request = suite_request.request
+            
+            # 跳过分组类型步骤（group 只是容器，不是真正的接口请求）
+            if suite_request.step_type == 'group' or api_request is None:
+                continue
             
             try:
                 # 解析环境变量
@@ -609,8 +738,15 @@ def execute_test_suite(test_suite, environment, executed_by):
                     if assertion.get('type') == 'response_time':
                         assertion['actual_time'] = response_time
                 
-                assertions_results = execute_assertions(response, assertions)
-                
+                assertions_results = execute_assertions(response, assertions, resolver)
+
+                # 执行变量提取
+                extracted_vars = _extract_variables(response, api_request.variable_extractors or [])
+                # 将提取的变量保存到 resolver 上下文，供后续请求使用
+                for var_name, var_value in extracted_vars.items():
+                    resolver.context[var_name] = var_value
+                    print(f"[变量提取] {var_name} = {var_value}")
+
                 # 检查所有断言是否通过
                 passed = True
                 error_message = ''
@@ -800,8 +936,8 @@ def execute_api_request(api_request, environment, executed_by):
             if assertion.get('type') == 'response_time':
                 assertion['actual_time'] = response_time
         
-        assertions_results = execute_assertions(response, assertions)
-        
+        assertions_results = execute_assertions(response, assertions, resolver)
+
         # 保存请求历史
         history = RequestHistory.objects.create(
             request=api_request,

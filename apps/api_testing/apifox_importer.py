@@ -9,7 +9,7 @@ from datetime import datetime
 from typing import Dict, Any, List, Optional, Tuple, Union
 from django.db import transaction
 
-from apps.api_testing.models import ApiProject, ApiCollection, ApiRequest, TestSuite, TestSuiteRequest, Environment
+from apps.api_testing.models import ApiProject, ApiCollection, ApiRequest, TestSuite, TestSuiteRequest, Environment, AutomationScenario, ScenarioStep
 from apps.users.models import User
 from .apifox_function_mapper import ApifoxVariableResolver, validate_apifox_syntax
 
@@ -40,8 +40,36 @@ class ApifoxCliImporter:
             'requests_created': 0,
             'suites_created': 0,
             'variables_converted': 0,
-            'warnings': []
+            'warnings': [],
+            'issues_by_request': {}  # 按请求分组的问题列表
         }
+        self._apifox_to_request_index = {}  # Apifox全局索引 -> TestHub请求索引的映射
+        self._structured_steps = []
+    
+    def _add_request_issue(self, request_name: str, issue_type: str, issue_detail: str, action: str = ""):
+        """添加请求相关的问题到统计信息
+        
+        Args:
+            request_name: 请求名称
+            issue_type: 问题类型（如"断言跳过"、"变量引用"等）
+            issue_detail: 问题详情
+            action: 建议操作
+        """
+        if request_name not in self.import_stats['issues_by_request']:
+            self.import_stats['issues_by_request'][request_name] = []
+        
+        issue = {
+            'type': issue_type,
+            'detail': issue_detail,
+            'action': action or "请手动检查并修正"
+        }
+        self.import_stats['issues_by_request'][request_name].append(issue)
+        
+        # 同时添加到普通警告列表（用于兼容旧版UI）
+        warning_text = f"【{request_name}】{issue_type}: {issue_detail}"
+        if action:
+            warning_text += f"（{action}）"
+        self.import_stats['warnings'].append(warning_text)
     
     def import_from_file(self, file_path: str, 
                          import_env: bool = False,
@@ -69,33 +97,179 @@ class ApifoxCliImporter:
                         import_env: bool = False,
                         target_collection: ApiCollection = None) -> Dict[str, Any]:
         """从数据字典导入"""
+        # 重置计数器和映射
+        self._apifox_to_request_index = {}
+        self._structured_steps = []
+
         with transaction.atomic():
             # 1. 预处理 - 提取环境变量
             if import_env:
                 self._extract_environment(data)
-            
+
             # 2. 创建或获取集合
             collection = target_collection or self._create_collection(data)
             
-            # 3. 递归处理所有 items
+            # 3. 如果导入到现有合集，先清空该合集的现有接口
+            if target_collection:
+                deleted_count = self._clear_collection_requests(target_collection)
+                if deleted_count > 0:
+                    self.import_stats['warnings'].append(f'已清空合集中原有的 {deleted_count} 个接口')
+
+            # 3. 递归处理所有 items，创建请求（同时构建索引映射）
             items = data.get('item', [])
-            requests = self._process_items(items, collection, parent_path='')
+            # 处理 wrapper 结构：如果 items[0] 有嵌套的 item 数组，提取它
+            if items and isinstance(items[0], dict) and 'item' in items[0]:
+                items = items[0].get('item', [])
+            # 重置索引映射
+            self._apifox_to_request_index = {}
+            structured_steps = self._process_items_structured(items, collection, parent_path='')
             
-            # 4. 创建测试套件（自动化场景）
-            suite = self._create_test_suite(data, collection, requests)
-            
-            return {
+            print(f"DEBUG - 创建的请求数: {self.import_stats['requests_created']}")
+            print(f"DEBUG - 索引映射: {self._apifox_to_request_index}")
+
+            # 5. 提取所有请求（用于创建测试套件）
+            requests = self._extract_requests_from_steps(structured_steps)
+
+            # 6. 统一转换所有请求中的变量
+            self._convert_requests_variables(structured_steps)
+
+            # 7. 创建测试套件（支持分组结构）
+            suite = self._create_test_suite(data, collection, requests, structured_steps)
+
+            # 8. 创建自动化场景（带层级结构）
+            scenario = self._create_automation_scenario(data, collection, structured_steps, suite)
+
+            # 构建返回结果
+            result = {
                 'success': True,
                 'collection_id': collection.id,
                 'suite_id': suite.id if suite else None,
-                'stats': self.import_stats,
-                'warnings': self.import_stats['warnings']
+                'scenario_id': scenario.id if scenario else None,
+                'stats': {
+                    'collections_created': self.import_stats['collections_created'],
+                    'requests_created': self.import_stats['requests_created'],
+                    'suites_created': self.import_stats['suites_created'],
+                    'variables_converted': self.import_stats['variables_converted'],
+                    'warnings_count': len(self.import_stats['warnings'])
+                },
+                'warnings': self.import_stats['warnings'],
+                'issues_by_request': self.import_stats['issues_by_request']
             }
+            
+            return result
+    
+    def _build_index_mapping(self, items: List[Dict]):
+        """第一遍遍历：建立 Apifox 全局索引到 TestHub 请求索引的映射
+
+        Apifox 使用全局索引（包含 group），TestHub 只给请求分配索引。
+        对于 group，我们记录其内部的第一个请求索引，用于映射引用。
+
+        支持两种结构：
+        1. Apifox 平铺结构（带 scopeType start/end 标记）
+        2. 传统嵌套结构（带 item 数组的 group）
+        """
+        # 检测结构类型
+        has_scope_markers = any(
+            item.get('type') == 'group' and item.get('metaInfo', {}).get('scopeType') in ['start', 'end']
+            for item in items
+        )
+
+        if has_scope_markers:
+            self._build_flat_index_mapping(items)
+        else:
+            self._build_nested_index_mapping(items)
+
+    def _build_flat_index_mapping(self, items: List[Dict]):
+        """处理 Apifox 平铺结构的索引映射"""
+        apifox_global_idx = 0
+        request_index_counter = 0
+        group_stack = []  # 用于跟踪当前打开的分组及其第一个请求索引
+
+        for item in items:
+            item_type = item.get('type', '')
+            meta = item.get('metaInfo', {})
+            scope_type = meta.get('scopeType', '')
+
+            if item_type == 'group':
+                if scope_type == 'start':
+                    # 分组开始，压入栈，等待第一个请求
+                    group_stack.append({
+                        'apifox_idx': apifox_global_idx,
+                        'first_request_testhub_idx': None
+                    })
+                elif scope_type == 'end':
+                    # 分组结束，弹出栈
+                    if group_stack:
+                        group_info = group_stack.pop()
+                        # 如果该分组有请求，建立映射
+                        if group_info['first_request_testhub_idx'] is not None:
+                            self._apifox_to_request_index[group_info['apifox_idx']] = group_info['first_request_testhub_idx']
+                            print(f"DEBUG - group Apifox[{group_info['apifox_idx']}] 映射到第一个请求 TestHub order={group_info['first_request_testhub_idx']}")
+
+                apifox_global_idx += 1
+
+            elif 'request' in item:
+                # 这是一个请求
+                request_index_counter += 1
+                self._apifox_to_request_index[apifox_global_idx] = request_index_counter
+
+                # 如果有打开的分组，记录第一个请求
+                for group_info in group_stack:
+                    if group_info['first_request_testhub_idx'] is None:
+                        group_info['first_request_testhub_idx'] = request_index_counter
+
+                print(f"DEBUG - 映射 Apifox[{apifox_global_idx}] -> TestHub order={request_index_counter} [REQ] {item.get('name', '')}")
+                apifox_global_idx += 1
+            else:
+                # 其他类型
+                print(f"DEBUG - 映射 Apifox[{apifox_global_idx}] -> [OTHER] {item.get('name', '')}")
+                apifox_global_idx += 1
+
+    def _build_nested_index_mapping(self, items: List[Dict]):
+        """处理传统嵌套结构的索引映射"""
+        apifox_global_idx = 0
+        request_index_counter = 0
+        group_first_request_map = {}  # group索引 -> 其内部第一个请求的索引
+
+        def traverse(items, parent_group_idx=None):
+            nonlocal apifox_global_idx, request_index_counter
+            for item in items:
+                if 'request' in item:
+                    # 这是一个请求
+                    request_index_counter += 1
+                    self._apifox_to_request_index[apifox_global_idx] = request_index_counter
+
+                    # 如果有父 group，记录这是该 group 的第一个请求
+                    if parent_group_idx is not None and parent_group_idx not in group_first_request_map:
+                        group_first_request_map[parent_group_idx] = apifox_global_idx
+
+                    print(f"DEBUG - 映射 Apifox[{apifox_global_idx}] -> TestHub order={request_index_counter} [REQ] {item.get('name', '')}")
+                    apifox_global_idx += 1
+
+                elif 'item' in item:
+                    # 这是一个 group，递归处理
+                    current_group_idx = apifox_global_idx
+                    print(f"DEBUG - 映射 Apifox[{apifox_global_idx}] -> [GROUP] {item.get('name', '')}")
+                    apifox_global_idx += 1
+                    traverse(item['item'], parent_group_idx=current_group_idx)
+                else:
+                    # 其他类型
+                    print(f"DEBUG - 映射 Apifox[{apifox_global_idx}] -> [OTHER] {item.get('name', '')}")
+                    apifox_global_idx += 1
+
+        traverse(items)
+
+        # 第二遍：为 group 索引建立映射（映射到其内部第一个请求）
+        for group_idx, first_request_idx in group_first_request_map.items():
+            if first_request_idx in self._apifox_to_request_index:
+                # group 映射到其内部第一个请求的 TestHub 索引
+                self._apifox_to_request_index[group_idx] = self._apifox_to_request_index[first_request_idx]
+                print(f"DEBUG - group Apifox[{group_idx}] 映射到第一个请求 TestHub order={self._apifox_to_request_index[first_request_idx]}")
     
     def _create_collection(self, data: Dict[str, Any]) -> ApiCollection:
         """创建 API 集合"""
         name = data.get('info', {}).get('name', f"API Fox Import {datetime.now().strftime('%Y%m%d')}")
-        
+
         collection = ApiCollection.objects.create(
             project=self.project,
             name=name,
@@ -104,29 +278,469 @@ class ApifoxCliImporter:
         )
         self.import_stats['collections_created'] += 1
         return collection
-    
-    def _process_items(self, items: List[Dict], collection: ApiCollection, 
-                      parent_path: str = '') -> List[ApiRequest]:
-        """递归处理 items，创建请求"""
-        requests = []
-        
-        for index, item in enumerate(items):
-            item_name = item.get('name', f'Item_{index}')
-            current_path = f"{parent_path}/{item_name}" if parent_path else item_name
-            
+
+    def _clear_collection_requests(self, collection: ApiCollection) -> int:
+        """清空合集中的所有接口
+
+        Args:
+            collection: 目标合集
+
+        Returns:
+            删除的接口数量
+        """
+        # 获取该合集下的所有接口
+        requests = ApiRequest.objects.filter(collection=collection)
+        count = requests.count()
+
+        if count > 0:
+            # 删除相关测试套件中的引用
+            TestSuiteRequest.objects.filter(request__collection=collection).delete()
+            # 删除自动化场景步骤中的引用
+            ScenarioStep.objects.filter(request__collection=collection).delete()
+            # 删除接口
+            requests.delete()
+
+        return count
+
+    def _process_items_structured(self, items: List[Dict], collection: ApiCollection,
+                                   parent_path: str = '') -> List[Dict]:
+        """
+        处理 items，支持两种结构：
+        1. Apifox 平铺结构（带 scopeType start/end 标记）
+        2. 传统嵌套结构（带 item 数组的 group）
+
+        返回结构化步骤信息（支持分组层级）
+        """
+        # 首先检测结构类型
+        has_scope_markers = any(
+            item.get('type') == 'group' and item.get('metaInfo', {}).get('scopeType') in ['start', 'end']
+            for item in items
+        )
+
+        if has_scope_markers:
+            # 使用平铺结构转换
+            return self._process_flat_items(items, collection, parent_path)
+        else:
+            # 使用传统嵌套结构处理
+            return self._process_nested_items(items, collection, parent_path)
+
+    def _process_flat_items(self, items: List[Dict], collection: ApiCollection,
+                           parent_path: str = '') -> List[Dict]:
+        """
+        处理 Apifox 平铺结构（带 scopeType start/end 标记）
+        将平铺结构转换为嵌套结构
+        """
+        result = []
+        stack = []  # 用于跟踪当前的分组层级 [(group_step_info, group_item), ...]
+        apifox_global_idx = [0]  # 使用列表作为可变引用
+        request_counter = [0]    # 请求计数器
+
+        for item in items:
+            item_type = item.get('type', '')
+            meta = item.get('metaInfo', {})
+            scope_type = meta.get('scopeType', '')
+            item_name = item.get('name', '')
+            full_path = f"{parent_path}/{item_name}" if parent_path else item_name
+
+            if item_type == 'group':
+                if scope_type == 'start':
+                    # 分组开始
+                    group_name = meta.get('extraData', {}).get('name', '')
+                    group_step = {
+                        'type': 'group',
+                        'name': group_name,
+                        'path': full_path,
+                        'item_data': item,
+                        'children': [],
+                        'apifox_index': apifox_global_idx[0]
+                    }
+
+                    # 添加到当前层级的 children 中
+                    if stack:
+                        stack[-1][0]['children'].append(group_step)
+                    else:
+                        result.append(group_step)
+
+                    # 将新分组压入栈
+                    stack.append((group_step, item))
+
+                elif scope_type == 'end':
+                    # 分组结束，弹出栈顶
+                    if stack:
+                        group_step, group_item = stack.pop()
+
+                        # 处理空名称的顶层分组：将其 children 提升到父级或顶层
+                        if not group_step['name'] or group_step['name'].strip() == '':
+                            if not stack:  # 是顶层分组
+                                # 从 result 中移除该空分组
+                                result = [
+                                    x for x in result
+                                    if x.get('apifox_index') != group_step['apifox_index']
+                                ]
+                                # 将其 children 提升到顶层
+                                if group_step['children']:
+                                    result.extend(group_step['children'])
+                            else:  # 有父分组
+                                # 从父分组的 children 中移除
+                                parent_children = stack[-1][0]['children']
+                                stack[-1][0]['children'] = [
+                                    x for x in parent_children
+                                    if x.get('apifox_index') != group_step['apifox_index']
+                                ]
+                                # 将其 children 提升到父分组
+                                if group_step['children']:
+                                    stack[-1][0]['children'].extend(group_step['children'])
+                        # 清理空的 children（非空名称分组）
+                        elif not group_step['children']:
+                            if stack:
+                                stack[-1][0]['children'] = [
+                                    x for x in stack[-1][0]['children']
+                                    if x.get('apifox_index') != group_step['apifox_index']
+                                ]
+                            else:
+                                result = [
+                                    x for x in result
+                                    if x.get('apifox_index') != group_step['apifox_index']
+                                ]
+
+                apifox_global_idx[0] += 1
+
+            elif 'request' in item:
+                # 这是一个请求
+                request_counter[0] += 1
+                testhub_order = request_counter[0]
+                request = self._create_request(item, collection, full_path, testhub_order - 1)
+
+                if request:
+                    # 更新映射（用于变量引用转换）
+                    self._apifox_to_request_index[apifox_global_idx[0]] = testhub_order
+
+                    step_info = {
+                        'type': 'request',
+                        'name': item_name,
+                        'index': testhub_order - 1,
+                        'order': testhub_order,
+                        'apifox_index': apifox_global_idx[0],
+                        'path': full_path,
+                        'request': request,
+                        'item_data': item,
+                        'children': []
+                    }
+
+                    # 添加到当前层级的 children 中
+                    if stack:
+                        stack[-1][0]['children'].append(step_info)
+                    else:
+                        result.append(step_info)
+
+                apifox_global_idx[0] += 1
+            else:
+                # 其他类型，只增加索引
+                apifox_global_idx[0] += 1
+
+        return result
+
+    def _process_nested_items(self, items: List[Dict], collection: ApiCollection,
+                              parent_path: str = '') -> List[Dict]:
+        """递归处理传统嵌套结构 items"""
+        steps = []
+        apifox_global_idx = [0]  # 使用列表作为可变引用
+        request_counter = [0]    # 请求计数器
+
+        def process_single_item(item, current_path, level=0):
+            """处理单个 item，返回 step_info 或 None"""
+            nonlocal apifox_global_idx, request_counter
+            item_name = item.get('name', '')
+            full_path = f"{current_path}/{item_name}" if current_path else item_name
+
             if 'request' in item:
                 # 这是一个请求
-                request = self._create_request(item, collection, current_path, index)
+                request_counter[0] += 1
+                testhub_order = request_counter[0]
+                request = self._create_request(item, collection, full_path, testhub_order - 1)
+
                 if request:
-                    requests.append(request)
+                    # 更新映射（用于变量引用转换）
+                    self._apifox_to_request_index[apifox_global_idx[0]] = testhub_order
+
+                    step_info = {
+                        'type': 'request',
+                        'name': item_name,
+                        'index': testhub_order - 1,
+                        'order': testhub_order,
+                        'apifox_index': apifox_global_idx[0],
+                        'path': full_path,
+                        'request': request,
+                        'item_data': item,
+                        'children': []
+                    }
+                    apifox_global_idx[0] += 1
+                    return step_info
+                apifox_global_idx[0] += 1
+
             elif 'item' in item:
-                # 这是一个文件夹，递归处理
-                sub_requests = self._process_items(
-                    item['item'], collection, current_path
-                )
-                requests.extend(sub_requests)
-        
+                # 这是一个 group/folder
+                apifox_global_idx[0] += 1
+
+                # 递归处理所有子项
+                children = []
+                for child_item in item['item']:
+                    child_step = process_single_item(child_item, full_path, level + 1)
+                    if child_step:
+                        children.append(child_step)
+
+                # 只有当 group 有子项时才创建 group step
+                if children:
+                    step_info = {
+                        'type': 'group',
+                        'name': item_name,
+                        'path': full_path,
+                        'item_data': item,
+                        'children': children
+                    }
+                    return step_info
+            else:
+                # 其他类型，只增加索引
+                apifox_global_idx[0] += 1
+
+            return None
+
+        # 处理顶层 items
+        for item in items:
+            step = process_single_item(item, parent_path)
+            if step:
+                steps.append(step)
+
+        return steps
+    
+    def _extract_requests_from_steps(self, steps: List[Dict]) -> List[ApiRequest]:
+        """从结构化步骤中递归提取所有请求"""
+        requests = []
+        for step in steps:
+            if step['type'] == 'request' and step.get('request'):
+                requests.append(step['request'])
+            # 递归提取 children 中的请求
+            if step.get('children'):
+                requests.extend(self._extract_requests_from_steps(step['children']))
         return requests
+    
+    def _convert_requests_variables(self, steps: List[Dict]):
+        """统一转换所有请求中的变量（递归处理 children）"""
+        print(f"DEBUG - 索引映射表: {self._apifox_to_request_index}")
+        
+        for step in steps:
+            if step['type'] == 'request' and step.get('request'):
+                request = step['request']
+                current_order = step.get('order', 0)
+                updated = False
+                
+                # 转换 URL 中的变量，并检测向前引用
+                if request.url:
+                    request.url, url_warning = self._convert_step_reference_with_warning(request.url, current_order)
+                    if url_warning:
+                        self._add_request_issue(
+                            request.name, 
+                            "URL变量引用问题", 
+                            url_warning,
+                            "请手动检查URL中的变量引用"
+                        )
+                        print(f"WARNING - URL向前引用: 请求'{request.name}' - {url_warning}")
+                    request.url = self._convert_variables_with_context(request.url)
+                    updated = True
+                
+                # 转换 Headers 中的变量
+                if request.headers:
+                    new_headers = {}
+                    for k, v in request.headers.items():
+                        converted_v, header_warning = self._convert_step_reference_with_warning(v, current_order)
+                        if header_warning:
+                            self._add_request_issue(
+                                request.name,
+                                "Header变量引用问题",
+                                f"Header '{k}': {header_warning}",
+                                "请手动检查Header中的变量引用"
+                            )
+                        new_headers[k] = self._convert_variables_with_context(converted_v)
+                    request.headers = new_headers
+                    updated = True
+                
+                # 转换 Body 中的变量，并检测向前引用
+                if request.body:
+                    if isinstance(request.body, dict):
+                        if request.body.get('type') == 'json':
+                            # JSON body 的 data 可能是 dict 或字符串，需要递归处理
+                            body_data = request.body['data']
+                            if isinstance(body_data, str):
+                                body_data, body_warning = self._convert_step_reference_with_warning(body_data, current_order)
+                                if body_warning:
+                                    self._add_request_issue(
+                                        request.name,
+                                        "Body变量引用问题",
+                                        body_warning,
+                                        "请手动检查请求体中的变量引用"
+                                    )
+                                    print(f"WARNING - Body向前引用: 请求'{request.name}' - {body_warning}")
+                                request.body['data'] = self._convert_variables_with_context(body_data)
+                            else:
+                                # dict 或 list，递归处理其中的字符串
+                                request.body['data'] = self._deep_convert_body(body_data, request.name, current_order)
+                            updated = True
+                        elif request.body.get('type') == 'raw' and isinstance(request.body.get('data'), str):
+                            body_data = request.body['data']
+                            body_data, body_warning = self._convert_step_reference_with_warning(body_data, current_order)
+                            if body_warning:
+                                self._add_request_issue(
+                                    request.name,
+                                    "Body变量引用问题",
+                                    body_warning,
+                                    "请手动检查请求体中的变量引用"
+                                )
+                            request.body['data'] = self._convert_variables_with_context(body_data)
+                            updated = True
+                    elif isinstance(request.body, str):
+                        body_data = request.body
+                        body_data, body_warning = self._convert_step_reference_with_warning(body_data, current_order)
+                        if body_warning:
+                            self._add_request_issue(
+                                request.name,
+                                "Body变量引用问题",
+                                body_warning,
+                                "请手动检查请求体中的变量引用"
+                            )
+                        request.body = self._convert_variables_with_context(body_data)
+                        updated = True
+                
+                # 转换断言中的跨步骤变量引用
+                if request.assertions:
+                    assertions = request.assertions if isinstance(request.assertions, list) else json.loads(request.assertions)
+                    forward_ref_assertions = []
+                    
+                    for assertion in assertions:
+                        has_forward_ref = False
+                        assertion_name = assertion.get('name', '未命名断言')
+                        
+                        # 转换所有字段，同时检测是否存在向前引用
+                        if 'expected' in assertion:
+                            assertion['expected'], warning = self._convert_step_reference_with_warning(assertion['expected'], current_order)
+                            if warning:
+                                has_forward_ref = True
+                        
+                        if 'expected_value' in assertion:
+                            assertion['expected_value'], warning = self._convert_step_reference_with_warning(assertion['expected_value'], current_order)
+                            if warning:
+                                has_forward_ref = True
+                        if 'expected_display' in assertion:
+                            assertion['expected_display'], warning = self._convert_step_reference_with_warning(assertion['expected_display'], current_order)
+                            if warning:
+                                has_forward_ref = True
+                        
+                        # 记录存在向前引用的断言
+                        if has_forward_ref:
+                            forward_ref_assertions.append(assertion_name)
+                            print(f"WARNING - 发现向前引用断言: 请求'{request.name}' - '{assertion_name}'")
+                    
+                    # 报告存在向前引用的断言（已导入但可能执行失败）
+                    if forward_ref_assertions:
+                        self._add_request_issue(
+                            request.name,
+                            f"向前引用警告（{len(forward_ref_assertions)}个断言）",
+                            f"以下断言引用了后续步骤的数据: {', '.join(forward_ref_assertions)}",
+                            "已导入但执行时可能失败，请检查执行顺序或手动调整"
+                        )
+                        print(f"INFO - 请求'{request.name}'共发现{len(forward_ref_assertions)}个向前引用的断言")
+                    
+                    request.assertions = assertions  # 保留所有断言（包括向前引用的）
+                    updated = True
+                
+                # 转换变量提取器中的跨步骤变量引用
+                if request.variable_extractors:
+                    extractors = request.variable_extractors if isinstance(request.variable_extractors, list) else json.loads(request.variable_extractors)
+                    for extractor in extractors:
+                        if 'json_path' in extractor:
+                            extractor['json_path'], _ = self._convert_step_reference_with_warning(extractor['json_path'], current_order)
+                    request.variable_extractors = extractors  # 保持为 Python 列表
+                    updated = True
+                
+                # 保存更新
+                if updated:
+                    request.save()
+            
+            # 递归处理 children
+            if step.get('children'):
+                self._convert_requests_variables(step['children'])
+    
+    def _deep_convert_body(self, data, request_name: str, current_order: int):
+        """递归处理 body 中的 dict/list，转换所有字符串中的变量"""
+        if isinstance(data, dict):
+            return {k: self._deep_convert_body(v, request_name, current_order) for k, v in data.items()}
+        elif isinstance(data, list):
+            return [self._deep_convert_body(item, request_name, current_order) for item in data]
+        elif isinstance(data, str):
+            # 检测向前引用
+            converted, warning = self._convert_step_reference_with_warning(data, current_order)
+            if warning:
+                self._add_request_issue(
+                    request_name,
+                    "Body变量引用问题",
+                    warning,
+                    "请手动检查请求体中的变量引用"
+                )
+            # 转换变量语法
+            return self._convert_variables_with_context(converted)
+        else:
+            return data
+    
+    def _convert_variables_with_context(self, text: str) -> str:
+        """转换 API Fox 变量语法到 TestHub 语法
+        
+        使用 _apifox_to_request_index 映射表转换索引
+        """
+        if not isinstance(text, str):
+            return text
+        
+        def replace_func(match):
+            func_expr = match.group(1).strip()
+            
+            # 处理跨步骤变量引用，如 {{$.9.request.body.xxx}}
+            if func_expr.startswith('.'):
+                parts = func_expr.split('.')
+                if len(parts) >= 2 and parts[1].isdigit():
+                    apifox_idx = int(parts[1])
+                    
+                    # 使用映射表查找对应的 TestHub 索引
+                    if apifox_idx in self._apifox_to_request_index:
+                        testhub_order = self._apifox_to_request_index[apifox_idx]
+                        parts[1] = str(testhub_order)  # 已经是 1-based
+                        return '{{$' + '.'.join(parts) + '}}'
+                    else:
+                        print(f"警告: 找不到 Apifox 索引 {apifox_idx} 的映射")
+                        return match.group(0)
+                return match.group(0)
+            
+            # 处理动态函数（不区分大小写）
+            if '(' in func_expr:
+                func_name = func_expr[:func_expr.index('(')].lower()  # 转为小写
+                args_str = func_expr[func_expr.index('(')+1:func_expr.rindex(')')]
+                
+                if func_name == 'string.alphanumeric':
+                    length = 10
+                    if 'length=' in args_str.lower():  # 参数名也转为小写
+                        try:
+                            length = int(args_str.lower().split('length=')[1].split(',')[0].strip())
+                        except:
+                            pass
+                    return f'${{random_string({length}, "alphanumeric", 1)}}'
+                elif func_name == 'timestamp':
+                    return f'${{timestamp()}}'
+                elif func_name == 'uuid':
+                    return f'${{uuid()}}'
+                else:
+                    return f'${{{func_expr}}}'
+            else:
+                return f'${{{func_expr}}}'
+        
+        pattern = r'\{\{\$(.+?)\}\}'
+        return re.sub(pattern, replace_func, text, flags=re.DOTALL)
     
     def _create_request(self, item: Dict, collection: ApiCollection, 
                        path: str, index: int) -> Optional[ApiRequest]:
@@ -136,623 +750,877 @@ class ApifoxCliImporter:
         # 解析请求方法
         method = request_data.get('method', 'GET').upper()
         
-        # 解析 URL
+        # 解析 URL（暂不转换变量）
         url = self._parse_url(request_data.get('url', {}))
         
-        # 解析 Headers
+        # 解析 Headers（暂不转换变量）
         headers = self._parse_headers(request_data.get('header', []))
         
-        # 解析 Body
+        # 解析 Body（暂不转换变量）
         body = self._parse_body(request_data.get('body', {}))
         
-        # 解析 Query 参数
-        params = self._parse_query_params(request_data.get('url', {}).get('query', []))
+        # 解析变量提取规则
+        extractors = self._parse_extractors(item)
         
-        # 转换变量语法
-        url = self._convert_variables(url)
-        headers = {k: self._convert_variables(v) for k, v in headers.items()}
-
-        # 处理 Body 格式：API Fox 是字符串或对象，TestHub 需要 {type, data} 格式
-        if isinstance(body, dict):
-            # body 已经是对象（JSON），直接存储
-            body = {'type': 'json', 'data': body}
-        elif isinstance(body, str) and body:
-            # body 是字符串，需要进一步处理
-            body_content = self._convert_variables(body)
-            # 判断是否是 JSON（去掉变量占位符后再判断）
-            try:
-                # 先尝试直接解析为对象
-                parsed_json = json.loads(body_content)
-                body = {'type': 'json', 'data': parsed_json}
-            except (json.JSONDecodeError, TypeError):
-                # 如果解析失败，可能是包含变量占位符如 ${org_id} 或 ${{func()}}
-                # 需要同时检测 API Fox 格式 {{}} 和 TestHub 格式 ${}
-                temp_content = body_content
-                # 替换 API Fox 格式变量
-                temp_content = re.sub(r'\{\{.*?\}\}', '0', temp_content, flags=re.DOTALL)
-                # 替换 TestHub 格式变量 ${...}
-                temp_content = re.sub(r'\$\{[^}]*\}', '0', temp_content)
-                try:
-                    json.loads(temp_content)
-                    # 去掉变量后是有效的 JSON，标记为 json 类型
-                    # 存储原始字符串（包含变量），但标记为 json 类型
-                    body = {'type': 'json', 'data': body_content}
-                except (json.JSONDecodeError, TypeError):
-                    # 确实不是 JSON，作为 raw 处理
-                    body = {'type': 'raw', 'data': body_content}
-        else:
-            body = {}
+        # 解析断言
+        assertions = self._parse_assertions(item)
         
-        # 提取事件脚本（前置/后置处理）
-        events = item.get('event', [])
-        pre_script, post_script, assertions, extractors = self._parse_events(events)
+        # 解析前置脚本
+        pre_script = self._parse_pre_script(item)
+        
+        # 解析后置脚本
+        post_script = self._parse_post_script(item)
         
         # 创建请求
         request = ApiRequest.objects.create(
             collection=collection,
             name=item.get('name', f'Request_{index}'),
+            description=item.get('description', ''),
             method=method,
             url=url,
             headers=headers,
+            params=self._parse_params(request_data.get('url', {}).get('query', [])),
             body=body,
-            params=params,
-            description=item.get('description', ''),
+            variable_extractors=extractors,
+            assertions=assertions,
             pre_request_script=pre_script,
             post_request_script=post_script,
-            assertions=assertions,
-            variable_extractors=extractors,
             created_by=self.user
         )
         
-        self.import_stats['requests_created'] += 1
-        
-        # 存储原始 item 数据（用于测试套件关联）
+        # 存储原始 item 数据供后续使用
         request._apifox_item = item
-        request._apifox_index = index
         
+        self.import_stats['requests_created'] += 1
         return request
     
-    def _parse_url(self, url_data: Any) -> str:
-        """解析 URL - 只返回路径部分，域名通过环境变量配置"""
+    def _parse_url(self, url_data: Union[Dict, str]) -> str:
+        """解析 URL"""
         if isinstance(url_data, str):
-            # 如果是完整 URL，去掉协议和域名，只保留路径
-            if url_data.startswith(('http://', 'https://')):
-                # 去掉协议部分
-                path_start = url_data.find('://') + 3
-                # 从协议后找到第一个 / 的位置
-                domain_end = url_data.find('/', path_start)
-                if domain_end != -1:
-                    return url_data[domain_end:]
-                else:
-                    return '/'
             return url_data
         
-        if isinstance(url_data, dict):
-            # 只构建路径部分，去掉 protocol 和 host
-            path = '/'.join(url_data.get('path', []))
-            if path:
-                return '/' + path
+        if not isinstance(url_data, dict):
             return '/'
         
-        return '/'
+        # 构建完整 URL
+        protocol = url_data.get('protocol', 'https')
+        host = '.'.join(url_data.get('host', ['']))
+        path = '/'.join(url_data.get('path', []))
+        
+        if host:
+            url = f"{protocol}://{host}/{path}"
+        else:
+            url = f"/{path}" if path else '/'
+        
+        return url
     
     def _parse_headers(self, headers: List[Dict]) -> Dict[str, str]:
-        """解析 Headers - 过滤掉常见的全局 Headers（如 TenantId、Authorization、Content-Type 等）"""
-        # 常见的全局 Headers，这些通常在环境管理中统一配置或由 HTTP 客户端自动添加
-        global_header_keys = {
-            'tenantid', 'authorization', 'x-tenant-id', 'x-auth-token',
-            'user-agent', 'content-type', 'accept', 'accept-encoding', 'accept-language',
-            'cache-control', 'connection', 'pragma'
-        }
-        
+        """解析 Headers"""
         result = {}
         for header in headers:
             key = header.get('key', '')
             value = header.get('value', '')
             if key and not header.get('disabled', False):
-                # 跳过全局 Headers
-                if key.lower() not in global_header_keys:
-                    result[key] = value
+                result[key] = value
         return result
     
-    def _parse_events(self, events: List[Dict]) -> Tuple[str, str, List[Dict], List[Dict]]:
-        """
-        解析 API Fox 事件脚本
-        
-        Returns:
-            (pre_request_script, post_request_script, assertions, variable_extractors)
-        """
-        pre_script_lines = []
-        post_script_lines = []
-        assertions = []
-        extractors = []
-        
-        for event in events:
-            listen = event.get('listen', '')
-            script = event.get('script', {})
-            exec_lines = script.get('exec', [])
-            script_text = '\n'.join(exec_lines)
-            
-            if listen == 'prerequest':
-                # 前置脚本
-                pre_script_lines.extend(exec_lines)
-            elif listen == 'test':
-                # 后置脚本（包含断言和变量提取）
-                post_script_lines.extend(exec_lines)
-                
-                # 提取断言 (pm.expect 或 pm.response.to.have.status)
-                assertions.extend(self._extract_assertions(script_text))
-                
-                # 提取变量提取规则
-                extractors.extend(self._extract_variable_extractors(script_text))
-        
-        return (
-            '\n'.join(pre_script_lines),
-            '\n'.join(post_script_lines),
-            assertions,
-            extractors
-        )
-    
-    def _extract_assertions(self, script_text: str) -> List[Dict]:
-        """从 API Fox 脚本中提取断言规则"""
-        assertions = []
-
-        # API Fox 断言格式分析：
-        # 1. pm.test(`断言名称`, ...) - 定义断言名称
-        # 2. ____replaceIn(`$.data.path`) - JSONPath 提取路径
-        # 3. ____formatValues(..., 'equal') - 比较操作类型
-        # 4. compareValue = await ____replaceIn(`{{变量}}`) - 比较值
-
-        # 查找所有的 pm.test 块
-        test_pattern = r'pm\.test\(`([^`]+)`[^}]+?try\s*\{([^}]+?(?:const|let)\s+expression[^}]+?)\}\s+catch'
-
-        # 简化处理：按脚本块分割，每个断言是一个独立的 async 块
-        # 查找断言名称 (pm.test 中的名称)
-        name_pattern = r'const formattedName = await ____replaceIn\(`([^`]+)`\);\s*pm\.test\(`([^`]+)`'
-        name_matches = list(re.finditer(name_pattern, script_text))
-
-        # 查找 JSONPath 表达式
-        # API Fox 格式: const expression = await ____replaceIn(`$.data.xxx`);
-        jsonpath_pattern = r'const expression = await ____replaceIn\(`([^`]+)`\)'
-        jsonpath_matches = re.findall(jsonpath_pattern, script_text)
-
-        # 查找比较操作类型
-        # ____formatValues(..., 'equal') 或 ____formatValues(..., 'notEmpty')
-        op_pattern = r"____formatValues\([^,]+,\s*['\"]([^'\"]+)['\"]\)"
-        op_matches = re.findall(op_pattern, script_text)
-
-        # 查找比较值 (如果有)
-        compare_pattern = r'const compareValue = await ____replaceIn\(`([^`]+)`\)'
-        compare_matches = re.findall(compare_pattern, script_text)
-
-        # 为每个断言创建一个条目
-        for i in range(len(name_matches)):
-            assertion_name = name_matches[i].group(2)  # pm.test 中的名称
-            json_path = jsonpath_matches[i] if i < len(jsonpath_matches) else ''
-            op_type = op_matches[i] if i < len(op_matches) else 'equal'
-            compare_value = compare_matches[i] if i < len(compare_matches) else None
-
-            # 映射 API Fox 操作类型到 TestHub 类型
-            # API Fox 支持的所有断言类型：
-            # 等于、不等于、包含、不包含、大于、小于、大于等于、小于等于
-            # 为空、不为空、正则匹配、开头是、结尾是、长度等于、长度大于、长度小于
-            type_mapping = {
-                # 基础比较
-                'equal': 'equal',
-                '=': 'equal',
-                'notEqual': 'not_equal',
-                '!=': 'not_equal',
-                
-                # 包含关系
-                'contains': 'contains',
-                'notContains': 'not_contains',
-                'not_contain': 'not_contains',
-                
-                # 数值比较
-                'greaterThan': 'greater_than',
-                '>': 'greater_than',
-                'lessThan': 'less_than',
-                '<': 'less_than',
-                'greaterThanOrEqual': 'greater_than_or_equal',
-                '>=': 'greater_than_or_equal',
-                'lessThanOrEqual': 'less_than_or_equal',
-                '<=': 'less_than_or_equal',
-                
-                # 空值判断
-                'empty': 'empty',
-                'notEmpty': 'not_empty',
-                'not_empty': 'not_empty',
-                
-                # 正则匹配
-                'regex': 'regex_match',
-                'matches': 'regex_match',
-                'regexp': 'regex_match',
-                
-                # 字符串匹配
-                'startsWith': 'starts_with',
-                'endsWith': 'ends_with',
-                
-                # 长度比较
-                'lengthEqual': 'length_equal',
-                'lengthGreaterThan': 'length_greater_than',
-                'lengthLessThan': 'length_less_than',
-            }
-
-            testhub_type = type_mapping.get(op_type, 'equal')
-
-            assertion = {
-                'name': assertion_name,
-                'type': testhub_type,
-                'source': 'json_body',
-                'json_path': json_path,
-                'source': 'script'
-            }
-
-            # 如果有比较值，添加到断言中
-            if compare_value:
-                assertion['expected_value'] = compare_value
-
-            assertions.append(assertion)
-
-        # 保留原有的简单断言检测（向后兼容）
-        # 匹配 pm.response.to.have.status(code)
-        status_pattern = r'pm\.response\.to\.have\.status\((\d+)\)'
-        for match in re.finditer(status_pattern, script_text):
-            status_code = match.group(1)
-            assertions.append({
-                'name': f'状态码断言',
-                'type': 'status_code',
-                'expected': int(status_code),
-                'source': 'script'
-            })
-
-        return assertions
-    
-    def _extract_variable_extractors(self, script_text: str) -> List[Dict]:
-        """从 API Fox 脚本中提取变量提取规则"""
-        extractors = []
-        
-        # API Fox 格式: ____replaceIn(`变量名`);pm.environment.set(formattedName, value)
-        # 找 ____replaceIn 定义变量名和 JSONPath
-        var_pattern = r'____replaceIn\(`([^`]+)`\)'
-        var_matches = list(re.finditer(var_pattern, script_text))
-        
-        # API Fox 通常配对出现：第一个是 JSONPath，第二个是变量名
-        for i in range(0, len(var_matches), 2):
-            if i + 1 < len(var_matches):
-                jsonpath = var_matches[i].group(1)
-                var_name = var_matches[i + 1].group(1)
-                
-                # 检查是否是有效的 JSONPath（以 $ 开头）
-                if jsonpath.startswith('$'):
-                    extractors.append({
-                        'name': var_name,
-                        'source': 'json_body',
-                        'json_path': jsonpath,
-                        'variable_name': var_name
-                    })
-        
-        return extractors
-    
-    def _parse_body(self, body_data: Dict) -> Optional[Union[str, Dict]]:
-        """解析请求体 - 返回对象或字符串"""
-        mode = body_data.get('mode', 'raw')
-
-        if mode == 'raw':
-            raw_content = body_data.get('raw', '')
-            # 尝试解析为 JSON 对象
-            if raw_content:
-                try:
-                    # 直接解析
-                    return json.loads(raw_content)
-                except (json.JSONDecodeError, TypeError):
-                    # 如果包含变量占位符，去掉后再尝试解析
-                    # 使用非贪婪匹配，支持嵌套括号如 {{$string.alphanumeric(length=4)}}
-                    # 注意：API Fox 的变量通常已经被双引号包裹，所以这里用 0 作为占位符
-                    temp_content = re.sub(r'\{\{.*?\}\}', '0', raw_content, flags=re.DOTALL)
-                    try:
-                        json.loads(temp_content)
-                        # 去掉变量后是有效的 JSON，说明原始内容应该是 JSON
-                        # 但我们无法直接解析，返回原始字符串让上层处理
-                        return raw_content
-                    except (json.JSONDecodeError, TypeError):
-                        # 确实不是 JSON，返回原始字符串
-                        return raw_content
-            return raw_content
-        elif mode == 'json':
-            # API Fox 可能使用 json 字段
-            json_data = body_data.get('json', '')
-            if isinstance(json_data, dict):
-                return json_data  # 已经是对象，直接返回
-            elif isinstance(json_data, str) and json_data:
-                try:
-                    return json.loads(json_data)
-                except (json.JSONDecodeError, TypeError):
-                    return json_data
-            return json_data
-        elif mode == 'formdata':
-            # 表单数据
-            formdata = body_data.get('formdata', [])
-            return {item['key']: item['value'] for item in formdata if not item.get('disabled')}
-        elif mode == 'urlencoded':
-            # URL 编码数据
-            urlencoded = body_data.get('urlencoded', [])
-            return {item['key']: item['value'] for item in urlencoded if not item.get('disabled')}
-
-        return ''
-    
-    def _parse_query_params(self, query: List[Dict]) -> Dict[str, str]:
+    def _parse_params(self, params: List[Dict]) -> Dict[str, str]:
         """解析 Query 参数"""
         result = {}
-        for param in query:
+        for param in params:
             key = param.get('key', '')
             value = param.get('value', '')
             if key and not param.get('disabled', False):
                 result[key] = value
         return result
     
-    def _convert_variables(self, text: str) -> str:
-        """转换 API Fox 变量语法到 TestHub 语法
-        
-        注意：导入时不执行动态函数，保留原始变量语法，让函数在执行时解析
-        """
-        if not isinstance(text, str):
-            return text
-        
-        # 导入时只转换语法格式，不执行函数
-        # API Fox: {{$string.alphanumeric(length=4)}} -> TestHub: ${random_string(4, 'all', 1)}
-        # 普通变量: {{variable}} -> ${variable}
-        
-        # 匹配 API Fox 动态函数 {{$category.function(args)}}
-        def replace_func(match):
-            func_expr = match.group(1).strip()
-            
-            # 解析函数名和参数
-            if '(' in func_expr:
-                func_name = func_expr[:func_expr.index('(')]
-                args_str = func_expr[func_expr.index('(')+1:func_expr.rindex(')')]
-                
-                # 转换为 TestHub 语法
-                # $string.alphanumeric -> random_string
-                # 注意：func_name 不包含 $ 前缀，因为正则捕获的是 $ 之后的内容
-                if func_name == 'string.alphanumeric':
-                    # 解析 length 参数
-                    length = 10  # 默认值
-                    if args_str:
-                        try:
-                            # 处理 length=4 或 4 格式
-                            if '=' in args_str:
-                                length = int(args_str.split('=')[1].strip())
-                            else:
-                                length = int(args_str.strip())
-                        except:
-                            pass
-                    # 使用单引号避免 JSON 解析冲突
-                    return "${random_string(" + str(length) + ", 'all', 1)}"
-                elif func_name == 'string.numeric':
-                    length = 10
-                    if args_str:
-                        try:
-                            if '=' in args_str:
-                                length = int(args_str.split('=')[1].strip())
-                            else:
-                                length = int(args_str.strip())
-                        except:
-                            pass
-                    return "${random_string(" + str(length) + ", 'digits', 1)}"
-                elif func_name == 'string.alpha':
-                    length = 10
-                    if args_str:
-                        try:
-                            if '=' in args_str:
-                                length = int(args_str.split('=')[1].strip())
-                            else:
-                                length = int(args_str.strip())
-                        except:
-                            pass
-                    return "${random_string(" + str(length) + ", 'letters', 1)}"
-                elif func_name == 'string.uuid':
-                    return '${random_uuid}'
-                else:
-                    # 其他函数保留原始格式，让后端运行时处理
-                    return f'${{{func_expr}}}'
-            else:
-                # 无参数函数
-                func_name = func_expr
-                if func_name == 'timestamp':
-                    return '${current_timestamp}'
-                elif func_name == 'randomUUID':
-                    return '${random_uuid}'
-                elif func_name == 'guid':
-                    return '${random_uuid}'
-                else:
-                    return f'${{{func_expr}}}'
-        
-        # 处理动态函数 {{$function()}} - 转换为 TestHub 动态函数语法
-        text = re.sub(r'\{\{\$([^}]+)\}\}', replace_func, text)
-        
-        # 普通变量 {{variable}}（不以$开头）保持原样不变
-        # 这些变量是 API Fox 中提取的变量引用，在自动化场景执行时由 TestHub 处理
-        # 注意：不转换为 ${variable}，保持 {{variable}} 格式
-        
-        return text
+    def _parse_body(self, body_data: Dict) -> Dict:
+        """解析请求 Body"""
+        if not body_data:
+            return {}
+
+        mode = body_data.get('mode', '')
+        body_type = body_data.get('type', '')
+        raw_data = body_data.get('raw', '')
+
+        if mode == 'raw':
+            # 检查是否是 JSON 类型
+            if body_type == 'application/json' or 'json' in body_type.lower():
+                try:
+                    # 尝试解析为 JSON 对象
+                    json_data = json.loads(raw_data) if raw_data else {}
+                    return {
+                        'type': 'json',
+                        'data': json_data,
+                        'content_type': 'json'
+                    }
+                except json.JSONDecodeError:
+                    # 解析失败，保持原样
+                    pass
+
+            return {
+                'type': 'raw',
+                'data': raw_data,
+                'content_type': body_data.get('options', {}).get('raw', {}).get('language', 'text')
+            }
+        elif mode == 'json':
+            # JSON 模式也需要解析为对象
+            try:
+                json_data = json.loads(raw_data) if raw_data else {}
+                return {
+                    'type': 'json',
+                    'data': json_data
+                }
+            except json.JSONDecodeError:
+                # 解析失败，保持原样
+                return {
+                    'type': 'json',
+                    'data': raw_data
+                }
+        elif mode == 'formdata':
+            return {
+                'type': 'formdata',
+                'data': body_data.get('formdata', [])
+            }
+        elif mode == 'urlencoded':
+            return {
+                'type': 'urlencoded',
+                'data': body_data.get('urlencoded', [])
+            }
+
+        return {}
     
-    def _create_test_suite(self, data: Dict, collection: ApiCollection, 
-                          requests: List[ApiRequest]) -> Optional[TestSuite]:
-        """创建测试套件（自动化场景）"""
+    def _parse_extractors(self, item: Dict) -> List[Dict]:
+        """解析变量提取规则
+        
+        从 Apifox 的 event/test 脚本中提取变量提取器。
+        提取器格式：
+        - const expression = await ____replaceIn(`$.data.access_token`);
+        - const formattedName = await ____replaceIn(`auth_token`);pm.environment.set(...)
+        """
+        extractors = []
+        
+        events = item.get('event', [])
+        for event in events:
+            if event.get('listen') == 'test':
+                script = event.get('script', {}).get('exec', [])
+                if isinstance(script, list):
+                    script_text = '\n'.join(script)
+                    
+                    # 查找 JSONPath 表达式
+                    # 格式: const expression = await ____replaceIn(`$.data.access_token`);
+                    jsonpath_matches = re.findall(
+                        r'const expression = await ____replaceIn\(`([^`]+)`\)',
+                        script_text
+                    )
+                    
+                    # 查找变量名
+                    # 格式: const formattedName = await ____replaceIn(`auth_token`);
+                    var_name_matches = re.findall(
+                        r'const formattedName = await ____replaceIn\(`([^`]+)`\)',
+                        script_text
+                    )
+                    
+                    # 配对 JSONPath 和变量名
+                    for i, json_path in enumerate(jsonpath_matches):
+                        if i < len(var_name_matches):
+                            var_name = var_name_matches[i]
+                            # 注意：跨步骤变量引用转换在 _convert_requests_variables 中统一处理
+                            extractors.append({
+                                'name': var_name,
+                                'source': 'json_body',
+                                'json_path': json_path,
+                                'variable_name': var_name
+                            })
+                    
+                    # 也检查 httpApiExtractor 类型的提取器
+                    # 格式: const extracts = [{"expression":"...","paths":[...]}];
+                    http_api_matches = re.findall(
+                        r'const extracts = (\[.*?\]);',
+                        script_text,
+                        re.DOTALL
+                    )
+                    for match in http_api_matches:
+                        try:
+                            extracts = json.loads(match)
+                            for extract in extracts:
+                                expression = extract.get('expression', '')
+                                paths = extract.get('paths', [])
+                                # 提取变量名（从 paths 最后一部分）
+                                if paths:
+                                    var_name = paths[-1]
+                                    # 构建 JSONPath
+                                    json_path = '.'.join(paths[1:]) if len(paths) > 1 else expression
+                                    # 注意：跨步骤变量引用转换在 _convert_requests_variables 中统一处理
+                                    extractors.append({
+                                        'name': var_name,
+                                        'source': 'json_body',
+                                        'json_path': json_path,
+                                        'variable_name': var_name
+                                    })
+                        except json.JSONDecodeError:
+                            pass
+        
+        return extractors
+    
+    def _convert_step_reference(self, text: str) -> str:
+        """转换跨步骤变量引用中的 Apifox 索引为 TestHub 顺序
+        
+        将 {{$.N.request.body.xxx}} 或 {{$.N.response.body.xxx}} 中的 N 
+        从 Apifox 全局索引转换为 TestHub 请求顺序
+        """
+        result, _ = self._convert_step_reference_with_warning(text, None)
+        return result
+    
+    def _convert_step_reference_with_warning(self, text: str, current_order: int = None) -> tuple:
+        """转换跨步骤变量引用，并检测向前引用
+        
+        返回: (转换后的文本, 警告信息)
+        """
+        if not text or not isinstance(text, str):
+            return text, None
+        
+        import re
+        # 匹配跨步骤引用: {{$.数字.request.xxx}} 或 {{$..数字.request.xxx}}
+        # 支持两种格式：$.N 和 $..N
+        pattern = r'\{\{\$\.{1,2}(\d+)\.(request|response)\.(body|headers|params)(?:\.(.*))?\}\}'
+        
+        warning = None
+        
+        def replace_ref(match):
+            nonlocal warning
+            apifox_idx = int(match.group(1))
+            rest = match.group(2) + '.' + match.group(3)
+            if match.group(4):
+                rest += '.' + match.group(4)
+            
+            # 查找映射
+            if apifox_idx in self._apifox_to_request_index:
+                testhub_order = self._apifox_to_request_index[apifox_idx]
+                result = f'{{{{$.{testhub_order}.{rest}}}}}'
+                print(f"DEBUG - 转换变量引用: Apifox[{apifox_idx}] -> TestHub[{testhub_order}]: {result}")
+                
+                # 检测向前引用（当前步骤引用了后续步骤）
+                if current_order is not None and testhub_order > current_order:
+                    warning = f"引用了步骤 {testhub_order}，但当前步骤是 {current_order}"
+                    print(f"WARNING - {warning}")
+                
+                return result
+            else:
+                # 引用的步骤在映射表中不存在（可能是引用了错误的步骤或已删除的步骤）
+                warning_msg = f"引用了不存在的步骤 {apifox_idx}"
+                print(f"WARNING - {warning_msg}")
+                # 累积警告信息
+                if warning is None:
+                    warning = warning_msg
+                else:
+                    warning += f"; {warning_msg}"
+                return match.group(0)
+        
+        result = re.sub(pattern, replace_ref, text)
+        return result, warning
+    
+    def _parse_assertions(self, item: Dict) -> List[Dict]:
+        """解析断言规则
+        
+        从 Apifox 的 event/test 脚本中提取断言。
+        断言格式：
+        - const formattedName = await ____replaceIn(`check_notnull`);
+        - const expression = await ____replaceIn(`$.data`);
+        - pm.expect(value).to.not.be.null
+        - pm.expect(formattedValues.value).to.eql(formattedValues.compareValue)
+        """
+        assertions = []
+        
+        events = item.get('event', [])
+        for event in events:
+            if event.get('listen') == 'test':
+                script = event.get('script', {}).get('exec', [])
+                script_id = event.get('script', {}).get('id', '')
+                
+                # 只处理断言类型的脚本
+                if 'assertion' not in script_id:
+                    continue
+                    
+                if isinstance(script, list):
+                    script_text = '\n'.join(script)
+                    
+                    # 提取断言名称
+                    name_matches = re.findall(
+                        r'const formattedName = await ____replaceIn\(`([^`]+)`\)',
+                        script_text
+                    )
+                    
+                    # 提取 JSONPath 表达式
+                    jsonpath_matches = re.findall(
+                        r'const expression = await ____replaceIn\(`([^`]+)`\)',
+                        script_text
+                    )
+                    
+                    # 提取比较值（支持多种变量名格式）
+                    # 格式1: const stringCompareValue = await ____replaceIn(`...`)
+                    # 格式2: const compareValue = await ____replaceIn(`{{variable}}`)
+                    compare_matches = re.findall(
+                        r'const (?:stringCompareValue|compareValue) = await ____replaceIn\(`([^`]*)`\)',
+                        script_text
+                    )
+
+                    # 确定断言类型和操作
+                    # 映射到前端支持的类型: status_code, response_time, contains, json_path, header, equals
+                    # 注意: 有 json_path 的断言都应该用 'json_path' 作为 type，用 operator 表示具体比较方式
+                    assertion_type = 'json_path'  # 默认使用 json_path
+                    operator = 'not_empty'
+                    if 'to.not.be.null' in script_text:
+                        assertion_type = 'json_path'
+                        operator = 'not_null'
+                    elif 'to.not.be.undefined' in script_text:
+                        assertion_type = 'json_path'
+                        operator = 'not_undefined'
+                    elif 'to.not.be.empty' in script_text:
+                        assertion_type = 'json_path'
+                        operator = 'not_empty'
+                    elif 'to.eql' in script_text:
+                        assertion_type = 'json_path'  # 有 json_path，所以用 json_path 类型
+                        operator = 'equals'  # 用 operator 表示等于比较
+                    elif 'to.include' in script_text:
+                        assertion_type = 'contains'
+                        operator = 'contains'
+
+                    # 配对断言信息
+                    for i, name in enumerate(name_matches):
+                        json_path = jsonpath_matches[i] if i < len(jsonpath_matches) else ''
+                        expected = compare_matches[i] if i < len(compare_matches) else ''
+
+                        # 注意：跨步骤变量引用转换在 _convert_requests_variables 中统一处理
+
+                        # 将 not_null/not_empty 等特殊检查作为 expected 值存储
+                        # 这样可以在前端显示为"不为空"，并且可以编辑
+                        if operator == 'not_null':
+                            expected = 'not_null'
+                            expected_display = '不为空'
+                        elif operator == 'not_undefined':
+                            expected = 'not_undefined'
+                            expected_display = '不为undefined'
+                        elif operator == 'not_empty':
+                            expected = 'not_empty'
+                            expected_display = '不为空'
+                        else:
+                            expected_display = expected
+
+                        assertions.append({
+                            'name': name,
+                            'type': assertion_type,
+                            'assertion_type': 'response_body',
+                            'source': 'response_body',
+                            'json_path': json_path,
+                            'expected': expected,
+                            'expected_value': expected,
+                            'expected_display': expected_display,
+                            'operator': operator,  # 使用解析到的 operator
+                            'operator_type': operator
+                        })
+        
+        return assertions
+    
+    def _parse_pre_script(self, item: Dict) -> str:
+        """解析前置脚本"""
+        events = item.get('event', [])
+        for event in events:
+            if event.get('listen') == 'prerequest':
+                script = event.get('script', {}).get('exec', [])
+                if isinstance(script, list):
+                    return '\n'.join(script)
+                return script
+        return ''
+    
+    def _parse_post_script(self, item: Dict) -> str:
+        """解析后置脚本"""
+        events = item.get('event', [])
+        for event in events:
+            if event.get('listen') == 'test':
+                script = event.get('script', {}).get('exec', [])
+                if isinstance(script, list):
+                    return '\n'.join(script)
+                return script
+        return ''
+    
+    def _create_test_suite(self, data: Dict, collection: ApiCollection,
+                          requests: List[ApiRequest],
+                          structured_steps: List[Dict] = None) -> Optional[TestSuite]:
+        """创建测试套件（支持分组结构）"""
         if not requests:
             return None
-        
-        # 提取 API Fox 的事件脚本（前置/后置脚本）
-        pre_process_script = []
-        post_process_script = []
-        
-        for request in requests:
-            item = getattr(request, '_apifox_item', {})
-            events = item.get('event', [])
-            
-            for event in events:
-                listen = event.get('listen', '')
-                script = event.get('script', {}).get('exec', [])
-                
-                if listen == 'prerequest':
-                    pre_process_script.extend(script)
-                elif listen == 'test':
-                    post_process_script.extend(script)
-        
-        # 创建测试套件
+
+        suite_name = data.get('info', {}).get('name', 'API Fox Suite')
+
+        # 删除同名的现有测试套件
+        existing_suites = TestSuite.objects.filter(
+            project=self.project,
+            name=suite_name
+        )
+        for existing in existing_suites:
+            existing.delete()
+
         suite = TestSuite.objects.create(
             project=self.project,
-            name=data.get('info', {}).get('name', f"Suite_{datetime.now().strftime('%Y%m%d_%H%M%S')}"),
-            description=data.get('info', {}).get('description', ''),
-            created_by=self.user,
-            pre_process_script='\n'.join(pre_process_script),
-            post_process_script='\n'.join(post_process_script)
+            name=suite_name,
+            description='从 API Fox 导入的测试套件',
+            created_by=self.user
         )
         
-        # 关联请求到套件
-        for index, request in enumerate(requests):
-            TestSuiteRequest.objects.create(
-                test_suite=suite,
-                request=request,
-                order=index + 1,
-                extracted_variables=self._extract_variables_from_script(
-                    getattr(request, '_apifox_item', {})
+        # 如果有结构化步骤数据，使用递归方式创建（支持分组）
+        if structured_steps:
+            self._create_suite_requests_recursive(suite, structured_steps)
+        else:
+            # 向后兼容：扁平列表
+            for idx, request in enumerate(requests):
+                TestSuiteRequest.objects.create(
+                    test_suite=suite,
+                    request=request,
+                    order=idx,
+                    assertions=request.assertions,
+                    extracted_variables=request.variable_extractors
                 )
-            )
         
         self.import_stats['suites_created'] += 1
         return suite
     
-    def _extract_variables_from_script(self, item: Dict) -> Dict[str, str]:
-        """从测试脚本中提取变量定义"""
-        variables = {}
-        events = item.get('event', [])
+    def _create_suite_requests_recursive(self, suite: TestSuite, steps: List[Dict], 
+                                         parent_request=None, order_counter: list = None):
+        """递归创建测试套件请求（支持分组）"""
+        if order_counter is None:
+            order_counter = [0]
         
-        for event in events:
-            if event.get('listen') == 'test':
-                script = event.get('script', {}).get('exec', [])
-                script_text = '\n'.join(script)
+        for step_info in steps:
+            order_counter[0] += 1
+            current_order = order_counter[0]
+            
+            if step_info['type'] == 'request':
+                # 创建请求类型的 TestSuiteRequest
+                api_request = step_info['request']
+                suite_req = TestSuiteRequest.objects.create(
+                    test_suite=suite,
+                    request=api_request,
+                    order=current_order,
+                    step_type='request',
+                    parent_id=parent_request.id if parent_request else None,
+                    assertions=api_request.assertions,
+                    extracted_variables=api_request.variable_extractors
+                )
                 
-                # 提取 pm.environment.set("key", value) 格式
-                set_pattern = r'pm\.environment\.set\(["\']([^"\']+)["\']\s*,\s*([^)]+)\)'
-                for match in re.finditer(set_pattern, script_text):
-                    key = match.group(1)
-                    # 尝试提取 JSONPath
-                    jsonpath_pattern = r'json\[\'([^\']+)\'\]|json\.([a-zA-Z_]+)'
-                    jsonpath_matches = re.findall(jsonpath_pattern, match.group(2))
-                    if jsonpath_matches:
-                        jsonpath = jsonpath_matches[0][0] or jsonpath_matches[0][1]
-                        variables[key] = f"$.{jsonpath}"
-        
-        return variables
-    
-    def _extract_environment(self, data: Dict) -> None:
-        """提取环境变量（不创建环境，仅记录）"""
-        # API Fox 环境变量可能在变量定义中
-        variables = data.get('variable', [])
-        
-        for var in variables:
-            if not var.get('disabled', False):
-                name = var.get('key', '')
-                value = var.get('value', '')
+                # 递归处理子步骤（如果有）
+                if step_info.get('children'):
+                    self._create_suite_requests_recursive(
+                        suite, step_info['children'], suite_req, order_counter
+                    )
+                    
+            elif step_info['type'] == 'group':
+                # 创建分组类型的 TestSuiteRequest（没有实际请求）
+                suite_req = TestSuiteRequest.objects.create(
+                    test_suite=suite,
+                    request=None,
+                    order=current_order,
+                    step_type='group',
+                    parent_id=parent_request.id if parent_request else None,
+                    override_name=step_info.get('name', '')
+                )
                 
-                # 验证变量语法
-                validation = validate_apifox_syntax(value)
-                if not validation['valid']:
-                    self.import_stats['warnings'].append(
-                        f"环境变量 '{name}' 包含不支持的函数: {validation['unsupported']}"
+                # 递归处理子步骤
+                if step_info.get('children'):
+                    self._create_suite_requests_recursive(
+                        suite, step_info['children'], suite_req, order_counter
                     )
     
-    def validate_import(self, file_path: str) -> Dict[str, Any]:
-        """
-        验证导入文件，检查兼容性
-        
-        Returns:
-            {
-                'valid': bool,
-                'unsupported_functions': List[str],
-                'total_requests': int,
-                'warnings': List[str]
-            }
-        """
-        try:
-            with open(file_path, 'r', encoding='utf-8') as f:
-                data = json.load(f)
-        except Exception as e:
-            return {
-                'valid': False,
-                'error': str(e),
-                'unsupported_functions': [],
-                'total_requests': 0,
-                'warnings': []
-            }
-        
-        # 收集所有用到的函数
-        all_text = json.dumps(data)
-        unsupported = []
-        
-        # 提取所有 {{$...}} 语法
-        pattern = r'\{\{\$([^}|]+?)\}'
-        matches = re.findall(pattern, all_text)
-        
-        supported = self.resolver.mapper.get_supported_functions()
-        
-        for match in matches:
-            if '(' in match:
-                func_name = '$' + match[:match.index('(')]
-            else:
-                func_name = '$' + match
-            
-            if func_name not in supported and func_name not in unsupported:
-                unsupported.append(func_name)
-        
-        # 统计请求数量
-        total_requests = self._count_requests(data.get('item', []))
-        
-        return {
-            'valid': len(unsupported) == 0,
-            'unsupported_functions': unsupported,
-            'total_requests': total_requests,
-            'warnings': [f"发现 {len(unsupported)} 个不支持的函数"] if unsupported else []
-        }
-    
-    def _count_requests(self, items: List[Dict]) -> int:
-        """统计请求数量"""
-        count = 0
-        for item in items:
-            if 'request' in item:
-                count += 1
-            elif 'item' in item:
-                count += self._count_requests(item['item'])
-        return count
+    def _create_automation_scenario(self, data: Dict, collection: ApiCollection,
+                                    steps: List[Dict], suite: TestSuite) -> Optional[AutomationScenario]:
+        """创建自动化场景（带层级结构）"""
+        if not steps:
+            return None
 
+        scenario_name = data.get('info', {}).get('name', 'API Fox Scenario')
 
-# 便捷函数
-def import_apifox_cli(file_path: str, user: User, project: ApiProject,
-                     import_env: bool = False) -> Dict[str, Any]:
-    """
-    便捷函数：导入 API Fox CLI 文件
-    
-    使用示例:
-        result = import_apifox_cli(
-            file_path='智能体_创建.apifox-cli.json',
-            user=request.user,
-            project=project
+        # 删除同名的现有自动化场景
+        existing_scenarios = AutomationScenario.objects.filter(
+            project=self.project,
+            name=scenario_name
         )
+        for existing in existing_scenarios:
+            existing.delete()
+
+        # 创建场景
+        scenario = AutomationScenario.objects.create(
+            project=self.project,
+            name=scenario_name,
+            description='从 API Fox 导入的自动化场景',
+            collection=collection,
+            legacy_test_suite=suite,
+            created_by=self.user
+        )
+        
+        # 保存当前场景引用，用于后续修正变量引用
+        self._current_scenario = scenario
+
+        # 递归创建步骤，并记录 order -> step_number 的映射
+        order_to_step_number = {}
+        self._create_scenario_steps(scenario, steps, order_to_step_number=order_to_step_number)
+
+        # 修正变量引用中的序号（确保引用指向正确的step_number）
+        self._fix_step_references_in_requests(order_to_step_number)
+        
+        # 修正场景步骤中的变量引用序号
+        self._fix_step_references_in_scenario_steps(scenario, order_to_step_number)
+
+        return scenario
+    
+    def _fix_step_references_in_requests(self, order_to_step_number: dict):
+        """
+        修正请求中变量引用的序号
+        
+        在导入时，变量引用如 {{$.N.response.body.xxx}} 中的 N 是基于请求顺序(order)的，
+        但场景步骤的 step_number 包含了分组，导致序号不匹配。
+        
+        此方法将变量引用中的 order 序号替换为实际的 step_number。
+        
+        Args:
+            order_to_step_number: order -> step_number 的映射字典
+        """
+        import re
+        
+        if not order_to_step_number:
+            return
+        
+        # 找出所有需要修正的请求（通过之前记录的 _structured_steps）
+        def fix_step_ref_in_text(text: str) -> str:
+            """修正文本中的步骤引用"""
+            if not isinstance(text, str):
+                return text
+            
+            # 匹配跨步骤引用: {{$.N.request.body.xxx}} 或 {{$..N.request.body.xxx}} 或 {{$.N.response.body.xxx}}
+            # 支持两种格式：$.N 和 $..N
+            pattern = r'\{\{\$\.{1,2}(\d+)\.(request|response|variables)(?:\.(.*))?\}\}'
+            
+            def replace_ref(match):
+                order = int(match.group(1))
+                rest = match.group(2) + '.' + match.group(3) if match.group(3) else match.group(2)
+                
+                # 如果这个 order 有对应的 step_number，进行替换
+                if order in order_to_step_number:
+                    step_number = order_to_step_number[order]
+                    return f'{{{{$.{step_number}.{rest}}}}}'
+                return match.group(0)
+            
+            return re.sub(pattern, replace_ref, text)
+        
+        def fix_step_ref_in_dict(data):
+            """递归修正字典中的步骤引用"""
+            if isinstance(data, dict):
+                return {k: fix_step_ref_in_dict(v) for k, v in data.items()}
+            elif isinstance(data, list):
+                return [fix_step_ref_in_dict(item) for item in data]
+            elif isinstance(data, str):
+                return fix_step_ref_in_text(data)
+            return data
+        
+        # 获取当前导入的所有请求（从已创建的场景步骤中获取）
+        current_requests = []
+        if hasattr(self, '_current_scenario'):
+            # 从场景步骤中获取关联的请求
+            steps_with_requests = ScenarioStep.objects.filter(
+                scenario=self._current_scenario,
+                api_request__isnull=False
+            ).select_related('api_request')
+            
+            current_requests = [step.api_request for step in steps_with_requests]
+        
+        # 修正当前导入请求中的变量引用
+        for request in current_requests:
+            updated = False
+            
+            # 修正 URL
+            if request.url:
+                new_url = fix_step_ref_in_text(request.url)
+                if new_url != request.url:
+                    request.url = new_url
+                    updated = True
+            
+            # 修正 Headers
+            if request.headers:
+                new_headers = fix_step_ref_in_dict(request.headers)
+                if new_headers != request.headers:
+                    request.headers = new_headers
+                    updated = True
+            
+            # 修正 Body
+            if request.body:
+                new_body = fix_step_ref_in_dict(request.body)
+                if new_body != request.body:
+                    request.body = new_body
+                    updated = True
+            
+            # 修正断言
+            if request.assertions:
+                # assertions 可能是字符串或列表，需要先确保是列表
+                assertions_data = request.assertions
+                if isinstance(assertions_data, str):
+                    try:
+                        assertions_data = json.loads(assertions_data)
+                    except (json.JSONDecodeError, TypeError):
+                        pass
+                
+                new_assertions = fix_step_ref_in_dict(assertions_data)
+                # 将结果转换回与原始类型一致的格式
+                if isinstance(request.assertions, str):
+                    new_assertions = json.dumps(new_assertions)
+                
+                if new_assertions != request.assertions:
+                    request.assertions = new_assertions
+                    updated = True
+            
+            # 修正变量提取器
+            if request.variable_extractors:
+                new_extractors = fix_step_ref_in_dict(request.variable_extractors)
+                if new_extractors != request.variable_extractors:
+                    request.variable_extractors = new_extractors
+                    updated = True
+            
+            if updated:
+                request.save()
+    
+    def _fix_step_references_in_scenario_steps(self, scenario: AutomationScenario, order_to_step_number: dict):
+        """
+        修正场景步骤中的变量引用序号
+        
+        Args:
+            scenario: 自动化场景对象
+            order_to_step_number: order -> step_number 的映射字典
+        """
+        import re
+        
+        if not order_to_step_number:
+            return
+        
+        def fix_step_ref_in_text(text: str) -> str:
+            """修正文本中的步骤引用"""
+            if not isinstance(text, str):
+                return text
+            
+            # 匹配跨步骤引用: {{$.N.request.body.xxx}} 或 {{$..N.request.body.xxx}}
+            # 支持两种格式：$.N 和 $..N
+            pattern = r'\{\{\$\.{1,2}(\d+)\.(request|response|variables)(?:\.(.*))?\}\}'
+            
+            def replace_ref(match):
+                order = int(match.group(1))
+                rest = match.group(2) + '.' + match.group(3) if match.group(3) else match.group(2)
+                
+                if order in order_to_step_number:
+                    step_number = order_to_step_number[order]
+                    return f'{{{{$.{step_number}.{rest}}}}}'
+                return match.group(0)
+            
+            return re.sub(pattern, replace_ref, text)
+        
+        def fix_step_ref_in_dict(data):
+            """递归修正字典中的步骤引用"""
+            if isinstance(data, dict):
+                return {k: fix_step_ref_in_dict(v) for k, v in data.items()}
+            elif isinstance(data, list):
+                return [fix_step_ref_in_dict(item) for item in data]
+            elif isinstance(data, str):
+                return fix_step_ref_in_text(data)
+            return data
+        
+        # 修正场景步骤中的变量引用
+        for step in ScenarioStep.objects.filter(scenario=scenario):
+            updated = False
+            
+            # 修正覆盖URL
+            if step.override_url:
+                new_url = fix_step_ref_in_text(step.override_url)
+                if new_url != step.override_url:
+                    step.override_url = new_url
+                    updated = True
+            
+            # 修正覆盖Headers
+            if step.override_headers:
+                new_headers = fix_step_ref_in_dict(step.override_headers)
+                if new_headers != step.override_headers:
+                    step.override_headers = new_headers
+                    updated = True
+            
+            # 修正覆盖Body
+            if step.override_body:
+                new_body = fix_step_ref_in_dict(step.override_body)
+                if new_body != step.override_body:
+                    step.override_body = new_body
+                    updated = True
+            
+            # 修正覆盖断言
+            if step.override_assertions:
+                new_assertions = fix_step_ref_in_dict(step.override_assertions)
+                if new_assertions != step.override_assertions:
+                    step.override_assertions = new_assertions
+                    updated = True
+            
+            # 修正覆盖变量提取器
+            if step.override_extractors:
+                new_extractors = fix_step_ref_in_dict(step.override_extractors)
+                if new_extractors != step.override_extractors:
+                    step.override_extractors = new_extractors
+                    updated = True
+            
+            if updated:
+                step.save()
+    
+    def _create_scenario_steps(self, scenario: AutomationScenario, steps: List[Dict], 
+                               parent_step: ScenarioStep = None, step_counter: list = None,
+                               order_to_step_number: dict = None):
+        """递归创建场景步骤"""
+        # 使用列表作为可变计数器，在递归调用中保持状态
+        if step_counter is None:
+            step_counter = [0]
+        
+        for step_info in steps:
+            step_counter[0] += 1
+            current_step_number = step_counter[0]
+            
+            if step_info['type'] == 'request':
+                # 创建请求步骤
+                step = ScenarioStep.objects.create(
+                    scenario=scenario,
+                    parent=parent_step,
+                    name=step_info['name'],
+                    step_type='request',
+                    step_number=current_step_number,
+                    order=step_info['order'],
+                    api_request=step_info['request']
+                )
+                
+                # 记录 order -> step_number 的映射（用于修正变量引用）
+                if order_to_step_number is not None:
+                    order_to_step_number[step_info['order']] = current_step_number
+            elif step_info['type'] == 'group':
+                # 创建分组步骤
+                step = ScenarioStep.objects.create(
+                    scenario=scenario,
+                    parent=parent_step,
+                    name=step_info['name'],
+                    step_type='group',
+                    step_number=current_step_number,
+                    order=current_step_number
+                )
+                
+                # 递归创建子步骤，传递相同的计数器
+                if step_info.get('children'):
+                    self._create_scenario_steps(scenario, step_info['children'], step, step_counter, order_to_step_number)
+    
+    def _extract_environment(self, data: Dict):
+        """提取环境变量"""
+        # 从变量定义中提取
+        variables = data.get('variable', [])
+        if not variables:
+            return
+        
+        # 创建或更新环境
+        env_name = data.get('info', {}).get('name', 'API Fox Environment')
+        env, created = Environment.objects.get_or_create(
+            project=self.project,
+            name=env_name,
+            defaults={
+                'description': '从 API Fox 导入的环境',
+                'created_by': self.user
+            }
+        )
+        
+        # 添加变量
+        env_vars = env.variables or {}
+        for var in variables:
+            key = var.get('key', '')
+            value = var.get('value', '')
+            if key:
+                env_vars[key] = value
+        
+        env.variables = env_vars
+        env.save()
+
+
+def import_apifox_cli(file_path: str, user, project, import_env: bool = False, target_collection=None):
+    """
+    API Fox CLI JSON 文件导入的便捷函数
+    
+    Args:
+        file_path: JSON 文件路径
+        user: 导入用户
+        project: 目标项目
+        import_env: 是否导入环境变量
+        target_collection: 指定导入到哪个集合（可选）
+    
+    Returns:
+        导入结果统计
     """
     importer = ApifoxCliImporter(user, project)
-    return importer.import_from_file(file_path, import_env)
+    return importer.import_from_file(file_path, import_env, target_collection)
 
 
 def validate_apifox_file(file_path: str) -> Dict[str, Any]:
     """
-    便捷函数：验证 API Fox 文件
+    验证 API Fox CLI JSON 文件
     
-    使用示例:
-        validation = validate_apifox_file('智能体_创建.apifox-cli.json')
-        if not validation['valid']:
-            print(f"不支持的函数: {validation['unsupported_functions']}")
+    Args:
+        file_path: JSON 文件路径
+    
+    Returns:
+        验证结果
     """
-    importer = ApifoxCliImporter(None, None)
-    return importer.validate_import(file_path)
+    try:
+        with open(file_path, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+    except json.JSONDecodeError as e:
+        return {'valid': False, 'error': f'JSON 解析失败: {str(e)}'}
+    except Exception as e:
+        return {'valid': False, 'error': f'文件读取失败: {str(e)}'}
+    
+    # 检查必要字段
+    if 'item' not in data:
+        return {'valid': False, 'error': '缺少必要的 item 字段'}
+    
+    # 统计请求数量
+    total_requests = 0
+    unsupported_functions = []
+    
+    def count_requests(items):
+        nonlocal total_requests
+        for item in items:
+            if 'request' in item:
+                total_requests += 1
+                # 检查是否有不支持的函数
+                item_str = json.dumps(item)
+                # 检查动态函数
+                func_matches = re.findall(r'\{\{\$([\w.]+)\(', item_str)
+                for func in func_matches:
+                    if func not in ['string.alphanumeric', 'timestamp', 'uuid', 'randomInt', 'randomFloat']:
+                        unsupported_functions.append(func)
+            elif 'item' in item:
+                count_requests(item['item'])
+    
+    items = data.get('item', [])
+    # 处理 wrapper 结构
+    if items and isinstance(items[0], dict) and 'item' in items[0]:
+        items = items[0].get('item', [])
+
+    count_requests(items)
+
+    # 提取场景名称
+    scenario_name = ''
+    if 'info' in data and 'name' in data['info']:
+        scenario_name = data['info']['name']
+    elif items and isinstance(items[0], dict) and 'name' in items[0]:
+        # 如果只有一个文件夹，使用文件夹名称
+        scenario_name = items[0].get('name', '')
+
+    return {
+        'valid': True,
+        'total_requests': total_requests,
+        'unsupported_functions': list(set(unsupported_functions)),
+        'warnings': [],
+        'scenario_name': scenario_name
+    }
