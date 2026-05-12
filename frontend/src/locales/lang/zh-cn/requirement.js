@@ -175,7 +175,7 @@ export default {
     statusFailed: '失败',
     statusCancelled: '已取消',
     statusDraft: '草稿',
-    statusActive: '激活',
+    statusActive: '启用',
 
     // Actions
     batchDelete: '🗑️ 批量删除({count})',

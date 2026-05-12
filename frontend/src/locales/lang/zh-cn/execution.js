@@ -13,7 +13,7 @@ export default {
   createPlan: '创建',
   updatePlan: '保存',
   closePlan: '关闭',
-  activatePlan: '激活',
+  activatePlan: '启用',
   viewHistory: '历史',
 
   // Table columns
@@ -33,7 +33,7 @@ export default {
   executedAt: '执行时间',
 
   // Status
-  active: '激活',
+  active: '启用',
   closed: '已关闭',
   untested: '未测试',
   passed: '通过',
@@ -59,7 +59,7 @@ export default {
   testCases: '测试用例',
   assignees: '指派给',
   planStatus: '状态',
-  activeText: '激活',
+  activeText: '启用',
   inactiveText: '已关闭',
 
   // Placeholders
@@ -76,7 +76,7 @@ export default {
   // Filters
   selectProject: '选择项目',
   selectStatus: '选择状态',
-  filterActive: '激活',
+  filterActive: '启用',
   filterClosed: '已关闭',
 
   // Messages

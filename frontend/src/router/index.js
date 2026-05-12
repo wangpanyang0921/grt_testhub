@@ -9,7 +9,6 @@ import ProjectList from '@/views/projects/ProjectList.vue'
 import Home from '@/views/Home.vue'
 import DataFactory from '@/views/data-factory/DataFactory.vue'
 import ExcelDataFiller from '@/views/data-factory/ExcelDataFiller.vue'
-// import ApiDashboard from '@/views/api-testing/Dashboard.vue'  // 文件已删除
 import ApiProjectManagement from '@/views/api-testing/ProjectManagement.vue'
 import ApiInterfaceManagement from '@/views/api-testing/InterfaceManagement.vue'
 import ApiInterfaceList from '@/views/api-testing/InterfaceList.vue'

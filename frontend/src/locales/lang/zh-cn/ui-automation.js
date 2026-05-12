@@ -748,7 +748,7 @@ export default {
       both: '两者都发送'
     },
     statusTypes: {
-      active: '激活',
+      active: '启用',
       paused: '暂停',
       completed: '已完成',
       failed: '失败',
@@ -757,7 +757,7 @@ export default {
     actions: {
       edit: '编辑',
       pause: '暂停',
-      resume: '激活',
+      resume: '启用',
       delete: '删除'
     },
     rules: {

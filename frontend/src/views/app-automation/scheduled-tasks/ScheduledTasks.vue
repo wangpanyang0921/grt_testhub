@@ -31,7 +31,7 @@
         </el-col>
         <el-col :span="4">
           <el-select v-model="filters.status" placeholder="状态" clearable>
-            <el-option label="激活" value="ACTIVE" />
+            <el-option label="启用" value="ACTIVE" />
             <el-option label="暂停" value="PAUSED" />
             <el-option label="已完成" value="COMPLETED" />
             <el-option label="失败" value="FAILED" />
