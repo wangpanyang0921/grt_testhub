@@ -361,13 +361,18 @@ class ApifoxCliImporter:
                     else:
                         result.append(group_step)
 
-                    # 将新分组压入栈
-                    stack.append((group_step, item))
+                    # 将新分组压入栈，同时记录第一个请求索引（用于变量映射）
+                    stack.append((group_step, item, apifox_global_idx[0], None))  # (step, item, apifox_idx, first_request_testhub_idx)
 
                 elif scope_type == 'end':
                     # 分组结束，弹出栈顶
                     if stack:
-                        group_step, group_item = stack.pop()
+                        group_step, group_item, group_apifox_idx, first_request_idx = stack.pop()
+                        
+                        # 建立 group 到其第一个请求的映射（用于变量引用转换）
+                        if first_request_idx is not None:
+                            self._apifox_to_request_index[group_apifox_idx] = first_request_idx
+                            print(f"DEBUG - group Apifox[{group_apifox_idx}] 映射到第一个请求 TestHub order={first_request_idx}")
 
                         # 处理空名称的顶层分组：将其 children 提升到父级或顶层
                         if not group_step['name'] or group_step['name'].strip() == '':
@@ -414,6 +419,12 @@ class ApifoxCliImporter:
                 if request:
                     # 更新映射（用于变量引用转换）
                     self._apifox_to_request_index[apifox_global_idx[0]] = testhub_order
+                    
+                    # 如果有父分组，记录这是该分组的第一个请求（用于 group 变量映射）
+                    for i, stack_item in enumerate(stack):
+                        if len(stack_item) >= 4 and stack_item[3] is None:
+                            # 更新第一个请求索引
+                            stack[i] = (stack_item[0], stack_item[1], stack_item[2], testhub_order)
 
                     step_info = {
                         'type': 'request',
@@ -536,7 +547,10 @@ class ApifoxCliImporter:
                 
                 # 转换 URL 中的变量，并检测向前引用
                 if request.url:
+                    print(f"DEBUG - 转换URL变量: 请求'{request.name}'")
+                    print(f"DEBUG -   原始URL: {request.url}")
                     request.url, url_warning = self._convert_step_reference_with_warning(request.url, current_order)
+                    print(f"DEBUG -   转换后URL: {request.url}")
                     if url_warning:
                         self._add_request_issue(
                             request.name, 
@@ -546,6 +560,7 @@ class ApifoxCliImporter:
                         )
                         print(f"WARNING - URL向前引用: 请求'{request.name}' - {url_warning}")
                     request.url = self._convert_variables_with_context(request.url)
+                    print(f"DEBUG -   最终URL: {request.url}")
                     updated = True
                 
                 # 转换 Headers 中的变量
@@ -613,26 +628,51 @@ class ApifoxCliImporter:
                 # 转换断言中的跨步骤变量引用
                 if request.assertions:
                     assertions = request.assertions if isinstance(request.assertions, list) else json.loads(request.assertions)
+                    print(f"DEBUG - 处理请求 '{request.name}' 的断言, assertions={assertions}")
                     forward_ref_assertions = []
                     
                     for assertion in assertions:
                         has_forward_ref = False
                         assertion_name = assertion.get('name', '未命名断言')
                         
+                        # 辅助函数：将 ${...} 格式转换为 {{...}} 格式（仅用于断言字段）
+                        def convert_assertion_value(value):
+                            if not isinstance(value, str):
+                                return value
+                            # 将 ${$.N.xxx} 或 ${$N.xxx} 转换为 {{$.N.xxx}}
+                            # 支持 ${$.N.xxx}、${$N.xxx}、${.N.xxx} 等格式
+                            original = value
+                            result = re.sub(r'\$\{(\$[^}]+)\}', r'{{\1}}', value)
+                            if original != result:
+                                print(f"DEBUG - 断言值格式转换: '{original}' -> '{result}'")
+                            return result
+                        
                         # 转换所有字段，同时检测是否存在向前引用
+                        print(f"DEBUG - 处理断言 '{assertion_name}' (current_order={current_order})")
+                        
                         if 'expected' in assertion:
-                            assertion['expected'], warning = self._convert_step_reference_with_warning(assertion['expected'], current_order)
+                            original = assertion['expected']
+                            expected_value = convert_assertion_value(assertion['expected'])
+                            print(f"DEBUG -   expected 原始值: '{original}' -> 格式转换后: '{expected_value}'")
+                            expected_value, warning = self._convert_step_reference_with_warning(expected_value, current_order)
+                            print(f"DEBUG -   expected 索引映射后: '{expected_value}'")
                             if warning:
                                 has_forward_ref = True
+                            assertion['expected'] = self._convert_variables_with_context(expected_value)
+                            print(f"DEBUG -   expected 最终值: '{assertion['expected']}'")
                         
                         if 'expected_value' in assertion:
-                            assertion['expected_value'], warning = self._convert_step_reference_with_warning(assertion['expected_value'], current_order)
+                            expected_val = convert_assertion_value(assertion['expected_value'])
+                            expected_val, warning = self._convert_step_reference_with_warning(expected_val, current_order)
                             if warning:
                                 has_forward_ref = True
+                            assertion['expected_value'] = self._convert_variables_with_context(expected_val)
                         if 'expected_display' in assertion:
-                            assertion['expected_display'], warning = self._convert_step_reference_with_warning(assertion['expected_display'], current_order)
+                            expected_disp = convert_assertion_value(assertion['expected_display'])
+                            expected_disp, warning = self._convert_step_reference_with_warning(expected_disp, current_order)
                             if warning:
                                 has_forward_ref = True
+                            assertion['expected_display'] = self._convert_variables_with_context(expected_disp)
                         
                         # 记录存在向前引用的断言
                         if has_forward_ref:
@@ -650,6 +690,7 @@ class ApifoxCliImporter:
                         print(f"INFO - 请求'{request.name}'共发现{len(forward_ref_assertions)}个向前引用的断言")
                     
                     request.assertions = assertions  # 保留所有断言（包括向前引用的）
+                    print(f"DEBUG - 请求 '{request.name}' 断言已更新: {assertions}")
                     updated = True
                 
                 # 转换变量提取器中的跨步骤变量引用
@@ -701,21 +742,48 @@ class ApifoxCliImporter:
         def replace_func(match):
             func_expr = match.group(1).strip()
             
-            # 处理跨步骤变量引用，如 {{$.9.request.body.xxx}}
-            if func_expr.startswith('.'):
-                parts = func_expr.split('.')
-                if len(parts) >= 2 and parts[1].isdigit():
-                    apifox_idx = int(parts[1])
+            # 处理跨步骤变量引用，如 {{$.9.request.body.xxx}} 或 {{$9.request.body.xxx}}
+            parts = func_expr.split('.')
+            
+            # 检查是否为跨步骤引用格式：$.N.xxx 或 N.xxx（N为数字或*通配符）
+            if len(parts) >= 2:
+                # 情况1: $.N.xxx（parts[0]为空字符串，parts[1]为数字或*）
+                # 情况2: N.xxx（parts[0]为数字或*）
+                apifox_idx = None
+                is_wildcard = False
+                
+                if parts[0] == '' and len(parts) >= 3:
+                    # 格式: $.N.xxx，检查 parts[1] 是否为数字或 *
+                    if parts[1].isdigit():
+                        apifox_idx = int(parts[1])
+                    elif parts[1] == '*':
+                        is_wildcard = True
                     
-                    # 使用映射表查找对应的 TestHub 索引
-                    if apifox_idx in self._apifox_to_request_index:
+                    # 保持原有的点号格式，只替换索引
+                    if apifox_idx is not None and apifox_idx in self._apifox_to_request_index:
                         testhub_order = self._apifox_to_request_index[apifox_idx]
-                        parts[1] = str(testhub_order)  # 已经是 1-based
+                        parts[1] = str(testhub_order)
                         return '{{$' + '.'.join(parts) + '}}'
-                    else:
-                        print(f"警告: 找不到 Apifox 索引 {apifox_idx} 的映射")
+                    elif is_wildcard:
+                        # * 通配符保留原样，由调用方处理
                         return match.group(0)
-                return match.group(0)
+                        
+                elif parts[0].isdigit() or parts[0] == '*':
+                    # 格式: N.xxx（Apifox格式，需要转换为 $.N.xxx）
+                    if parts[0].isdigit():
+                        apifox_idx = int(parts[0])
+                        if apifox_idx in self._apifox_to_request_index:
+                            testhub_order = self._apifox_to_request_index[apifox_idx]
+                            parts[0] = str(testhub_order)
+                            # 转换为 TestHub 格式：$.N.xxx
+                            return '{{$.' + '.'.join(parts) + '}}'
+                    elif parts[0] == '*':
+                        # * 通配符保留原样，由调用方处理
+                        return match.group(0)
+                
+                if apifox_idx is not None and apifox_idx not in self._apifox_to_request_index:
+                    print(f"警告: 找不到 Apifox 索引 {apifox_idx} 的映射")
+                    return match.group(0)
             
             # 处理动态函数（不区分大小写）
             if '(' in func_expr:
@@ -795,24 +863,34 @@ class ApifoxCliImporter:
         return request
     
     def _parse_url(self, url_data: Union[Dict, str]) -> str:
-        """解析 URL"""
+        """解析 URL，只返回路径部分（去掉域名）
+        
+        域名将通过执行环境的 base_url 变量来替换
+        查询参数由 _parse_params 单独处理，不在 URL 中包含
+        """
         if isinstance(url_data, str):
+            # 如果是字符串形式的完整 URL，尝试提取路径
+            if url_data.startswith('http://') or url_data.startswith('https://'):
+                try:
+                    from urllib.parse import urlparse
+                    parsed = urlparse(url_data)
+                    path = parsed.path
+                    return path if path else '/'
+                except Exception:
+                    pass
             return url_data
         
         if not isinstance(url_data, dict):
             return '/'
         
-        # 构建完整 URL
-        protocol = url_data.get('protocol', 'https')
-        host = '.'.join(url_data.get('host', ['']))
+        # 只提取路径部分，忽略域名和查询参数
         path = '/'.join(url_data.get('path', []))
         
-        if host:
-            url = f"{protocol}://{host}/{path}"
-        else:
-            url = f"/{path}" if path else '/'
+        # 确保路径以 / 开头
+        if path and not path.startswith('/'):
+            path = f"/{path}"
         
-        return url
+        return path if path else '/'
     
     def _parse_headers(self, headers: List[Dict]) -> Dict[str, str]:
         """解析 Headers"""
@@ -981,18 +1059,39 @@ class ApifoxCliImporter:
             return text, None
         
         import re
-        # 匹配跨步骤引用: {{$.数字.request.xxx}} 或 {{$..数字.request.xxx}}
-        # 支持两种格式：$.N 和 $..N
-        pattern = r'\{\{\$\.{1,2}(\d+)\.(request|response)\.(body|headers|params)(?:\.(.*))?\}\}'
+        # 匹配跨步骤引用: {{$.数字.request.xxx}} 或 {{$..数字.request.xxx}} 或 {{$数字.request.xxx}}
+        # 支持三种格式：$.N、$..N、$N
+        # 同时支持 * 通配符表示上一个步骤
+        pattern = r'\{\{\$\.?(\d+|\*)\.(request|response)\.(body|headers|params)(?:\.(.*))?\}\}'
         
         warning = None
         
         def replace_ref(match):
             nonlocal warning
-            apifox_idx = int(match.group(1))
+            idx_str = match.group(1)
             rest = match.group(2) + '.' + match.group(3)
             if match.group(4):
                 rest += '.' + match.group(4)
+            
+            # 处理 * 通配符（表示引用上一个步骤）
+            if idx_str == '*':
+                if current_order is not None and current_order > 1:
+                    # 引用当前步骤的前一个步骤
+                    prev_order = current_order - 1
+                    result = f'{{{{$.{prev_order}.{rest}}}}}'
+                    print(f"DEBUG - 转换通配符引用: * -> TestHub[{prev_order}]: {result}")
+                    return result
+                else:
+                    warning_msg = "无法解析通配符 *（当前步骤未知或是第一个步骤）"
+                    print(f"WARNING - {warning_msg}")
+                    if warning is None:
+                        warning = warning_msg
+                    else:
+                        warning += f"; {warning_msg}"
+                    return match.group(0)
+            
+            # 处理数字索引
+            apifox_idx = int(idx_str)
             
             # 查找映射
             if apifox_idx in self._apifox_to_request_index:

@@ -37,29 +37,22 @@
           </span>
         </div>
         <div class="header-actions" v-if="suite">
-          <el-button type="success" @click="runTestSuite" :loading="running">
-            <el-icon><VideoPlay /></el-icon>
-            {{ $t('apiTesting.automation.runTest') }}
-          </el-button>
-          <el-button type="warning" @click="showAddRequest">
-            <el-icon><Plus /></el-icon>
-            {{ $t('apiTesting.automation.addRequest') }}
-          </el-button>
-          <!-- 评审按钮 - 只有未评审且不是创建者时显示 -->
-          <template v-if="reviewSummary && !userHasReviewed && !isCreator">
-            <el-button type="success" @click="submitReview('approved')">
-              <el-icon><Check /></el-icon>
-              通过
-            </el-button>
-            <el-button type="danger" @click="showRejectDialog = true">
-              <el-icon><Close /></el-icon>
-              拒绝
-            </el-button>
-          </template>
-          <el-button type="primary" @click="editSuite">
-            <el-icon><Edit /></el-icon>
-            {{ $t('apiTesting.common.edit') }}
-          </el-button>
+          <!-- 执行环境选择器 -->
+          <el-select
+            :model-value="suite.environment?.id || suite.environment"
+            :placeholder="$t('apiTesting.automation.selectEnvironment')"
+            clearable
+            class="env-select-inline"
+            @change="handleEnvironmentChange"
+            style="width: 140px;"
+          >
+            <el-option
+              v-for="env in environments"
+              :key="env.id"
+              :label="env.name"
+              :value="env.id"
+            />
+          </el-select>
         </div>
       </div>
 
@@ -67,6 +60,27 @@
       <div class="requests-section" v-if="suite">
         <div class="section-header">
           <h4>场景编排</h4>
+          <div class="section-actions">
+            <el-button type="success" @click="runTestSuite" :loading="running">
+              <el-icon><VideoPlay /></el-icon>
+              {{ $t('apiTesting.automation.runTest') }}
+            </el-button>
+            <el-button type="warning" @click="showAddRequest">
+              <el-icon><Plus /></el-icon>
+              {{ $t('apiTesting.automation.addRequest') }}
+            </el-button>
+            <!-- 评审按钮 - 只有未评审且不是创建者时显示 -->
+            <template v-if="reviewSummary && !userHasReviewed && !isCreator">
+              <el-button type="success" @click="submitReview('approved')">
+                <el-icon><Check /></el-icon>
+                通过
+              </el-button>
+              <el-button type="danger" @click="showRejectDialog = true">
+                <el-icon><Close /></el-icon>
+                拒绝
+              </el-button>
+            </template>
+          </div>
         </div>
         
         <div class="requests-tree" v-if="suite.suite_requests?.length > 0">
@@ -241,7 +255,7 @@
         label-width="100px"
       >
         <el-form-item :label="$t('apiTesting.automation.suiteName')" prop="name">
-          <el-input v-model="editForm.name" :placeholder="$t('apiTesting.automation.inputSuiteName')" />
+          <el-input v-model="editForm.name" :placeholder="$t('apiTesting.automation.inputSuiteName')" class="suite-name-input" style="width: 320px;" />
         </el-form-item>
 
         <el-form-item :label="$t('apiTesting.automation.suiteDescription')" prop="description">
@@ -254,16 +268,6 @@
           />
         </el-form-item>
 
-        <el-form-item :label="$t('apiTesting.automation.executionEnvironment')" prop="environment">
-          <el-select v-model="editForm.environment" :placeholder="$t('apiTesting.automation.selectEnvironment')" clearable class="env-select">
-            <el-option
-              v-for="env in environments"
-              :key="env.id"
-              :label="env.name"
-              :value="env.id"
-            />
-          </el-select>
-        </el-form-item>
       </el-form>
 
       <template #footer>
@@ -949,7 +953,7 @@
 
       <template #footer>
         <div class="drawer-footer">
-          <el-button @click="showEditRequestDialog = false">取消</el-button>
+          <el-button type="default" class="btn-cancel" @click="showEditRequestDialog = false">取消</el-button>
           <el-button type="primary" @click="saveRequestEdit" :loading="savingRequestEdit">保存</el-button>
         </div>
       </template>
@@ -959,10 +963,11 @@
     <el-drawer
       v-model="showVariablePickerDialog"
       title="插入动态值"
-      size="450px"
+      size="550px"
       direction="rtl"
       :close-on-click-modal="false"
       append-to-body
+      class="variable-picker-drawer"
     >
       <div class="variable-picker-content">
         <div class="picker-section">
@@ -970,7 +975,6 @@
           <el-radio-group v-model="selectedVarCategory" size="small">
             <el-radio-button label="prev">前置接口</el-radio-button>
             <el-radio-button label="env">环境变量</el-radio-button>
-            <el-radio-button label="global">全局变量</el-radio-button>
             <el-radio-button label="dynamic">动态函数</el-radio-button>
           </el-radio-group>
         </div>
@@ -1081,36 +1085,130 @@
 
         <!-- 动态函数 -->
         <div v-if="selectedVarCategory === 'dynamic'" class="picker-section">
-          <div class="section-title">选择函数</div>
-          <el-select v-model="selectedFunction" style="width: 100%">
-            <el-option label="随机字符串" value="random_string" />
-            <el-option label="随机数字" value="random_int" />
-            <el-option label="UUID" value="uuid" />
-            <el-option label="时间戳" value="timestamp" />
+          <div class="section-title">选择函数分类</div>
+          <el-select v-model="selectedFunctionCategory" placeholder="选择函数分类" style="width: 100%; margin-bottom: 16px;">
+            <el-option
+              v-for="category in functionCategories"
+              :key="category.value"
+              :label="category.label"
+              :value="category.value"
+            />
           </el-select>
-          <div v-if="selectedFunction === 'random_string' || selectedFunction === 'random_int'" class="function-params">
-            <div class="section-title">参数</div>
-            <el-input-number v-model="funcParam1" :min="1" :max="100" style="width: 120px" />
-            <span class="param-hint">长度/范围</span>
+
+          <div v-if="selectedFunctionCategory" class="section-title">选择函数</div>
+          <el-select
+            v-if="selectedFunctionCategory"
+            v-model="selectedFunction"
+            placeholder="选择函数"
+            style="width: 100%"
+            filterable
+          >
+            <el-option
+              v-for="func in filteredFunctions"
+              :key="func.name"
+              :label="func.display_name"
+              :value="func.name"
+            >
+              <div class="function-option">
+                <span class="function-name">{{ func.display_name }}</span>
+                <span class="function-desc">{{ func.description }}</span>
+              </div>
+            </el-option>
+          </el-select>
+
+          <!-- 参数输入区域 -->
+          <div v-if="selectedFunction && functionNeedsParams" class="function-params">
+            <div class="section-title">参数配置</div>
+
+            <!-- 随机字符串/随机整数参数 -->
+            <div v-if="selectedFunction === 'random_string' || selectedFunction === 'random_int'" class="param-row">
+              <el-input-number v-model="funcParam1" :min="1" :max="100" style="width: 120px" />
+              <span class="param-hint">{{ selectedFunction === 'random_string' ? '长度' : '最大值' }}</span>
+            </div>
+
+            <!-- 随机浮点数参数 -->
+            <div v-else-if="selectedFunction === 'random_float'" class="param-row">
+              <el-input-number v-model="funcParamMin" :precision="2" style="width: 140px" placeholder="最小值" />
+              <span class="param-separator">~</span>
+              <el-input-number v-model="funcParamMax" :precision="2" style="width: 140px" placeholder="最大值" />
+            </div>
+
+            <!-- 随机日期参数 -->
+            <div v-else-if="selectedFunction === 'random_date'" class="param-row">
+              <el-date-picker
+                v-model="funcParamDateStart"
+                type="date"
+                placeholder="开始日期"
+                style="width: 140px"
+                value-format="YYYY-MM-DD"
+              />
+              <span class="param-separator">~</span>
+              <el-date-picker
+                v-model="funcParamDateEnd"
+                type="date"
+                placeholder="结束日期"
+                style="width: 140px"
+                value-format="YYYY-MM-DD"
+              />
+            </div>
+
+            <!-- 随机密码参数 -->
+            <div v-else-if="selectedFunction === 'random_password'" class="param-row">
+              <el-input-number v-model="funcParam1" :min="6" :max="32" style="width: 120px" />
+              <span class="param-hint">密码长度</span>
+            </div>
+
+            <!-- 随机IP地址参数 -->
+            <div v-else-if="selectedFunction === 'random_ip_address'" class="param-row">
+              <el-radio-group v-model="funcParamIpType" size="small">
+                <el-radio-button label="ipv4">IPv4</el-radio-button>
+                <el-radio-button label="ipv6">IPv6</el-radio-button>
+              </el-radio-group>
+            </div>
+
+            <!-- 其他需要参数的函数 -->
+            <div v-else class="param-row">
+              <el-input v-model="funcParamString" placeholder="输入参数（可选）" style="width: 200px" />
+            </div>
           </div>
-          <div class="var-hint" v-pre>用法: {{$函数名(参数)}}</div>
+
+          <!-- 函数语法和示例说明 -->
+          <div v-if="selectedFunction && currentFunction" class="function-syntax-section">
+            <div class="syntax-row description-row">
+              <span class="syntax-label">描述：</span>
+              <span class="syntax-description">{{ currentFunction.description }}</span>
+            </div>
+            <div class="syntax-row">
+              <span class="syntax-label">语法：</span>
+              <code class="syntax-code">{{ currentFunction.syntax }}</code>
+            </div>
+            <div class="syntax-row">
+              <span class="syntax-label">示例：</span>
+              <code class="syntax-code">{{ currentFunction.example }}</code>
+            </div>
+          </div>
+
         </div>
 
         <div class="preview-section">
-          <div class="section-title">预览</div>
-          <el-input v-model="variablePreview" readonly class="preview-input">
-            <template #append>
-              <el-button @click="copyVariableToClipboard">
-                <el-icon><CopyDocument /></el-icon>
-              </el-button>
-            </template>
-          </el-input>
+          <div class="preview-row">
+            <div class="section-title">预览</div>
+            <el-input v-model="variablePreview" readonly class="preview-input">
+              <template #append>
+                <el-button @click="copyVariableToClipboard">
+                  <el-icon><CopyDocument /></el-icon>
+                </el-button>
+              </template>
+            </el-input>
+          </div>
         </div>
       </div>
 
       <template #footer>
-        <el-button @click="closeVariablePicker">取消</el-button>
-        <el-button type="primary" @click="confirmVariableInsertion">插入</el-button>
+        <div class="drawer-footer">
+          <el-button type="default" class="btn-cancel" @click="closeVariablePicker">取消</el-button>
+          <el-button type="primary" @click="confirmVariableInsertion">插入</el-button>
+        </div>
       </template>
     </el-drawer>
   </div>
@@ -1207,9 +1305,177 @@ const editingAssertionsList = ref([])
 const showVariablePickerDialog = ref(false)
 const selectedVarCategory = ref('env')
 const varName = ref('')
-const selectedFunction = ref('random_string')
+const selectedFunction = ref('')
+const selectedFunctionCategory = ref('')
 const funcParam1 = ref(8)
+const funcParamMin = ref(0)
+const funcParamMax = ref(100)
+const funcParamDateStart = ref('')
+const funcParamDateEnd = ref('')
+const funcParamIpType = ref('ipv4')
+const funcParamString = ref('')
 const variablePickerTarget = ref({ type: '', index: -1 })
+
+// 函数分类列表
+const functionCategories = [
+  { label: '测试数据', value: 'test_data' },
+  { label: '随机工具', value: 'random' },
+  { label: '编码工具', value: 'encoding' },
+  { label: '加密工具', value: 'encryption' },
+  { label: '字符工具', value: 'string' },
+  { label: 'JSON工具', value: 'json' },
+  { label: '专业工具', value: 'professional' },
+  { label: '系统工具', value: 'system' },
+  { label: '娱乐工具', value: 'entertainment' },
+  { label: 'Mock图片', value: 'mock_image' }
+]
+
+// 数据工厂函数列表
+const dataFactoryFunctions = [
+  // 测试数据
+  { name: 'generate_chinese_name', display_name: '生成中文姓名', description: '生成随机中文姓名', category: 'test_data', hasParams: false, syntax: '{{$generate_chinese_name()}}', example: '{{$generate_chinese_name()}}' },
+  { name: 'generate_chinese_phone', display_name: '生成手机号', description: '生成随机中国手机号', category: 'test_data', hasParams: false, syntax: '{{$generate_chinese_phone()}}', example: '{{$generate_chinese_phone()}}' },
+  { name: 'generate_chinese_email', display_name: '生成邮箱', description: '生成随机邮箱地址', category: 'test_data', hasParams: false, syntax: '{{$generate_chinese_email()}}', example: '{{$generate_chinese_email()}}' },
+  { name: 'generate_chinese_address', display_name: '生成地址', description: '生成随机中文地址', category: 'test_data', hasParams: false, syntax: '{{$generate_chinese_address()}}', example: '{{$generate_chinese_address()}}' },
+  { name: 'generate_id_card', display_name: '生成身份证号', description: '生成随机身份证号', category: 'test_data', hasParams: false, syntax: '{{$generate_id_card()}}', example: '{{$generate_id_card()}}' },
+  { name: 'generate_company_name', display_name: '生成公司名称', description: '生成随机公司名称', category: 'test_data', hasParams: false, syntax: '{{$generate_company_name()}}', example: '{{$generate_company_name()}}' },
+  { name: 'generate_bank_card', display_name: '生成银行卡号', description: '生成随机银行卡号', category: 'test_data', hasParams: false, syntax: '{{$generate_bank_card()}}', example: '{{$generate_bank_card()}}' },
+  { name: 'generate_hk_id_card', display_name: '生成香港身份证号', description: '生成随机香港身份证号', category: 'test_data', hasParams: false, syntax: '{{$generate_hk_id_card()}}', example: '{{$generate_hk_id_card()}}' },
+  { name: 'generate_business_license', display_name: '生成营业执照号', description: '生成随机营业执照号', category: 'test_data', hasParams: false, syntax: '{{$generate_business_license()}}', example: '{{$generate_business_license()}}' },
+  { name: 'generate_coordinates', display_name: '生成经纬度', description: '生成随机经纬度数据', category: 'test_data', hasParams: false, syntax: '{{$generate_coordinates()}}', example: '{{$generate_coordinates()}}' },
+  { name: 'generate_user_profile', display_name: '生成用户档案', description: '生成完整用户档案', category: 'test_data', hasParams: false, syntax: '{{$generate_user_profile()}}', example: '{{$generate_user_profile()}}' },
+
+  // 随机工具
+  { name: 'random_int', display_name: '随机整数', description: '生成指定范围的随机整数', category: 'random', hasParams: true, syntax: '{{$random_int(min, max)}}', example: '{{$random_int(1, 100)}}' },
+  { name: 'random_float', display_name: '随机浮点数', description: '生成指定范围的随机浮点数', category: 'random', hasParams: true, syntax: '{{$random_float(min, max, decimals)}}', example: '{{$random_float(0.1, 9.9, 2)}}' },
+  { name: 'random_string', display_name: '随机字符串', description: '生成指定长度的随机字符串', category: 'random', hasParams: true, syntax: '{{$random_string(length, char_type)}}', example: '{{$random_string(10, "alphanumeric")}}' },
+  { name: 'random_uuid', display_name: '随机UUID', description: '生成随机UUID(GUID)', category: 'random', hasParams: false, syntax: '{{$random_uuid()}}', example: '{{$random_uuid()}}' },
+  { name: 'random_boolean', display_name: '随机布尔值', description: '生成随机布尔值', category: 'random', hasParams: false, syntax: '{{$random_boolean()}}', example: '{{$random_boolean()}}' },
+  { name: 'random_mac_address', display_name: '随机MAC地址', description: '生成随机MAC地址', category: 'random', hasParams: false, syntax: '{{$random_mac_address()}}', example: '{{$random_mac_address()}}' },
+  { name: 'random_ip_address', display_name: '随机IP地址', description: '生成随机IP地址(IPv4/IPv6)', category: 'random', hasParams: true, syntax: '{{$random_ip_address(ip_version)}}', example: '{{$random_ip_address("ipv4")}}' },
+  { name: 'random_date', display_name: '随机日期', description: '生成指定范围内的随机日期', category: 'random', hasParams: true, syntax: '{{$random_date(start_date, end_date, format)}}', example: '{{$random_date("2024-01-01", "2024-12-31", "yyyy-MM-dd")}}' },
+  { name: 'random_password', display_name: '随机密码', description: '生成随机密码(包含大小写、数字、特殊字符)', category: 'random', hasParams: true, syntax: '{{$random_password(length)}}', example: '{{$random_password(12)}}' },
+  { name: 'random_color', display_name: '随机颜色', description: '生成随机颜色数据', category: 'random', hasParams: false, syntax: '{{$random_color()}}', example: '{{$random_color()}}' },
+  { name: 'random_sequence', display_name: '随机序列数据', description: '生成随机序列数据', category: 'random', hasParams: false, syntax: '{{$random_sequence()}}', example: '{{$random_sequence()}}' },
+
+  // 编码工具
+  { name: 'timestamp_convert', display_name: '时间戳转换', description: '时间戳与日期时间相互转换', category: 'encoding', hasParams: false, syntax: '{{$timestamp_convert()}}', example: '{{$timestamp_convert()}}' },
+  { name: 'base_convert', display_name: '进制转换', description: '不同进制之间的转换', category: 'encoding', hasParams: false, syntax: '{{$base_convert()}}', example: '{{$base_convert()}}' },
+  { name: 'unicode_convert', display_name: 'Unicode转换', description: '中文与Unicode相互转换', category: 'encoding', hasParams: false, syntax: '{{$unicode_convert()}}', example: '{{$unicode_convert()}}' },
+  { name: 'ascii_convert', display_name: 'ASCII转换', description: '字符与ASCII码相互转换', category: 'encoding', hasParams: false, syntax: '{{$ascii_convert()}}', example: '{{$ascii_convert()}}' },
+  { name: 'color_convert', display_name: '颜色值转换', description: '不同颜色格式之间的转换', category: 'encoding', hasParams: false, syntax: '{{$color_convert()}}', example: '{{$color_convert()}}' },
+  { name: 'url_encode', display_name: 'URL编码', description: '使用URL算法加密数据', category: 'encoding', hasParams: false, syntax: '{{$url_encode()}}', example: '{{$url_encode()}}' },
+  { name: 'url_decode', display_name: 'URL解码', description: '使用URL算法解密数据', category: 'encoding', hasParams: false, syntax: '{{$url_decode()}}', example: '{{$url_decode()}}' },
+  { name: 'jwt_decode', display_name: 'JWT解码', description: '解码JWT令牌', category: 'encoding', hasParams: false, syntax: '{{$jwt_decode()}}', example: '{{$jwt_decode()}}' },
+  { name: 'base64_encode', display_name: 'Base64编码', description: '使用Base64算法加密数据', category: 'encoding', hasParams: false, syntax: '{{$base64_encode()}}', example: '{{$base64_encode()}}' },
+  { name: 'base64_decode', display_name: 'Base64解码', description: '使用Base64算法解密数据', category: 'encoding', hasParams: false, syntax: '{{$base64_decode()}}', example: '{{$base64_decode()}}' },
+
+  // 加密工具
+  { name: 'md5_hash', display_name: 'MD5加密', description: '生成MD5哈希值', category: 'encryption', hasParams: false, syntax: '{{$md5_hash()}}', example: '{{$md5_hash()}}' },
+  { name: 'sha1_hash', display_name: 'SHA1加密', description: '生成SHA1哈希值', category: 'encryption', hasParams: false, syntax: '{{$sha1_hash()}}', example: '{{$sha1_hash()}}' },
+  { name: 'sha256_hash', display_name: 'SHA256加密', description: '生成SHA256哈希值', category: 'encryption', hasParams: false, syntax: '{{$sha256_hash()}}', example: '{{$sha256_hash()}}' },
+  { name: 'sha512_hash', display_name: 'SHA512加密', description: '生成SHA512哈希值', category: 'encryption', hasParams: false, syntax: '{{$sha512_hash()}}', example: '{{$sha512_hash()}}' },
+  { name: 'aes_encrypt', display_name: 'AES加密', description: '使用AES算法加密数据', category: 'encryption', hasParams: false, syntax: '{{$aes_encrypt()}}', example: '{{$aes_encrypt()}}' },
+  { name: 'aes_decrypt', display_name: 'AES解密', description: '使用AES算法解密数据', category: 'encryption', hasParams: false, syntax: '{{$aes_decrypt()}}', example: '{{$aes_decrypt()}}' },
+  { name: 'password_strength', display_name: '密码强度分析', description: '分析密码的强度', category: 'encryption', hasParams: false, syntax: '{{$password_strength()}}', example: '{{$password_strength()}}' },
+  { name: 'generate_salt', display_name: '随机盐值', description: '生成随机盐值数据', category: 'encryption', hasParams: false, syntax: '{{$generate_salt()}}', example: '{{$generate_salt()}}' },
+
+  // 字符工具
+  { name: 'text_diff', display_name: '文本对比', description: '对比两段文本的差异', category: 'string', hasParams: false, syntax: '{{$text_diff()}}', example: '{{$text_diff()}}' },
+  { name: 'regex_test', display_name: '正则测试', description: '测试正则表达式的匹配结果', category: 'string', hasParams: false, syntax: '{{$regex_test()}}', example: '{{$regex_test()}}' },
+  { name: 'remove_whitespace', display_name: '去除空格换行', description: '去除字符串中的空格和换行符', category: 'string', hasParams: false, syntax: '{{$remove_whitespace()}}', example: '{{$remove_whitespace()}}' },
+  { name: 'replace_string', display_name: '字符串替换', description: '替换字符串中的内容', category: 'string', hasParams: false, syntax: '{{$replace_string()}}', example: '{{$replace_string()}}' },
+  { name: 'escape_string', display_name: '字符串转义', description: '将字符串进行转义处理', category: 'string', hasParams: false, syntax: '{{$escape_string()}}', example: '{{$escape_string()}}' },
+  { name: 'unescape_string', display_name: '字符串反转义', description: '将转义字符串还原', category: 'string', hasParams: false, syntax: '{{$unescape_string()}}', example: '{{$unescape_string()}}' },
+  { name: 'word_count', display_name: '字数统计', description: '统计字符串的字数和字符数', category: 'string', hasParams: false, syntax: '{{$word_count()}}', example: '{{$word_count()}}' },
+  { name: 'case_convert', display_name: '大小写转换', description: '转换字符串的大小写', category: 'string', hasParams: false, syntax: '{{$case_convert()}}', example: '{{$case_convert()}}' },
+  { name: 'string_format', display_name: '字符串格式化', description: '格式化字符串', category: 'string', hasParams: false, syntax: '{{$string_format()}}', example: '{{$string_format()}}' },
+
+  // JSON工具
+  { name: 'format_json', display_name: 'JSON格式化', description: '格式化或压缩JSON数据', category: 'json', hasParams: false, syntax: '{{$format_json()}}', example: '{{$format_json()}}' },
+  { name: 'validate_json', display_name: 'JSON校验', description: '验证JSON格式的正确性', category: 'json', hasParams: false, syntax: '{{$validate_json()}}', example: '{{$validate_json()}}' },
+  { name: 'json_diff_enhanced', display_name: 'JSON对比', description: '对比两个JSON数据的差异', category: 'json', hasParams: false, syntax: '{{$json_diff_enhanced()}}', example: '{{$json_diff_enhanced()}}' },
+  { name: 'jsonpath_query', display_name: 'JSONPath查询', description: '使用JSONPath表达式查询JSON数据', category: 'json', hasParams: false, syntax: '{{$jsonpath_query()}}', example: '{{$jsonpath_query()}}' },
+  { name: 'json_flatten', display_name: '扁平化JSON', description: '将嵌套JSON扁平化', category: 'json', hasParams: false, syntax: '{{$json_flatten()}}', example: '{{$json_flatten()}}' },
+  { name: 'json_path_list', display_name: 'JSON路径', description: '列出JSON的所有路径', category: 'json', hasParams: false, syntax: '{{$json_path_list()}}', example: '{{$json_path_list()}}' },
+  { name: 'json_to_xml', display_name: 'JSON转XML', description: '将JSON转换为XML格式', category: 'json', hasParams: false, syntax: '{{$json_to_xml()}}', example: '{{$json_to_xml()}}' },
+  { name: 'xml_to_json', display_name: 'XML转JSON', description: '将XML转换为JSON格式', category: 'json', hasParams: false, syntax: '{{$xml_to_json()}}', example: '{{$xml_to_json()}}' },
+  { name: 'json_to_yaml', display_name: 'JSON转YAML', description: '将JSON转换为YAML格式', category: 'json', hasParams: false, syntax: '{{$json_to_yaml()}}', example: '{{$json_to_yaml()}}' },
+  { name: 'yaml_to_json', display_name: 'YAML转JSON', description: '将YAML转换为JSON格式', category: 'json', hasParams: false },
+
+  // 专业工具 - 科学
+  { name: 'science_chemical_element', display_name: '随机化学元素', description: '生成随机化学元素信息', category: 'professional', hasParams: false },
+  { name: 'science_chemical_symbol', display_name: '随机化学元素符号', description: '生成随机化学元素符号', category: 'professional', hasParams: false },
+  { name: 'science_chemical_name', display_name: '随机化学元素名称', description: '生成随机化学元素名称', category: 'professional', hasParams: false },
+  { name: 'science_unit', display_name: '随机科学单位', description: '生成随机科学单位', category: 'professional', hasParams: false },
+  // 专业工具 - 航空
+  { name: 'airline_name', display_name: '随机航空公司', description: '生成随机航空公司名称', category: 'professional', hasParams: false },
+  { name: 'airline_iata_code', display_name: '随机航司IATA代码', description: '生成随机航空公司IATA代码', category: 'professional', hasParams: false },
+  { name: 'airline_airport', display_name: '随机机场信息', description: '生成随机机场完整信息', category: 'professional', hasParams: false },
+  { name: 'airline_airport_name', display_name: '随机机场名称', description: '生成随机机场名称', category: 'professional', hasParams: false },
+  { name: 'airline_airport_iata_code', display_name: '随机机场IATA代码', description: '生成随机机场IATA代码', category: 'professional', hasParams: false },
+  { name: 'airline_aircraft_type', display_name: '随机机型', description: '生成随机飞机型号', category: 'professional', hasParams: false },
+  // 专业工具 - 车辆
+  { name: 'vehicle_manufacturer', display_name: '随机车辆制造商', description: '生成随机车辆制造商', category: 'professional', hasParams: false },
+  { name: 'vehicle_model', display_name: '随机车辆型号', description: '生成随机车辆型号', category: 'professional', hasParams: false },
+  { name: 'vehicle_type', display_name: '随机车辆类型', description: '生成随机车辆类型', category: 'professional', hasParams: false },
+  { name: 'vehicle_fuel_type', display_name: '随机燃料类型', description: '生成随机车辆燃料类型', category: 'professional', hasParams: false },
+  // 专业工具 - 数据库
+  { name: 'database_type', display_name: '随机数据库类型', description: '生成随机数据库类型', category: 'professional', hasParams: false },
+  { name: 'database_column', display_name: '随机数据库列名', description: '生成随机数据库列名', category: 'professional', hasParams: false },
+  { name: 'database_engine', display_name: '随机数据库引擎', description: '生成随机数据库引擎', category: 'professional', hasParams: false },
+
+  // 系统工具 - Git
+  { name: 'git_branch', display_name: '随机Git分支名', description: '生成随机Git分支名称', category: 'system', hasParams: false },
+  { name: 'git_commit_message', display_name: '随机Git提交信息', description: '生成随机Git提交信息', category: 'system', hasParams: false },
+  { name: 'git_commit_sha', display_name: '随机Git Commit SHA', description: '生成随机Git commit SHA', category: 'system', hasParams: false },
+  { name: 'git_short_commit_sha', display_name: '随机短Commit SHA', description: '生成随机短Git commit SHA(7位)', category: 'system', hasParams: false },
+  // 系统工具 - 文件系统
+  { name: 'system_file_name', display_name: '随机文件名', description: '生成随机文件名', category: 'system', hasParams: false },
+  { name: 'system_file_ext', display_name: '随机文件扩展名', description: '生成随机文件扩展名', category: 'system', hasParams: false },
+  { name: 'system_directory_path', display_name: '随机目录路径', description: '生成随机目录路径', category: 'system', hasParams: false },
+  { name: 'system_file_path', display_name: '随机文件路径', description: '生成随机完整文件路径', category: 'system', hasParams: false },
+  { name: 'system_mime_type', display_name: '随机MIME类型', description: '生成随机MIME类型', category: 'system', hasParams: false },
+  // 系统工具 - 版本和平台
+  { name: 'system_semver', display_name: '随机语义化版本号', description: '生成随机语义化版本号', category: 'system', hasParams: false },
+  { name: 'system_platform', display_name: '随机平台名', description: '生成随机操作系统平台名', category: 'system', hasParams: false },
+  { name: 'system_arch', display_name: '随机系统架构', description: '生成随机系统架构', category: 'system', hasParams: false },
+
+  // 娱乐工具 - 音乐
+  { name: 'music_genre', display_name: '随机音乐类型', description: '生成随机音乐类型', category: 'entertainment', hasParams: false },
+  { name: 'music_song_name', display_name: '随机歌曲名', description: '生成随机歌曲名称', category: 'entertainment', hasParams: false },
+  { name: 'music_artist', display_name: '随机艺术家', description: '生成随机艺术家/乐队名称', category: 'entertainment', hasParams: false },
+  // 娱乐工具 - 动物
+  { name: 'animal_type', display_name: '随机动物类型', description: '生成随机动物类型', category: 'entertainment', hasParams: false },
+  { name: 'animal_name', display_name: '随机动物名称', description: '生成随机宠物名称', category: 'entertainment', hasParams: false },
+  // 娱乐工具 - 食物
+  { name: 'food_dish', display_name: '随机菜品', description: '生成随机菜品名称', category: 'entertainment', hasParams: false },
+  { name: 'food_ingredient', display_name: '随机食材', description: '生成随机食材名称', category: 'entertainment', hasParams: false },
+  { name: 'food_fruit', display_name: '随机水果', description: '生成随机水果名称', category: 'entertainment', hasParams: false },
+  { name: 'food_vegetable', display_name: '随机蔬菜', description: '生成随机蔬菜名称', category: 'entertainment', hasParams: false },
+
+  // Mock图片工具
+  { name: 'image_url', display_name: '随机图片URL', description: '生成随机图片URL', category: 'mock_image', hasParams: false },
+  { name: 'image_avatar', display_name: '随机头像URL', description: '生成随机头像URL', category: 'mock_image', hasParams: false },
+  { name: 'image_placeholder', display_name: '生成占位图URL', description: '生成占位图URL', category: 'mock_image', hasParams: false }
+]
+
+// 根据分类筛选函数
+const filteredFunctions = computed(() => {
+  if (!selectedFunctionCategory.value) return []
+  return dataFactoryFunctions.filter(func => func.category === selectedFunctionCategory.value)
+})
+
+// 判断当前选中的函数是否需要参数
+const functionNeedsParams = computed(() => {
+  const func = dataFactoryFunctions.find(f => f.name === selectedFunction.value)
+  return func ? func.hasParams : false
+})
+
+// 获取当前选中的函数信息
+const currentFunction = computed(() => {
+  return dataFactoryFunctions.find(f => f.name === selectedFunction.value)
+})
 
 // 输入框 refs（用于光标位置插入）
 const urlInputRef = ref(null)
@@ -1314,17 +1580,34 @@ const variablePreview = computed(() => {
     }
     return `{{$.${requestRef}.${selectedVarType.value}}}`
   }
-  
+
   // 环境变量
   if (selectedVarCategory.value === 'env') {
     return varName.value ? `{{$env.${varName.value}}}` : '{{$env.变量名}}'
   } else if (selectedVarCategory.value === 'global') {
     return varName.value ? `{{$global.${varName.value}}}` : '{{$global.变量名}}'
   } else if (selectedVarCategory.value === 'dynamic') {
-    if (selectedFunction.value === 'random_string' || selectedFunction.value === 'random_int') {
-      return `{{$${selectedFunction.value}(${funcParam1.value})}}`
+    if (!selectedFunction.value) return '{{$函数名(参数)}}'
+
+    // 根据函数类型生成不同的参数格式
+    switch (selectedFunction.value) {
+      case 'random_string':
+      case 'random_int':
+        return `{{$${selectedFunction.value}(${funcParam1.value})}}`
+      case 'random_float':
+        return `{{$${selectedFunction.value}(${funcParamMin.value}, ${funcParamMax.value})}}`
+      case 'random_date':
+        const startDate = funcParamDateStart.value || '2024-01-01'
+        const endDate = funcParamDateEnd.value || '2024-12-31'
+        return `{{$${selectedFunction.value}('${startDate}', '${endDate}')}}`
+      case 'random_ip_address':
+        return `{{$${selectedFunction.value}('${funcParamIpType.value}')}}`
+      case 'random_password':
+        return `{{$${selectedFunction.value}(${funcParam1.value})}}`
+      default:
+        // 无参数函数
+        return `{{$${selectedFunction.value}()}}`
     }
-    return `{{$${selectedFunction.value}()}}`
   }
   return ''
 })
@@ -1408,6 +1691,16 @@ const closeVariablePicker = () => {
   // 清空执行记录
   selectedPrevRequestExecution.value = null
   executionError.value = ''
+  // 重置动态函数选择
+  selectedFunctionCategory.value = ''
+  selectedFunction.value = ''
+  funcParam1.value = 8
+  funcParamMin.value = 0
+  funcParamMax.value = 100
+  funcParamDateStart.value = ''
+  funcParamDateEnd.value = ''
+  funcParamIpType.value = 'ipv4'
+  funcParamString.value = ''
 }
 
 // 前置接口变更时加载执行记录
@@ -2061,8 +2354,7 @@ const submitEditForm = async () => {
     const submitData = {
       name: editForm.value.name,
       description: editForm.value.description,
-      project: suite.value.project,
-      environment_id: editForm.value.environment
+      project: suite.value.project
     }
 
     await api.put(`/api-testing/test-suites/${suite.value.id}/`, submitData)
@@ -2083,6 +2375,28 @@ const resetEditForm = () => {
     environment: null
   }
   editFormRef.value?.resetFields()
+}
+
+// 处理环境变更
+const handleEnvironmentChange = async (envId) => {
+  if (!suite.value) return
+
+  try {
+    const submitData = {
+      name: suite.value.name,
+      description: suite.value.description,
+      project: suite.value.project,
+      environment_id: envId
+    }
+
+    await api.put(`/api-testing/test-suites/${suite.value.id}/`, submitData)
+    ElMessage.success(t('apiTesting.messages.success.suiteUpdated'))
+    await loadSuiteDetail()
+  } catch (error) {
+    ElMessage.error(t('apiTesting.messages.error.updateFailed'))
+    // 恢复原值
+    await loadSuiteDetail()
+  }
 }
 
 const showAddRequest = async () => {
@@ -4077,6 +4391,16 @@ onMounted(async () => {
     height: 100%;
     overflow-y: auto;
   }
+
+  .el-drawer__footer {
+    display: flex;
+    justify-content: flex-start;
+    gap: 4px;
+
+    .el-button {
+      margin-left: 0 !important;
+    }
+  }
 }
 
 // 详情抽屉特定样式
@@ -4413,6 +4737,13 @@ onMounted(async () => {
     padding: 16px 24px;
     border-top: 1px solid #f0f0f0;
     background: #ffffff;
+    display: flex;
+    justify-content: flex-start;
+    gap: 4px;
+
+    .el-button {
+      margin-left: 0 !important;
+    }
   }
 
   .drawer-tabs {
@@ -4471,14 +4802,15 @@ onMounted(async () => {
 
   .drawer-footer {
     display: flex;
-    justify-content: flex-end;
-    gap: 12px;
+    justify-content: flex-start;
+    gap: 4px;
 
     .el-button {
       border-radius: 8px;
       padding: 10px 24px;
       font-weight: 500;
       transition: all 0.25s ease;
+      margin-left: 0 !important;
 
       &.el-button--default {
         border-color: #d9d9d9;
@@ -4790,37 +5122,135 @@ onMounted(async () => {
 
 // 变量选择器样式
 .variable-picker-content {
+  padding: 8px 4px;
+
   .picker-section {
-    margin-bottom: 20px;
+    margin-bottom: 28px;
+
+    &:last-of-type {
+      margin-bottom: 0;
+    }
 
     .section-title {
-      font-weight: 600;
-      margin-bottom: 10px;
-      color: #303133;
+      font-weight: 500;
+      margin-bottom: 12px;
+      color: #1f2937;
+      font-size: 14px;
       display: flex;
       align-items: center;
-      gap: 6px;
+      gap: 8px;
 
       .el-icon {
-        color: #909399;
+        color: #9ca3af;
         cursor: help;
+        font-size: 14px;
       }
     }
 
     .var-hint {
-      margin-top: 8px;
-      color: #909399;
+      margin-top: 20px;
+      color: #6b7280;
       font-size: 12px;
-      font-family: monospace;
+      font-family: 'SF Mono', Monaco, monospace;
+      padding: 8px 12px;
+      background: #f3f4f6;
+      border-radius: 6px;
+      border-left: 3px solid #7c3aed;
+    }
+
+    // 函数语法说明区域
+    .function-syntax-section {
+      margin-top: 16px;
+      padding: 12px 16px;
+      background: linear-gradient(135deg, #faf9ff 0%, #f5f3ff 100%);
+      border-radius: 8px;
+      border: 1px solid rgba(124, 58, 237, 0.15);
+
+      .syntax-row {
+        display: flex;
+        align-items: center;
+        margin-bottom: 8px;
+
+        &:last-child {
+          margin-bottom: 0;
+        }
+
+        .syntax-label {
+          font-size: 13px;
+          color: #6b7280;
+          font-weight: 500;
+          min-width: 48px;
+          margin-right: 8px;
+        }
+
+        .syntax-code {
+          font-family: 'SF Mono', Monaco, monospace;
+          font-size: 13px;
+          color: #7c3aed;
+          background: #fff;
+          padding: 4px 10px;
+          border-radius: 4px;
+          border: 1px solid rgba(124, 58, 237, 0.2);
+          flex: 1;
+        }
+
+        .syntax-description {
+          font-size: 13px;
+          color: #4b5563;
+          flex: 1;
+          line-height: 1.5;
+        }
+
+        &.description-row {
+          align-items: flex-start;
+          padding-bottom: 8px;
+          border-bottom: 1px dashed rgba(124, 58, 237, 0.15);
+          margin-bottom: 10px;
+        }
+      }
     }
 
     .function-params {
-      margin-top: 12px;
+      margin-top: 16px;
+      padding: 16px;
+      background: #fafafa;
+      border-radius: 8px;
 
       .param-hint {
-        margin-left: 8px;
-        color: #909399;
-        font-size: 12px;
+        margin-left: 12px;
+        color: #6b7280;
+        font-size: 13px;
+      }
+
+      .param-row {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        flex-wrap: wrap;
+
+        .param-separator {
+          color: #9ca3af;
+          font-weight: 500;
+        }
+      }
+    }
+
+    // 函数选项样式
+    .function-option {
+      display: flex;
+      flex-direction: column;
+      padding: 6px 0;
+
+      .function-name {
+        font-weight: 500;
+        color: #1f2937;
+        font-size: 13px;
+      }
+
+      .function-desc {
+        font-size: 11px;
+        color: #6b7280;
+        margin-top: 2px;
       }
     }
 
@@ -4831,27 +5261,29 @@ onMounted(async () => {
 
     .var-type-section,
     .json-path-section {
-      margin-top: 16px;
+      margin-top: 20px;
     }
 
     // 执行结果预览区域
     .execution-preview-section {
-      margin-top: 16px;
-      border: 1px solid #e4e7ed;
-      border-radius: 8px;
+      margin-top: 20px;
+      border: 1px solid #e5e7eb;
+      border-radius: 10px;
       overflow: hidden;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
 
       .section-title {
-        padding: 12px 16px;
-        background: #f5f7fa;
-        border-bottom: 1px solid #e4e7ed;
+        padding: 14px 18px;
+        background: linear-gradient(135deg, #f9fafb 0%, #f3f4f6 100%);
+        border-bottom: 1px solid #e5e7eb;
         margin-bottom: 0;
+        font-weight: 500;
       }
 
       .preview-data-container {
-        max-height: 300px;
+        max-height: 280px;
         overflow-y: auto;
-        padding: 12px;
+        padding: 16px;
         background: #fff;
       }
     }
@@ -4864,39 +5296,300 @@ onMounted(async () => {
     .request-option {
       display: flex;
       align-items: center;
-      gap: 8px;
+      gap: 10px;
+      padding: 4px 0;
 
       .request-order {
-        display: inline-block;
-        width: 22px;
-        height: 22px;
-        line-height: 22px;
-        text-align: center;
-        background: #409eff;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 24px;
+        height: 24px;
+        background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);
         color: #fff;
-        border-radius: 50%;
+        border-radius: 6px;
         font-size: 12px;
         font-weight: 600;
+        flex-shrink: 0;
       }
 
       .request-name {
         flex: 1;
+        font-size: 13px;
+        color: #374151;
+      }
+    }
+
+    // 单选按钮组样式优化
+    :deep(.el-radio-group) {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+
+      .el-radio-button {
+        .el-radio-button__inner {
+          border-radius: 6px;
+          border: 1px solid #e5e7eb;
+          padding: 8px 16px;
+          font-size: 13px;
+          transition: all 0.2s ease;
+
+          &:hover {
+            border-color: #7c3aed;
+            color: #7c3aed;
+          }
+        }
+
+        &.is-active .el-radio-button__inner {
+          background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);
+          border-color: #7c3aed;
+          box-shadow: 0 2px 4px rgba(124, 58, 237, 0.2);
+          color: #fff;
+
+          &:hover {
+            background: linear-gradient(135deg, #6d28d9 0%, #5b21b6 100%);
+            border-color: #6d28d9;
+            color: #fff;
+          }
+        }
+      }
+    }
+
+    // 输入框样式优化
+    :deep(.el-input__wrapper) {
+      border-radius: 8px;
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+    }
+
+    // 下拉选择器样式
+    :deep(.el-select) {
+      width: 100%;
+
+      .el-input__wrapper {
+        border-radius: 8px;
       }
     }
   }
 
   .preview-section {
-    padding: 16px;
-    background: #f5f7fa;
-    border-radius: 8px;
-    margin-top: 20px;
+    padding: 16px 20px;
+    background: linear-gradient(135deg, #faf9ff 0%, #f5f3ff 100%);
+    border-radius: 10px;
+    margin-top: 24px;
+    border: 1px solid rgba(124, 58, 237, 0.1);
+
+    .preview-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+
+      .section-title {
+        font-weight: 500;
+        color: #1f2937;
+        margin-bottom: 0;
+        white-space: nowrap;
+        font-size: 14px;
+      }
+
+      .preview-input {
+        flex: 1;
+      }
+    }
+
+    .section-title {
+      font-weight: 500;
+      color: #1f2937;
+      margin-bottom: 12px;
+    }
 
     .preview-input {
+      :deep(.el-input__wrapper) {
+        background: #fff;
+        border-radius: 8px;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+        padding: 0;
+        border: 1px solid #e5e7eb;
+      }
+
       :deep(.el-input__inner) {
-        font-family: monospace;
-        color: #409eff;
+        font-family: 'SF Mono', Monaco, monospace;
+        color: #7c3aed;
+        font-weight: 500;
+        font-size: 14px;
+        padding: 0 12px;
+        height: 40px;
+      }
+
+      :deep(.el-input-group__append) {
+        background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);
+        border: none;
+        border-radius: 0 7px 7px 0;
+        padding: 0;
+        overflow: hidden;
+
+        .el-button {
+          color: #fff;
+          border: none;
+          background: transparent;
+          padding: 0 16px;
+          height: 40px;
+          margin: 0;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+
+          &:hover {
+            background: rgba(255, 255, 255, 0.1);
+          }
+
+          .el-icon {
+            font-size: 16px;
+          }
+        }
       }
     }
   }
+
+  // 抽屉底部按钮样式
+  :deep(.el-drawer__footer) {
+    display: flex;
+    justify-content: flex-start;
+    gap: 4px;
+
+    .el-button {
+      margin-left: 0 !important;
+    }
+  }
+}
+
+// 变量选择器抽屉特定样式 - 由于 append-to-body 需要全局样式
+:global(.variable-picker-drawer .el-drawer__footer) {
+  display: flex !important;
+  justify-content: flex-start !important;
+}
+
+:global(.variable-picker-drawer .el-drawer__footer .el-button) {
+  margin-left: 0 !important;
+  border-radius: 8px !important;
+  padding: 10px 24px !important;
+  font-weight: 500 !important;
+  transition: all 0.25s ease !important;
+}
+
+:global(.variable-picker-drawer .el-drawer__footer .el-button + .el-button) {
+  margin-left: 4px !important;
+}
+
+:global(html body .variable-picker-drawer .el-drawer__footer .el-button--default) {
+  --el-button-bg-color: #ffffff !important;
+  --el-button-border-color: #d9d9d9 !important;
+  --el-button-text-color: #595959 !important;
+  --el-button-hover-bg-color: #f8f5ff !important;
+  --el-button-hover-border-color: #7b42f6 !important;
+  --el-button-hover-text-color: #7b42f6 !important;
+  --el-button-active-bg-color: #f0e6ff !important;
+  --el-button-active-border-color: #7b42f6 !important;
+  --el-button-active-text-color: #7b42f6 !important;
+  background-color: #ffffff !important;
+  border-color: #d9d9d9 !important;
+  color: #595959 !important;
+}
+
+:global(html body .variable-picker-drawer .el-drawer__footer .el-button--default:hover:not(.is-disabled):not([disabled])) {
+  background-color: #f8f5ff !important;
+  border-color: #7b42f6 !important;
+  color: #7b42f6 !important;
+}
+
+:global(html body .variable-picker-drawer .el-drawer__footer .el-button--default:focus:not(.is-disabled):not([disabled])) {
+  background-color: #f8f5ff !important;
+  border-color: #7b42f6 !important;
+  color: #7b42f6 !important;
+}
+
+:global(html body .variable-picker-drawer .el-drawer__footer .el-button--default:active:not(.is-disabled):not([disabled])) {
+  background-color: #f0e6ff !important;
+  border-color: #7b42f6 !important;
+  color: #7b42f6 !important;
+}
+
+/* 针对 btn-cancel 类的特殊处理 */
+:global(html body .variable-picker-drawer .el-drawer__footer .el-button.btn-cancel) {
+  --el-button-bg-color: #ffffff !important;
+  --el-button-border-color: #d9d9d9 !important;
+  --el-button-text-color: #595959 !important;
+  --el-button-hover-bg-color: #f8f5ff !important;
+  --el-button-hover-border-color: #7b42f6 !important;
+  --el-button-hover-text-color: #7b42f6 !important;
+  --el-button-active-bg-color: #f0e6ff !important;
+  --el-button-active-border-color: #7b42f6 !important;
+  --el-button-active-text-color: #7b42f6 !important;
+  background-color: #ffffff !important;
+  border-color: #d9d9d9 !important;
+  color: #595959 !important;
+}
+
+:global(html body .variable-picker-drawer .el-drawer__footer .el-button.btn-cancel:hover:not(.is-disabled):not([disabled])) {
+  background-color: #f8f5ff !important;
+  border-color: #7b42f6 !important;
+  color: #7b42f6 !important;
+}
+
+:global(html body .variable-picker-drawer .el-drawer__footer .el-button.btn-cancel:focus:not(.is-disabled):not([disabled])) {
+  background-color: #f8f5ff !important;
+  border-color: #7b42f6 !important;
+  color: #7b42f6 !important;
+}
+
+:global(html body .variable-picker-drawer .el-drawer__footer .el-button.btn-cancel:active:not(.is-disabled):not([disabled])) {
+  background-color: #f0e6ff !important;
+  border-color: #7b42f6 !important;
+  color: #7b42f6 !important;
+}
+
+/* 编辑接口抽屉取消按钮样式 */
+:global(html body .edit-request-drawer .el-drawer__footer .el-button.btn-cancel) {
+  --el-button-bg-color: #ffffff !important;
+  --el-button-border-color: #d9d9d9 !important;
+  --el-button-text-color: #595959 !important;
+  --el-button-hover-bg-color: #f8f5ff !important;
+  --el-button-hover-border-color: #7b42f6 !important;
+  --el-button-hover-text-color: #7b42f6 !important;
+  --el-button-active-bg-color: #f0e6ff !important;
+  --el-button-active-border-color: #7b42f6 !important;
+  --el-button-active-text-color: #7b42f6 !important;
+  background-color: #ffffff !important;
+  border-color: #d9d9d9 !important;
+  color: #595959 !important;
+}
+
+:global(html body .edit-request-drawer .el-drawer__footer .el-button.btn-cancel:hover:not(.is-disabled):not([disabled])) {
+  background-color: #f8f5ff !important;
+  border-color: #7b42f6 !important;
+  color: #7b42f6 !important;
+}
+
+:global(html body .edit-request-drawer .el-drawer__footer .el-button.btn-cancel:focus:not(.is-disabled):not([disabled])) {
+  background-color: #f8f5ff !important;
+  border-color: #7b42f6 !important;
+  color: #7b42f6 !important;
+}
+
+:global(html body .edit-request-drawer .el-drawer__footer .el-button.btn-cancel:active:not(.is-disabled):not([disabled])) {
+  background-color: #f0e6ff !important;
+  border-color: #7b42f6 !important;
+  color: #7b42f6 !important;
+}
+
+:global(.variable-picker-drawer .el-drawer__footer .el-button--primary) {
+  background: linear-gradient(135deg, #7b42f6 0%, #5a32a3 100%) !important;
+  border: none !important;
+  box-shadow: 0 4px 12px rgba(123, 66, 246, 0.3) !important;
+}
+
+:global(.variable-picker-drawer .el-drawer__footer .el-button--primary:hover) {
+  background: linear-gradient(135deg, #6d33e6 0%, #4a249c 100%) !important;
+  transform: translateY(-1px) !important;
+  box-shadow: 0 6px 16px rgba(123, 66, 246, 0.4) !important;
 }
 </style>
