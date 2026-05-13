@@ -301,7 +301,9 @@ export default {
     selectProject: '请选择所属项目',
     selectEnvironment: '请选择执行环境',
     addRequestToSuite: '添加请求到场景',
+    addStepToSuite: '添加步骤到场景',
     addSelectedRequests: '添加选中的请求',
+    addSelectedSteps: '添加选中的步骤',
     executionResult: '测试执行结果',
     testExecutionResult: '测试执行结果',
     detailedResults: '详细结果',
@@ -329,7 +331,7 @@ export default {
     suiteDetail: '场景详情',
     updateTime: '更新时间',
     noSuites: '暂无测试场景',
-    noRequests: '暂无测试请求',
+    noRequests: '暂无测试步骤',
     noExecutions: '暂无执行记录',
     copyText: '副本'
   },
@@ -932,7 +934,8 @@ export default {
       removeSuccess: '移除成功',
       addSuccess: '添加成功',
       orderUpdated: '排序已更新',
-      suiteUpdated: '场景更新成功'
+      suiteUpdated: '场景更新成功',
+      suiteCreated: '场景创建成功'
     },
     error: {
       executeSuite: '执行场景失败',

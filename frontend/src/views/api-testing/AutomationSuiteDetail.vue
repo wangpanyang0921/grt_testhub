@@ -44,7 +44,7 @@
             clearable
             class="env-select-inline"
             @change="handleEnvironmentChange"
-            style="width: 140px;"
+            style="width: 180px;"
           >
             <el-option
               v-for="env in environments"
@@ -278,45 +278,93 @@
       </template>
     </el-dialog>
 
-    <!-- 添加请求对话框 -->
+    <!-- 添加步骤对话框 -->
     <el-dialog
       v-model="showAddRequestDialog"
-      :title="$t('apiTesting.automation.addRequestToSuite')"
+      :title="$t('apiTesting.automation.addStepToSuite')"
       width="800px"
     >
       <div class="add-request-content">
-        <div class="request-selector">
-          <el-tree
-            ref="requestTreeRef"
-            :data="requestTree"
-            :props="requestTreeProps"
-            show-checkbox
-            node-key="id"
-            :check-on-click-node="false"
-            @check="onRequestCheck"
-          >
-            <template #default="{ node, data }">
-              <div class="request-tree-node">
-                <el-icon v-if="data.type === 'collection'">
-                  <Folder />
-                </el-icon>
-                <el-icon v-else>
-                  <Document />
-                </el-icon>
-                <span>{{ data.name }}</span>
-                <span v-if="data.type === 'request'" class="method-tag" :class="data.method?.toLowerCase()">
-                  {{ data.method }}
-                </span>
+        <!-- Tab 切换 -->
+        <el-tabs v-model="addStepTab" class="add-step-tabs">
+          <!-- 接口 Tab -->
+          <el-tab-pane label="引用接口" name="request">
+            <div class="request-selector">
+              <el-tree
+                ref="requestTreeRef"
+                :data="requestTree"
+                :props="requestTreeProps"
+                show-checkbox
+                node-key="id"
+                :check-on-click-node="false"
+                @check="onRequestCheck"
+              >
+                <template #default="{ node, data }">
+                  <div class="request-tree-node">
+                    <el-icon v-if="data.type === 'collection'">
+                      <Folder />
+                    </el-icon>
+                    <el-icon v-else>
+                      <Document />
+                    </el-icon>
+                    <span>{{ data.name }}</span>
+                    <span v-if="data.type === 'request'" class="method-tag" :class="data.method?.toLowerCase()">
+                      {{ data.method }}
+                    </span>
+                  </div>
+                </template>
+              </el-tree>
+            </div>
+          </el-tab-pane>
+          
+          <!-- 场景 Tab -->
+          <el-tab-pane label="引用场景" name="suite">
+            <div class="suite-selector">
+              <div v-if="availableSuites.length === 0" class="empty-suites">
+                <el-empty description="暂无可引用的场景" />
               </div>
-            </template>
-          </el-tree>
-        </div>
+              <el-tree
+                v-else
+                ref="suiteTreeRef"
+                :data="availableSuites"
+                :props="suiteTreeProps"
+                show-checkbox
+                node-key="id"
+                :check-on-click-node="false"
+                @check="onSuiteCheck"
+                default-expand-all
+              >
+                <template #default="{ node, data }">
+                  <div class="suite-tree-node" :class="{ 'is-group': data.step_type === 'group', 'is-request': data.step_type === 'request' }">
+                    <!-- 场景根节点 -->
+                    <template v-if="!data.step_type">
+                      <el-icon><Collection /></el-icon>
+                      <span class="node-name">{{ data.name }}</span>
+                      <span class="suite-request-count">({{ data.request_count }}个请求)</span>
+                    </template>
+                    <!-- 分组节点 -->
+                    <template v-else-if="data.step_type === 'group'">
+                      <el-icon><Folder /></el-icon>
+                      <span class="node-name group-name">{{ data.name }}</span>
+                      <span class="group-badge">{{ data.request_count }}个子项</span>
+                    </template>
+                    <!-- 请求节点 -->
+                    <template v-else>
+                      <span class="method-tag" :class="data.method?.toLowerCase()">{{ data.method }}</span>
+                      <span class="node-name request-name">{{ data.name }}</span>
+                    </template>
+                  </div>
+                </template>
+              </el-tree>
+            </div>
+          </el-tab-pane>
+        </el-tabs>
       </div>
       
       <template #footer>
         <el-button @click="showAddRequestDialog = false">{{ $t('apiTesting.common.cancel') }}</el-button>
-        <el-button type="primary" @click="addSelectedRequests" :loading="addingRequests">
-          {{ $t('apiTesting.automation.addSelectedRequests') }}
+        <el-button type="primary" @click="addSelectedSteps" :loading="addingRequests">
+          {{ $t('apiTesting.automation.addSelectedSteps') }}
         </el-button>
       </template>
     </el-dialog>
@@ -1238,6 +1286,16 @@ const loading = ref(false)
 const executionsLoading = ref(false)
 const running = ref(false)
 const requestTree = ref([])
+
+// 添加步骤相关
+const addStepTab = ref('request')
+const availableSuites = ref([])
+const selectedSuiteIds = ref([])
+const suiteTreeRef = ref(null)
+const suiteTreeProps = {
+  children: 'children',
+  label: 'name'
+}
 
 // 评审相关
 const reviewRecords = ref([])
@@ -2266,6 +2324,98 @@ const loadRequestTree = async () => {
   }
 }
 
+// 将场景请求树转换为带分组效果的树形数据
+const buildSuiteRequestTree = (suiteRequests, suiteId, suiteName) => {
+  if (!suiteRequests || suiteRequests.length === 0) {
+    return []
+  }
+
+  const result = []
+  
+  suiteRequests.forEach((req, index) => {
+    const nodeId = `${suiteId}_step_${req.id}`
+    
+    // 如果是分组类型或包含子节点，则作为父节点
+    if (req.step_type === 'group' || (req.children && req.children.length > 0)) {
+      const groupNode = {
+        id: nodeId,
+        name: req.override_name || req.request?.name || '分组',
+        step_type: 'group',
+        suite_id: suiteId,
+        suite_name: suiteName,
+        request_count: req.children?.length || 0,
+        children: []
+      }
+      
+      // 递归处理子节点
+      if (req.children && req.children.length > 0) {
+        req.children.forEach((child, childIndex) => {
+          const childNodeId = `${suiteId}_step_${child.id}`
+          groupNode.children.push({
+            id: childNodeId,
+            name: child.override_name || child.request?.name || '请求',
+            method: child.request?.method,
+            step_type: child.step_type || 'request',
+            suite_id: suiteId,
+            suite_name: suiteName,
+            request: child.request
+          })
+        })
+      }
+      
+      result.push(groupNode)
+    } else {
+      // 普通请求节点
+      result.push({
+        id: nodeId,
+        name: req.override_name || req.request?.name || '请求',
+        method: req.request?.method,
+        step_type: req.step_type || 'request',
+        suite_id: suiteId,
+        suite_name: suiteName,
+        request: req.request
+      })
+    }
+  })
+  
+  return result
+}
+
+// 加载可引用的场景列表
+const loadAvailableSuites = async () => {
+  if (!suite.value?.project) return
+
+  try {
+    const response = await api.get('/api-testing/test-suites/', {
+      params: {
+        project: suite.value.project,
+        exclude_self: suite.value.id
+      }
+    })
+    const suites = response.data.results || response.data
+    // 过滤掉当前场景，并构建带分组效果的树形数据
+    availableSuites.value = suites
+      .filter(s => s.id !== suite.value.id)
+      .map(s => {
+        const requestCount = s.suite_requests?.length || 0
+        const children = buildSuiteRequestTree(s.suite_requests, s.id, s.name)
+        return {
+          ...s,
+          request_count: requestCount,
+          children: children
+        }
+      })
+  } catch (error) {
+    console.error('加载场景列表失败:', error)
+    availableSuites.value = []
+  }
+}
+
+// 场景选择处理
+const onSuiteCheck = (data, checked) => {
+  selectedSuiteIds.value = checked.checkedKeys
+}
+
 const buildRequestTree = (collections, requests) => {
   const map = {}
   const roots = []
@@ -2400,7 +2550,15 @@ const handleEnvironmentChange = async (envId) => {
 }
 
 const showAddRequest = async () => {
-  await loadRequestTree()
+  // 重置状态
+  addStepTab.value = 'request'
+  selectedSuiteIds.value = []
+  
+  await Promise.all([
+    loadRequestTree(),
+    loadAvailableSuites()
+  ])
+  
   showAddRequestDialog.value = true
   
   nextTick(() => {
@@ -2453,6 +2611,86 @@ const addSelectedRequests = async () => {
     ElMessage.error(t('apiTesting.messages.error.addFailed'))
   } finally {
     addingRequests.value = false
+  }
+}
+
+// 新的添加步骤方法（支持接口和场景）
+const addSelectedSteps = async () => {
+  if (!suite.value) return
+  
+  // 根据当前 Tab 决定添加什么
+  if (addStepTab.value === 'request') {
+    // 添加接口
+    const checkedNodes = requestTreeRef.value?.getCheckedNodes() || []
+    const requestIds = checkedNodes
+      .filter(node => node.type === 'request')
+      .map(node => node.id.replace('request_', ''))
+
+    if (requestIds.length === 0) {
+      ElMessage.warning('请至少选择一个接口')
+      return
+    }
+
+    addingRequests.value = true
+    try {
+      const response = await api.post(`/api-testing/test-suites/${suite.value.id}/add-requests/`, {
+        request_ids: requestIds
+      })
+
+      if (response.data && response.data.suite) {
+        suite.value = response.data.suite
+        nextTick(() => {
+          initSortable()
+        })
+      }
+
+      ElMessage.success(response.data.message || '添加成功')
+      showAddRequestDialog.value = false
+    } catch (error) {
+      const errorMsg = error.response?.data?.error || error.message || '添加失败'
+      ElMessage.error(errorMsg)
+      console.error('添加接口失败:', error)
+    } finally {
+      addingRequests.value = false
+    }
+  } else {
+    // 添加场景（作为分组）
+    const checkedNodes = suiteTreeRef.value?.getCheckedNodes() || []
+    
+    // 从选中的节点中提取唯一的场景 ID（只取根级场景节点）
+    const suiteIds = [...new Set(
+      checkedNodes
+        .filter(node => !node.step_type && node.id) // 只选择场景根节点（没有 step_type 的节点）
+        .map(node => node.id)
+    )]
+
+    if (suiteIds.length === 0) {
+      ElMessage.warning('请至少选择一个场景')
+      return
+    }
+
+    addingRequests.value = true
+    try {
+      const response = await api.post(`/api-testing/test-suites/${suite.value.id}/add-suites/`, {
+        suite_ids: suiteIds
+      })
+
+      if (response.data && response.data.suite) {
+        suite.value = response.data.suite
+        nextTick(() => {
+          initSortable()
+        })
+      }
+
+      ElMessage.success(response.data.message || '添加场景成功')
+      showAddRequestDialog.value = false
+    } catch (error) {
+      const errorMsg = error.response?.data?.error || error.message || '添加场景失败'
+      ElMessage.error(errorMsg)
+      console.error('添加场景失败:', error)
+    } finally {
+      addingRequests.value = false
+    }
   }
 }
 
@@ -3056,15 +3294,12 @@ onMounted(async () => {
 
   // 空状态样式
   .requests-empty {
-    padding: 60px 20px;
-    background: #fafafa;
-    border-radius: 12px;
-    border: 2px dashed #e0e0e0;
+    padding: 20px;
 
     :deep(.el-empty__description) {
       color: #8c8c8c;
       font-size: 14px;
-      margin-top: 16px;
+      margin-top: 8px;
     }
 
     :deep(.el-empty__image) {
@@ -3533,6 +3768,82 @@ onMounted(async () => {
 .add-request-content {
   max-height: 400px;
   overflow-y: auto;
+
+  .add-step-tabs {
+    .el-tabs__content {
+      max-height: 350px;
+      overflow-y: auto;
+    }
+  }
+
+  .suite-selector {
+    .empty-suites {
+      padding: 40px 0;
+    }
+
+    .suite-tree-node {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex: 1;
+      padding: 4px 0;
+
+      .el-icon {
+        color: #7b42f6;
+      }
+
+      .suite-request-count {
+        color: #909399;
+        font-size: 12px;
+        margin-left: auto;
+      }
+
+      .node-name {
+        flex: 1;
+      }
+
+      .group-name {
+        color: #606266;
+        font-weight: 500;
+      }
+
+      .request-name {
+        color: #303133;
+      }
+
+      .group-badge {
+        color: #909399;
+        font-size: 12px;
+        background: #f4f4f5;
+        padding: 2px 8px;
+        border-radius: 10px;
+      }
+
+      .method-tag {
+        font-size: 10px;
+        padding: 2px 6px;
+        border-radius: 4px;
+        color: white;
+        font-weight: bold;
+
+        &.get { background: linear-gradient(135deg, #67c23a 0%, #52c41a 100%); }
+        &.post { background: linear-gradient(135deg, #409eff 0%, #7b42f6 100%); }
+        &.put { background: linear-gradient(135deg, #e6a23c 0%, #f5a623 100%); }
+        &.delete { background: linear-gradient(135deg, #f56c6c 0%, #ff4d4f 100%); }
+        &.patch { background: linear-gradient(135deg, #722ed1 0%, #531dab 100%); }
+      }
+
+      &.is-group {
+        .el-icon {
+          color: #e6a23c;
+        }
+      }
+
+      &.is-request {
+        padding-left: 8px;
+      }
+    }
+  }
 }
 
 .request-tree-node {
