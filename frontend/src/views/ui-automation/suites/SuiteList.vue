@@ -405,7 +405,7 @@ const searchText = ref('')
 const total = ref(0)
 const pagination = reactive({
   currentPage: 1,
-  pageSize: 20
+  pageSize: 10
 })
 
 // 对话框控制

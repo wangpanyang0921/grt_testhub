@@ -177,7 +177,7 @@ const statusFilter = ref('')
 const projectFilter = ref(null)
 const projectList = ref([])
 const currentPage = ref(1)
-const pageSize = ref(20)
+const pageSize = ref(10)
 const total = ref(0)
 
 const errorDialogVisible = ref(false)

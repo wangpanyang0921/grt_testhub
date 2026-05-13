@@ -120,6 +120,7 @@ class ApiCollectionViewSet(viewsets.ModelViewSet):
     queryset = ApiCollection.objects.all()
     serializer_class = ApiCollectionSerializer
     permission_classes = [IsAuthenticated]
+    pagination_class = StandardPagination
     filter_backends = [DjangoFilterBackend]
     filterset_fields = ['project', 'parent']
     
@@ -655,6 +656,7 @@ class EnvironmentViewSet(viewsets.ModelViewSet):
     queryset = Environment.objects.all()
     serializer_class = EnvironmentSerializer
     permission_classes = [IsAuthenticated]
+    pagination_class = StandardPagination
     filter_backends = [DjangoFilterBackend]
     filterset_fields = ['scope', 'project', 'is_active']
     ordering = ['-created_at']
@@ -783,6 +785,7 @@ class TestSuiteViewSet(viewsets.ModelViewSet):
     queryset = TestSuite.objects.all()
     serializer_class = TestSuiteSerializer
     permission_classes = [IsAuthenticated]
+    pagination_class = StandardPagination
     filter_backends = [DjangoFilterBackend]
     filterset_fields = ['project']
 
@@ -1702,6 +1705,7 @@ class TestSuiteRequestViewSet(viewsets.ModelViewSet):
     queryset = TestSuiteRequest.objects.all()
     serializer_class = TestSuiteRequestSerializer
     permission_classes = [IsAuthenticated]
+    pagination_class = StandardPagination
     filter_backends = [DjangoFilterBackend]
     filterset_fields = ['test_suite', 'enabled']
     
@@ -3620,6 +3624,7 @@ class UserViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = User.objects.all().order_by('username')
     serializer_class = UserSerializer
     permission_classes = [IsAuthenticated]
+    pagination_class = StandardPagination
     filter_backends = [filters.SearchFilter]
     search_fields = ['username', 'email', 'first_name', 'last_name']
 
@@ -3629,6 +3634,7 @@ class ScheduledTaskViewSet(viewsets.ModelViewSet):
     queryset = ScheduledTask.objects.all()
     serializer_class = ScheduledTaskSerializer
     permission_classes = [IsAuthenticated]
+    pagination_class = StandardPagination
     filter_backends = [filters.SearchFilter, filters.OrderingFilter]
     search_fields = ['name', 'description']
     ordering_fields = ['created_at', 'updated_at', 'last_run_time']
@@ -4507,6 +4513,7 @@ class TaskExecutionLogViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = TaskExecutionLog.objects.all()
     serializer_class = TaskExecutionLogSerializer
     permission_classes = [IsAuthenticated]
+    pagination_class = StandardPagination
     filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
     filterset_fields = ['task', 'status']
     ordering = ['-created_at']
@@ -4526,6 +4533,7 @@ class NotificationLogViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = NotificationLog.objects.all()
     serializer_class = NotificationLogSerializer
     permission_classes = [IsAuthenticated]
+    pagination_class = StandardPagination
     filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
     filterset_fields = ['status', 'notification_type']
     ordering = ['-created_at']
@@ -4547,6 +4555,7 @@ class TaskNotificationSettingViewSet(viewsets.ModelViewSet):
     queryset = TaskNotificationSetting.objects.all()
     serializer_class = TaskNotificationSettingSerializer
     permission_classes = [IsAuthenticated]
+    pagination_class = StandardPagination
     filter_backends = [DjangoFilterBackend]
     filterset_fields = ['task', 'is_enabled']
     ordering = ['-created_at']
@@ -4576,6 +4585,7 @@ class OperationLogViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = OperationLog.objects.all()
     serializer_class = OperationLogSerializer
     permission_classes = [IsAuthenticated]
+    pagination_class = StandardPagination
     filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
     filterset_fields = ['operation_type', 'resource_type', 'user']
     ordering = ['-created_at']
@@ -4846,6 +4856,7 @@ class AIServiceConfigViewSet(viewsets.ModelViewSet):
     queryset = AIServiceConfig.objects.all()
     serializer_class = AIServiceConfigSerializer
     permission_classes = [IsAuthenticated]
+    pagination_class = StandardPagination
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['service_type', 'role', 'is_active']
     search_fields = ['name', 'model_name']

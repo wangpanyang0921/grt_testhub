@@ -240,7 +240,7 @@ const isDeleting = ref(false)
 
 // 分页
 const currentPage = ref(1)
-const pageSize = ref(20)
+const pageSize = ref(10)
 const total = ref(0)
 
 // 筛选
