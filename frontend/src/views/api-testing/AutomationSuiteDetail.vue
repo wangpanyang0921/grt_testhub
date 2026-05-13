@@ -61,7 +61,7 @@
         <div class="section-header">
           <h4>场景编排</h4>
           <div class="section-actions">
-            <el-button type="danger" @click="clearAllRequests" :disabled="!localSuiteRequests?.length">
+            <el-button type="info" @click="clearAllRequests" :disabled="!localSuiteRequests?.length">
               <el-icon><Delete /></el-icon>
               一键清空
             </el-button>
