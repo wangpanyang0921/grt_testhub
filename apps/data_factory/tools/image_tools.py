@@ -4,7 +4,7 @@
 """
 import base64
 import re
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, Union
 from pathlib import Path
 import hashlib
 import time
@@ -18,7 +18,7 @@ class ImageTools:
     MAX_SIZE_BYTES = MAX_SIZE_MB * 1024 * 1024
 
     @staticmethod
-    def image_to_base64(image_data: bytes | str, image_format: str, include_prefix: bool = True) -> Dict[str, Any]:
+    def image_to_base64(image_data: Union[bytes, str], image_format: str, include_prefix: bool = True) -> Dict[str, Any]:
         """图片转Base64"""
         try:
             if isinstance(image_data, str):

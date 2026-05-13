@@ -4,6 +4,7 @@ from . import views, project_list_views
 urlpatterns = [
     path('', views.ProjectListCreateView.as_view(), name='project-list'),
     path('all/', views.get_all_projects, name='all-projects'),
+    path('with-menus/', views.get_projects_with_menus, name='projects-with-menus'),
     path('<int:pk>/', views.ProjectDetailView.as_view(), name='project-detail'),
     path('<int:project_id>/members/', views.get_project_members, name='get-project-members'),
     path('<int:project_id>/members/add/', views.add_project_member, name='add-member'),

@@ -24,6 +24,11 @@ class UserCreateSerializer(serializers.ModelSerializer):
         fields = ['username', 'email', 'password', 'password_confirm',
                  'first_name', 'last_name', 'phone', 'department', 'position']
     
+    def validate_username(self, value):
+        if len(value) < 2 or len(value) > 20:
+            raise serializers.ValidationError("用户名长度必须在 2 到 20 个字符之间")
+        return value
+    
     def validate(self, attrs):
         if attrs['password'] != attrs['password_confirm']:
             raise serializers.ValidationError("密码不一致")

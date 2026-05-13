@@ -862,7 +862,7 @@ class RAGService:
                 'error': str(e)
             }
 
-    def get_vector_storage_uuid(self, document_id: int) -> str | None:
+    def get_vector_storage_uuid(self, document_id: int) -> Optional[str]:
         """获取文档对应的向量存储目录 UUID"""
         try:
             import sqlite3

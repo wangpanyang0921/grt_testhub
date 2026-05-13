@@ -41,7 +41,7 @@ export default {
 
   // Validation messages
   usernameRequired: 'Please enter username',
-  usernameLength: 'Username length must be between 3 and 20 characters',
+  usernameLength: 'Username length must be between 2 and 20 characters',
   emailRequired: 'Please enter email',
   emailFormat: 'Please enter a valid email',
   passwordRequired: 'Please enter password',

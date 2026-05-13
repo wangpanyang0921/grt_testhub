@@ -279,6 +279,7 @@ const tableRef = ref(null)
 const moduleFilter = ref('')
 const priorityFilter = ref('')
 const projectFilter = ref('')
+const menuFilter = ref('') // 当前选中的菜单ID
 const selectedTestCases = ref([])
 const isDeleting = ref(false)
 
@@ -715,6 +716,10 @@ const fetchTestCases = async () => {
     if (projectFilter.value) {
       params.project = projectFilter.value
     }
+    // 如果有菜单筛选，添加 menu 参数（后端会递归获取该菜单及所有子菜单的用例）
+    if (menuFilter.value) {
+      params.menu = menuFilter.value
+    }
     const response = await api.get('/testcases/', { params })
     testcases.value = response.data.results || []
     total.value = response.data.count || 0
@@ -997,6 +1002,17 @@ watch(() => route.query.project, (newProjectId) => {
     projectFilter.value = Array.isArray(newProjectId) ? newProjectId[0] : newProjectId
   } else {
     projectFilter.value = ''
+  }
+  currentPage.value = 1
+  fetchTestCases()
+}, { immediate: true })
+
+// 监听路由参数变化，当从菜单树点击不同菜单时自动筛选
+watch(() => route.query.menu, (newMenuId) => {
+  if (newMenuId) {
+    menuFilter.value = Array.isArray(newMenuId) ? newMenuId[0] : newMenuId
+  } else {
+    menuFilter.value = ''
   }
   currentPage.value = 1
   fetchTestCases()

@@ -100,7 +100,7 @@ const form = reactive({
 const rules = {
   username: [
     { required: true, message: computed(() => t('auth.usernameRequired')), trigger: 'blur' },
-    { min: 3, max: 20, message: computed(() => t('auth.usernameLength')), trigger: 'blur' }
+    { min: 2, max: 20, message: computed(() => t('auth.usernameLength')), trigger: 'blur' }
   ],
   email: [
     { required: true, message: computed(() => t('auth.emailRequired')), trigger: 'blur' },

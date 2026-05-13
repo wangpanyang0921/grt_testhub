@@ -38,6 +38,7 @@ import UiAICaseList from '@/views/ui-automation/ai/AICaseList.vue'
 import UiAIExecutionRecords from '@/views/ui-automation/ai/AIExecutionRecords.vue'
 import UiAISuiteList from '@/views/ui-automation/ai/AISuiteList.vue'
 import UiXMindConverter from '@/views/ui-automation/ai/XMindConverter.vue'
+import TestCaseStatistics from '@/views/testcases/TestCaseStatistics.vue'
 
 /** @type {import('vue-router').RouteRecordRaw[]} */
 const routes = [
@@ -197,6 +198,11 @@ const routes = [
         path: 'xmind-converter',
         name: 'XMindConverter',
         component: UiXMindConverter
+      },
+      {
+        path: 'testcase-statistics',
+        name: 'TestCaseStatistics',
+        component: TestCaseStatistics
       },
       {
         path: 'bug-analysis',
