@@ -185,14 +185,22 @@ class RequestHistorySerializer(serializers.ModelSerializer):
     request = ApiRequestSerializer(read_only=True)
     environment = EnvironmentSerializer(read_only=True)
     executed_by = UserSerializer(read_only=True)
+    passed = serializers.SerializerMethodField()
 
     class Meta:
         model = RequestHistory
         fields = [
             'id', 'request', 'environment', 'request_data', 'response_data',
             'status_code', 'response_time', 'error_message', 'assertions_results',
-            'executed_by', 'executed_at'
+            'executed_by', 'executed_at', 'passed'
         ]
+
+    def get_passed(self, obj):
+        if obj.error_message:
+            return False
+        if obj.assertions_results:
+            return all(a.get('passed', False) for a in obj.assertions_results)
+        return True
 
 
 class TestSuiteRequestSerializer(serializers.ModelSerializer):
@@ -200,7 +208,12 @@ class TestSuiteRequestSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = TestSuiteRequest
-        fields = ['id', 'request', 'order', 'assertions', 'enabled']
+        fields = [
+            'id', 'request', 'order', 'assertions', 'enabled',
+            'override_name', 'override_method', 'override_url', 'override_headers', 'override_params',
+            'override_body', 'pre_script', 'post_script', 'extracted_variables',
+            'parent_id', 'step_type'
+        ]
 
     def validate_assertions(self, value):
         """验证并处理 assertions 数据，将字符串 'null' 转换为 None"""
@@ -219,8 +232,15 @@ class TestSuiteRequestSerializer(serializers.ModelSerializer):
     def to_representation(self, instance):
         """序列化输出时也将字符串 'null' 转换为 None"""
         data = super().to_representation(instance)
-        if data.get('assertions'):
-            data['assertions'] = convert_null_strings(data['assertions'])
+
+        # 如果自身没有断言，从关联的 ApiRequest 获取
+        assertions = data.get('assertions')
+        if not assertions and instance.request:
+            assertions = instance.request.assertions
+            data['assertions'] = assertions
+
+        if assertions:
+            data['assertions'] = convert_null_strings(assertions)
         return data
 
 
@@ -230,9 +250,28 @@ class TestSuiteSerializer(serializers.ModelSerializer):
     environment = EnvironmentSerializer(read_only=True)
 
     def get_suite_requests(self, obj):
-        """获取按order排序的套件请求列表"""
+        """获取按order排序的套件请求列表（支持树形结构）"""
         requests = obj.testsuiterequest_set.all().order_by('order')
-        return TestSuiteRequestSerializer(requests, many=True, read_only=True).data
+        
+        # 构建请求字典
+        request_dict = {}
+        for req in requests:
+            req_data = TestSuiteRequestSerializer(req, read_only=True).data
+            req_data['children'] = []
+            request_dict[req.id] = req_data
+        
+        # 构建树形结构
+        tree_data = []
+        for req_id, req_data in request_dict.items():
+            parent_id = req_data.get('parent_id')
+            if parent_id and parent_id in request_dict:
+                # 有父节点，添加到父节点的 children 中
+                request_dict[parent_id]['children'].append(req_data)
+            else:
+                # 没有父节点，是顶层节点
+                tree_data.append(req_data)
+        
+        return tree_data
     environment_id = serializers.PrimaryKeyRelatedField(
         queryset=Environment.objects.all(),
         source='environment',

@@ -47,7 +47,7 @@ class RandomTools:
             return {'error': f'随机浮点数生成失败: {str(e)}'}
 
     @staticmethod
-    def random_string(length: int = 10, char_type: str = 'all', count: int = 1) -> Dict[str, Any]:
+    def random_string(length: int = 10, char_type: str = 'alphanumeric', count: int = 1) -> Dict[str, Any]:
         """生成随机字符串"""
         try:
             char_sets = {

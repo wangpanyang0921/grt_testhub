@@ -1,6 +1,7 @@
 from django.db import models
 from django.contrib.auth import get_user_model
 from django.utils import timezone
+from typing import Dict, Any, List
 import json
 
 User = get_user_model()
@@ -246,21 +247,60 @@ class TestSuite(SoftDeleteModel):
 class TestSuiteRequest(SoftDeleteModel):
     """测试套件中的请求关联模型"""
     test_suite = models.ForeignKey(TestSuite, on_delete=models.CASCADE, verbose_name='测试套件')
-    request = models.ForeignKey(ApiRequest, on_delete=models.CASCADE, verbose_name='API请求')
+    request = models.ForeignKey(ApiRequest, on_delete=models.CASCADE, verbose_name='API请求', null=True, blank=True)
     order = models.IntegerField(default=0, verbose_name='执行顺序')
     assertions = models.JSONField(default=list, verbose_name='断言规则')
     extracted_variables = models.JSONField(default=dict, verbose_name='变量提取规则')
     enabled = models.BooleanField(default=True, verbose_name='是否启用')
+    
+    # 支持分组结构
+    parent_id = models.IntegerField(null=True, blank=True, verbose_name='父分组ID')
+    step_type = models.CharField(max_length=20, default='request', verbose_name='步骤类型')  # request, group
+
+    # 接口覆盖配置字段
+    override_name = models.CharField(max_length=200, blank=True, verbose_name='覆盖接口名称')
+    override_method = models.CharField(max_length=10, blank=True, verbose_name='覆盖请求方法')
+    override_url = models.TextField(blank=True, verbose_name='覆盖请求URL')
+    override_headers = models.JSONField(default=dict, blank=True, verbose_name='覆盖请求头')
+    override_params = models.JSONField(default=dict, blank=True, verbose_name='覆盖请求参数')
+    override_body = models.JSONField(default=dict, blank=True, verbose_name='覆盖请求体')
+    pre_script = models.TextField(blank=True, verbose_name='前置脚本')
+    post_script = models.TextField(blank=True, verbose_name='后置脚本')
 
     class Meta:
         db_table = 'api_test_suite_requests'
         verbose_name = '套件请求'
         verbose_name_plural = '套件请求'
-        unique_together = ['test_suite', 'request']
         ordering = ['order']
 
     def __str__(self):
         return f"{self.test_suite.name} - {self.request.name}"
+
+    def get_effective_method(self):
+        """获取有效的请求方法"""
+        return self.override_method or self.request.method
+
+    def get_effective_url(self):
+        """获取有效的请求URL"""
+        return self.override_url or self.request.url
+
+    def get_effective_headers(self):
+        """获取有效的请求头（合并原始和覆盖）"""
+        headers = dict(self.request.headers or {})
+        headers.update(self.override_headers or {})
+        return headers
+
+    def get_effective_params(self):
+        """获取有效的请求参数（合并原始和覆盖）"""
+        params = dict(self.request.params or {})
+        params.update(self.override_params or {})
+        return params
+
+    def get_effective_body(self):
+        """获取有效的请求体"""
+        if self.override_body:
+            return self.override_body
+        return self.request.body
 
 
 class TestExecution(SoftDeleteModel):
@@ -727,3 +767,188 @@ class TestSuiteReviewRecord(SoftDeleteModel):
 
     def __str__(self):
         return f"{self.test_suite.name} - {self.reviewer.username} - {self.get_status_display()}"
+
+
+class AutomationScenario(SoftDeleteModel):
+    """自动化场景模型"""
+    name = models.CharField(max_length=200, verbose_name='场景名称')
+    description = models.TextField(blank=True, verbose_name='场景描述')
+    project = models.ForeignKey(ApiProject, on_delete=models.CASCADE, related_name='scenarios',
+                                verbose_name='所属项目')
+    collection = models.ForeignKey(ApiCollection, on_delete=models.CASCADE, related_name='scenarios',
+                                   verbose_name='所属集合', null=True, blank=True)
+    legacy_test_suite = models.OneToOneField(TestSuite, on_delete=models.SET_NULL, null=True, blank=True,
+                                             related_name='scenario', verbose_name='关联旧版测试套件')
+    environment = models.ForeignKey(Environment, on_delete=models.SET_NULL, null=True, blank=True,
+                                    verbose_name='执行环境')
+    global_variables = models.JSONField(default=dict, verbose_name='场景全局变量')
+    pre_script = models.TextField(blank=True, verbose_name='场景前置脚本')
+    post_script = models.TextField(blank=True, verbose_name='场景后置脚本')
+    flow_control = models.JSONField(default=dict, verbose_name='流程控制配置')
+    created_by = models.ForeignKey(User, on_delete=models.CASCADE, related_name='created_scenarios',
+                                   verbose_name='创建者')
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='创建时间')
+    updated_at = models.DateTimeField(auto_now=True, verbose_name='更新时间')
+
+    class Meta:
+        db_table = 'api_automation_scenarios'
+        verbose_name = '自动化场景'
+        verbose_name_plural = '自动化场景'
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return self.name
+
+
+class ScenarioStep(SoftDeleteModel):
+    """场景步骤模型"""
+    STEP_TYPE_CHOICES = [
+        ('request', '接口请求'),
+        ('group', '分组'),
+        ('condition', '条件分支'),
+        ('loop', '循环'),
+        ('wait', '等待'),
+        ('script', '自定义脚本'),
+        ('scenario_ref', '引用场景'),
+    ]
+
+    scenario = models.ForeignKey(AutomationScenario, on_delete=models.CASCADE, related_name='steps',
+                                 verbose_name='所属场景')
+    step_type = models.CharField(max_length=20, choices=STEP_TYPE_CHOICES, default='request',
+                                 verbose_name='步骤类型')
+    step_number = models.IntegerField(verbose_name='步骤编号')
+    step_alias = models.CharField(max_length=100, blank=True, verbose_name='步骤别名')
+    name = models.CharField(max_length=200, verbose_name='步骤名称')
+    api_request = models.ForeignKey(ApiRequest, on_delete=models.SET_NULL, null=True, blank=True,
+                                    verbose_name='关联接口')
+    referenced_scenario = models.ForeignKey(AutomationScenario, on_delete=models.CASCADE, null=True, blank=True,
+                                            related_name='referenced_by_steps', verbose_name='引用的场景')
+    scenario_ref_config = models.JSONField(default=dict, blank=True,
+                                           help_text='{"inherit_variables": true, "pass_variables": ["var1", "var2"], "execution_mode": "sync"}',
+                                           verbose_name='场景引用配置')
+    parent = models.ForeignKey('self', on_delete=models.CASCADE, null=True, blank=True,
+                               related_name='children', verbose_name='父步骤')
+    override_enabled = models.BooleanField(default=True, verbose_name='是否启用')
+    override_name = models.CharField(max_length=200, blank=True, verbose_name='覆盖名称')
+    override_method = models.CharField(max_length=10, blank=True, verbose_name='覆盖方法')
+    override_url = models.TextField(blank=True, verbose_name='覆盖URL')
+    override_headers = models.JSONField(default=dict, blank=True, verbose_name='覆盖请求头')
+    override_body = models.JSONField(default=dict, blank=True, verbose_name='覆盖请求体')
+    override_params = models.JSONField(default=dict, blank=True, verbose_name='覆盖参数')
+    override_assertions = models.JSONField(default=list, blank=True, verbose_name='覆盖断言规则')
+    override_extractors = models.JSONField(default=list, blank=True, verbose_name='覆盖变量提取规则')
+    pre_script = models.TextField(blank=True, verbose_name='步骤前置脚本')
+    post_script = models.TextField(blank=True, verbose_name='步骤后置脚本')
+    control_config = models.JSONField(default=dict, blank=True,
+                                      help_text='条件、循环等配置，如 {"condition": "...", "loop_type": "for_each"}',
+                                      verbose_name='控制配置')
+    order = models.IntegerField(default=0, verbose_name='排序')
+    legacy_suite_request = models.OneToOneField(TestSuiteRequest, on_delete=models.SET_NULL, null=True, blank=True,
+                                                related_name='scenario_step', verbose_name='关联旧版套件请求')
+
+    class Meta:
+        db_table = 'api_scenario_steps'
+        verbose_name = '场景步骤'
+        verbose_name_plural = '场景步骤'
+        ordering = ['order', 'step_number']
+        unique_together = ['scenario', 'step_number']
+
+    def __str__(self):
+        return f"{self.scenario.name} - {self.name}"
+
+    def get_effective_request_data(self) -> Dict[str, Any]:
+        """获取有效的请求数据（合并原始请求和覆盖配置）"""
+        if not self.api_request:
+            return {}
+
+        # 从原始请求获取基础数据
+        request_data = {
+            'method': self.api_request.method,
+            'url': self.api_request.url,
+            'headers': dict(self.api_request.headers or {}),
+            'params': dict(self.api_request.params or {}),
+            'body': self.api_request.body,
+        }
+
+        # 应用覆盖配置
+        if self.override_method:
+            request_data['method'] = self.override_method
+        if self.override_url:
+            request_data['url'] = self.override_url
+        if self.override_headers:
+            request_data['headers'].update(self.override_headers)
+        if self.override_params:
+            request_data['params'].update(self.override_params)
+        if self.override_body:
+            request_data['body'] = self.override_body
+
+        return request_data
+
+    def get_effective_extractors(self) -> List[Dict]:
+        """获取有效的变量提取规则（合并原始请求和覆盖配置）"""
+        extractors = []
+
+        # 从原始请求获取提取规则
+        if self.api_request and self.api_request.variable_extractors:
+            extractors = list(self.api_request.variable_extractors)
+
+        # 应用覆盖配置
+        if self.override_extractors:
+            # 使用覆盖的提取规则
+            extractors = list(self.override_extractors)
+
+        return extractors
+
+    def get_effective_assertions(self) -> List[Dict]:
+        """获取有效的断言规则（合并原始请求和覆盖配置）"""
+        assertions = []
+
+        # 从原始请求获取断言规则
+        if self.api_request and self.api_request.assertions:
+            assertions = list(self.api_request.assertions)
+
+        # 应用覆盖配置
+        if self.override_assertions:
+            # 使用覆盖的断言规则
+            assertions = list(self.override_assertions)
+
+        return assertions
+
+
+class ScenarioExecution(models.Model):
+    """场景执行记录模型"""
+    STATUS_CHOICES = [
+        ('pending', '待执行'),
+        ('running', '执行中'),
+        ('completed', '已完成'),
+        ('failed', '执行失败'),
+        ('cancelled', '已取消'),
+    ]
+
+    scenario = models.ForeignKey(AutomationScenario, on_delete=models.CASCADE, related_name='executions',
+                                 verbose_name='所属场景')
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending', verbose_name='执行状态')
+    execution_context = models.JSONField(default=dict, help_text='存储所有步骤的完整请求响应数据，用于跨步骤引用',
+                                         verbose_name='执行上下文')
+    step_results = models.JSONField(default=list, verbose_name='步骤结果')
+    total_steps = models.IntegerField(default=0, verbose_name='总步骤数')
+    passed_steps = models.IntegerField(default=0, verbose_name='通过步骤数')
+    failed_steps = models.IntegerField(default=0, verbose_name='失败步骤数')
+    parent_execution = models.ForeignKey('self', on_delete=models.CASCADE, null=True, blank=True,
+                                         related_name='child_executions', verbose_name='父执行记录')
+    parent_step_number = models.IntegerField(null=True, blank=True, verbose_name='父场景步骤编号')
+    inherited_variables = models.JSONField(default=dict, blank=True, verbose_name='继承的变量')
+    exported_variables = models.JSONField(default=dict, blank=True, verbose_name='导出的变量')
+    executed_by = models.ForeignKey(User, on_delete=models.CASCADE, verbose_name='执行者')
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='创建时间')
+    start_time = models.DateTimeField(null=True, blank=True, verbose_name='开始时间')
+    end_time = models.DateTimeField(null=True, blank=True, verbose_name='结束时间')
+
+    class Meta:
+        db_table = 'api_scenario_executions'
+        verbose_name = '场景执行记录'
+        verbose_name_plural = '场景执行记录'
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"{self.scenario.name} - {self.status}"

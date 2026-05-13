@@ -1,18 +1,98 @@
 <template>
-  <el-dialog
+  <el-drawer
     v-model="visible"
     :title="$t('apiTesting.apifox.importTitle')"
-    width="600px"
+    size="600px"
     :close-on-click-modal="false"
-    custom-class="apifox-import-dialog"
+    direction="rtl"
     destroy-on-close
   >
     <div class="import-container">
-      <!-- 步骤 1: 上传 + 验证 + 配置 -->
-      <div v-if="currentStep === 0" class="step-content">
-        <!-- 未上传文件时显示上传区域 -->
-        <template v-if="!selectedFile">
-          <div class="upload-section">
+      <!-- 导入结果展示 -->
+      <div v-if="importStatus" class="step-content">
+        <el-result
+          v-if="importStatus === 'importing'"
+          icon="info"
+          :title="$t('apiTesting.apifox.importing')"
+        >
+          <template #extra>
+            <el-progress :percentage="importProgress" />
+          </template>
+        </el-result>
+
+        <template v-else-if="importStatus === 'success'">
+          <div class="import-success-container">
+            <!-- 成功状态行 -->
+            <div class="success-status-row">
+              <div class="status-left">
+                <el-icon :size="20" color="#52c41a"><circle-check-filled /></el-icon>
+                <span class="status-text">{{ $t('apiTesting.apifox.importSuccess') }}</span>
+              </div>
+              <div class="status-right">
+                <span class="requests-label">导入请求数：</span>
+                <span class="requests-count">{{ importResult.imported_requests }}</span>
+              </div>
+            </div>
+
+            <!-- 导入警告 -->
+            <div v-if="importResult.warnings?.length || importResult.issues_by_request" class="import-warnings-section">
+              <div class="warnings-header">
+                <el-icon color="#e6a23c" :size="18"><warning-filled /></el-icon>
+                <span>{{ $t('apiTesting.apifox.importWarnings') }}</span>
+              </div>
+              <div class="warnings-content">
+                <!-- 如果有结构化的 issues_by_request，使用新格式 -->
+                <div v-if="importResult.issues_by_request && Object.keys(importResult.issues_by_request).length > 0" class="issues-by-request">
+                  <div
+                    v-for="(issues, requestName) in importResult.issues_by_request"
+                    :key="requestName"
+                    class="request-issues-card"
+                  >
+                    <div class="request-name">
+                      <el-icon><warning-filled /></el-icon>
+                      <span>{{ requestName }}</span>
+                    </div>
+                    <div class="issues-list">
+                      <div
+                        v-for="(issue, idx) in issues"
+                        :key="idx"
+                        class="issue-item"
+                      >
+                        <div class="issue-type">{{ issue.type }}</div>
+                        <div class="issue-detail">{{ issue.detail }}</div>
+                        <div v-if="issue.action" class="issue-action">
+                          <el-icon><info-filled /></el-icon>
+                          <span>{{ issue.action }}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <!-- 否则使用旧格式 -->
+                <ul v-else class="warnings-list">
+                  <li v-for="(warning, index) in importResult.warnings" :key="index">
+                    {{ warning }}
+                  </li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </template>
+
+        <el-result
+          v-else-if="importStatus === 'error'"
+          icon="error"
+          :title="$t('apiTesting.apifox.importError')"
+          :sub-title="importError"
+        />
+      </div>
+
+      <!-- 上传和配置合并页面 -->
+      <div v-else class="step-content">
+        <!-- 上传区域 -->
+        <div class="upload-section">
+          <!-- 未上传文件时显示上传区域 -->
+          <template v-if="!selectedFile">
             <el-upload
               ref="uploadRef"
               class="apifox-uploader"
@@ -30,52 +110,80 @@
                 <span class="secondary-text">{{ $t('apiTesting.apifox.supportFormat') }}</span>
               </div>
             </el-upload>
-          </div>
-        </template>
+          </template>
 
-        <!-- 验证中状态 -->
-        <div v-if="validationStatus === 'validating'" class="status-section">
-          <el-progress :percentage="validationProgress" :indeterminate="true" status="exception" />
-          <p class="status-text">{{ $t('apiTesting.apifox.validating') }}</p>
+          <!-- 验证中状态 -->
+          <div v-else-if="validationStatus === 'validating'" class="status-section">
+            <el-progress :percentage="validationProgress" :indeterminate="true" status="exception" />
+            <p class="status-text">{{ $t('apiTesting.apifox.validating') }}</p>
+          </div>
+
+          <!-- 验证成功 - 显示文件信息 -->
+          <template v-else-if="validationStatus === 'success' || validationStatus === 'warning'">
+            <div class="file-info-card">
+              <div class="file-info-header">
+                <el-icon class="file-icon"><document /></el-icon>
+                <div class="file-info-content">
+                  <span class="file-name">{{ selectedFile?.name }}</span>
+                  <span class="file-meta">
+                    共 {{ validationResult.total_requests }} 个请求
+                    <template v-if="validationResult.scenario_name">
+                      · 场景名称: {{ validationResult.scenario_name }}
+                    </template>
+                  </span>
+                </div>
+                <el-button link type="danger" size="small" @click="handleFileRemove">
+                  {{ $t('common.delete') }}
+                </el-button>
+              </div>
+            </div>
+
+            <!-- 同名合集提示 -->
+            <el-alert
+              v-if="validationResult.scenario_name && !importConfig.collectionId"
+              :title="collectionAlertTitle"
+              type="info"
+              :closable="false"
+              show-icon
+              class="info-alert"
+              style="margin-bottom: 16px;"
+            >
+              <span>系统将自动创建此合集；如选择导入到已有合集，将会覆盖原合集中的接口</span>
+            </el-alert>
+
+            <!-- 警告信息 -->
+            <el-alert
+              v-if="validationStatus === 'warning' && validationResult.unsupported_functions?.length"
+              :title="$t('apiTesting.apifox.unsupportedFunctions')"
+              type="warning"
+              :closable="false"
+              class="warning-alert"
+            >
+              <div class="unsupported-list">
+                <el-tag
+                  v-for="func in validationResult.unsupported_functions"
+                  :key="func"
+                  type="danger"
+                  size="small"
+                >
+                  {{ func }}
+                </el-tag>
+              </div>
+            </el-alert>
+          </template>
+
+          <!-- 验证错误 -->
+          <el-result
+            v-else-if="validationStatus === 'error'"
+            icon="error"
+            :title="$t('apiTesting.apifox.validationError')"
+            :sub-title="validationError"
+          />
         </div>
 
-        <!-- 验证成功 - 显示文件信息和配置 -->
-        <template v-else-if="validationStatus === 'success' || validationStatus === 'warning'">
-          <!-- 文件信息卡片 -->
-          <div class="file-info-card">
-            <div class="file-info-header">
-              <el-icon class="file-icon"><document /></el-icon>
-              <div class="file-info-content">
-                <span class="file-name">{{ selectedFile?.name }}</span>
-                <span class="file-meta">共 {{ validationResult.total_requests }} 个请求</span>
-              </div>
-              <el-button link type="danger" size="small" @click="handleFileRemove">
-                {{ $t('common.delete') }}
-              </el-button>
-            </div>
-          </div>
-
-          <!-- 警告信息 -->
-          <el-alert
-            v-if="validationStatus === 'warning' && validationResult.unsupported_functions?.length"
-            :title="$t('apiTesting.apifox.unsupportedFunctions')"
-            type="warning"
-            :closable="false"
-            class="warning-alert"
-          >
-            <div class="unsupported-list">
-              <el-tag
-                v-for="func in validationResult.unsupported_functions"
-                :key="func"
-                type="danger"
-                size="small"
-              >
-                {{ func }}
-              </el-tag>
-            </div>
-          </el-alert>
-
-          <!-- 配置表单 -->
+        <!-- 配置表单（验证成功后显示） -->
+        <template v-if="(validationStatus === 'success' || validationStatus === 'warning') && selectedFile">
+          <el-divider />
           <el-form :model="importConfig" label-position="top" class="import-form">
             <el-form-item :label="$t('apiTesting.apifox.labels.targetProject')" required>
               <el-select
@@ -111,87 +219,14 @@
             </el-form-item>
           </el-form>
         </template>
-
-        <!-- 验证错误 -->
-        <el-result
-          v-else-if="validationStatus === 'error'"
-          icon="error"
-          :title="$t('apiTesting.apifox.validationError')"
-          :sub-title="validationError"
-        />
-      </div>
-
-      <!-- 步骤 2: 导入结果 -->
-      <div v-if="currentStep === 1" class="step-content">
-        <el-result
-          v-if="importStatus === 'importing'"
-          icon="info"
-          :title="$t('apiTesting.apifox.importing')"
-        >
-          <template #extra>
-            <el-progress :percentage="importProgress" />
-          </template>
-        </el-result>
-
-        <template v-else-if="importStatus === 'success'">
-          <el-result
-            icon="success"
-            :title="$t('apiTesting.apifox.importSuccess')"
-            :sub-title="$t('apiTesting.apifox.importSuccessDesc')"
-          >
-            <template #extra>
-              <el-descriptions :column="2" border class="result-descriptions">
-                <el-descriptions-item :label="$t('apiTesting.apifox.labels.createdCollection')">
-                  <el-link type="primary" @click="navigateToCollection">
-                    {{ importResult.collection_name }}
-                  </el-link>
-                </el-descriptions-item>
-                <el-descriptions-item :label="$t('apiTesting.apifox.labels.createdSuite')">
-                  <el-link type="primary" @click="navigateToSuite">
-                    {{ importResult.suite_name }}
-                  </el-link>
-                </el-descriptions-item>
-                <el-descriptions-item :label="$t('apiTesting.apifox.labels.importedRequests')">
-                  <el-tag type="success">{{ importResult.imported_requests }}</el-tag>
-                </el-descriptions-item>
-                <el-descriptions-item :label="$t('apiTesting.apifox.labels.importTime')">
-                  {{ importResult.import_time }}
-                </el-descriptions-item>
-              </el-descriptions>
-
-              <div v-if="importResult.warnings?.length" class="import-warnings">
-                <el-alert
-                  :title="$t('apiTesting.apifox.importWarnings')"
-                  type="warning"
-                  :closable="false"
-                >
-                  <ul>
-                    <li v-for="(warning, index) in importResult.warnings" :key="index">
-                      {{ warning }}
-                    </li>
-                  </ul>
-                </el-alert>
-              </div>
-            </template>
-          </el-result>
-        </template>
-
-        <el-result
-          v-else-if="importStatus === 'error'"
-          icon="error"
-          :title="$t('apiTesting.apifox.importError')"
-          :sub-title="importError"
-        />
       </div>
     </div>
 
     <template #footer>
       <div class="dialog-footer">
-        <el-button v-if="currentStep === 1 && importStatus !== 'importing'" @click="handlePrev">
-          {{ $t('common.previous') }}
-        </el-button>
+        <el-button @click="handleCancel">{{ $t('common.cancel') }}</el-button>
         <el-button
-          v-if="currentStep === 0 && (validationStatus === 'success' || validationStatus === 'warning')"
+          v-if="!importStatus && (validationStatus === 'success' || validationStatus === 'warning')"
           type="primary"
           @click="handleImport"
           :loading="processing"
@@ -199,16 +234,15 @@
         >
           {{ $t('apiTesting.apifox.buttons.startImport') }}
         </el-button>
-        <el-button v-if="currentStep === 1 && importStatus === 'success'" type="primary" @click="handleFinish">
+        <el-button v-if="importStatus === 'success'" type="primary" @click="handleFinish">
           {{ $t('common.finish') }}
         </el-button>
-        <el-button v-if="currentStep === 1 && importStatus === 'error'" type="primary" @click="handleRetry">
+        <el-button v-if="importStatus === 'error'" type="primary" @click="handleRetry">
           {{ $t('common.retry') }}
         </el-button>
-        <el-button @click="handleCancel">{{ $t('common.cancel') }}</el-button>
       </div>
     </template>
-  </el-dialog>
+  </el-drawer>
 </template>
 
 <script setup>
@@ -216,7 +250,7 @@ import { ref, computed, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { UploadFilled, CircleCheckFilled, Document } from '@element-plus/icons-vue'
+import { UploadFilled, CircleCheckFilled, Document, WarningFilled, InfoFilled } from '@element-plus/icons-vue'
 import api from '@/utils/api'
 
 const { t } = useI18n()
@@ -237,8 +271,13 @@ const visible = computed({
   set: (val) => emit('update:modelValue', val)
 })
 
-// 步骤控制 (0: 配置, 1: 结果)
-const currentStep = ref(0)
+// 合集提示标题
+const collectionAlertTitle = computed(() => {
+  const name = validationResult.value.scenario_name
+  return name ? `将创建/导入到名为 "${name}" 的合集` : '导入合集'
+})
+
+// 步骤控制 (0: 配置, 1: 结果) - 保留变量但不再使用步骤切换
 const processing = ref(false)
 
 // 文件上传
@@ -278,7 +317,8 @@ const importResult = ref({
   suite_name: '',
   imported_requests: 0,
   import_time: '',
-  warnings: []
+  warnings: [],
+  issues_by_request: {}
 })
 const importError = ref('')
 
@@ -296,7 +336,6 @@ watch(() => props.projects, (val) => {
 
 // 方法
 const resetState = () => {
-  currentStep.value = 0
   selectedFile.value = null
   validationStatus.value = ''
   validationProgress.value = 0
@@ -306,7 +345,7 @@ const resetState = () => {
   collectionList.value = []
   importStatus.value = ''
   importProgress.value = 0
-  importResult.value = { collection_id: null, collection_name: '', suite_id: null, suite_name: '', imported_requests: 0, import_time: '', warnings: [] }
+  importResult.value = { collection_id: null, collection_name: '', suite_id: null, suite_name: '', imported_requests: 0, import_time: '', warnings: [], issues_by_request: {} }
   importError.value = ''
 
   if (uploadRef.value) {
@@ -395,16 +434,58 @@ const validateFile = async () => {
   }
 }
 
+// 检查是否存在同名合集
+const checkDuplicateCollection = async (projectId, scenarioName) => {
+  if (!projectId || !scenarioName) return null
+  try {
+    const response = await api.get(`/api-testing/collections/?project=${projectId}`)
+    const collections = response.data.results || []
+    // 检查是否有同名合集（忽略大小写）
+    return collections.find(c =>
+      c.name?.toLowerCase() === scenarioName?.toLowerCase()
+    )
+  } catch (error) {
+    console.error('检查合集失败:', error)
+    return null
+  }
+}
+
 const handleImport = async () => {
   if (!importConfig.value.projectId) {
     ElMessage.warning(t('apiTesting.apifox.messages.selectProject'))
     return
   }
 
+  // 如果没有选择目标合集，检查是否有同名合集
+  if (!importConfig.value.collectionId && validationResult.value.scenario_name) {
+    const duplicateCollection = await checkDuplicateCollection(
+      importConfig.value.projectId,
+      validationResult.value.scenario_name
+    )
+
+    if (duplicateCollection) {
+      try {
+        await ElMessageBox.confirm(
+          `该项目下已存在名为 "${duplicateCollection.name}" 的合集，导入将会覆盖合集中的原有接口，是否继续？`,
+          '覆盖确认',
+          {
+            confirmButtonText: '覆盖导入',
+            cancelButtonText: '取消',
+            type: 'warning'
+          }
+        )
+        // 用户确认，使用现有合集
+        importConfig.value.collectionId = duplicateCollection.id
+      } catch {
+        // 用户取消
+        return
+      }
+    }
+  }
+
   processing.value = true
   importStatus.value = 'importing'
   importProgress.value = 0
-  currentStep.value = 1
 
   const formData = new FormData()
   formData.append('file', selectedFile.value.raw)
@@ -447,10 +528,6 @@ const handleImport = async () => {
   }
 }
 
-const handlePrev = () => {
-  currentStep.value = 0
-}
-
 const handleCancel = () => {
   if (importStatus.value === 'importing') {
     ElMessageBox.confirm(
@@ -470,8 +547,8 @@ const handleFinish = () => {
 }
 
 const handleRetry = () => {
-  currentStep.value = 0
   importStatus.value = ''
+  // 重新尝试导入
   handleImport()
 }
 
@@ -491,10 +568,20 @@ const navigateToSuite = () => {
 </script>
 
 <style lang="scss" scoped>
-.apifox-import-dialog {
-  :deep(.el-dialog__body) {
-    padding: 20px 30px;
-  }
+:deep(.el-drawer__body) {
+  padding: 20px;
+  overflow-y: auto;
+}
+
+:deep(.el-drawer__header) {
+  margin-bottom: 0;
+  padding: 16px 20px;
+  border-bottom: 1px solid #e4e7ed;
+}
+
+:deep(.el-drawer__footer) {
+  padding: 16px 20px;
+  border-top: 1px solid #e4e7ed;
 }
 
 .import-container {
@@ -633,7 +720,231 @@ const navigateToSuite = () => {
   margin-top: 4px;
 }
 
-// 结果样式
+// 导入成功页面样式
+.import-success-container {
+  padding: 16px 0;
+  display: flex;
+  flex-direction: column;
+  height: calc(100vh - 200px); // 减去抽屉头部和底部按钮的高度
+  max-height: 600px;
+
+  // 单行状态栏
+  .success-status-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: #f6ffed;
+    border: 1px solid #b7eb8f;
+    border-radius: 6px;
+    padding: 12px 16px;
+    margin-bottom: 16px;
+
+    .status-left {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+
+      .status-text {
+        font-size: 14px;
+        font-weight: 500;
+        color: #52c41a;
+      }
+    }
+
+    .status-right {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+
+      .requests-label {
+        font-size: 13px;
+        color: #606266;
+      }
+
+      .requests-count {
+        font-size: 14px;
+        font-weight: 600;
+        color: #52c41a;
+      }
+    }
+  }
+
+  // 保留旧样式兼容
+  .success-header {
+    text-align: center;
+    margin-bottom: 32px;
+
+    .success-icon {
+      margin-bottom: 16px;
+
+      :deep(.el-icon) {
+        font-size: 64px;
+      }
+    }
+
+    .success-title {
+      font-size: 20px;
+      font-weight: 600;
+      color: #303133;
+      margin: 0 0 8px;
+    }
+
+    .success-desc {
+      font-size: 14px;
+      color: #909399;
+      margin: 0;
+    }
+  }
+
+  .success-stats {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 16px;
+    margin-bottom: 24px;
+
+    .stat-card {
+      background: #f5f7fa;
+      border-radius: 8px;
+      padding: 16px;
+      text-align: center;
+
+      .stat-label {
+        font-size: 12px;
+        color: #909399;
+        margin-bottom: 8px;
+      }
+
+      .stat-value {
+        font-size: 14px;
+        font-weight: 500;
+        color: #303133;
+      }
+    }
+  }
+
+  .import-warnings-section {
+    background: #fdf6ec;
+    border-radius: 8px;
+    overflow: hidden;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0; // 防止flex子项溢出
+
+    .warnings-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 12px 16px;
+      background: #f5e6c8;
+      font-weight: 600;
+      color: #8a6d3b;
+      font-size: 14px;
+    }
+
+    .warnings-content {
+      padding: 12px 16px;
+      flex: 1;
+      overflow-y: auto;
+      min-height: 0;
+
+      .warnings-list {
+        margin: 0;
+        padding-left: 20px;
+
+        li {
+          margin-bottom: 6px;
+          color: #8a6d3b;
+          font-size: 13px;
+          line-height: 1.6;
+
+          &:last-child {
+            margin-bottom: 0;
+          }
+        }
+      }
+    }
+
+    // 新的结构化问题展示样式
+    .issues-by-request {
+      max-height: none;
+      overflow-y: visible;
+
+      .request-issues-card {
+        background: #fff;
+        border: 1px solid #e4d5b8;
+        border-radius: 6px;
+        margin-bottom: 10px;
+        overflow: hidden;
+
+        &:last-child {
+          margin-bottom: 0;
+        }
+
+        .request-name {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          padding: 10px 12px;
+          background: #f9f0db;
+          border-bottom: 1px solid #e4d5b8;
+          font-weight: 600;
+          color: #8a6d3b;
+          font-size: 13px;
+
+          .el-icon {
+            font-size: 14px;
+          }
+        }
+
+        .issues-list {
+          padding: 8px 12px;
+
+          .issue-item {
+            padding: 8px 0;
+            border-bottom: 1px dashed #e4d5b8;
+
+            &:last-child {
+              border-bottom: none;
+            }
+
+            .issue-type {
+              font-weight: 600;
+              color: #e6a23c;
+              font-size: 12px;
+              margin-bottom: 4px;
+            }
+
+            .issue-detail {
+              color: #606266;
+              font-size: 12px;
+              line-height: 1.5;
+              margin-bottom: 4px;
+            }
+
+            .issue-action {
+              display: flex;
+              align-items: flex-start;
+              gap: 4px;
+              color: #909399;
+              font-size: 11px;
+              background: #f5f7fa;
+              padding: 6px 10px;
+              border-radius: 4px;
+
+              .el-icon {
+                margin-top: 1px;
+                flex-shrink: 0;
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+// 旧的结果样式（保留兼容）
 .result-descriptions {
   margin-bottom: 16px;
 }
@@ -651,12 +962,87 @@ const navigateToSuite = () => {
       color: #e6a23c;
     }
   }
+
+  // 新的结构化问题展示样式
+  .issues-by-request {
+    margin-top: 12px;
+    max-height: 400px;
+    overflow-y: auto;
+
+    .request-issues-card {
+      background: #fff;
+      border: 1px solid #e4e7ed;
+      border-radius: 8px;
+      margin-bottom: 12px;
+      overflow: hidden;
+
+      .request-name {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 10px 12px;
+        background: #fdf6ec;
+        border-bottom: 1px solid #f0e0c0;
+        font-weight: 600;
+        color: #e6a23c;
+        font-size: 14px;
+
+        .el-icon {
+          font-size: 16px;
+        }
+      }
+
+      .issues-list {
+        padding: 8px 12px;
+
+        .issue-item {
+          padding: 8px 0;
+          border-bottom: 1px dashed #ebeef5;
+
+          &:last-child {
+            border-bottom: none;
+          }
+
+          .issue-type {
+            font-weight: 600;
+            color: #f56c6c;
+            font-size: 13px;
+            margin-bottom: 4px;
+          }
+
+          .issue-detail {
+            color: #606266;
+            font-size: 13px;
+            line-height: 1.5;
+            margin-bottom: 4px;
+          }
+
+          .issue-action {
+            display: flex;
+            align-items: flex-start;
+            gap: 4px;
+            color: #909399;
+            font-size: 12px;
+            background: #f5f7fa;
+            padding: 6px 10px;
+            border-radius: 4px;
+            margin-top: 6px;
+
+            .el-icon {
+              margin-top: 1px;
+              flex-shrink: 0;
+            }
+          }
+        }
+      }
+    }
+  }
 }
 
 // 底部按钮
 .dialog-footer {
   display: flex;
-  justify-content: flex-end;
-  gap: 12px;
+  justify-content: flex-start;
+  gap: 2px;
 }
 </style>

@@ -539,7 +539,7 @@
                           />
                           <el-input
                             v-model="assertion.expected"
-                            :placeholder="$t('apiTesting.interface.expectedValue')"
+                            :placeholder="assertion.expected_display || (assertion.operator === 'exists' ? '不为空' : $t('apiTesting.interface.expectedValue'))"
                             size="small"
                           />
                         </div>

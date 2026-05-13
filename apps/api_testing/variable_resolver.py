@@ -26,8 +26,10 @@ from apps.data_factory.tools.image_tools import ImageTools
 
 class VariableResolver:
     """接口测试变量解析器 - 使用数据工厂工具"""
-    
+
     def __init__(self):
+        # 变量上下文，用于存储提取的变量
+        self.context = {}
         # 注册所有内置函数，映射到数据工厂的工具
         self.functions = {
             # 随机工具
@@ -119,20 +121,30 @@ class VariableResolver:
         }
     
     def resolve(self, text):
-        """解析文本中的动态函数占位符
-        
+        """解析文本中的动态函数和变量占位符
+
         Args:
-            text: 包含动态函数的文本，如 "Hello ${random_string(8)}"
-            
+            text: 包含动态函数或变量的文本，如 "Hello ${random_string(8)}" 或 "{{variable_name}}"
+
         Returns:
             解析后的文本
         """
         if not isinstance(text, str):
             return text
-        
-        # 匹配 ${function_name(args)} 模式
+
+        # 首先替换 {{variable_name}} 格式的变量
+        def replace_variable(match):
+            var_name = match.group(1).strip()
+            if var_name in self.context:
+                return str(self.context[var_name])
+            # 变量不存在，保留原样
+            return match.group(0)
+
+        text = re.sub(r'\{\{\s*([^}]+)\s*\}\}', replace_variable, text)
+
+        # 然后匹配 ${function_name(args)} 模式
         pattern = r'\$\{([^}]+)\}'
-        
+
         def replace_func(match):
             expression = match.group(1)
             try:
@@ -145,7 +157,7 @@ class VariableResolver:
                 except UnicodeEncodeError:
                     print(f"[WARNING] Variable resolution failed: ${{{expression}}}")
                 return match.group(0)
-        
+
         return re.sub(pattern, replace_func, text)
     
     def _evaluate_expression(self, expression):
@@ -293,7 +305,7 @@ class VariableResolver:
             elif func_name == 'random_float':
                 kwargs = {'min_val': args[0] if len(args) > 0 else 0.0, 'max_val': args[1] if len(args) > 1 else 1.0, 'precision': args[2] if len(args) > 2 else 2, 'count': args[3] if len(args) > 3 else 1}
             elif func_name == 'random_string':
-                kwargs = {'length': args[0] if len(args) > 0 else 8, 'char_type': args[1] if len(args) > 1 else 'all', 'count': args[2] if len(args) > 2 else 1}
+                kwargs = {'length': args[0] if len(args) > 0 else 8, 'char_type': args[1] if len(args) > 1 else 'alphanumeric', 'count': args[2] if len(args) > 2 else 1}
             elif func_name in ['random_uuid', 'random_guid']:
                 kwargs = {'version': args[0] if len(args) > 0 else 4, 'count': args[1] if len(args) > 1 else 1}
             elif func_name in ['random_mac', 'random_mac_address']:

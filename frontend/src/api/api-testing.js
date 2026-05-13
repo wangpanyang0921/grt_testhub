@@ -191,3 +191,12 @@ export function getOperationLogs(params) {
     params
   })
 }
+
+// 更新测试套件请求（支持编辑接口覆盖配置）
+export function updateTestSuiteRequest(id, data) {
+  return request({
+    url: `/api-testing/test-suite-requests/${id}/`,
+    method: 'patch',
+    data
+  })
+}

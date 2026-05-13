@@ -270,7 +270,7 @@ export default {
     createTime: '创建时间',
     runTest: '运行测试',
     testRequests: '测试请求',
-    addRequest: '添加请求',
+    addRequest: '添加步骤',
     requestName: '请求名称',
     method: '请求方法',
     URL: '请求地址',

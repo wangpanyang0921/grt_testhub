@@ -51,6 +51,15 @@
         </div>
       </div>
 
+      <!-- 重复提示 -->
+      <div v-if="duplicateInterfaces.length > 0" class="duplicate-warning" style="margin-top: 16px; padding: 12px 16px; background: #fff7ed; border: 1px solid #fed7aa; border-radius: 8px; display: flex; align-items: center; gap: 8px;">
+        <el-icon style="color: #f97316; font-size: 16px;"><Warning /></el-icon>
+        <span style="color: #c2410c; font-size: 14px;">
+          检测到 <strong>{{ duplicateInterfaces.length }}</strong> 个接口已存在，已自动取消选中。
+          <span style="color: #ea580c;">如需覆盖导入，请手动勾选</span>
+        </span>
+      </div>
+
       <!-- 预览区域 -->
       <div v-if="previewData.length > 0" class="preview-section" style="margin-top: 20px; overflow-x: auto;">
         <!-- 列表表头 -->
@@ -61,12 +70,14 @@
           <span class="header-method" style="width: 100px; flex-shrink: 0; text-align: center;">方法</span>
           <span class="header-name" style="width: 250px; flex-shrink: 0; padding-left: 10px;">接口名称</span>
           <span class="header-path" style="width: 400px; flex-shrink: 0; padding-left: 10px;">接口路径</span>
+          <span class="header-status" style="width: 80px; flex-shrink: 0; text-align: center;">状态</span>
         </div>
         <div class="preview-list" style="min-width: 800px;">
           <div
             v-for="item in previewData"
             :key="item.id"
             class="preview-item"
+            :class="{ 'is-duplicate': duplicateInterfaces.includes(item.id) }"
             style="height: 40px; display: flex; align-items: center; padding: 0 16px;"
           >
             <div style="width: 40px; flex-shrink: 0;">
@@ -78,6 +89,10 @@
               <span class="method-badge" :class="item.method?.toLowerCase()" style="width: 100px; flex-shrink: 0; text-align: center;">{{ item.method }}</span>
               <span class="interface-name" style="width: 250px; flex-shrink: 0; padding-left: 10px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ item.name }}</span>
               <span class="interface-path" style="width: 400px; flex-shrink: 0; padding-left: 10px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ item.path }}</span>
+              <span class="interface-status" style="width: 80px; flex-shrink: 0; text-align: center;">
+                <el-tag v-if="duplicateInterfaces.includes(item.id)" type="warning" size="small" effect="light">已存在</el-tag>
+                <el-tag v-else type="success" size="small" effect="light">新接口</el-tag>
+              </span>
             </div>
           </div>
         </div>
@@ -101,8 +116,8 @@
 
 <script setup>
 import { ref, computed, watch } from 'vue'
-import { ElMessage } from 'element-plus'
-import { UploadFilled } from '@element-plus/icons-vue'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import { UploadFilled, Warning } from '@element-plus/icons-vue'
 import api from '@/utils/api'
 
 const props = defineProps({
@@ -131,6 +146,10 @@ const targetCollection = ref('')
 const previewData = ref([])
 const selectedInterfaces = ref([])
 const uploadedFile = ref(null)
+
+// 现有接口列表（用于重复校验）
+const existingInterfaces = ref([])
+const duplicateInterfaces = ref([])
 
 const selectAll = computed({
   get: () => previewData.value.length > 0 && selectedInterfaces.value.length === previewData.value.length,
@@ -225,9 +244,24 @@ const parseOpenApiData = (data) => {
     }
   }
 
+  // 检查重复项
+  duplicateInterfaces.value = []
+  interfaces.forEach(item => {
+    if (checkDuplicate(item)) {
+      duplicateInterfaces.value.push(item.id)
+    }
+  })
+
   previewData.value = interfaces
-  // 默认全选
-  selectedInterfaces.value = interfaces.map(item => item.id)
+  // 默认全选（只选中非重复的）
+  selectedInterfaces.value = interfaces
+    .filter(item => !duplicateInterfaces.value.includes(item.id))
+    .map(item => item.id)
+
+  // 提示重复信息
+  if (duplicateInterfaces.value.length > 0) {
+    ElMessage.warning(`检测到 ${duplicateInterfaces.value.length} 个接口已存在，已自动取消选中，如需覆盖请手动选择`)
+  }
 }
 
 // 处理导入
@@ -240,6 +274,27 @@ const handleImport = async () => {
   if (!targetCollection.value) {
     ElMessage.warning('请选择目标集合')
     return
+  }
+
+  // 检查是否选中了重复接口
+  const selectedDuplicates = selectedInterfaces.value.filter(id =>
+    duplicateInterfaces.value.includes(id)
+  )
+
+  if (selectedDuplicates.length > 0) {
+    try {
+      await ElMessageBox.confirm(
+        `您选择了 ${selectedDuplicates.length} 个已存在的接口，导入后会覆盖原有数据，是否继续？`,
+        '覆盖确认',
+        {
+          confirmButtonText: '继续导入',
+          cancelButtonText: '取消',
+          type: 'warning'
+        }
+      )
+    } catch {
+      return
+    }
   }
 
   importing.value = true
@@ -424,6 +479,32 @@ const extractRequestDetails = (raw) => {
   }
 }
 
+// 获取现有接口列表（用于重复校验）
+const loadExistingInterfaces = async () => {
+  if (!props.projectId) return
+  try {
+    const res = await api.get('/api-testing/requests/', {
+      params: {
+        project: props.projectId,
+        page_size: 9999
+      }
+    })
+    existingInterfaces.value = res.data.results || res.data || []
+  } catch (error) {
+    console.error('加载现有接口失败:', error)
+    existingInterfaces.value = []
+  }
+}
+
+// 检查接口是否重复
+const checkDuplicate = (item) => {
+  return existingInterfaces.value.some(existing =>
+    existing.name === item.name &&
+    existing.method === item.method &&
+    existing.url === item.path
+  )
+}
+
 // 监听对话框打开，重置数据
 watch(() => props.modelValue, (val) => {
   if (val) {
@@ -431,6 +512,9 @@ watch(() => props.modelValue, (val) => {
     previewData.value = []
     selectedInterfaces.value = []
     uploadedFile.value = null
+    duplicateInterfaces.value = []
+    // 加载现有接口用于重复校验
+    loadExistingInterfaces()
   }
 })
 </script>
@@ -592,6 +676,18 @@ watch(() => props.modelValue, (val) => {
 
   &:hover {
     background: #f9fafb;
+  }
+
+  &.is-duplicate {
+    background: #fff7ed;
+
+    &:hover {
+      background: #ffedd5;
+    }
+
+    .interface-name {
+      color: #c2410c;
+    }
   }
 }
 

@@ -85,11 +85,7 @@
               <span v-else class="status-badge websocket">WebSocket</span>
             </template>
           </el-table-column>
-          <el-table-column label="所属合集" min-width="180" header-align="center" align="center">
-            <template #default="{ row }">
-              <div style="text-align: center; width: 100%;">{{ getCollectionName(row.collection) }}</div>
-            </template>
-          </el-table-column>
+
           <el-table-column label="创建人" width="150" header-align="center" align="center">
             <template #default="{ row }">
               <span>{{ row.created_by?.username || '-' }}</span>
@@ -285,9 +281,26 @@ const loadRequests = async () => {
     const requests = res.data.results || res.data || []
     const count = res.data.count || requests.length
 
-    // 填充接口列表（用于表格展示）
-    interfaceList.value = requests
-    total.value = count
+    // 填充接口列表（用于表格展示）- 根据 id 和 name+method+url 双重去重
+    const uniqueRequests = []
+    const seenIds = new Set()
+    const seenKeys = new Set() // 用于 name+method+url 去重
+    requests.forEach(req => {
+      // 首先按 id 去重
+      if (seenIds.has(req.id)) {
+        return
+      }
+      // 再按 name+method+url 去重
+      const key = `${req.name}_${req.method}_${req.url}`
+      if (seenKeys.has(key)) {
+        return
+      }
+      seenIds.add(req.id)
+      seenKeys.add(key)
+      uniqueRequests.push(req)
+    })
+    interfaceList.value = uniqueRequests
+    total.value = uniqueRequests.length
 
     // 将请求添加到对应集合中
     requests.forEach(request => {

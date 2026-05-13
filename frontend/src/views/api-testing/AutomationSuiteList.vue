@@ -42,15 +42,27 @@
           popper-class="purple-date-picker"
         />
       </div>
-      <el-button type="primary" @click="showCreateSuiteDialog = true" class="create-btn">
-        <el-icon><Plus /></el-icon>
-        {{ $t('apiTesting.automation.createSuite') }}
-      </el-button>
+      <div class="header-actions">
+        <el-button
+          v-if="selectedSuites.length > 0"
+          type="danger"
+          class="batch-delete-btn"
+          @click="handleBatchDelete"
+        >
+          <el-icon style="margin-right: 4px;"><Delete /></el-icon>
+          批量删除 ({{ selectedSuites.length }})
+        </el-button>
+        <el-button type="primary" @click="showCreateSuiteDialog = true" class="create-btn">
+          <el-icon><Plus /></el-icon>
+          {{ $t('apiTesting.automation.createSuite') }}
+        </el-button>
+      </div>
     </div>
 
     <!-- 测试套件表格列表 -->
     <div class="card-container">
-      <el-table :data="testSuites" v-loading="loading" style="width: 100%" class="custom-table">
+      <el-table :data="testSuites" v-loading="loading" style="width: 100%" class="custom-table" @selection-change="handleSelectionChange">
+        <el-table-column type="selection" width="55" header-align="center" align="center" />
         <el-table-column label="序号" width="90" header-align="center" align="center">
           <template #default="{ $index }">
             {{ (currentPage - 1) * pageSize + $index + 1 }}
@@ -256,6 +268,7 @@ const running = ref(false)
 const currentPage = ref(1)
 const pageSize = ref(12)
 const total = ref(0)
+const selectedSuites = ref([])
 
 // 筛选条件
 const selectedReviewStatus = ref('')
@@ -554,6 +567,42 @@ const deleteSuite = async (suite) => {
   }
 }
 
+const handleSelectionChange = (selection) => {
+  selectedSuites.value = selection
+}
+
+const handleBatchDelete = async () => {
+  if (selectedSuites.value.length === 0) {
+    ElMessage.warning('请先选择要删除的测试场景')
+    return
+  }
+
+  try {
+    await ElMessageBox.confirm(
+      `确定要删除选中的 ${selectedSuites.value.length} 个测试场景吗？`,
+      '确认批量删除',
+      {
+        confirmButtonText: t('apiTesting.common.confirm'),
+        cancelButtonText: t('apiTesting.common.cancel'),
+        type: 'warning'
+      }
+    )
+
+    const deletePromises = selectedSuites.value.map(suite =>
+      api.delete(`/api-testing/test-suites/${suite.id}/`)
+    )
+
+    await Promise.all(deletePromises)
+    ElMessage.success(`成功删除 ${selectedSuites.value.length} 个测试场景`)
+    selectedSuites.value = []
+    await loadTestSuites()
+  } catch (error) {
+    if (error !== 'cancel') {
+      ElMessage.error(t('apiTesting.messages.error.deleteFailed'))
+    }
+  }
+}
+
 const submitSuiteForm = async () => {
   if (!suiteFormRef.value) return
 
@@ -638,6 +687,12 @@ onMounted(() => {
     gap: 16px;
   }
 
+  .header-actions {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
   .project-select {
     width: 240px;
 
@@ -705,6 +760,36 @@ onMounted(() => {
     &:active {
       transform: translateY(0);
       background: #5a32a3;
+    }
+
+    .el-icon {
+      margin-right: 6px;
+      font-size: 16px;
+    }
+  }
+
+  .batch-delete-btn {
+    height: 36px;
+    padding: 0 18px;
+    border-radius: 8px;
+    font-weight: 500;
+    font-size: 14px;
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    background: #ff4d4f;
+    border: 1px solid #ff4d4f;
+    color: #ffffff;
+    box-shadow: 0 4px 12px rgba(255, 77, 79, 0.3);
+
+    &:hover {
+      background: #f5222d;
+      border-color: #f5222d;
+      transform: translateY(-2px);
+      box-shadow: 0 6px 16px rgba(255, 77, 79, 0.4);
+    }
+
+    &:active {
+      transform: translateY(0);
+      background: #cf1322;
     }
 
     .el-icon {
