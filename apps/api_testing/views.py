@@ -1590,46 +1590,65 @@ class TestSuiteViewSet(viewsets.ModelViewSet):
 
         added_count = 0
         restored_count = 0
-        existing_count = 0
         
+        print(f"DEBUG - 开始添加请求, request_ids: {request_ids}")
         for request_id in request_ids:
+            print(f"DEBUG - 处理 request_id: {request_id}")
             try:
                 api_request = ApiRequest.objects.get(id=request_id)
+                print(f"DEBUG - 找到 ApiRequest: {api_request.name}")
                 
-                # 首先检查是否已存在（包括已删除的）
+                # 检查是否已存在且被删除的请求，如果是则恢复
                 existing_request = TestSuiteRequest.all_objects.filter(
                     test_suite=test_suite,
-                    request=api_request
+                    request=api_request,
+                    is_deleted=True
                 ).first()
                 
+                print(f"DEBUG - existing_request (is_deleted=True): {existing_request}")
+                
                 if existing_request:
-                    if existing_request.is_deleted:
-                        # 恢复已删除的请求
-                        existing_request.is_deleted = False
-                        existing_request.deleted_at = None
-                        existing_request.order = TestSuiteRequest.objects.filter(test_suite=test_suite).count()
-                        existing_request.enabled = True
-                        existing_request.save(update_fields=['is_deleted', 'deleted_at', 'order', 'enabled'])
-                        restored_count += 1
-                    else:
-                        # 已存在且未删除
-                        existing_count += 1
+                    # 恢复已删除的请求
+                    print(f"DEBUG - 恢复已删除的请求: {existing_request.id}")
+                    existing_request.is_deleted = False
+                    existing_request.deleted_at = None
+                    existing_request.order = TestSuiteRequest.objects.filter(test_suite=test_suite).count()
+                    existing_request.enabled = True
+                    existing_request.save(update_fields=['is_deleted', 'deleted_at', 'order', 'enabled'])
+                    restored_count += 1
+                    print(f"DEBUG - 恢复成功, restored_count: {restored_count}")
                 else:
-                    # 创建新请求
-                    TestSuiteRequest.objects.create(
-                        test_suite=test_suite,
-                        request=api_request,
-                        order=TestSuiteRequest.objects.filter(test_suite=test_suite).count(),
-                        enabled=True,
-                        assertions=api_request.assertions or []
-                    )
-                    added_count += 1
+                    # 创建新请求（允许重复添加已存在的接口）
+                    print(f"DEBUG - 创建新请求")
+                    try:
+                        new_request = TestSuiteRequest.objects.create(
+                            test_suite=test_suite,
+                            request=api_request,
+                            order=TestSuiteRequest.objects.filter(test_suite=test_suite).count(),
+                            enabled=True,
+                            assertions=api_request.assertions or []
+                        )
+                        print(f"DEBUG - 创建新请求成功: id={new_request.id}, request_id={request_id}")
+                        added_count += 1
+                        print(f"DEBUG - added_count: {added_count}")
+                    except Exception as create_error:
+                        print(f"DEBUG - 创建新请求失败: request_id={request_id}, error={str(create_error)}")
+                        import traceback
+                        print(f"DEBUG - 错误堆栈: {traceback.format_exc()}")
+                        logger.error(f"创建请求 {request_id} 失败: {str(create_error)}")
+                        raise
                     
             except ApiRequest.DoesNotExist:
+                print(f"DEBUG - ApiRequest 不存在: request_id={request_id}")
                 continue
             except Exception as e:
+                print(f"DEBUG - 添加请求 {request_id} 失败: {str(e)}")
+                import traceback
+                print(f"DEBUG - 错误堆栈: {traceback.format_exc()}")
                 logger.error(f"添加请求 {request_id} 失败: {str(e)}")
                 continue
+        
+        print(f"DEBUG - 添加请求完成, added_count: {added_count}, restored_count: {restored_count}")
 
         # 更新套件的 updated_at 时间戳
         test_suite.save(update_fields=['updated_at'])
@@ -1642,8 +1661,6 @@ class TestSuiteViewSet(viewsets.ModelViewSet):
             message_parts.append(f'成功添加 {added_count} 个请求')
         if restored_count > 0:
             message_parts.append(f'恢复 {restored_count} 个已删除的请求')
-        if existing_count > 0:
-            message_parts.append(f'{existing_count} 个请求已存在')
         
         message = '，'.join(message_parts) if message_parts else '操作完成'
 
@@ -1651,32 +1668,51 @@ class TestSuiteViewSet(viewsets.ModelViewSet):
             'message': message,
             'added_count': added_count,
             'restored_count': restored_count,
-            'existing_count': existing_count,
             'suite': serializer.data
         })
 
     @action(detail=True, methods=['post'], url_path='add-suites')
     def add_suites(self, request, pk=None):
-        """添加其他场景作为分组到当前测试套件"""
+        """添加其他场景作为分组到当前测试套件，支持选择特定步骤"""
         test_suite = self.get_object()
+        
+        # 兼容旧版 API：suite_ids
         suite_ids = request.data.get('suite_ids', [])
+        # 新版 API：suite_selections，支持选择特定步骤
+        suite_selections = request.data.get('suite_selections', [])
+        
+        # 如果没有新版参数，使用旧版参数转换
+        if not suite_selections and suite_ids:
+            suite_selections = [{'suite_id': sid, 'selected_steps': None} for sid in suite_ids]
 
         try:
             added_count = 0
             existing_count = 0
             total_requests = 0
 
-            for suite_id in suite_ids:
+            for selection in suite_selections:
+                suite_id = selection.get('suite_id')
+                selected_steps = selection.get('selected_steps')  # None 表示选择整个场景
+                
+                if not suite_id:
+                    continue
+                
                 # 获取要引用的场景
                 source_suite = TestSuite.objects.get(id=suite_id)
 
-                # 获取该场景下的所有请求（按order排序）
-                source_requests = TestSuiteRequest.objects.filter(
+                # 获取该场景下的请求
+                source_requests_query = TestSuiteRequest.objects.filter(
                     test_suite=source_suite,
                     enabled=True
                 ).select_related('request').order_by('order')
+                
+                # 如果选择了特定步骤，只获取这些步骤
+                if selected_steps:
+                    source_requests_query = source_requests_query.filter(id__in=selected_steps)
 
-                if not source_requests.exists():
+                source_requests = list(source_requests_query)
+
+                if not source_requests:
                     continue
 
                 # 计算当前基础order
@@ -1696,12 +1732,19 @@ class TestSuiteViewSet(viewsets.ModelViewSet):
                 added_count += 1
 
                 # 构建请求字典和父子关系映射
-                request_dict = {}
+                # 注意：需要从原场景获取完整的父子关系，而不仅仅是选中的步骤
                 children_map = {}  # parent_id -> [child_requests]
                 
-                for sr in source_requests:
-                    request_dict[sr.id] = sr
-                    if sr.parent_id:
+                # 获取原场景的所有请求以构建完整的children_map
+                all_source_requests = TestSuiteRequest.objects.filter(
+                    test_suite=source_suite,
+                    enabled=True
+                ).select_related('request')
+                
+                all_request_ids = set(all_source_requests.values_list('id', flat=True))
+                
+                for sr in all_source_requests:
+                    if sr.parent_id and sr.parent_id in all_request_ids:
                         if sr.parent_id not in children_map:
                             children_map[sr.parent_id] = []
                         children_map[sr.parent_id].append(sr)
@@ -1709,7 +1752,7 @@ class TestSuiteViewSet(viewsets.ModelViewSet):
                 # 递归处理场景请求，构建树形结构
                 # id_mapping: 原场景中的请求ID -> 新创建的请求ID
                 id_mapping = {}
-                
+
                 def process_suite_request(suite_request, parent_id, current_order):
                     nonlocal added_count, existing_count, total_requests
 
@@ -1718,7 +1761,7 @@ class TestSuiteViewSet(viewsets.ModelViewSet):
                         return current_order
 
                     api_request = suite_request.request
-                    
+
                     # 如果是分组节点（没有关联request或者是group类型）
                     if not api_request or suite_request.step_type == 'group':
                         # 创建分组节点
@@ -1736,12 +1779,12 @@ class TestSuiteViewSet(viewsets.ModelViewSet):
                         id_mapping[suite_request.id] = new_group.id
                         added_count += 1
                         current_order += 1
-                        
+
                         # 处理子节点，使用新创建的分组作为父节点
                         if suite_request.id in children_map:
                             for child in children_map[suite_request.id]:
                                 current_order = process_suite_request(child, new_group.id, current_order)
-                        
+
                         return current_order
 
                     # 使用 get_or_create 避免重复创建
@@ -1765,9 +1808,9 @@ class TestSuiteViewSet(viewsets.ModelViewSet):
                             'parent_id': parent_id
                         }
                     )
-                    
+
                     id_mapping[suite_request.id] = new_request.id
-                    
+
                     if created:
                         added_count += 1
                         total_requests += 1
@@ -1782,13 +1825,27 @@ class TestSuiteViewSet(viewsets.ModelViewSet):
 
                     return current_order
 
-                # 处理顶层请求（parent_id 为 None）
+                # 处理选中的请求
                 current_order = base_order + 1
                 
-                for suite_request in source_requests:
-                    # 只处理真正的顶层节点（parent_id 为 None）
-                    if suite_request.parent_id is None:
-                        current_order = process_suite_request(suite_request, group_node.id, current_order)
+                # 如果选择了特定步骤，需要包含它们的父节点以确保层级结构正确
+                selected_step_ids = set(source_requests_query.values_list('id', flat=True))
+                
+                # 收集所有需要处理的请求（包括选中的和它们的祖先）
+                requests_to_process = list(source_requests)
+                
+                # 如果选择了特定步骤，找出所有顶层节点（在选中集合内且父节点不在选中集合内，或父节点为None）
+                if selected_steps:
+                    selected_ids_set = set(selected_steps)
+                    top_level_requests = []
+                    for sr in source_requests:
+                        # 节点在选中集合内，且（父节点为None 或 父节点不在选中集合内）
+                        if sr.id in selected_ids_set and (sr.parent_id is None or sr.parent_id not in selected_ids_set):
+                            top_level_requests.append(sr)
+                    requests_to_process = top_level_requests
+                
+                for suite_request in requests_to_process:
+                    current_order = process_suite_request(suite_request, group_node.id, current_order)
 
             # 更新套件的 updated_at 时间戳
             test_suite.save(update_fields=['updated_at'])
@@ -1929,6 +1986,9 @@ class TestSuiteRequestViewSet(viewsets.ModelViewSet):
         return response
     
     def partial_update(self, request, *args, **kwargs):
+        # 调试日志
+        print(f"DEBUG - partial_update called with data: {request.data}")
+        
         # 处理 assertions 中的字符串 'null' 转换为真正的 None
         if 'assertions' in request.data:
             import copy
@@ -1949,6 +2009,7 @@ class TestSuiteRequestViewSet(viewsets.ModelViewSet):
         response = super().partial_update(request, *args, **kwargs)
         # 更新关联套件的 updated_at
         instance = self.get_object()
+        print(f"DEBUG - after update, instance order={instance.order}, parent_id={instance.parent_id}")
         self._update_suite_timestamp(instance.test_suite)
         return response
     

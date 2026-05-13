@@ -68,7 +68,7 @@
             {{ (currentPage - 1) * pageSize + $index + 1 }}
           </template>
         </el-table-column>
-        <el-table-column prop="name" :label="$t('apiTesting.automation.suiteName')" min-width="280" header-align="center" align="center">
+        <el-table-column prop="name" :label="$t('apiTesting.automation.suiteName')" min-width="100" header-align="center" align="center">
           <template #default="scope">
             <span>{{ scope.row.name }}</span>
           </template>
@@ -97,12 +97,16 @@
             {{ formatDate(scope.row.created_at) }}
           </template>
         </el-table-column>
-        <el-table-column :label="$t('apiTesting.common.operation')" width="180" fixed="right" header-align="center" align="center">
+        <el-table-column :label="$t('apiTesting.common.operation')" width="270" fixed="right" header-align="center" align="center">
           <template #default="scope">
             <div class="action-buttons">
               <el-button size="small" type="primary" class="action-btn view-btn" @click="goToSuiteDetail(scope.row.id)">
                 <el-icon><View /></el-icon>
                 <span>{{ $t('apiTesting.common.view') }}</span>
+              </el-button>
+              <el-button size="small" type="warning" class="action-btn edit-btn" @click="editSuite(scope.row)">
+                <el-icon><Edit /></el-icon>
+                <span>{{ $t('apiTesting.common.edit') }}</span>
               </el-button>
               <el-button size="small" type="danger" class="action-btn delete-btn" @click="deleteSuite(scope.row)">
                 <el-icon><Delete /></el-icon>

@@ -2,23 +2,29 @@
   <div class="request-tree-item">
     <div
       class="request-item"
-      :class="{ 
+      :class="{
         'is-disabled': !request.enabled,
-        'is-group': request.step_type === 'group'
+        'is-group': request.step_type === 'group',
+        'is-dragging': isDragging
       }"
       :style="{ paddingLeft: `${currentLevel * 20 + 16}px` }"
     >
+      <!-- 拖拽手柄 -->
+      <div class="drag-handle">
+        <el-icon><Rank /></el-icon>
+      </div>
+
       <!-- 展开/折叠按钮 (仅group类型显示) -->
-      <div v-if="request.step_type === 'group' && request.children && request.children.length > 0" 
+      <div v-if="request.step_type === 'group' && request.children && request.children.length > 0"
            class="expand-btn"
            @click.stop="toggleExpand">
         <el-icon v-if="isExpanded"><ArrowDown /></el-icon>
         <el-icon v-else><ArrowRight /></el-icon>
       </div>
       <div v-else class="expand-placeholder"></div>
-      
+
       <div class="request-number">{{ displayNumber }}</div>
-      
+
       <div class="request-content">
         <div class="request-header">
           <div class="request-type-badge" :class="request.step_type || 'request'">
@@ -29,7 +35,7 @@
             {{ request.children.length }} 个子项
           </span>
         </div>
-        
+
         <div class="request-detail" v-if="request.step_type !== 'group' && request.request">
           <span class="method" :class="getMethodClass(request.override_method || request.request.method)">
             {{ request.override_method || request.request.method }}
@@ -37,14 +43,14 @@
           <span class="url">{{ request.override_url || request.request.url }}</span>
         </div>
       </div>
-      
+
       <div class="request-meta">
         <span class="assertion-count" v-if="request.assertions?.length > 0">
           <el-icon><Check /></el-icon>
           {{ request.assertions.length }} 个断言
         </span>
       </div>
-      
+
       <div class="request-actions">
         <el-switch
           v-model="request.enabled"
@@ -52,43 +58,58 @@
           size="small"
           class="enable-switch"
         />
-        <el-button 
-          size="small" 
+        <el-button
+          size="small"
           class="action-btn edit-btn"
           @click="$emit('edit', request)"
         >
           <el-icon><Edit /></el-icon>
         </el-button>
-        <el-button 
-          size="small" 
-          class="action-btn remove-btn" 
+        <el-button
+          size="small"
+          class="action-btn remove-btn"
           @click="$emit('remove', request)"
         >
           <el-icon><Delete /></el-icon>
         </el-button>
       </div>
     </div>
-    
-    <!-- 递归渲染子请求 -->
-    <div v-if="isExpanded && request.children && request.children.length > 0" class="request-children">
-      <suite-request-tree
-        v-for="(childReq, childIndex) in request.children"
-        :key="childReq.id"
-        :request="childReq"
-        :index="childIndex"
-        :level="Number(level) + 1"
-        :parent-number="displayNumber"
-        @edit="$emit('edit', $event)"
-        @remove="$emit('remove', $event)"
-        @toggle-enabled="$emit('toggleEnabled', $event)"
-      />
+
+    <!-- 递归渲染子请求 - 使用 draggable 支持拖拽 -->
+    <div v-if="isExpanded && localChildren.length > 0" class="request-children">
+      <draggable
+        v-model="localChildren"
+        :group="{ name: 'suite-requests', pull: true, put: true }"
+        :animation="200"
+        :disabled="false"
+        item-key="id"
+        ghost-class="dragging-ghost"
+        chosen-class="dragging-chosen"
+        drag-class="dragging-drag"
+        @change="onChildChange"
+      >
+        <template #item="{ element, index }">
+          <suite-request-tree
+            :request="element"
+            :index="index"
+            :level="Number(level) + 1"
+            :parent-number="displayNumber"
+            :parent-request="request"
+            @edit="$emit('edit', $event)"
+            @remove="$emit('remove', $event)"
+            @toggle-enabled="$emit('toggleEnabled', $event)"
+            @order-change="handleChildOrderChange"
+          />
+        </template>
+      </draggable>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
-import { ArrowRight, ArrowDown, Edit, Delete, Check } from '@element-plus/icons-vue'
+import { ref, computed, watch } from 'vue'
+import { ArrowRight, ArrowDown, Edit, Delete, Check, Rank } from '@element-plus/icons-vue'
+import draggable from 'vuedraggable'
 
 const props = defineProps({
   request: {
@@ -106,12 +127,25 @@ const props = defineProps({
   parentNumber: {
     type: [String, Number],
     default: null
+  },
+  parentRequest: {
+    type: Object,
+    default: null
   }
 })
 
-defineEmits(['edit', 'remove', 'toggleEnabled'])
+const emit = defineEmits(['edit', 'remove', 'toggleEnabled', 'orderChange'])
 
 const isExpanded = ref(true)
+const isDragging = ref(false)
+
+// 本地子节点数据，用于拖拽
+const localChildren = ref(props.request.children || [])
+
+// 监听父组件传入的 children 变化
+watch(() => props.request.children, (newChildren) => {
+  localChildren.value = newChildren || []
+}, { deep: true })
 
 const currentLevel = computed(() => Number(props.level))
 
@@ -124,6 +158,54 @@ const displayNumber = computed(() => {
 
 const toggleExpand = () => {
   isExpanded.value = !isExpanded.value
+}
+
+const onChildDragStart = () => {
+  isDragging.value = true
+}
+
+const onChildChange = (evt) => {
+  console.log('子节点拖拽变化:', evt)
+
+  // 处理同层级移动
+  if (evt.moved) {
+    isDragging.value = false
+    // 通知父组件更新顺序
+    emit('orderChange', {
+      parentId: props.request.id,
+      children: localChildren.value
+    })
+  }
+
+  // 处理从其他层级添加
+  if (evt.added) {
+    const { newIndex, element } = evt.added
+    console.log('元素被添加到当前分组:', { newIndex, element })
+
+    // 更新元素的 parent_id
+    const updatedElement = localChildren.value[newIndex]
+    if (updatedElement) {
+      updatedElement.parent_id = props.request.id
+    }
+
+    // 通知父组件更新
+    emit('orderChange', {
+      parentId: props.request.id,
+      children: localChildren.value,
+      movedElement: element
+    })
+  }
+
+  // 处理移除（拖拽到其他层级）
+  if (evt.removed) {
+    console.log('元素从当前分组移除:', evt.removed)
+    // 不需要特殊处理，因为目标层级会触发 added 事件
+  }
+}
+
+const handleChildOrderChange = (data) => {
+  // 向上传递子节点的顺序变化
+  emit('orderChange', data)
 }
 
 const getTypeText = (type) => {
@@ -189,6 +271,35 @@ const getMethodClass = (method) => {
 .request-item.is-group .request-name {
   font-weight: 600;
   color: #5a32a3;
+}
+
+.request-item.is-dragging {
+  opacity: 0.8;
+  background: #f0f9ff;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+/* 拖拽手柄样式 */
+.drag-handle {
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: grab;
+  color: #c0c4cc;
+  margin-right: 8px;
+  border-radius: 4px;
+  transition: all 0.2s ease;
+}
+
+.drag-handle:hover {
+  color: #7b42f6;
+  background: rgba(123, 66, 246, 0.1);
+}
+
+.drag-handle:active {
+  cursor: grabbing;
 }
 
 .expand-btn {
@@ -402,58 +513,26 @@ const getMethodClass = (method) => {
   box-shadow: 0 4px 12px rgba(255, 77, 79, 0.4);
 }
 
+/* 拖拽时的样式 */
+.dragging-ghost {
+  opacity: 0.5;
+  background: #f0f9ff !important;
+  border: 2px dashed #7b42f6;
+}
+
+.dragging-chosen {
+  opacity: 0.9;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.dragging-drag {
+  opacity: 1;
+  background: #ffffff;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+  transform: scale(1.02);
+}
+
 .request-children {
   width: 100%;
-  background: #fafafa;
-  position: relative;
-}
-
-.request-children::before {
-  content: '';
-  position: absolute;
-  left: 26px;
-  top: 0;
-  bottom: 0;
-  width: 1px;
-  background: #e0e0e0;
-}
-
-.request-children .request-item {
-  position: relative;
-}
-
-.request-children .request-item::before {
-  content: '';
-  position: absolute;
-  left: 26px;
-  top: 50%;
-  width: 12px;
-  height: 1px;
-  background: #e0e0e0;
-}
-
-/* 响应式适配 */
-@media screen and (max-width: 992px) {
-  .request-meta {
-    display: none;
-  }
-}
-
-@media screen and (max-width: 768px) {
-  .request-item {
-    padding: 12px 16px;
-    flex-wrap: wrap;
-  }
-
-  .request-detail {
-    width: 100%;
-  }
-
-  .request-actions {
-    width: 100%;
-    margin-left: 0;
-    margin-top: 12px;
-    justify-content: flex-end;
-  }
 }
 </style>

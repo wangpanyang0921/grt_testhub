@@ -25,12 +25,32 @@
             <!-- 成功状态行 -->
             <div class="success-status-row">
               <div class="status-left">
-                <el-icon :size="20" color="#52c41a"><circle-check-filled /></el-icon>
+                <div class="status-icon-wrapper">
+                  <el-icon :size="22" color="#fff"><circle-check-filled /></el-icon>
+                </div>
                 <span class="status-text">{{ $t('apiTesting.apifox.importSuccess') }}</span>
               </div>
               <div class="status-right">
-                <span class="requests-label">导入请求数：</span>
+                <span class="requests-label">导入请求数</span>
                 <span class="requests-count">{{ importResult.imported_requests }}</span>
+              </div>
+            </div>
+
+            <!-- 导入详情卡片 -->
+            <div class="success-details">
+              <div class="detail-card">
+                <div class="detail-item">
+                  <span class="detail-label">合集名称</span>
+                  <span class="detail-value">{{ importResult.collection_name || '-' }}</span>
+                </div>
+                <div class="detail-item" v-if="importResult.suite_name">
+                  <span class="detail-label">测试套件</span>
+                  <span class="detail-value">{{ importResult.suite_name }}</span>
+                </div>
+                <div class="detail-item">
+                  <span class="detail-label">导入耗时</span>
+                  <span class="detail-value">{{ importResult.import_time || '-' }}</span>
+                </div>
               </div>
             </div>
 
@@ -653,6 +673,27 @@ const navigateToSuite = () => {
   }
 }
 
+.info-alert {
+  margin-bottom: 16px;
+  border-radius: 6px;
+
+  :deep(.el-alert__title) {
+    font-size: 13px;
+    font-weight: 500;
+    line-height: 1.5;
+  }
+
+  :deep(.el-alert__description) {
+    font-size: 12px;
+    line-height: 1.6;
+    margin-top: 4px;
+  }
+
+  :deep(.el-alert__icon) {
+    font-size: 16px;
+  }
+}
+
 .warning-alert {
   margin-bottom: 16px;
 }
@@ -681,39 +722,49 @@ const navigateToSuite = () => {
 
 // 导入成功页面样式
 .import-success-container {
-  padding: 16px 0;
+  padding: 24px 0;
   display: flex;
   flex-direction: column;
-  height: calc(100vh - 200px); // 减去抽屉头部和底部按钮的高度
-  max-height: 600px;
+  gap: 20px;
 
   // 单行状态栏
   .success-status-row {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    background: #f6ffed;
+    background: linear-gradient(135deg, #f6ffed 0%, #e6f7d9 100%);
     border: 1px solid #b7eb8f;
-    border-radius: 6px;
-    padding: 12px 16px;
-    margin-bottom: 16px;
+    border-radius: 12px;
+    padding: 16px 20px;
+    box-shadow: 0 2px 8px rgba(82, 196, 26, 0.1);
 
     .status-left {
       display: flex;
       align-items: center;
-      gap: 8px;
+      gap: 12px;
+
+      .status-icon-wrapper {
+        width: 36px;
+        height: 36px;
+        background: linear-gradient(135deg, #52c41a 0%, #389e0d 100%);
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        box-shadow: 0 2px 6px rgba(82, 196, 26, 0.3);
+      }
 
       .status-text {
-        font-size: 14px;
-        font-weight: 500;
+        font-size: 16px;
+        font-weight: 600;
         color: #52c41a;
       }
     }
 
     .status-right {
       display: flex;
-      align-items: center;
-      gap: 8px;
+      align-items: baseline;
+      gap: 6px;
 
       .requests-label {
         font-size: 13px;
@@ -721,12 +772,57 @@ const navigateToSuite = () => {
       }
 
       .requests-count {
-        font-size: 14px;
-        font-weight: 600;
+        font-size: 24px;
+        font-weight: 700;
         color: #52c41a;
+        line-height: 1;
       }
     }
   }
+
+  // 导入详情卡片
+  .success-details {
+    .detail-card {
+      background: #fafafa;
+      border-radius: 12px;
+      padding: 20px;
+      border: 1px solid #f0f0f0;
+
+      .detail-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 12px 0;
+        border-bottom: 1px solid #f0f0f0;
+
+        &:last-child {
+          border-bottom: none;
+          padding-bottom: 0;
+        }
+
+        &:first-child {
+          padding-top: 0;
+        }
+
+        .detail-label {
+          font-size: 13px;
+          color: #909399;
+          font-weight: 400;
+        }
+
+        .detail-value {
+          font-size: 14px;
+          color: #303133;
+          font-weight: 500;
+          max-width: 60%;
+          text-align: right;
+          word-break: break-all;
+        }
+      }
+    }
+  }
+
+
 
   // 保留旧样式兼容
   .success-header {
