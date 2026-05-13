@@ -41,7 +41,7 @@ export default {
 
   // Validation messages
   usernameRequired: '请输入用户名',
-  usernameLength: '用户名长度在 3 到 20 个字符',
+  usernameLength: '用户名长度在 2 到 20 个字符',
   emailRequired: '请输入邮箱',
   emailFormat: '请输入正确的邮箱格式',
   passwordRequired: '请输入密码',

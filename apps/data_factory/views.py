@@ -12,6 +12,7 @@ from django.db.models import Q
 from django.utils import timezone
 from django.http import HttpResponse
 from django.core.cache import cache
+from typing import Union
 import logging
 
 logger = logging.getLogger(__name__)
@@ -266,7 +267,7 @@ class DataFactoryViewSet(viewsets.ModelViewSet):
         except Exception as e:
             return {'error': f'工具执行失败: {str(e)}'}
 
-    def execute_string_tool(self, tool_name: str, input_data: dict | str):
+    def execute_string_tool(self, tool_name: str, input_data: Union[dict, str]):
         """执行字符工具"""
         tool_mapping = {
             'remove_whitespace': StringTools.remove_whitespace,
@@ -296,7 +297,7 @@ class DataFactoryViewSet(viewsets.ModelViewSet):
 
         return tool_mapping[tool_name](**input_data)
 
-    def execute_encoding_tool(self, tool_name: str, input_data: dict | str):
+    def execute_encoding_tool(self, tool_name: str, input_data: Union[dict, str]):
         """执行编码工具"""
         tool_mapping = {
             'generate_barcode': EncodingTools.generate_barcode,
@@ -343,7 +344,7 @@ class DataFactoryViewSet(viewsets.ModelViewSet):
                 input_data = {'text': input_data}
         return tool_mapping[tool_name](**input_data)
 
-    def execute_random_tool(self, tool_name: str, input_data: dict | str):
+    def execute_random_tool(self, tool_name: str, input_data: Union[dict, str]):
         """执行随机工具"""
         tool_mapping = {
             'random_int': RandomTools.random_int,
@@ -390,7 +391,7 @@ class DataFactoryViewSet(viewsets.ModelViewSet):
                 input_data = {'count': 1}
         return tool_mapping[tool_name](**input_data)
 
-    def execute_encryption_tool(self, tool_name: str, input_data: dict | str):
+    def execute_encryption_tool(self, tool_name: str, input_data: Union[dict, str]):
         """执行加密工具"""
         tool_mapping = {
             'md5_hash': EncryptionTools.md5_hash,
@@ -419,7 +420,7 @@ class DataFactoryViewSet(viewsets.ModelViewSet):
                 input_data = {'text': input_data}
         return tool_mapping[tool_name](**input_data)
 
-    def execute_test_data_tool(self, tool_name: str, input_data: dict | str):
+    def execute_test_data_tool(self, tool_name: str, input_data: Union[dict, str]):
         """执行测试数据工具"""
         tool_mapping = {
             'generate_chinese_name': TestDataTools.generate_chinese_name,
@@ -450,7 +451,7 @@ class DataFactoryViewSet(viewsets.ModelViewSet):
                 input_data = {'count': 1}
         return tool_mapping[tool_name](**input_data)
 
-    def execute_json_tool(self, tool_name: str, input_data: dict | str):
+    def execute_json_tool(self, tool_name: str, input_data: Union[dict, str]):
         """执行JSON工具"""
         tool_mapping = {
             'format_json': JsonTools.format_json,
@@ -514,7 +515,7 @@ class DataFactoryViewSet(viewsets.ModelViewSet):
     #
     #     return tool_mapping[tool_name](**input_data)
 
-    def execute_crontab_tool(self, tool_name: str, input_data: dict | str):
+    def execute_crontab_tool(self, tool_name: str, input_data: Union[dict, str]):
         """执行Crontab工具"""
         tool_mapping = {
             'generate_expression': CrontabTools.generate_expression,
@@ -539,7 +540,7 @@ class DataFactoryViewSet(viewsets.ModelViewSet):
                 input_data = {'expression': input_data}
         return tool_mapping[tool_name](**input_data)
 
-    def execute_professional_tool(self, tool_name: str, input_data: dict | str):
+    def execute_professional_tool(self, tool_name: str, input_data: Union[dict, str]):
         """执行专业工具"""
         tool_mapping = {
             # 科学
@@ -571,7 +572,7 @@ class DataFactoryViewSet(viewsets.ModelViewSet):
         # 专业工具大多不需要参数，直接调用
         return tool_mapping[tool_name]()
 
-    def execute_system_tool(self, tool_name: str, input_data: dict | str):
+    def execute_system_tool(self, tool_name: str, input_data: Union[dict, str]):
         """执行系统工具"""
         tool_mapping = {
             # Git
@@ -606,7 +607,7 @@ class DataFactoryViewSet(viewsets.ModelViewSet):
                 input_data = {}
         return tool_mapping[tool_name](**input_data)
 
-    def execute_entertainment_tool(self, tool_name: str, input_data: dict | str):
+    def execute_entertainment_tool(self, tool_name: str, input_data: Union[dict, str]):
         """执行娱乐工具"""
         tool_mapping = {
             # 音乐
@@ -631,7 +632,7 @@ class DataFactoryViewSet(viewsets.ModelViewSet):
             input_data = {'count': 1}
         return tool_mapping[tool_name](**input_data)
 
-    def execute_mock_image_tool(self, tool_name: str, input_data: dict | str):
+    def execute_mock_image_tool(self, tool_name: str, input_data: Union[dict, str]):
         """执行Mock图片工具"""
         tool_mapping = {
             'image_url': MockImageTools.image_url,

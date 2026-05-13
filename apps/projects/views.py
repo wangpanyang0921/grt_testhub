@@ -38,6 +38,26 @@ def get_all_projects(request):
     projects = Project.objects.all().values('id', 'name', 'description', 'status')
     return Response(list(projects))
 
+
+@api_view(['GET'])
+@permission_classes([permissions.IsAuthenticated])
+def get_projects_with_menus(request):
+    """获取所有项目及其完整目录树结构"""
+    projects = Project.objects.all()
+    result = []
+    for project in projects:
+        # 获取顶级菜单
+        root_menus = ProjectMenu.objects.filter(project=project, parent=None).order_by('sort_order', 'created_at')
+        project_data = {
+            'id': project.id,
+            'name': project.name,
+            'description': project.description,
+            'status': project.status,
+            'menus': ProjectMenuSerializer(root_menus, many=True).data
+        }
+        result.append(project_data)
+    return Response(result)
+
 class ProjectDetailView(generics.RetrieveUpdateDestroyAPIView):
     queryset = Project.objects.all()
     serializer_class = ProjectSerializer

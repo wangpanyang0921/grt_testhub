@@ -53,7 +53,7 @@
                 <span>汇总分析</span>
               </el-menu-item>
             </el-sub-menu>
-            <!-- 主线用例 - 按端分组 -->
+            <!-- 主线用例 - 按端分组，显示完整目录树 -->
             <el-sub-menu index="testcases">
               <template #title>
                 <el-icon><Document /></el-icon>
@@ -68,14 +68,29 @@
                 <el-icon><List /></el-icon>
                 <span>全部用例</span>
               </el-menu-item>
-              <el-menu-item 
-                v-for="project in projects" 
-                :key="project.id" 
-                :index="`/ai-generation/testcases?project=${project.id}`"
-              >
-                <el-icon><Folder /></el-icon>
-                <span>{{ project.name }}</span>
+              <el-menu-item index="/ai-generation/testcase-statistics">
+                <el-icon><DataAnalysis /></el-icon>
+                <span>用例统计</span>
               </el-menu-item>
+              <!-- 目录树：端 > 菜单层级 -->
+              <template v-for="project in projects" :key="project.id">
+                <el-sub-menu v-if="project.menus && project.menus.length > 0" :index="`project-${project.id}`">
+                  <template #title>
+                    <el-icon><Folder /></el-icon>
+                    <span>{{ project.name }}</span>
+                  </template>
+                  <!-- 递归渲染菜单层级 -->
+                  <MenuTreeItem 
+                    v-for="menu in project.menus" 
+                    :key="menu.id" 
+                    :menu="menu" 
+                  />
+                </el-sub-menu>
+                <el-menu-item v-else :index="`/ai-generation/testcases?project=${project.id}`">
+                  <el-icon><Folder /></el-icon>
+                  <span>{{ project.name }}</span>
+                </el-menu-item>
+              </template>
             </el-sub-menu>
             <!-- 版本管理 - 临时隐藏 -->
             <!--
@@ -446,8 +461,9 @@ import {
   Monitor, Folder, Document, Flag, Check, Collection, VideoPlay,
   DataAnalysis, ChatDotRound, DocumentCopy, Link, MagicStick, Promotion,
   Odometer, Timer, Setting, AlarmClock, Bell, Aim, Edit, Cpu, ArrowDown, Cellphone, Connection, FolderOpened, Box, Tools, Grid, Menu,
-  DocumentChecked, Clock, TrendCharts
+  DocumentChecked, Clock, TrendCharts, List
 } from '@element-plus/icons-vue'
+import MenuTreeItem from '@/components/MenuTreeItem.vue'
 
 const router = useRouter()
 const route = useRoute()
@@ -458,14 +474,14 @@ const { t } = useI18n()
 // 退出登录中标志，用于隐藏头像避免闪烁默认图
 const isLoggingOut = ref(false)
 
-// 端列表（用于主线用例子菜单）
+// 端列表（用于主线用例子菜单）- 包含完整目录树
 const projects = ref([])
 
-// 获取端列表
+// 获取端列表及其完整目录树
 const fetchProjects = async () => {
   try {
-    const response = await api.get('/projects/', { params: { page_size: 1000 } })
-    projects.value = response.data.results || []
+    const response = await api.get('/projects/with-menus/')
+    projects.value = response.data || []
   } catch (error) {
     console.error('Failed to fetch projects:', error)
   }
@@ -514,12 +530,21 @@ const currentModule = computed(() => {
   return ''
 })
 
-// 默认展开的子菜单（接口测试模块默认展开接口管理）
+// 默认展开的子菜单
 const defaultOpeneds = computed(() => {
+  const opened = []
   if (currentModule.value === 'api-testing') {
-    return ['/api-testing/interfaces']
+    opened.push('/api-testing/interfaces')
   }
-  return []
+  // 主线用例模块默认展开目录树
+  if (currentModule.value === 'ai-generation') {
+    opened.push('testcases')  // 展开主线用例子菜单
+    // 默认展开所有项目目录
+    projects.value.forEach(p => {
+      opened.push(`project-${p.id}`)
+    })
+  }
+  return opened
 })
 
 const moduleName = computed(() => {
@@ -646,6 +671,7 @@ const breadcrumbTitle = computed(() => {
     '/ai-generation/bug-analysis/summary': '汇总分析',
     '/ai-generation/projects': t('menu.aiProjectManagement'),
     '/ai-generation/testcases': t('menu.testCases'),
+    '/ai-generation/testcase-statistics': '用例统计',
     '/ai-generation/versions': t('menu.versionManagement'),
     '/ai-generation/reviews': t('menu.reviewList'),
     '/ai-generation/review-templates': t('menu.reviewTemplates'),
@@ -1179,6 +1205,8 @@ const handleCommand = async (command) => {
     margin: 0 !important;
     padding: 0 !important;
   }
+  
+
   
   /* 智能用例生成子菜单特殊处理 */
   :deep(.el-menu-item-group) {

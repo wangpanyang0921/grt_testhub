@@ -135,6 +135,7 @@ class TestCaseCreateSerializer(serializers.ModelSerializer):
         author_name = validated_data.pop('author_name', None)
         created_at = validated_data.pop('created_at', None)
         category_path = validated_data.pop('category_path', None)
+        request_user = validated_data.pop('request_user', None)
 
         # 如果指定了作者用户名，查找对应的用户
         if author_name:
@@ -147,14 +148,19 @@ class TestCaseCreateSerializer(serializers.ModelSerializer):
                 if user:
                     validated_data['author'] = user
                 else:
-                    # 如果找不到用户，记录日志
-                    import logging
-                    logger = logging.getLogger(__name__)
-                    logger.warning(f"User not found for author_name: {author_name}")
+                    # 如果找不到用户，使用当前登录用户作为作者
+                    if request_user:
+                        validated_data['author'] = request_user
+                    else:
+                        # 如果仍然没有作者，抛出错误
+                        raise serializers.ValidationError(f"无法找到作者 '{author_name}' 对应的用户，且没有可用的当前用户")
             except Exception as e:
                 import logging
                 logger = logging.getLogger(__name__)
                 logger.error(f"Error finding user for author_name {author_name}: {e}")
+                # 发生异常时，也尝试使用当前用户
+                if request_user:
+                    validated_data['author'] = request_user
 
         # 如果指定了创建时间，设置创建时间
         if created_at:
