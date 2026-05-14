@@ -375,13 +375,15 @@ function initStatusChart() {
 
   statusChartInstance.setOption({
     tooltip: { trigger: 'item' },
-    legend: { bottom: 0, textStyle: { color: '#6b7280' } },
+    legend: { bottom: 5, textStyle: { color: '#6b7280' }, itemGap: 15 },
     series: [{
       type: 'pie',
-      radius: ['40%', '70%'],
-      avoidLabelOverlap: false,
+      radius: ['35%', '60%'],
+      center: ['50%', '45%'],
+      avoidLabelOverlap: true,
       itemStyle: { borderRadius: 8, borderColor: '#fff', borderWidth: 2 },
-      label: { show: true, formatter: '{b}: {c}' },
+      label: { show: true, formatter: '{b}: {c}', position: 'outside' },
+      labelLine: { show: true, length: 10, length2: 5 },
       data,
       color: ['#22c55e', '#f59e0b', '#ef4444']
     }]
@@ -403,13 +405,15 @@ function initPriorityChart() {
 
   priorityChartInstance.setOption({
     tooltip: { trigger: 'item' },
-    legend: { bottom: 0, textStyle: { color: '#6b7280' } },
+    legend: { bottom: 5, textStyle: { color: '#6b7280' }, itemGap: 15 },
     series: [{
       type: 'pie',
-      radius: ['40%', '70%'],
-      avoidLabelOverlap: false,
+      radius: ['35%', '60%'],
+      center: ['50%', '45%'],
+      avoidLabelOverlap: true,
       itemStyle: { borderRadius: 8, borderColor: '#fff', borderWidth: 2 },
-      label: { show: true, formatter: '{b}: {c}' },
+      label: { show: true, formatter: '{b}: {c}', position: 'outside' },
+      labelLine: { show: true, length: 10, length2: 5 },
       data,
       color: ['#dc2626', '#f97316', '#eab308', '#22c55e']
     }]
@@ -535,7 +539,7 @@ onMounted(() => {
 }
 
 .chart-container {
-  height: 240px;
+  height: 280px;
   width: 100%;
 }
 

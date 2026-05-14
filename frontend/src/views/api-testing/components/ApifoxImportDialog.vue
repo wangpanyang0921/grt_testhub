@@ -25,57 +25,36 @@
             <!-- 成功状态行 -->
             <div class="success-status-row">
               <div class="status-left">
-                <el-icon :size="20" color="#52c41a"><circle-check-filled /></el-icon>
+                <div class="status-icon-wrapper">
+                  <el-icon :size="22" color="#fff"><circle-check-filled /></el-icon>
+                </div>
                 <span class="status-text">{{ $t('apiTesting.apifox.importSuccess') }}</span>
               </div>
               <div class="status-right">
-                <span class="requests-label">导入请求数：</span>
+                <span class="requests-label">导入请求数</span>
                 <span class="requests-count">{{ importResult.imported_requests }}</span>
               </div>
             </div>
 
-            <!-- 导入警告 -->
-            <div v-if="importResult.warnings?.length || importResult.issues_by_request" class="import-warnings-section">
-              <div class="warnings-header">
-                <el-icon color="#e6a23c" :size="18"><warning-filled /></el-icon>
-                <span>{{ $t('apiTesting.apifox.importWarnings') }}</span>
-              </div>
-              <div class="warnings-content">
-                <!-- 如果有结构化的 issues_by_request，使用新格式 -->
-                <div v-if="importResult.issues_by_request && Object.keys(importResult.issues_by_request).length > 0" class="issues-by-request">
-                  <div
-                    v-for="(issues, requestName) in importResult.issues_by_request"
-                    :key="requestName"
-                    class="request-issues-card"
-                  >
-                    <div class="request-name">
-                      <el-icon><warning-filled /></el-icon>
-                      <span>{{ requestName }}</span>
-                    </div>
-                    <div class="issues-list">
-                      <div
-                        v-for="(issue, idx) in issues"
-                        :key="idx"
-                        class="issue-item"
-                      >
-                        <div class="issue-type">{{ issue.type }}</div>
-                        <div class="issue-detail">{{ issue.detail }}</div>
-                        <div v-if="issue.action" class="issue-action">
-                          <el-icon><info-filled /></el-icon>
-                          <span>{{ issue.action }}</span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
+            <!-- 导入详情卡片 -->
+            <div class="success-details">
+              <div class="detail-card">
+                <div class="detail-item">
+                  <span class="detail-label">合集名称</span>
+                  <span class="detail-value">{{ importResult.collection_name || '-' }}</span>
                 </div>
-                <!-- 否则使用旧格式 -->
-                <ul v-else class="warnings-list">
-                  <li v-for="(warning, index) in importResult.warnings" :key="index">
-                    {{ warning }}
-                  </li>
-                </ul>
+                <div class="detail-item" v-if="importResult.suite_name">
+                  <span class="detail-label">测试套件</span>
+                  <span class="detail-value">{{ importResult.suite_name }}</span>
+                </div>
+                <div class="detail-item">
+                  <span class="detail-label">导入耗时</span>
+                  <span class="detail-value">{{ importResult.import_time || '-' }}</span>
+                </div>
               </div>
             </div>
+
+
           </div>
         </template>
 
@@ -694,6 +673,27 @@ const navigateToSuite = () => {
   }
 }
 
+.info-alert {
+  margin-bottom: 16px;
+  border-radius: 6px;
+
+  :deep(.el-alert__title) {
+    font-size: 13px;
+    font-weight: 500;
+    line-height: 1.5;
+  }
+
+  :deep(.el-alert__description) {
+    font-size: 12px;
+    line-height: 1.6;
+    margin-top: 4px;
+  }
+
+  :deep(.el-alert__icon) {
+    font-size: 16px;
+  }
+}
+
 .warning-alert {
   margin-bottom: 16px;
 }
@@ -722,39 +722,49 @@ const navigateToSuite = () => {
 
 // 导入成功页面样式
 .import-success-container {
-  padding: 16px 0;
+  padding: 24px 0;
   display: flex;
   flex-direction: column;
-  height: calc(100vh - 200px); // 减去抽屉头部和底部按钮的高度
-  max-height: 600px;
+  gap: 20px;
 
   // 单行状态栏
   .success-status-row {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    background: #f6ffed;
+    background: linear-gradient(135deg, #f6ffed 0%, #e6f7d9 100%);
     border: 1px solid #b7eb8f;
-    border-radius: 6px;
-    padding: 12px 16px;
-    margin-bottom: 16px;
+    border-radius: 12px;
+    padding: 16px 20px;
+    box-shadow: 0 2px 8px rgba(82, 196, 26, 0.1);
 
     .status-left {
       display: flex;
       align-items: center;
-      gap: 8px;
+      gap: 12px;
+
+      .status-icon-wrapper {
+        width: 36px;
+        height: 36px;
+        background: linear-gradient(135deg, #52c41a 0%, #389e0d 100%);
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        box-shadow: 0 2px 6px rgba(82, 196, 26, 0.3);
+      }
 
       .status-text {
-        font-size: 14px;
-        font-weight: 500;
+        font-size: 16px;
+        font-weight: 600;
         color: #52c41a;
       }
     }
 
     .status-right {
       display: flex;
-      align-items: center;
-      gap: 8px;
+      align-items: baseline;
+      gap: 6px;
 
       .requests-label {
         font-size: 13px;
@@ -762,12 +772,57 @@ const navigateToSuite = () => {
       }
 
       .requests-count {
-        font-size: 14px;
-        font-weight: 600;
+        font-size: 24px;
+        font-weight: 700;
         color: #52c41a;
+        line-height: 1;
       }
     }
   }
+
+  // 导入详情卡片
+  .success-details {
+    .detail-card {
+      background: #fafafa;
+      border-radius: 12px;
+      padding: 20px;
+      border: 1px solid #f0f0f0;
+
+      .detail-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 12px 0;
+        border-bottom: 1px solid #f0f0f0;
+
+        &:last-child {
+          border-bottom: none;
+          padding-bottom: 0;
+        }
+
+        &:first-child {
+          padding-top: 0;
+        }
+
+        .detail-label {
+          font-size: 13px;
+          color: #909399;
+          font-weight: 400;
+        }
+
+        .detail-value {
+          font-size: 14px;
+          color: #303133;
+          font-weight: 500;
+          max-width: 60%;
+          text-align: right;
+          word-break: break-all;
+        }
+      }
+    }
+  }
+
+
 
   // 保留旧样式兼容
   .success-header {
@@ -821,222 +876,11 @@ const navigateToSuite = () => {
       }
     }
   }
-
-  .import-warnings-section {
-    background: #fdf6ec;
-    border-radius: 8px;
-    overflow: hidden;
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    min-height: 0; // 防止flex子项溢出
-
-    .warnings-header {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      padding: 12px 16px;
-      background: #f5e6c8;
-      font-weight: 600;
-      color: #8a6d3b;
-      font-size: 14px;
-    }
-
-    .warnings-content {
-      padding: 12px 16px;
-      flex: 1;
-      overflow-y: auto;
-      min-height: 0;
-
-      .warnings-list {
-        margin: 0;
-        padding-left: 20px;
-
-        li {
-          margin-bottom: 6px;
-          color: #8a6d3b;
-          font-size: 13px;
-          line-height: 1.6;
-
-          &:last-child {
-            margin-bottom: 0;
-          }
-        }
-      }
-    }
-
-    // 新的结构化问题展示样式
-    .issues-by-request {
-      max-height: none;
-      overflow-y: visible;
-
-      .request-issues-card {
-        background: #fff;
-        border: 1px solid #e4d5b8;
-        border-radius: 6px;
-        margin-bottom: 10px;
-        overflow: hidden;
-
-        &:last-child {
-          margin-bottom: 0;
-        }
-
-        .request-name {
-          display: flex;
-          align-items: center;
-          gap: 8px;
-          padding: 10px 12px;
-          background: #f9f0db;
-          border-bottom: 1px solid #e4d5b8;
-          font-weight: 600;
-          color: #8a6d3b;
-          font-size: 13px;
-
-          .el-icon {
-            font-size: 14px;
-          }
-        }
-
-        .issues-list {
-          padding: 8px 12px;
-
-          .issue-item {
-            padding: 8px 0;
-            border-bottom: 1px dashed #e4d5b8;
-
-            &:last-child {
-              border-bottom: none;
-            }
-
-            .issue-type {
-              font-weight: 600;
-              color: #e6a23c;
-              font-size: 12px;
-              margin-bottom: 4px;
-            }
-
-            .issue-detail {
-              color: #606266;
-              font-size: 12px;
-              line-height: 1.5;
-              margin-bottom: 4px;
-            }
-
-            .issue-action {
-              display: flex;
-              align-items: flex-start;
-              gap: 4px;
-              color: #909399;
-              font-size: 11px;
-              background: #f5f7fa;
-              padding: 6px 10px;
-              border-radius: 4px;
-
-              .el-icon {
-                margin-top: 1px;
-                flex-shrink: 0;
-              }
-            }
-          }
-        }
-      }
-    }
-  }
 }
 
 // 旧的结果样式（保留兼容）
 .result-descriptions {
   margin-bottom: 16px;
-}
-
-.import-warnings {
-  margin-top: 16px;
-  text-align: left;
-
-  ul {
-    margin: 8px 0 0 0;
-    padding-left: 20px;
-
-    li {
-      margin-bottom: 4px;
-      color: #e6a23c;
-    }
-  }
-
-  // 新的结构化问题展示样式
-  .issues-by-request {
-    margin-top: 12px;
-    max-height: 400px;
-    overflow-y: auto;
-
-    .request-issues-card {
-      background: #fff;
-      border: 1px solid #e4e7ed;
-      border-radius: 8px;
-      margin-bottom: 12px;
-      overflow: hidden;
-
-      .request-name {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        padding: 10px 12px;
-        background: #fdf6ec;
-        border-bottom: 1px solid #f0e0c0;
-        font-weight: 600;
-        color: #e6a23c;
-        font-size: 14px;
-
-        .el-icon {
-          font-size: 16px;
-        }
-      }
-
-      .issues-list {
-        padding: 8px 12px;
-
-        .issue-item {
-          padding: 8px 0;
-          border-bottom: 1px dashed #ebeef5;
-
-          &:last-child {
-            border-bottom: none;
-          }
-
-          .issue-type {
-            font-weight: 600;
-            color: #f56c6c;
-            font-size: 13px;
-            margin-bottom: 4px;
-          }
-
-          .issue-detail {
-            color: #606266;
-            font-size: 13px;
-            line-height: 1.5;
-            margin-bottom: 4px;
-          }
-
-          .issue-action {
-            display: flex;
-            align-items: flex-start;
-            gap: 4px;
-            color: #909399;
-            font-size: 12px;
-            background: #f5f7fa;
-            padding: 6px 10px;
-            border-radius: 4px;
-            margin-top: 6px;
-
-            .el-icon {
-              margin-top: 1px;
-              flex-shrink: 0;
-            }
-          }
-        }
-      }
-    }
-  }
 }
 
 // 底部按钮

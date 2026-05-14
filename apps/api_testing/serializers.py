@@ -252,14 +252,14 @@ class TestSuiteSerializer(serializers.ModelSerializer):
     def get_suite_requests(self, obj):
         """获取按order排序的套件请求列表（支持树形结构）"""
         requests = obj.testsuiterequest_set.all().order_by('order')
-        
+
         # 构建请求字典
         request_dict = {}
         for req in requests:
             req_data = TestSuiteRequestSerializer(req, read_only=True).data
             req_data['children'] = []
             request_dict[req.id] = req_data
-        
+
         # 构建树形结构
         tree_data = []
         for req_id, req_data in request_dict.items():
@@ -270,7 +270,15 @@ class TestSuiteSerializer(serializers.ModelSerializer):
             else:
                 # 没有父节点，是顶层节点
                 tree_data.append(req_data)
-        
+
+        # 对顶层节点按 order 排序
+        tree_data.sort(key=lambda x: x.get('order', 0))
+
+        # 对每个父节点的 children 也按 order 排序
+        for req_data in request_dict.values():
+            if req_data.get('children'):
+                req_data['children'].sort(key=lambda x: x.get('order', 0))
+
         return tree_data
     environment_id = serializers.PrimaryKeyRelatedField(
         queryset=Environment.objects.all(),

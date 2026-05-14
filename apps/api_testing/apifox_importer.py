@@ -143,7 +143,9 @@ class ApifoxCliImporter:
             result = {
                 'success': True,
                 'collection_id': collection.id,
+                'collection_name': collection.name,
                 'suite_id': suite.id if suite else None,
+                'suite_name': suite.name if suite else None,
                 'scenario_id': scenario.id if scenario else None,
                 'stats': {
                     'collections_created': self.import_stats['collections_created'],
@@ -155,7 +157,7 @@ class ApifoxCliImporter:
                 'warnings': self.import_stats['warnings'],
                 'issues_by_request': self.import_stats['issues_by_request']
             }
-            
+
             return result
     
     def _build_index_mapping(self, items: List[Dict]):

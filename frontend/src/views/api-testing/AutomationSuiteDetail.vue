@@ -44,7 +44,7 @@
             clearable
             class="env-select-inline"
             @change="handleEnvironmentChange"
-            style="width: 140px;"
+            style="width: 180px;"
           >
             <el-option
               v-for="env in environments"
@@ -61,6 +61,10 @@
         <div class="section-header">
           <h4>场景编排</h4>
           <div class="section-actions">
+            <el-button type="info" @click="clearAllRequests" :disabled="!localSuiteRequests?.length">
+              <el-icon><Delete /></el-icon>
+              一键清空
+            </el-button>
             <el-button type="success" @click="runTestSuite" :loading="running">
               <el-icon><VideoPlay /></el-icon>
               {{ $t('apiTesting.automation.runTest') }}
@@ -83,17 +87,29 @@
           </div>
         </div>
         
-        <div class="requests-tree" v-if="suite.suite_requests?.length > 0">
-          <suite-request-tree
-            v-for="(req, index) in suite.suite_requests"
-            :key="req.id"
-            :request="req"
-            :index="index"
-            :level="0"
-            @edit="editRequest"
-            @remove="removeRequest"
-            @toggle-enabled="updateRequestEnabled"
-          />
+        <div class="requests-tree" v-if="localSuiteRequests?.length > 0">
+          <draggable
+            v-model="localSuiteRequests"
+            :group="{ name: 'suite-requests', pull: true, put: true }"
+            :animation="200"
+            item-key="id"
+            ghost-class="dragging-ghost"
+            chosen-class="dragging-chosen"
+            drag-class="dragging-drag"
+            @change="onTopLevelChange"
+          >
+            <template #item="{ element, index }">
+              <suite-request-tree
+                :request="element"
+                :index="index"
+                :level="0"
+                @edit="editRequest"
+                @remove="removeRequest"
+                @toggle-enabled="updateRequestEnabled"
+                @order-change="onChildOrderChange"
+              />
+            </template>
+          </draggable>
         </div>
         
         <el-empty v-else :description="$t('apiTesting.automation.noRequests')" class="requests-empty" />
@@ -278,48 +294,99 @@
       </template>
     </el-dialog>
 
-    <!-- 添加请求对话框 -->
-    <el-dialog
+    <!-- 添加步骤抽屉 -->
+    <el-drawer
       v-model="showAddRequestDialog"
-      :title="$t('apiTesting.automation.addRequestToSuite')"
-      width="800px"
+      :title="$t('apiTesting.automation.addStepToSuite')"
+      size="600px"
+      direction="rtl"
+      :destroy-on-close="true"
+      class="add-step-drawer"
     >
       <div class="add-request-content">
-        <div class="request-selector">
-          <el-tree
-            ref="requestTreeRef"
-            :data="requestTree"
-            :props="requestTreeProps"
-            show-checkbox
-            node-key="id"
-            :check-on-click-node="false"
-            @check="onRequestCheck"
-          >
-            <template #default="{ node, data }">
-              <div class="request-tree-node">
-                <el-icon v-if="data.type === 'collection'">
-                  <Folder />
-                </el-icon>
-                <el-icon v-else>
-                  <Document />
-                </el-icon>
-                <span>{{ data.name }}</span>
-                <span v-if="data.type === 'request'" class="method-tag" :class="data.method?.toLowerCase()">
-                  {{ data.method }}
-                </span>
+        <!-- Tab 切换 -->
+        <el-tabs v-model="addStepTab" class="add-step-tabs">
+          <!-- 接口 Tab -->
+          <el-tab-pane label="引用接口" name="request">
+            <div class="request-selector">
+              <el-tree
+                ref="requestTreeRef"
+                :data="requestTree"
+                :props="requestTreeProps"
+                show-checkbox
+                node-key="id"
+                :check-on-click-node="false"
+                @check="onRequestCheck"
+              >
+                <template #default="{ node, data }">
+                  <div class="request-tree-node">
+                    <el-icon v-if="data.type === 'collection'">
+                      <Folder />
+                    </el-icon>
+                    <el-icon v-else>
+                      <Document />
+                    </el-icon>
+                    <span>{{ data.name }}</span>
+                    <span v-if="data.type === 'request'" class="method-tag" :class="data.method?.toLowerCase()">
+                      {{ data.method }}
+                    </span>
+                  </div>
+                </template>
+              </el-tree>
+            </div>
+          </el-tab-pane>
+          
+          <!-- 场景 Tab -->
+          <el-tab-pane label="引用场景" name="suite">
+            <div class="suite-selector">
+              <div v-if="availableSuites.length === 0" class="empty-suites">
+                <el-empty description="暂无可引用的场景" />
               </div>
-            </template>
-          </el-tree>
-        </div>
+              <el-tree
+                v-else
+                ref="suiteTreeRef"
+                :data="availableSuites"
+                :props="suiteTreeProps"
+                show-checkbox
+                node-key="id"
+                :check-on-click-node="false"
+                @check="onSuiteCheck"
+                default-expand-all
+              >
+                <template #default="{ node, data }">
+                  <div class="suite-tree-node" :class="{ 'is-group': data.step_type === 'group', 'is-request': data.step_type === 'request' }">
+                    <!-- 场景根节点 -->
+                    <template v-if="!data.step_type">
+                      <el-icon><Collection /></el-icon>
+                      <span class="node-name">{{ data.name }}</span>
+                      <span class="suite-request-count">({{ data.request_count }}个请求)</span>
+                    </template>
+                    <!-- 分组节点 -->
+                    <template v-else-if="data.step_type === 'group'">
+                      <el-icon><Folder /></el-icon>
+                      <span class="node-name group-name">{{ data.name }}</span>
+                      <span class="group-badge">{{ data.request_count }}个子项</span>
+                    </template>
+                    <!-- 请求节点 -->
+                    <template v-else>
+                      <span class="method-tag" :class="data.method?.toLowerCase()">{{ data.method }}</span>
+                      <span class="node-name request-name">{{ data.name }}</span>
+                    </template>
+                  </div>
+                </template>
+              </el-tree>
+            </div>
+          </el-tab-pane>
+        </el-tabs>
       </div>
       
       <template #footer>
         <el-button @click="showAddRequestDialog = false">{{ $t('apiTesting.common.cancel') }}</el-button>
-        <el-button type="primary" @click="addSelectedRequests" :loading="addingRequests">
-          {{ $t('apiTesting.automation.addSelectedRequests') }}
+        <el-button type="primary" @click="addSelectedSteps" :loading="addingRequests">
+          {{ $t('apiTesting.automation.addSelectedSteps') }}
         </el-button>
       </template>
-    </el-dialog>
+    </el-drawer>
 
     <!-- 执行结果抽屉 -->
     <el-drawer
@@ -1219,7 +1286,7 @@ import { ref, onMounted, nextTick, computed } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import Sortable from 'sortablejs'
+import draggable from 'vuedraggable'
 import api from '@/utils/api'
 import { updateTestSuiteRequest } from '@/api/api-testing'
 import SuiteRequestTree from './components/SuiteRequestTree.vue'
@@ -1232,12 +1299,23 @@ const { t } = useI18n()
 
 // 数据
 const suite = ref(null)
+const localSuiteRequests = ref([])  // 本地套件请求列表，用于拖拽排序
 const environments = ref([])
 const executions = ref([])
 const loading = ref(false)
 const executionsLoading = ref(false)
 const running = ref(false)
 const requestTree = ref([])
+
+// 添加步骤相关
+const addStepTab = ref('request')
+const availableSuites = ref([])
+const selectedSuiteIds = ref([])
+const suiteTreeRef = ref(null)
+const suiteTreeProps = {
+  children: 'children',
+  label: 'name'
+}
 
 // 评审相关
 const reviewRecords = ref([])
@@ -1879,7 +1957,6 @@ const requestTreeRef = ref(null)
 
 // 表格引用
 const requestTableRef = ref(null)
-let sortableInstance = null
 const requestTreeProps = {
   children: 'children',
   label: 'name'
@@ -2197,6 +2274,8 @@ const loadSuiteDetail = async () => {
   try {
     const response = await api.get(`/api-testing/test-suites/${suiteId}/`)
     suite.value = response.data
+    // 同步本地套件请求列表
+    localSuiteRequests.value = suite.value.suite_requests || []
     // 更新路由 query，添加测试套件名称，用于面包屑显示
     if (suite.value.name) {
       router.replace({
@@ -2208,10 +2287,7 @@ const loadSuiteDetail = async () => {
       loadEnvironments(),
       loadReviewData()
     ])
-    // 数据加载完成后初始化拖拽
-    nextTick(() => {
-      initSortable()
-    })
+    // 数据加载完成
   } catch (error) {
     ElMessage.error(t('apiTesting.messages.error.loadSuiteDetail'))
   } finally {
@@ -2264,6 +2340,98 @@ const loadRequestTree = async () => {
   } catch (error) {
     ElMessage.error(t('apiTesting.messages.error.loadRequestTree'))
   }
+}
+
+// 将场景请求树转换为带分组效果的树形数据
+const buildSuiteRequestTree = (suiteRequests, suiteId, suiteName) => {
+  if (!suiteRequests || suiteRequests.length === 0) {
+    return []
+  }
+
+  const result = []
+  
+  suiteRequests.forEach((req, index) => {
+    const nodeId = `${suiteId}_step_${req.id}`
+    
+    // 如果是分组类型或包含子节点，则作为父节点
+    if (req.step_type === 'group' || (req.children && req.children.length > 0)) {
+      const groupNode = {
+        id: nodeId,
+        name: req.override_name || req.request?.name || '分组',
+        step_type: 'group',
+        suite_id: suiteId,
+        suite_name: suiteName,
+        request_count: req.children?.length || 0,
+        children: []
+      }
+      
+      // 递归处理子节点
+      if (req.children && req.children.length > 0) {
+        req.children.forEach((child, childIndex) => {
+          const childNodeId = `${suiteId}_step_${child.id}`
+          groupNode.children.push({
+            id: childNodeId,
+            name: child.override_name || child.request?.name || '请求',
+            method: child.request?.method,
+            step_type: child.step_type || 'request',
+            suite_id: suiteId,
+            suite_name: suiteName,
+            request: child.request
+          })
+        })
+      }
+      
+      result.push(groupNode)
+    } else {
+      // 普通请求节点
+      result.push({
+        id: nodeId,
+        name: req.override_name || req.request?.name || '请求',
+        method: req.request?.method,
+        step_type: req.step_type || 'request',
+        suite_id: suiteId,
+        suite_name: suiteName,
+        request: req.request
+      })
+    }
+  })
+  
+  return result
+}
+
+// 加载可引用的场景列表
+const loadAvailableSuites = async () => {
+  if (!suite.value?.project) return
+
+  try {
+    const response = await api.get('/api-testing/test-suites/', {
+      params: {
+        project: suite.value.project,
+        exclude_self: suite.value.id
+      }
+    })
+    const suites = response.data.results || response.data
+    // 过滤掉当前场景，并构建带分组效果的树形数据
+    availableSuites.value = suites
+      .filter(s => s.id !== suite.value.id)
+      .map(s => {
+        const requestCount = s.suite_requests?.length || 0
+        const children = buildSuiteRequestTree(s.suite_requests, s.id, s.name)
+        return {
+          ...s,
+          request_count: requestCount,
+          children: children
+        }
+      })
+  } catch (error) {
+    console.error('加载场景列表失败:', error)
+    availableSuites.value = []
+  }
+}
+
+// 场景选择处理
+const onSuiteCheck = (data, checked) => {
+  selectedSuiteIds.value = checked.checkedKeys
 }
 
 const buildRequestTree = (collections, requests) => {
@@ -2400,16 +2568,22 @@ const handleEnvironmentChange = async (envId) => {
 }
 
 const showAddRequest = async () => {
-  await loadRequestTree()
+  // 重置状态
+  addStepTab.value = 'request'
+  selectedSuiteIds.value = []
+
+  await Promise.all([
+    loadRequestTree(),
+    loadAvailableSuites()
+  ])
+
   showAddRequestDialog.value = true
-  
+
+  // 默认不选中任何接口（包括已添加的）
   nextTick(() => {
     setTimeout(() => {
-      if (requestTreeRef.value && suite.value) {
-        const existingRequestIds = suite.value.suite_requests?.map(sr => 
-          `request_${sr.request.id}`
-        ) || []
-        requestTreeRef.value.setCheckedKeys(existingRequestIds, false)
+      if (requestTreeRef.value) {
+        requestTreeRef.value.setCheckedKeys([], false)
       }
     }, 200)
   })
@@ -2438,21 +2612,162 @@ const addSelectedRequests = async () => {
       request_ids: requestIds
     })
 
+    console.log('添加接口响应:', response.data)
+
     // 直接使用返回的套件数据更新列表
     if (response.data && response.data.suite) {
       suite.value = response.data.suite
-      // 重新初始化拖拽
-      nextTick(() => {
-        initSortable()
-      })
+      console.log('suite.value.suite_requests:', suite.value.suite_requests)
+      // 同步更新本地套件请求列表
+      localSuiteRequests.value = suite.value.suite_requests || []
+      console.log('localSuiteRequests.value:', localSuiteRequests.value)
     }
 
     ElMessage.success(response.data.message || t('apiTesting.messages.success.addSuccess'))
     showAddRequestDialog.value = false
   } catch (error) {
+    console.error('添加接口失败:', error)
     ElMessage.error(t('apiTesting.messages.error.addFailed'))
   } finally {
     addingRequests.value = false
+  }
+}
+
+// 新的添加步骤方法（支持接口和场景）
+const addSelectedSteps = async () => {
+  if (!suite.value) return
+  
+  // 根据当前 Tab 决定添加什么
+  if (addStepTab.value === 'request') {
+    // 添加接口
+    const checkedNodes = requestTreeRef.value?.getCheckedNodes() || []
+    console.log('addSelectedSteps checkedNodes:', checkedNodes)
+    const requestIds = checkedNodes
+      .filter(node => node.type === 'request')
+      .map(node => node.id.replace('request_', ''))
+    console.log('addSelectedSteps requestIds:', requestIds)
+
+    if (requestIds.length === 0) {
+      ElMessage.warning('请至少选择一个接口')
+      return
+    }
+
+    addingRequests.value = true
+    try {
+      console.log('addSelectedSteps 发送请求:', { request_ids: requestIds })
+      const response = await api.post(`/api-testing/test-suites/${suite.value.id}/add-requests/`, {
+        request_ids: requestIds
+      })
+
+      console.log('addSelectedSteps 添加接口响应:', response.data)
+
+      if (response.data && response.data.suite) {
+        suite.value = response.data.suite
+        console.log('addSelectedSteps suite.value.suite_requests:', suite.value.suite_requests)
+        // 同步更新本地套件请求列表
+        localSuiteRequests.value = suite.value.suite_requests || []
+        console.log('addSelectedSteps localSuiteRequests.value:', localSuiteRequests.value)
+      }
+
+      ElMessage.success(response.data.message || '添加成功')
+      showAddRequestDialog.value = false
+    } catch (error) {
+      const errorMsg = error.response?.data?.error || error.message || '添加失败'
+      ElMessage.error(errorMsg)
+      console.error('添加接口失败:', error)
+    } finally {
+      addingRequests.value = false
+    }
+  } else {
+    // 添加场景（作为分组）
+    const checkedNodes = suiteTreeRef.value?.getCheckedNodes() || []
+    const checkedKeys = suiteTreeRef.value?.getCheckedKeys() || []
+    
+    if (checkedNodes.length === 0) {
+      ElMessage.warning('请至少选择一个场景或步骤')
+      return
+    }
+
+    // 收集场景和选中的子项
+    const suiteSelections = []
+    const processedSuiteIds = new Set()
+    
+    // 辅助函数：递归收集节点及其所有子节点的ID
+    const collectStepIds = (node, suiteId, resultSet) => {
+      if (node.step_type && node.id) {
+        const match = node.id.match(new RegExp(`^${suiteId}_step_(\\d+)$`))
+        if (match) {
+          resultSet.add(parseInt(match[1]))
+        }
+      }
+      // 递归处理子节点
+      if (node.children && node.children.length > 0) {
+        node.children.forEach(child => collectStepIds(child, suiteId, resultSet))
+      }
+    }
+    
+    for (const node of checkedNodes) {
+      if (!node.id) continue
+      
+      // 场景根节点（没有 step_type）
+      if (!node.step_type) {
+        if (!processedSuiteIds.has(node.id)) {
+          suiteSelections.push({
+            suite_id: node.id,
+            selected_steps: null // null 表示选择整个场景
+          })
+          processedSuiteIds.add(node.id)
+        }
+      } else {
+        // 子节点（分组或请求）
+        const suiteId = node.suite_id
+        if (suiteId && !processedSuiteIds.has(suiteId)) {
+          // 收集该场景下所有选中的步骤ID（包括嵌套的子节点）
+          const selectedStepsSet = new Set()
+          
+          checkedNodes
+            .filter(n => n.suite_id === suiteId && n.step_type)
+            .forEach(n => collectStepIds(n, suiteId, selectedStepsSet))
+          
+          const selectedSteps = Array.from(selectedStepsSet)
+          
+          if (selectedSteps.length > 0) {
+            suiteSelections.push({
+              suite_id: suiteId,
+              selected_steps: selectedSteps
+            })
+            processedSuiteIds.add(suiteId)
+          }
+        }
+      }
+    }
+
+    if (suiteSelections.length === 0) {
+      ElMessage.warning('请至少选择一个场景或步骤')
+      return
+    }
+
+    addingRequests.value = true
+    try {
+      const response = await api.post(`/api-testing/test-suites/${suite.value.id}/add-suites/`, {
+        suite_selections: suiteSelections
+      })
+
+      if (response.data && response.data.suite) {
+        suite.value = response.data.suite
+        // 同步更新本地套件请求列表
+        localSuiteRequests.value = suite.value.suite_requests || []
+      }
+
+      ElMessage.success(response.data.message || '添加场景成功')
+      showAddRequestDialog.value = false
+    } catch (error) {
+      const errorMsg = error.response?.data?.error || error.message || '添加场景失败'
+      ElMessage.error(errorMsg)
+      console.error('添加场景失败:', error)
+    } finally {
+      addingRequests.value = false
+    }
   }
 }
 
@@ -2701,58 +3016,199 @@ const saveRequestEdit = async () => {
   }
 }
 
-// 拖拽排序相关
-const initSortable = () => {
-  if (sortableInstance) return
+// 拖拽开始时的处理
+const onDragStart = (evt) => {
+  console.log('拖拽开始:', evt)
+}
 
-  const tbody = requestTableRef.value?.$el.querySelector('.el-table__body tbody')
-  if (!tbody) return
+// 顶层拖拽排序处理 - 使用 @end 事件
+const onTopLevelDragEnd = async (evt) => {
+  console.log('拖拽结束:', evt)
+  const { oldIndex, newIndex } = evt
 
-  sortableInstance = new Sortable(tbody, {
-    handle: '.drag-handle',
-    animation: 150,
-    ghostClass: 'dragging',
-    onEnd: async (evt) => {
-      const { oldIndex, newIndex } = evt
-      if (oldIndex === newIndex) return
+  // 如果没有移动，直接返回
+  if (oldIndex === newIndex) return
 
-      const requests = suite.value.suite_requests
-      const draggedItem = requests[oldIndex]
+  // 获取移动的元素
+  const element = localSuiteRequests.value[newIndex]
 
-      try {
-        // 计算新的 order 值
-        let newOrder
-        if (newIndex === 0) {
-          // 移动到第一位
-          newOrder = requests[0].order - 1
-        } else if (newIndex >= requests.length - 1) {
-          // 移动到最后一位
-          newOrder = requests[requests.length - 1].order + 1
-        } else {
-          // 移动到中间位置，取前后两个 order 的平均值
-          const prevOrder = requests[newIndex - 1].order
-          const nextOrder = requests[newIndex].order
-          newOrder = (prevOrder + nextOrder) / 2
-        }
+  // 先保存当前的本地状态，以便失败时恢复
+  const previousRequests = [...localSuiteRequests.value]
 
-        // 更新后端
-        await api.patch(`/api-testing/test-suite-requests/${draggedItem.id}/`, {
-          order: newOrder
-        })
+  try {
+    // 计算新的 order 值
+    let newOrder
+    const requests = localSuiteRequests.value
 
-        // 前端重新排序
-        requests.splice(oldIndex, 1)
-        requests.splice(newIndex, 0, draggedItem)
-
-        ElMessage.success(t('apiTesting.messages.success.orderUpdated'))
-      } catch (error) {
-        console.error('拖拽排序失败:', error)
-        ElMessage.error(t('apiTesting.messages.error.orderUpdateFailed'))
-        // 恢复原顺序
-        await loadSuiteDetail()
-      }
+    if (newIndex === 0) {
+      // 移动到第一位
+      const firstOrder = requests[1]?.order || 1000
+      newOrder = firstOrder - 100
+    } else if (newIndex >= requests.length - 1) {
+      // 移动到最后一位
+      const lastOrder = requests[requests.length - 2]?.order || 0
+      newOrder = lastOrder + 100
+    } else {
+      // 移动到中间位置，取前后两个 order 的平均值
+      const prevOrder = requests[newIndex - 1]?.order || 0
+      const nextOrder = requests[newIndex + 1]?.order || prevOrder + 200
+      newOrder = (prevOrder + nextOrder) / 2
     }
-  })
+
+    console.log('拖拽排序:', {
+      id: element.id,
+      name: element.override_name || element.request?.name,
+      oldIndex,
+      newIndex,
+      newOrder: Math.round(newOrder)
+    })
+
+    // 更新后端 - 同时更新 order 和 parent_id (顶层没有 parent_id)
+    const updateData = {
+      order: Math.round(newOrder),
+      parent_id: null
+    }
+    console.log('发送 PATCH 请求:', `/api-testing/test-suite-requests/${element.id}/`, updateData)
+
+    const response = await api.patch(`/api-testing/test-suite-requests/${element.id}/`, updateData)
+    console.log('PATCH 响应:', response.data)
+
+    // 更新本地数据中的 order 值
+    const updatedItem = localSuiteRequests.value.find(item => item.id === element.id)
+    if (updatedItem) {
+      updatedItem.order = Math.round(newOrder)
+    }
+
+    // 同步到 suite.value.suite_requests
+    suite.value.suite_requests = [...localSuiteRequests.value]
+
+    // 强制重新加载数据以确保排序正确
+    await loadSuiteDetail()
+
+    ElMessage.success(t('apiTesting.messages.success.orderUpdated'))
+  } catch (error) {
+    console.error('拖拽排序失败:', error)
+    ElMessage.error(t('apiTesting.messages.error.orderUpdateFailed'))
+    // 恢复本地顺序
+    localSuiteRequests.value = previousRequests
+    // 重新加载数据
+    await loadSuiteDetail()
+  }
+}
+
+// 顶层拖拽变化处理（统一处理所有拖拽情况）
+const onTopLevelChange = async (evt) => {
+  console.log('顶层拖拽变化:', evt)
+
+  // 处理移动（同层级排序）
+  if (evt.moved) {
+    const { oldIndex, newIndex, element } = evt.moved
+    console.log('同层级移动:', { oldIndex, newIndex, element })
+
+    try {
+      // 计算新的 order 值
+      let newOrder
+      const requests = localSuiteRequests.value
+
+      if (newIndex === 0) {
+        const firstOrder = requests[1]?.order || 1000
+        newOrder = firstOrder - 100
+      } else if (newIndex >= requests.length - 1) {
+        const lastOrder = requests[requests.length - 2]?.order || 0
+        newOrder = lastOrder + 100
+      } else {
+        const prevOrder = requests[newIndex - 1]?.order || 0
+        const nextOrder = requests[newIndex + 1]?.order || prevOrder + 200
+        newOrder = (prevOrder + nextOrder) / 2
+      }
+
+      // 发送 PATCH 请求更新后端
+      await api.patch(`/api-testing/test-suite-requests/${element.id}/`, {
+        order: Math.round(newOrder),
+        parent_id: null
+      })
+
+      // 强制重新加载数据
+      await loadSuiteDetail()
+
+      ElMessage.success(t('apiTesting.messages.success.orderUpdated'))
+    } catch (error) {
+      console.error('同层级移动失败:', error)
+      ElMessage.error(t('apiTesting.messages.error.orderUpdateFailed'))
+      await loadSuiteDetail()
+    }
+  }
+
+  // 处理从其他层级添加（从分组拖拽到顶层）
+  if (evt.added) {
+    const { newIndex, element } = evt.added
+    console.log('从分组添加到顶层:', { newIndex, element })
+
+    try {
+      // 计算新的 order 值
+      let newOrder
+      const requests = localSuiteRequests.value
+
+      if (newIndex === 0) {
+        const firstOrder = requests[1]?.order || 1000
+        newOrder = firstOrder - 100
+      } else if (newIndex >= requests.length - 1) {
+        const lastOrder = requests[requests.length - 2]?.order || 0
+        newOrder = lastOrder + 100
+      } else {
+        const prevOrder = requests[newIndex - 1]?.order || 0
+        const nextOrder = requests[newIndex + 1]?.order || prevOrder + 200
+        newOrder = (prevOrder + nextOrder) / 2
+      }
+
+      // 发送 PATCH 请求更新后端（parent_id 设为 null）
+      await api.patch(`/api-testing/test-suite-requests/${element.id}/`, {
+        order: Math.round(newOrder),
+        parent_id: null
+      })
+
+      // 强制重新加载数据
+      await loadSuiteDetail()
+
+      ElMessage.success(t('apiTesting.messages.success.orderUpdated'))
+    } catch (error) {
+      console.error('添加到顶层失败:', error)
+      ElMessage.error(t('apiTesting.messages.error.orderUpdateFailed'))
+      await loadSuiteDetail()
+    }
+  }
+}
+
+// 子节点顺序变化处理
+const onChildOrderChange = async (data) => {
+  const { parentId, children } = data
+
+  try {
+    // 批量更新子节点的顺序
+    const updatePromises = children.map((child, index) => {
+      return api.patch(`/api-testing/test-suite-requests/${child.id}/`, {
+        order: (index + 1) * 100,
+        parent_id: parentId
+      })
+    })
+
+    await Promise.all(updatePromises)
+
+    // 更新本地数据中的 order 值
+    children.forEach((child, index) => {
+      child.order = (index + 1) * 100
+    })
+
+    // 强制重新加载数据以确保排序正确
+    await loadSuiteDetail()
+
+    ElMessage.success(t('apiTesting.messages.success.orderUpdated'))
+  } catch (error) {
+    console.error('子节点排序失败:', error)
+    ElMessage.error(t('apiTesting.messages.error.orderUpdateFailed'))
+    // 恢复原顺序
+    await loadSuiteDetail()
+  }
 }
 
 const removeRequest = async (suiteRequest) => {
@@ -2773,6 +3229,58 @@ const removeRequest = async (suiteRequest) => {
   } catch (error) {
     if (error !== 'cancel') {
       ElMessage.error(t('apiTesting.messages.error.removeFailed'))
+    }
+  }
+}
+
+// 一键清空所有接口
+const clearAllRequests = async () => {
+  if (!localSuiteRequests.value?.length) {
+    ElMessage.warning('没有可删除的接口')
+    return
+  }
+
+  try {
+    await ElMessageBox.confirm(
+      `确定要删除所有 ${localSuiteRequests.value.length} 个接口吗？此操作不可恢复！`,
+      '确认清空',
+      {
+        confirmButtonText: '确定删除',
+        cancelButtonText: '取消',
+        type: 'warning'
+      }
+    )
+
+    // 收集所有需要删除的接口ID（包括子接口）
+    const allRequestIds = []
+    const collectIds = (requests) => {
+      requests.forEach(req => {
+        allRequestIds.push(req.id)
+        if (req.children?.length) {
+          collectIds(req.children)
+        }
+      })
+    }
+    collectIds(localSuiteRequests.value)
+
+    console.log('一键清空，删除接口IDs:', allRequestIds)
+
+    // 批量删除接口
+    const deletePromises = allRequestIds.map(id =>
+      api.delete(`/api-testing/test-suite-requests/${id}/`).catch(err => {
+        console.error(`删除接口 ${id} 失败:`, err)
+        return null
+      })
+    )
+
+    await Promise.all(deletePromises)
+
+    ElMessage.success(`已成功删除 ${allRequestIds.length} 个接口`)
+    await loadSuiteDetail()
+  } catch (error) {
+    if (error !== 'cancel') {
+      console.error('一键清空失败:', error)
+      ElMessage.error('一键清空失败，请稍后重试')
     }
   }
 }
@@ -3052,19 +3560,35 @@ onMounted(async () => {
     overflow: hidden;
     background: #fafafa;
     box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.02);
+
+    // 拖拽相关样式
+    .dragging-ghost {
+      opacity: 0.5;
+      background: #f0f9ff !important;
+      border: 2px dashed #7b42f6;
+    }
+
+    .dragging-chosen {
+      opacity: 0.9;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    }
+
+    .dragging-drag {
+      opacity: 1;
+      background: #ffffff;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+      transform: scale(1.02);
+    }
   }
 
   // 空状态样式
   .requests-empty {
-    padding: 60px 20px;
-    background: #fafafa;
-    border-radius: 12px;
-    border: 2px dashed #e0e0e0;
+    padding: 20px;
 
     :deep(.el-empty__description) {
       color: #8c8c8c;
       font-size: 14px;
-      margin-top: 16px;
+      margin-top: 8px;
     }
 
     :deep(.el-empty__image) {
@@ -3531,8 +4055,86 @@ onMounted(async () => {
 }
 
 .add-request-content {
-  max-height: 400px;
+  height: calc(100vh - 180px);
   overflow-y: auto;
+
+  .add-step-tabs {
+    height: 100%;
+
+    .el-tabs__content {
+      height: calc(100% - 55px);
+      overflow-y: auto;
+    }
+  }
+
+  .suite-selector {
+    .empty-suites {
+      padding: 40px 0;
+    }
+
+    .suite-tree-node {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex: 1;
+      padding: 4px 0;
+
+      .el-icon {
+        color: #7b42f6;
+      }
+
+      .suite-request-count {
+        color: #909399;
+        font-size: 12px;
+        margin-left: auto;
+      }
+
+      .node-name {
+        flex: 1;
+      }
+
+      .group-name {
+        color: #606266;
+        font-weight: 500;
+      }
+
+      .request-name {
+        color: #303133;
+      }
+
+      .group-badge {
+        color: #909399;
+        font-size: 12px;
+        background: #f4f4f5;
+        padding: 2px 8px;
+        border-radius: 10px;
+      }
+
+      .method-tag {
+        font-size: 10px;
+        padding: 2px 6px;
+        border-radius: 4px;
+        color: white;
+        font-weight: bold;
+
+        &.get { background: linear-gradient(135deg, #67c23a 0%, #52c41a 100%); }
+        &.post { background: linear-gradient(135deg, #409eff 0%, #7b42f6 100%); }
+        &.put { background: linear-gradient(135deg, #e6a23c 0%, #f5a623 100%); }
+        &.delete { background: linear-gradient(135deg, #f56c6c 0%, #ff4d4f 100%); }
+        &.patch { background: linear-gradient(135deg, #722ed1 0%, #531dab 100%); }
+      }
+
+      &.is-group {
+        .el-icon {
+          color: #e6a23c;
+        }
+      }
+
+      &.is-request {
+        padding-left: 8px;
+      }
+    }
+  }
 }
 
 .request-tree-node {

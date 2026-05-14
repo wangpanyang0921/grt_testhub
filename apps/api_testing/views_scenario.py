@@ -662,7 +662,9 @@ def apifox_import_v2_execute(request):
             'success': result.get('success', True),
             'scenario_id': result.get('scenario_id'),
             'collection_id': result.get('collection_id'),
+            'collection_name': result.get('collection_name'),
             'suite_id': result.get('suite_id'),
+            'suite_name': result.get('suite_name'),
             'stats': result.get('stats', {}),
             'warnings': result.get('warnings', [])
         })

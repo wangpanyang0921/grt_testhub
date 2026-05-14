@@ -55,6 +55,7 @@
 
       <div v-else class="interface-table-wrapper">
         <el-table
+          ref="tableRef"
           :data="interfaceList"
           v-loading="loading"
           style="width: 100%"
@@ -186,6 +187,7 @@ const expandedCollections = ref([])
 const showCreateCollectionDialog = ref(false)
 const showImportDialog = ref(false)
 const selectedRows = ref([])
+const tableRef = ref(null)
 
 // 分页相关
 const currentPage = ref(1)
@@ -279,28 +281,11 @@ const loadRequests = async () => {
 
     const res = await api.get('/api-testing/requests/', { params })
     const requests = res.data.results || res.data || []
-    const count = res.data.count || requests.length
+    const count = res.data.count !== undefined ? res.data.count : requests.length
 
-    // 填充接口列表（用于表格展示）- 根据 id 和 name+method+url 双重去重
-    const uniqueRequests = []
-    const seenIds = new Set()
-    const seenKeys = new Set() // 用于 name+method+url 去重
-    requests.forEach(req => {
-      // 首先按 id 去重
-      if (seenIds.has(req.id)) {
-        return
-      }
-      // 再按 name+method+url 去重
-      const key = `${req.name}_${req.method}_${req.url}`
-      if (seenKeys.has(key)) {
-        return
-      }
-      seenIds.add(req.id)
-      seenKeys.add(key)
-      uniqueRequests.push(req)
-    })
-    interfaceList.value = uniqueRequests
-    total.value = uniqueRequests.length
+    // 填充接口列表（用于表格展示）
+    interfaceList.value = requests
+    total.value = count
 
     // 将请求添加到对应集合中
     requests.forEach(request => {
@@ -362,6 +347,19 @@ const deleteRequest = async (row) => {
     )
     await api.delete(`/api-testing/requests/${row.id}/`)
     ElMessage.success('删除成功')
+    // 如果被删除的接口在选中行中，从选中行中移除
+    const index = selectedRows.value.findIndex(r => r.id === row.id)
+    if (index > -1) {
+      selectedRows.value.splice(index, 1)
+    }
+    // 清空表格选中状态
+    if (tableRef.value) {
+      tableRef.value.clearSelection()
+    }
+    // 如果当前页只有这一条数据，回到第一页
+    if (interfaceList.value.length <= 1 && currentPage.value > 1) {
+      currentPage.value = 1
+    }
     await loadRequests()
   } catch (error) {
     if (error !== 'cancel') {
@@ -389,14 +387,32 @@ const batchDelete = async () => {
       { type: 'warning' }
     )
 
-    // 依次删除选中的接口
+    // 依次删除选中的接口，使用 Promise.allSettled 处理部分失败
     const deletePromises = selectedRows.value.map(row =>
-      api.delete(`/api-testing/requests/${row.id}/`)
+      api.delete(`/api-testing/requests/${row.id}/`).then(() => ({ success: true, id: row.id })).catch(err => ({ success: false, id: row.id, error: err }))
     )
 
-    await Promise.all(deletePromises)
-    ElMessage.success(`成功删除 ${selectedRows.value.length} 个接口`)
+    const results = await Promise.allSettled(deletePromises)
+    const successCount = results.filter(r => r.status === 'fulfilled' && r.value.success).length
+    const failCount = results.length - successCount
+
+    if (successCount > 0) {
+      ElMessage.success(`成功删除 ${successCount} 个接口`)
+    }
+    if (failCount > 0) {
+      ElMessage.error(`${failCount} 个接口删除失败`)
+    }
+
     selectedRows.value = []
+    // 清空表格选中状态
+    if (tableRef.value) {
+      tableRef.value.clearSelection()
+    }
+    // 如果当前页没有数据了，回到第一页
+    const remainingOnPage = interfaceList.value.length - successCount
+    if (remainingOnPage <= 0 && currentPage.value > 1) {
+      currentPage.value = 1
+    }
     await loadRequests()
   } catch (error) {
     if (error !== 'cancel') {

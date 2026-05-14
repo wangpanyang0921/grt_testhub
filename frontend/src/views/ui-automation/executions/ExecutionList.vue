@@ -258,7 +258,7 @@ const loading = ref(false)
 const total = ref(0)
 const pagination = reactive({
   currentPage: 1,
-  pageSize: 20
+  pageSize: 10
 })
 
 // 搜索和筛选

@@ -6,7 +6,7 @@ from django.contrib.auth import get_user_model
 from django.shortcuts import get_object_or_404
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import filters
-from django.db import models
+from django.db import models, IntegrityError
 from django.utils import timezone
 from django.http import HttpResponse, FileResponse, Http404, HttpResponseNotFound
 from django.views.static import serve
@@ -120,6 +120,7 @@ class ApiCollectionViewSet(viewsets.ModelViewSet):
     queryset = ApiCollection.objects.all()
     serializer_class = ApiCollectionSerializer
     permission_classes = [IsAuthenticated]
+    pagination_class = StandardPagination
     filter_backends = [DjangoFilterBackend]
     filterset_fields = ['project', 'parent']
     
@@ -171,8 +172,8 @@ class ApiRequestViewSet(viewsets.ModelViewSet):
     pagination_class = StandardPagination
     
     def get_queryset(self):
-        # 返回所有接口，不进行权限过滤
-        queryset = ApiRequest.objects.all()
+        # 返回所有未删除的接口，不进行权限过滤
+        queryset = ApiRequest.objects.filter(is_deleted=False)
 
         project_id = self.request.query_params.get('project')
         if project_id:
@@ -209,6 +210,10 @@ class ApiRequestViewSet(viewsets.ModelViewSet):
 
     def perform_destroy(self, instance):
         """删除接口时记录日志"""
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.info(f"Deleting request {instance.id} - {instance.name}, current is_deleted: {instance.is_deleted}")
+        
         log_operation(
             operation_type='delete',
             resource_type='request',
@@ -217,6 +222,16 @@ class ApiRequestViewSet(viewsets.ModelViewSet):
             user=self.request.user
         )
         instance.delete()
+        
+        # 重新查询确认删除状态
+        from .models import ApiRequest
+        try:
+            updated = ApiRequest.all_objects.get(id=instance.id)
+            logger.info(f"After delete - request {instance.id} is_deleted: {updated.is_deleted}")
+        except ApiRequest.DoesNotExist:
+            logger.info(f"Request {instance.id} physically deleted")
+        except Exception as e:
+            logger.error(f"Error checking delete status: {e}")
     
     @action(detail=True, methods=['post'])
     def execute(self, request, pk=None):
@@ -655,6 +670,7 @@ class EnvironmentViewSet(viewsets.ModelViewSet):
     queryset = Environment.objects.all()
     serializer_class = EnvironmentSerializer
     permission_classes = [IsAuthenticated]
+    pagination_class = StandardPagination
     filter_backends = [DjangoFilterBackend]
     filterset_fields = ['scope', 'project', 'is_active']
     ordering = ['-created_at']
@@ -783,11 +799,17 @@ class TestSuiteViewSet(viewsets.ModelViewSet):
     queryset = TestSuite.objects.all()
     serializer_class = TestSuiteSerializer
     permission_classes = [IsAuthenticated]
+    pagination_class = StandardPagination
     filter_backends = [DjangoFilterBackend]
     filterset_fields = ['project']
 
     def get_queryset(self):
         queryset = TestSuite.objects.all()
+
+        # 排除自身（用于引用其他场景时）
+        exclude_self = self.request.query_params.get('exclude_self')
+        if exclude_self:
+            queryset = queryset.exclude(id=exclude_self)
 
         # 时间范围筛选
         created_after = self.request.query_params.get('created_after')
@@ -1566,33 +1588,272 @@ class TestSuiteViewSet(viewsets.ModelViewSet):
         test_suite = self.get_object()
         request_ids = request.data.get('request_ids', [])
 
+        added_count = 0
+        restored_count = 0
+        
+        print(f"DEBUG - 开始添加请求, request_ids: {request_ids}")
+        for request_id in request_ids:
+            print(f"DEBUG - 处理 request_id: {request_id}")
+            try:
+                api_request = ApiRequest.objects.get(id=request_id)
+                print(f"DEBUG - 找到 ApiRequest: {api_request.name}")
+                
+                # 检查是否已存在且被删除的请求，如果是则恢复
+                existing_request = TestSuiteRequest.all_objects.filter(
+                    test_suite=test_suite,
+                    request=api_request,
+                    is_deleted=True
+                ).first()
+                
+                print(f"DEBUG - existing_request (is_deleted=True): {existing_request}")
+                
+                if existing_request:
+                    # 恢复已删除的请求
+                    print(f"DEBUG - 恢复已删除的请求: {existing_request.id}")
+                    existing_request.is_deleted = False
+                    existing_request.deleted_at = None
+                    existing_request.order = TestSuiteRequest.objects.filter(test_suite=test_suite).count()
+                    existing_request.enabled = True
+                    existing_request.save(update_fields=['is_deleted', 'deleted_at', 'order', 'enabled'])
+                    restored_count += 1
+                    print(f"DEBUG - 恢复成功, restored_count: {restored_count}")
+                else:
+                    # 创建新请求（允许重复添加已存在的接口）
+                    print(f"DEBUG - 创建新请求")
+                    try:
+                        new_request = TestSuiteRequest.objects.create(
+                            test_suite=test_suite,
+                            request=api_request,
+                            order=TestSuiteRequest.objects.filter(test_suite=test_suite).count(),
+                            enabled=True,
+                            assertions=api_request.assertions or []
+                        )
+                        print(f"DEBUG - 创建新请求成功: id={new_request.id}, request_id={request_id}")
+                        added_count += 1
+                        print(f"DEBUG - added_count: {added_count}")
+                    except Exception as create_error:
+                        print(f"DEBUG - 创建新请求失败: request_id={request_id}, error={str(create_error)}")
+                        import traceback
+                        print(f"DEBUG - 错误堆栈: {traceback.format_exc()}")
+                        logger.error(f"创建请求 {request_id} 失败: {str(create_error)}")
+                        raise
+                    
+            except ApiRequest.DoesNotExist:
+                print(f"DEBUG - ApiRequest 不存在: request_id={request_id}")
+                continue
+            except Exception as e:
+                print(f"DEBUG - 添加请求 {request_id} 失败: {str(e)}")
+                import traceback
+                print(f"DEBUG - 错误堆栈: {traceback.format_exc()}")
+                logger.error(f"添加请求 {request_id} 失败: {str(e)}")
+                continue
+        
+        print(f"DEBUG - 添加请求完成, added_count: {added_count}, restored_count: {restored_count}")
+
+        # 更新套件的 updated_at 时间戳
+        test_suite.save(update_fields=['updated_at'])
+        
+        # 返回包含套件数据的响应，确保前端能获取最新数据
+        serializer = self.get_serializer(test_suite)
+        
+        message_parts = []
+        if added_count > 0:
+            message_parts.append(f'成功添加 {added_count} 个请求')
+        if restored_count > 0:
+            message_parts.append(f'恢复 {restored_count} 个已删除的请求')
+        
+        message = '，'.join(message_parts) if message_parts else '操作完成'
+
+        return Response({
+            'message': message,
+            'added_count': added_count,
+            'restored_count': restored_count,
+            'suite': serializer.data
+        })
+
+    @action(detail=True, methods=['post'], url_path='add-suites')
+    def add_suites(self, request, pk=None):
+        """添加其他场景作为分组到当前测试套件，支持选择特定步骤"""
+        test_suite = self.get_object()
+        
+        # 兼容旧版 API：suite_ids
+        suite_ids = request.data.get('suite_ids', [])
+        # 新版 API：suite_selections，支持选择特定步骤
+        suite_selections = request.data.get('suite_selections', [])
+        
+        # 如果没有新版参数，使用旧版参数转换
+        if not suite_selections and suite_ids:
+            suite_selections = [{'suite_id': sid, 'selected_steps': None} for sid in suite_ids]
+
         try:
             added_count = 0
             existing_count = 0
-            
-            for request_id in request_ids:
-                api_request = ApiRequest.objects.get(id=request_id)
-                suite_request, created = TestSuiteRequest.objects.get_or_create(
+            total_requests = 0
+
+            for selection in suite_selections:
+                suite_id = selection.get('suite_id')
+                selected_steps = selection.get('selected_steps')  # None 表示选择整个场景
+                
+                if not suite_id:
+                    continue
+                
+                # 获取要引用的场景
+                source_suite = TestSuite.objects.get(id=suite_id)
+
+                # 获取该场景下的请求
+                source_requests_query = TestSuiteRequest.objects.filter(
+                    test_suite=source_suite,
+                    enabled=True
+                ).select_related('request').order_by('order')
+                
+                # 如果选择了特定步骤，只获取这些步骤
+                if selected_steps:
+                    source_requests_query = source_requests_query.filter(id__in=selected_steps)
+
+                source_requests = list(source_requests_query)
+
+                if not source_requests:
+                    continue
+
+                # 计算当前基础order
+                base_order = TestSuiteRequest.objects.filter(test_suite=test_suite).count()
+
+                # 创建分组节点作为父节点
+                group_node = TestSuiteRequest.objects.create(
                     test_suite=test_suite,
-                    request=api_request,
-                    defaults={
-                        'order': TestSuiteRequest.objects.filter(test_suite=test_suite).count(),
-                        'enabled': True,
-                        'assertions': api_request.assertions or []
-                    }
+                    request=None,  # 分组节点没有关联的请求
+                    order=base_order,
+                    enabled=True,
+                    step_type='group',
+                    override_name=source_suite.name,  # 使用场景名称作为分组名称
+                    assertions=[],
+                    extracted_variables={}
                 )
-                if created:
-                    added_count += 1
-                else:
-                    existing_count += 1
+                added_count += 1
+
+                # 构建请求字典和父子关系映射
+                # 注意：需要从原场景获取完整的父子关系，而不仅仅是选中的步骤
+                children_map = {}  # parent_id -> [child_requests]
+                
+                # 获取原场景的所有请求以构建完整的children_map
+                all_source_requests = TestSuiteRequest.objects.filter(
+                    test_suite=source_suite,
+                    enabled=True
+                ).select_related('request')
+                
+                all_request_ids = set(all_source_requests.values_list('id', flat=True))
+                
+                for sr in all_source_requests:
+                    if sr.parent_id and sr.parent_id in all_request_ids:
+                        if sr.parent_id not in children_map:
+                            children_map[sr.parent_id] = []
+                        children_map[sr.parent_id].append(sr)
+
+                # 递归处理场景请求，构建树形结构
+                # id_mapping: 原场景中的请求ID -> 新创建的请求ID
+                id_mapping = {}
+
+                def process_suite_request(suite_request, parent_id, current_order):
+                    nonlocal added_count, existing_count, total_requests
+
+                    # 检查是否已处理过此请求
+                    if suite_request.id in id_mapping:
+                        return current_order
+
+                    api_request = suite_request.request
+
+                    # 如果是分组节点（没有关联request或者是group类型）
+                    if not api_request or suite_request.step_type == 'group':
+                        # 创建分组节点
+                        new_group = TestSuiteRequest.objects.create(
+                            test_suite=test_suite,
+                            request=None,
+                            order=current_order,
+                            enabled=True,
+                            step_type='group',
+                            override_name=suite_request.override_name or '分组',
+                            assertions=[],
+                            extracted_variables={},
+                            parent_id=parent_id
+                        )
+                        id_mapping[suite_request.id] = new_group.id
+                        added_count += 1
+                        current_order += 1
+
+                        # 处理子节点，使用新创建的分组作为父节点
+                        if suite_request.id in children_map:
+                            for child in children_map[suite_request.id]:
+                                current_order = process_suite_request(child, new_group.id, current_order)
+
+                        return current_order
+
+                    # 使用 get_or_create 避免重复创建
+                    new_request, created = TestSuiteRequest.objects.get_or_create(
+                        test_suite=test_suite,
+                        request=api_request,
+                        defaults={
+                            'order': current_order,
+                            'enabled': True,
+                            'step_type': 'request',
+                            'override_name': suite_request.override_name or api_request.name,
+                            'override_method': suite_request.override_method,
+                            'override_url': suite_request.override_url,
+                            'override_headers': suite_request.override_headers or {},
+                            'override_params': suite_request.override_params or {},
+                            'override_body': suite_request.override_body or {},
+                            'pre_script': suite_request.pre_script or '',
+                            'post_script': suite_request.post_script or '',
+                            'assertions': suite_request.assertions or [],
+                            'extracted_variables': suite_request.extracted_variables or {},
+                            'parent_id': parent_id
+                        }
+                    )
+
+                    id_mapping[suite_request.id] = new_request.id
+
+                    if created:
+                        added_count += 1
+                        total_requests += 1
+                        current_order += 1
+
+                        # 处理子节点
+                        if suite_request.id in children_map:
+                            for child in children_map[suite_request.id]:
+                                current_order = process_suite_request(child, new_request.id, current_order)
+                    else:
+                        existing_count += 1
+
+                    return current_order
+
+                # 处理选中的请求
+                current_order = base_order + 1
+                
+                # 如果选择了特定步骤，需要包含它们的父节点以确保层级结构正确
+                selected_step_ids = set(source_requests_query.values_list('id', flat=True))
+                
+                # 收集所有需要处理的请求（包括选中的和它们的祖先）
+                requests_to_process = list(source_requests)
+                
+                # 如果选择了特定步骤，找出所有顶层节点（在选中集合内且父节点不在选中集合内，或父节点为None）
+                if selected_steps:
+                    selected_ids_set = set(selected_steps)
+                    top_level_requests = []
+                    for sr in source_requests:
+                        # 节点在选中集合内，且（父节点为None 或 父节点不在选中集合内）
+                        if sr.id in selected_ids_set and (sr.parent_id is None or sr.parent_id not in selected_ids_set):
+                            top_level_requests.append(sr)
+                    requests_to_process = top_level_requests
+                
+                for suite_request in requests_to_process:
+                    current_order = process_suite_request(suite_request, group_node.id, current_order)
 
             # 更新套件的 updated_at 时间戳
             test_suite.save(update_fields=['updated_at'])
-            
-            # 返回包含套件数据的响应，确保前端能获取最新数据
+
+            # 返回包含套件数据的响应
             serializer = self.get_serializer(test_suite)
-            
-            message = f'成功添加 {added_count} 个请求'
+
+            message = f'成功添加场景，包含 {total_requests} 个请求'
             if existing_count > 0:
                 message += f'，{existing_count} 个请求已存在'
 
@@ -1603,6 +1864,8 @@ class TestSuiteViewSet(viewsets.ModelViewSet):
                 'suite': serializer.data
             })
 
+        except TestSuite.DoesNotExist:
+            return Response({'error': '场景不存在'}, status=status.HTTP_404_NOT_FOUND)
         except Exception as e:
             return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -1702,6 +1965,7 @@ class TestSuiteRequestViewSet(viewsets.ModelViewSet):
     queryset = TestSuiteRequest.objects.all()
     serializer_class = TestSuiteRequestSerializer
     permission_classes = [IsAuthenticated]
+    pagination_class = StandardPagination
     filter_backends = [DjangoFilterBackend]
     filterset_fields = ['test_suite', 'enabled']
     
@@ -1722,6 +1986,9 @@ class TestSuiteRequestViewSet(viewsets.ModelViewSet):
         return response
     
     def partial_update(self, request, *args, **kwargs):
+        # 调试日志
+        print(f"DEBUG - partial_update called with data: {request.data}")
+        
         # 处理 assertions 中的字符串 'null' 转换为真正的 None
         if 'assertions' in request.data:
             import copy
@@ -1742,6 +2009,7 @@ class TestSuiteRequestViewSet(viewsets.ModelViewSet):
         response = super().partial_update(request, *args, **kwargs)
         # 更新关联套件的 updated_at
         instance = self.get_object()
+        print(f"DEBUG - after update, instance order={instance.order}, parent_id={instance.parent_id}")
         self._update_suite_timestamp(instance.test_suite)
         return response
     
@@ -3620,6 +3888,7 @@ class UserViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = User.objects.all().order_by('username')
     serializer_class = UserSerializer
     permission_classes = [IsAuthenticated]
+    pagination_class = StandardPagination
     filter_backends = [filters.SearchFilter]
     search_fields = ['username', 'email', 'first_name', 'last_name']
 
@@ -3629,6 +3898,7 @@ class ScheduledTaskViewSet(viewsets.ModelViewSet):
     queryset = ScheduledTask.objects.all()
     serializer_class = ScheduledTaskSerializer
     permission_classes = [IsAuthenticated]
+    pagination_class = StandardPagination
     filter_backends = [filters.SearchFilter, filters.OrderingFilter]
     search_fields = ['name', 'description']
     ordering_fields = ['created_at', 'updated_at', 'last_run_time']
@@ -4507,6 +4777,7 @@ class TaskExecutionLogViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = TaskExecutionLog.objects.all()
     serializer_class = TaskExecutionLogSerializer
     permission_classes = [IsAuthenticated]
+    pagination_class = StandardPagination
     filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
     filterset_fields = ['task', 'status']
     ordering = ['-created_at']
@@ -4526,6 +4797,7 @@ class NotificationLogViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = NotificationLog.objects.all()
     serializer_class = NotificationLogSerializer
     permission_classes = [IsAuthenticated]
+    pagination_class = StandardPagination
     filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
     filterset_fields = ['status', 'notification_type']
     ordering = ['-created_at']
@@ -4547,6 +4819,7 @@ class TaskNotificationSettingViewSet(viewsets.ModelViewSet):
     queryset = TaskNotificationSetting.objects.all()
     serializer_class = TaskNotificationSettingSerializer
     permission_classes = [IsAuthenticated]
+    pagination_class = StandardPagination
     filter_backends = [DjangoFilterBackend]
     filterset_fields = ['task', 'is_enabled']
     ordering = ['-created_at']
@@ -4576,6 +4849,7 @@ class OperationLogViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = OperationLog.objects.all()
     serializer_class = OperationLogSerializer
     permission_classes = [IsAuthenticated]
+    pagination_class = StandardPagination
     filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
     filterset_fields = ['operation_type', 'resource_type', 'user']
     ordering = ['-created_at']
@@ -4846,6 +5120,7 @@ class AIServiceConfigViewSet(viewsets.ModelViewSet):
     queryset = AIServiceConfig.objects.all()
     serializer_class = AIServiceConfigSerializer
     permission_classes = [IsAuthenticated]
+    pagination_class = StandardPagination
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['service_type', 'role', 'is_active']
     search_fields = ['name', 'model_name']
