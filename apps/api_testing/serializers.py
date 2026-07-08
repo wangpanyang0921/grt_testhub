@@ -321,12 +321,33 @@ class TestSuiteSerializer(serializers.ModelSerializer):
     suite_requests = serializers.SerializerMethodField()
     environment = EnvironmentSerializer(read_only=True)
     scenario_id = serializers.SerializerMethodField()
+    mainline_test_case = serializers.SerializerMethodField()
+    mainline_case_updated = serializers.SerializerMethodField()
+
 
     def get_scenario_id(self, obj):
         """获取关联的自动化场景ID"""
         if hasattr(obj, 'scenario') and obj.scenario:
             return obj.scenario.id
         return None
+
+    def get_mainline_test_case(self, obj):
+        """获取关联的主线用例"""
+        if obj.mainline_test_case:
+            return {
+                'id': obj.mainline_test_case.id,
+                'title': obj.mainline_test_case.title,
+                'module': obj.mainline_test_case.module,
+                'priority': obj.mainline_test_case.priority,
+            }
+        return None
+
+    def get_mainline_case_updated(self, obj):
+        """判断关联主线用例是否有更新（自上次确认后）"""
+        if not obj.mainline_test_case or not obj.mainline_case_checked_at:
+            return False
+        from django.utils import timezone
+        return obj.mainline_test_case.updated_at > obj.mainline_case_checked_at
 
     def get_suite_requests(self, obj):
         """获取按order排序的套件请求列表（支持树形结构）"""
@@ -371,7 +392,8 @@ class TestSuiteSerializer(serializers.ModelSerializer):
         model = TestSuite
         fields = [
             'id', 'name', 'description', 'project', 'environment', 'environment_id',
-            'suite_requests', 'scenario_id', 'created_by', 'created_at', 'updated_at'
+            'suite_requests', 'scenario_id', 'mainline_test_case', 'mainline_case_updated',
+            'created_by', 'created_at', 'updated_at'
         ]
         read_only_fields = ['created_at', 'updated_at']
 
